@@ -1,35 +1,24 @@
 import { moveTool } from './moveTool'
 import { marqueeRectTool } from './marqueeRectTool'
+import { marqueeEllipseTool } from './marqueeEllipseTool'
+import { lassoTool } from './lassoTool'
+import { magicWandTool } from './magicWandTool'
+import { cropTool } from './cropTool'
 import { handTool } from './handTool'
+import { zoomTool } from './zoomTool'
+import { brushTool } from './brushTool'
+import { eraserTool } from './eraserTool'
 import { TOOL_IDS } from '@/constants'
 import type { Tool } from '@/types'
-import { Circle, Crop, ZoomIn } from 'lucide-react'
+import { Type } from 'lucide-react'
 
 // Placeholder tools (not implemented yet)
-const marqueeEllipseTool: Tool = {
-  id: TOOL_IDS.MARQUEE_ELLIPSE,
-  name: 'Elliptical Marquee Tool',
-  icon: Circle,
-  cursor: 'crosshair',
-  shortcut: 'M',
-  isImplemented: false,
-}
-
-const cropTool: Tool = {
-  id: TOOL_IDS.CROP,
-  name: 'Crop Tool',
-  icon: Crop,
-  cursor: 'crosshair',
-  shortcut: 'C',
-  isImplemented: false,
-}
-
-const zoomTool: Tool = {
-  id: TOOL_IDS.ZOOM,
-  name: 'Zoom Tool',
-  icon: ZoomIn,
-  cursor: 'zoom-in',
-  shortcut: 'Z',
+const textTool: Tool = {
+  id: TOOL_IDS.TEXT,
+  name: 'Type Tool',
+  icon: Type,
+  cursor: 'text',
+  shortcut: 'T',
   isImplemented: false,
 }
 
@@ -38,9 +27,14 @@ export const tools: Tool[] = [
   moveTool,
   marqueeRectTool,
   marqueeEllipseTool,
+  lassoTool,
+  magicWandTool,
   cropTool,
   handTool,
   zoomTool,
+  brushTool,
+  eraserTool,
+  textTool,
 ]
 
 // Export individual tools
@@ -48,7 +42,12 @@ export {
   moveTool,
   marqueeRectTool,
   marqueeEllipseTool,
+  lassoTool,
+  magicWandTool,
   cropTool,
   handTool,
   zoomTool,
+  brushTool,
+  eraserTool,
+  textTool,
 } 

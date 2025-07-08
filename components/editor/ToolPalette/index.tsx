@@ -46,7 +46,7 @@ export function ToolPalette() {
               <Icon 
                 className={cn(
                   "w-4 h-4",
-                  isActive ? "text-primary-foreground" : "text-muted-foreground"
+                  isActive ? "text-primary-foreground" : "text-foreground/70"
                 )} 
               />
               

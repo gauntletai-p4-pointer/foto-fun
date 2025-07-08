@@ -1,5 +1,248 @@
 # FotoFun MVP Implementation Plan
 
+## Project Overview
+FotoFun is a browser-based photo editing application built with Next.js 15, React 19, TypeScript, Tailwind CSS v4, Fabric.js for canvas manipulation, and PIXI.js for GPU-accelerated filters.
+
+## MVP vs Full Feature Parity Approach
+
+### Philosophy
+For the MVP, we're implementing **core functionality** of each tool rather than full Photoshop feature parity. This allows us to:
+1. Ship a working editor quickly
+2. Validate the architecture
+3. Get user feedback early
+4. Iterate based on real usage
+
+### Tool Implementation Levels
+
+**Level 1 - MVP (Current Target):**
+- Basic tool functionality
+- Essential options (size, opacity, color)
+- Keyboard shortcuts
+- Simple UI feedback
+
+**Level 2 - Enhanced (Future):**
+- Advanced options (flow, pressure, dynamics)
+- Tool presets
+- More sophisticated algorithms
+- Better performance optimization
+
+**Level 3 - Pro (Long-term):**
+- Full Photoshop feature parity
+- Custom brush engines
+- Advanced blending modes
+- GPU acceleration for all operations
+
+### Current Tool Status:
+- ✅ **Move Tool** - MVP complete
+- ✅ **Rectangle Marquee** - MVP complete (selection ops pending)
+- ✅ **Hand Tool** - MVP complete  
+- ✅ **Zoom Tool** - MVP complete
+- ✅ **Brush Tool** - MVP complete
+- ✅ **Eraser Tool** - MVP complete
+- 🚧 **Elliptical Marquee** - Not started
+- 🚧 **Lasso Tools** - Not started
+- 🚧 **Magic Wand** - Not started
+- 🚧 **Crop Tool** - Not started
+- 🚧 **Text Tool** - Not started
+- 🚧 **Shape Tools** - Not started
+- 🚧 **Clone Stamp** - Not started
+- 🚧 **Healing Tools** - Not started
+
+## Development Phases
+
+### Phase 0: Project Setup ✅ COMPLETE
+- Next.js 15 with App Router
+- TypeScript configuration  
+- Tailwind CSS v4 setup
+- Core dependencies (Fabric.js, PIXI.js, Zustand, Lucide)
+- Project structure
+- Type definitions
+- Constants
+
+### Phase 1: Core Canvas System ✅ COMPLETE
+- Canvas component with Fabric.js
+- Zoom/pan functionality
+- Canvas state management
+- Keyboard shortcuts
+- Basic UI shell
+
+### Phase 2: UI Framework ✅ COMPLETE
+- MenuBar with working menus
+- ToolPalette with all tools
+- Canvas area
+- Panels (Layers, Properties, AI Chat placeholders)
+- OptionsBar with dynamic tool options
+- StatusBar with document info
+- Theme system (light/dark mode)
+
+### Phase 3: File Operations ✅ COMPLETE
+- New document dialog
+- Open files (drag & drop)
+- Save functionality
+- Document state management
+- Recent documents tracking
+
+### Phase 4: Basic Tools (Part 1) ✅ COMPLETE
+- Tool system architecture
+- Move Tool (selection)
+  - MVP: Basic object selection and movement
+  - Future: Auto-select layers, show transform controls, align/distribute
+- Rectangle Marquee Tool
+  - MVP: Basic rectangle selection with Shift/Alt modifiers
+  - Future: Feather, anti-alias, selection operations (add/subtract/intersect)
+- Hand Tool (panning)
+  - MVP: Space+drag panning, dedicated tool
+  - Future: Flick panning, overscroll options
+- Zoom Tool
+  - MVP: Click to zoom, Alt+click to zoom out
+  - Future: Scrubby zoom, zoom rectangle, animated zoom
+- Brush Tool with color
+  - MVP: Size, opacity, color, basic smoothing
+  - Future: Pressure sensitivity, brush presets, dynamics, flow, angle, texture
+- Eraser Tool
+  - MVP: Basic erasing with size control
+  - Future: Eraser modes, background eraser, magic eraser
+- Tool options system
+
+### Phase 5: Basic Tools (Part 2) 🚧 IN PROGRESS
+**Week 5-6 Goals:**
+- [ ] Elliptical Marquee Tool
+  - MVP: Basic ellipse selection with modifiers
+  - Future: Fixed ratio, fixed size options
+- [ ] Lasso Tool (basic)
+  - MVP: Freehand selection
+  - Future: Polygonal lasso, magnetic lasso
+- [ ] Magic Wand Tool (basic selection)
+  - MVP: Color-based selection with tolerance
+  - Future: Contiguous/non-contiguous, sample all layers
+- [ ] Selection operations (add/subtract/intersect)
+  - MVP: Basic boolean operations
+  - Future: Smooth, expand/contract, feather after creation
+- [ ] Crop Tool
+  - MVP: Basic crop with aspect ratio
+  - Future: Perspective crop, content-aware crop, straighten
+- [ ] Type Tool (basic text)
+  - MVP: Add text, font selection, size, color
+  - Future: Character/paragraph panels, text on path, text effects
+
+### Phase 6: Layers System
+**Week 7-8 Goals:**
+- [ ] Layer management (create, delete, reorder)
+  - MVP: Basic layer stack, add/delete, drag to reorder
+  - Future: Layer groups, smart objects, layer comps
+- [ ] Layer panel UI
+  - MVP: List with thumbnails, visibility, names
+  - Future: Layer filtering, color coding, search
+- [ ] Layer properties (opacity, blend modes)
+  - MVP: Opacity, basic blend modes (normal, multiply, screen)
+  - Future: All 27+ Photoshop blend modes, fill vs opacity
+- [ ] Layer visibility toggle
+  - MVP: Eye icon toggle
+  - Future: Alt+click isolation, layer filtering
+- [ ] Background layer handling
+  - MVP: Convert background to regular layer
+  - Future: Background color options, pattern fills
+- [ ] Layer selection and active state
+  - MVP: Click to select, highlight active
+  - Future: Multi-select, layer linking
+
+### Phase 7: Advanced Tools
+**Week 9-10 Goals:**
+- [ ] Shape tools (Rectangle, Ellipse, Line)
+  - MVP: Basic shapes with fill/stroke
+  - Future: Custom shapes, shape layers, path operations
+- [ ] Clone Stamp Tool (basic)
+  - MVP: Basic cloning with size/hardness
+  - Future: Aligned/non-aligned, sample modes, overlay preview
+- [ ] Blur/Sharpen tools
+  - MVP: Basic blur and sharpen
+  - Future: Different blur algorithms, smart sharpen
+- [ ] Dodge/Burn tools
+  - MVP: Basic lighten/darken
+  - Future: Range (highlights/midtones/shadows), exposure control
+- [ ] Smudge tool
+  - MVP: Basic smudging
+  - Future: Finger painting mode, strength variations
+
+### Phase 8: Filters & Adjustments
+**Week 11-12 Goals:**
+- [ ] PIXI.js integration for GPU filters
+  - MVP: Basic WebGL pipeline setup
+  - Future: Custom shader system, filter stacking
+- [ ] Basic filters (Blur, Sharpen, Noise)
+  - MVP: Gaussian blur, basic sharpen, add noise
+  - Future: Motion blur, smart blur, lens blur, reduce noise
+- [ ] Adjustments (Brightness/Contrast, Hue/Saturation)
+  - MVP: Basic slider adjustments
+  - Future: Curves, levels, color balance, selective color
+- [ ] Filter preview system
+  - MVP: Before/after toggle
+  - Future: Split preview, preview zoom, GPU acceleration
+- [ ] Adjustment layers (basic)
+  - MVP: Non-destructive adjustments
+  - Future: Masks, clipping, adjustment presets
+
+### Phase 9: AI Integration (Deferred)
+- Depends on other agents' work
+- AI chat panel integration
+- AI-powered tools
+- Smart selection
+- Content-aware operations
+
+### Phase 10: Polish & Optimization
+- Performance optimization
+- Undo/redo system improvements
+- Keyboard shortcut customization
+- Settings/preferences
+- Export options (different formats)
+- Help system
+
+## Current Status (Updated)
+
+### Completed ✅
+1. Full project setup with all dependencies
+2. Complete UI shell with all panels
+3. Canvas with zoom/pan
+4. Theme system
+5. File operations (new, open, save)
+6. Tool system with 6 working tools
+7. Tool options framework
+8. Color picker with history
+
+### In Progress 🚧
+- Additional selection tools
+- Selection operations
+- Basic filters
+
+### Upcoming 📋
+- Layers system
+- More drawing tools
+- Filters and adjustments
+- AI integration (pending other agents)
+
+## MVP Definition (Revised)
+
+### Must Have (for MVP)
+- ✅ Canvas with zoom/pan
+- ✅ File operations (new, open, save)
+- ✅ At least 5 working tools
+- ✅ Tool options system
+- 🚧 Basic layers support
+- 🚧 Basic selection tools
+- 🚧 At least 3 filters/adjustments
+- ✅ Undo/redo
+- ✅ Theme support
+
+### Nice to Have (post-MVP)
+- Advanced selection operations
+- Full layer blend modes
+- Complex filters
+- AI features
+- Cloud storage
+- Collaboration features
+- Plugin system
+- Performance optimizations
+
 ## Overview
 This document provides a detailed implementation roadmap for the FotoFun MVP, breaking down the work into manageable phases with specific tasks, dependencies, and technical considerations.
 
@@ -117,10 +360,6 @@ This document provides a detailed implementation roadmap for the FotoFun MVP, br
 
 ### 3.4 Drawing Tools 🔴 NOT STARTED
 - [ ] Brush Tool
-  - [ ] Size control
-  - [ ] Hardness control
-  - [ ] Opacity control
-  - [ ] Blend modes
 - [ ] Pencil Tool
 - [ ] Eraser Tool
 - [ ] Paint Bucket Tool
@@ -412,3 +651,37 @@ interface Property {
 - [ ] < 3s initial load time
 - [ ] < 100ms tool switching
 - [ ] Works on 4K images 
+
+## Risk Mitigation
+- Regular testing and bug fixes throughout development
+- Performance monitoring and optimization as needed
+- Fallback options for complex features
+- Clear MVP scope to avoid feature creep
+- Modular architecture for easy updates
+
+## MVP Approach Summary
+
+### Core Philosophy
+The MVP focuses on delivering a **functional photo editor** with essential tools that work reliably, rather than attempting full Photoshop feature parity. Each tool includes:
+
+1. **Core functionality** that users expect
+2. **Essential options** for basic control
+3. **Intuitive UI** that matches the Photoshop layout
+4. **Keyboard shortcuts** for efficiency
+
+### What Makes It "Minimum Viable"
+- **Tools work** but with simplified feature sets
+- **UI is complete** but some panels are placeholders
+- **File operations** support common formats
+- **Performance is good** for typical photo sizes
+- **Architecture supports** future enhancements
+
+### Post-MVP Roadmap
+After MVP launch, we can enhance based on user feedback:
+1. **Tool enhancements** - Add advanced options to existing tools
+2. **New tools** - Implement remaining Photoshop tools
+3. **Advanced features** - Masks, channels, paths, actions
+4. **Performance** - GPU acceleration, web workers
+5. **Integration** - Cloud storage, plugins, AI features
+
+This approach allows us to **ship quickly**, **learn from users**, and **iterate based on real needs** rather than assumptions. 

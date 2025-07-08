@@ -39,6 +39,7 @@ export const TOOL_IDS = {
   MARQUEE_RECT: 'marquee-rect',
   MARQUEE_ELLIPSE: 'marquee-ellipse',
   LASSO: 'lasso',
+  MAGIC_WAND: 'magic-wand',
   CROP: 'crop',
   HAND: 'hand',
   ZOOM: 'zoom',

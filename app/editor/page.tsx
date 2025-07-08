@@ -1,26 +1,46 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { MenuBar } from '@/components/editor/MenuBar'
 import { ToolPalette } from '@/components/editor/ToolPalette'
 import { Canvas } from '@/components/editor/Canvas'
 import { Panels } from '@/components/editor/Panels'
 import { OptionsBar } from '@/components/editor/OptionsBar'
 import { StatusBar } from '@/components/editor/StatusBar'
+import { NewDocumentDialog } from '@/components/dialogs/NewDocumentDialog'
 import { useDocumentStore } from '@/store/documentStore'
 import { useToolStore } from '@/store/toolStore'
+import { createClient } from '@/lib/db/supabase/client'
 
 export default function EditorPage() {
   const { saveDocument, currentDocument, createNewDocument } = useDocumentStore()
+  const router = useRouter()
+  const [showNewDocumentDialog, setShowNewDocumentDialog] = useState(false)
   
-  // Create default document on mount
+  useEffect(() => {
+    // Check authentication on mount
+    const checkAuth = async () => {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      
+      if (!user) {
+        // Redirect to home page if not authenticated
+        router.push('/')
+      }
+    }
+    
+    checkAuth()
+  }, [router])
+  
+  // Create default document on mount if none exists
   useEffect(() => {
     if (!currentDocument) {
       createNewDocument('default')
     }
   }, [currentDocument, createNewDocument])
   
-  // Global keyboard shortcuts
+  // Handle keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Check if input is focused
@@ -36,6 +56,13 @@ export default function EditorPage() {
         if (currentDocument) {
           saveDocument()
         }
+        return
+      }
+      
+      // New document (Cmd/Ctrl + N)
+      if (isMeta && e.key === 'n') {
+        e.preventDefault()
+        setShowNewDocumentDialog(true)
         return
       }
       
@@ -60,7 +87,7 @@ export default function EditorPage() {
   }, [saveDocument, currentDocument])
   
   return (
-    <>
+    <div className="h-screen flex flex-col bg-[#1e1e1e] text-gray-200 overflow-hidden">
       <MenuBar />
       <OptionsBar />
       <div className="flex-1 flex overflow-hidden">
@@ -69,6 +96,10 @@ export default function EditorPage() {
         <Panels />
       </div>
       <StatusBar />
-    </>
+      <NewDocumentDialog 
+        open={showNewDocumentDialog}
+        onOpenChange={setShowNewDocumentDialog}
+      />
+    </div>
   )
 } 

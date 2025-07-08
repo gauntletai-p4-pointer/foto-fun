@@ -35,7 +35,7 @@
   --primary: #3B82F6;
   --primary-foreground: #FFFFFF;
 
-  --secondary: #F5F5F4;
+  --secondary: #E5E7EB;
   --secondary-foreground: #1A1A1A;
 
   --muted: #F5F5F4;
@@ -138,7 +138,7 @@
   --primary: #3B82F6;
   --primary-foreground: #FFFFFF;
 
-  --secondary: #262626;
+  --secondary: #374151;
   --secondary-foreground: #FAFAFA;
 
   --muted: #262626;
@@ -305,6 +305,21 @@
   .gradient-subtle {
     @apply bg-gradient-to-b from-background to-muted/50;
   }
+}
+
+/* === CUSTOM ANIMATIONS === */
+@keyframes gradient {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+.animate-gradient {
+  background-size: 200% 200%;
+  animation: gradient 3s ease infinite;
 }
 
 

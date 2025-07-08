@@ -1,13 +1,15 @@
 import { Square } from 'lucide-react'
 import { TOOL_IDS } from '@/constants'
 import type { Tool, ToolEvent } from '@/types'
-import type { Canvas, FabricObject } from 'fabric'
+import type { Canvas, TPointerEvent } from 'fabric'
 import { Rect } from 'fabric'
+import { selectionStyle, startMarchingAnts, stopMarchingAnts, type SelectionShape } from './utils/selectionRenderer'
+import { useSelectionStore } from '@/store/selectionStore'
 
 let isDrawing = false
 let startX = 0
 let startY = 0
-let selectionRect: Rect | null = null
+let currentRect: Rect | null = null
 
 export const marqueeRectTool: Tool = {
   id: TOOL_IDS.MARQUEE_RECT,
@@ -17,132 +19,109 @@ export const marqueeRectTool: Tool = {
   shortcut: 'M',
   isImplemented: true,
   
-  onActivate: (canvas: Canvas) => {
-    // Disable object selection
-    canvas.selection = false
-    canvas.defaultCursor = 'crosshair'
-    canvas.hoverCursor = 'crosshair'
-    
-    // Make all objects non-selectable during marquee
-    canvas.forEachObject((obj) => {
-      obj.selectable = false
-      obj.evented = false
-    })
-    
-    canvas.renderAll()
-  },
-  
-  onDeactivate: (canvas: Canvas) => {
-    // Clean up any active selection rectangle
-    if (selectionRect) {
-      canvas.remove(selectionRect)
-      selectionRect = null
-    }
-    
-    isDrawing = false
-    canvas.renderAll()
-  },
-  
-  onMouseDown: (e: ToolEvent) => {
-    const canvas = e.target
-    if (!canvas) return
+  onMouseDown: (event: ToolEvent) => {
+    const canvas = event.target as Canvas
+    const pointer = canvas.getPointer(event.e as TPointerEvent)
     
     isDrawing = true
-    const pointer = canvas.getPointer(e.e)
     startX = pointer.x
     startY = pointer.y
     
-    // Remove previous selection rectangle if exists
-    if (selectionRect) {
-      canvas.remove(selectionRect)
-    }
-    
-    // Create new selection rectangle
-    selectionRect = new Rect({
+    // Create initial rectangle
+    currentRect = new Rect({
       left: startX,
       top: startY,
       width: 0,
       height: 0,
-      fill: 'rgba(0, 120, 215, 0.1)',
-      stroke: 'rgba(0, 120, 215, 0.8)',
-      strokeWidth: 1,
-      strokeDashArray: [5, 5],
-      selectable: false,
-      evented: false,
-      excludeFromExport: true
+      ...selectionStyle
     })
     
-    canvas.add(selectionRect)
+    canvas.add(currentRect)
     canvas.renderAll()
   },
   
-  onMouseMove: (e: ToolEvent) => {
-    if (!isDrawing || !selectionRect) return
+  onMouseMove: (event: ToolEvent) => {
+    if (!isDrawing || !currentRect) return
     
-    const canvas = e.target
-    const pointer = canvas.getPointer(e.e)
+    const canvas = event.target as Canvas
+    const pointer = canvas.getPointer(event.e as TPointerEvent)
+    const e = event.e as TPointerEvent
     
-    const width = pointer.x - startX
-    const height = pointer.y - startY
+    let width = pointer.x - startX
+    let height = pointer.y - startY
     
-    selectionRect.set({
-      left: width < 0 ? pointer.x : startX,
-      top: height < 0 ? pointer.y : startY,
-      width: Math.abs(width),
-      height: Math.abs(height)
-    })
+    // Check for shift key (constrain to square)
+    if (e.shiftKey) {
+      const size = Math.max(Math.abs(width), Math.abs(height))
+      width = width < 0 ? -size : size
+      height = height < 0 ? -size : size
+    }
     
-    canvas.renderAll()
-  },
-  
-  onMouseUp: (e: ToolEvent) => {
-    if (!isDrawing || !selectionRect) return
-    
-    isDrawing = false
-    const canvas = e.target
-    
-    // Get the bounds of the selection rectangle
-    const selectionBounds = selectionRect.getBoundingRect()
-    
-    // Find objects within the selection
-    const selectedObjects: FabricObject[] = []
-    canvas.forEachObject((obj: FabricObject) => {
-      if (obj === selectionRect) return
-      
-      const objBounds = obj.getBoundingRect()
-      
-      // Check if object is within selection bounds
-      if (objBounds.left >= selectionBounds.left &&
-          objBounds.top >= selectionBounds.top &&
-          objBounds.left + objBounds.width <= selectionBounds.left + selectionBounds.width &&
-          objBounds.top + objBounds.height <= selectionBounds.top + selectionBounds.height) {
-        selectedObjects.push(obj)
-      }
-    })
-    
-    // Remove the selection rectangle
-    canvas.remove(selectionRect)
-    selectionRect = null
-    
-    // If objects were selected, switch to move tool and select them
-    if (selectedObjects.length > 0) {
-      // Import and use tool store
-      const toolStore = useToolStore.getState()
-      toolStore.setActiveTool(TOOL_IDS.MOVE)
-      
-      // Select the objects
-      if (selectedObjects.length === 1) {
-        canvas.setActiveObject(selectedObjects[0])
-      } else {
-        const selection = new ActiveSelection(selectedObjects, { canvas })
-        canvas.setActiveObject(selection)
-      }
+    // Check for alt/option key (draw from center)
+    if (e.altKey) {
+      currentRect.set({
+        left: startX - Math.abs(width),
+        top: startY - Math.abs(height),
+        width: Math.abs(width) * 2,
+        height: Math.abs(height) * 2,
+      })
+    } else {
+      currentRect.set({
+        left: width < 0 ? pointer.x : startX,
+        top: height < 0 ? pointer.y : startY,
+        width: Math.abs(width),
+        height: Math.abs(height),
+      })
     }
     
     canvas.renderAll()
+  },
+  
+  onMouseUp: (event: ToolEvent) => {
+    const canvas = event.target as Canvas
+    isDrawing = false
+    
+    if (currentRect) {
+      // Only keep the selection if it has a minimum size
+      const minSize = 2
+      if ((currentRect.width ?? 0) < minSize || (currentRect.height ?? 0) < minSize) {
+        canvas.remove(currentRect)
+      } else {
+        // Start marching ants animation
+        startMarchingAnts(currentRect as SelectionShape, canvas)
+        
+        // Apply selection based on current mode
+        const selectionStore = useSelectionStore.getState()
+        selectionStore.applySelection(canvas, currentRect)
+      }
+      
+      currentRect = null
+    }
+    
+    canvas.renderAll()
+  },
+  
+  onActivate: (canvas: Canvas) => {
+    canvas.defaultCursor = 'crosshair'
+    canvas.hoverCursor = 'crosshair'
+    canvas.selection = false
+  },
+  
+  onDeactivate: (canvas: Canvas) => {
+    // Clean up any existing selections
+    const objects = canvas.getObjects()
+    objects.forEach(obj => {
+      if (obj instanceof Rect && !obj.selectable) {
+        stopMarchingAnts(obj as SelectionShape)
+        canvas.remove(obj)
+      }
+    })
+    
+    canvas.defaultCursor = 'default'
+    canvas.hoverCursor = 'move'
+    canvas.selection = true
+    isDrawing = false
+    currentRect = null
+    canvas.renderAll()
   }
-}
-
-// Import at the end to avoid circular dependencies
-import { useToolStore } from '@/store/toolStore'
-import { ActiveSelection } from 'fabric' 
+} 

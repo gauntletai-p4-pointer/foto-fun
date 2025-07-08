@@ -18,7 +18,7 @@ export function OptionCheckbox({ option, onChange }: OptionCheckboxProps) {
       />
       <label
         htmlFor={option.id}
-        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+        className="text-sm font-medium leading-none text-foreground peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
       >
         {option.label}
       </label>
