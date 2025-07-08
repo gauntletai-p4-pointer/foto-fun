@@ -2,43 +2,41 @@ import { z } from 'zod'
 import { BaseToolAdapter } from '../base'
 import { cropTool } from '@/lib/tools/cropTool'
 import { Rect, type FabricObject } from 'fabric'
-import { CropParameterResolver } from '../resolvers/crop'
 
-// Input/Output schemas
-const CropInputSchema = z.object({
-  x: z.number().min(0).describe('X coordinate of crop area'),
-  y: z.number().min(0).describe('Y coordinate of crop area'),
-  width: z.number().min(1).describe('Width of crop area'),
-  height: z.number().min(1).describe('Height of crop area')
+// Input schema following AI SDK v5 patterns
+const cropParameters = z.object({
+  x: z.number().min(0).describe('X coordinate of crop area in pixels'),
+  y: z.number().min(0).describe('Y coordinate of crop area in pixels'),
+  width: z.number().min(1).describe('Width of crop area in pixels (must be at least 1)'),
+  height: z.number().min(1).describe('Height of crop area in pixels (must be at least 1)')
 })
 
-const CropOutputSchema = z.object({
-  success: z.boolean(),
-  newDimensions: z.object({
-    width: z.number(),
-    height: z.number()
-  }),
-  scale: z.number().optional()
-})
+type CropInput = z.infer<typeof cropParameters>
 
-type CropInput = z.infer<typeof CropInputSchema>
-type CropOutput = z.infer<typeof CropOutputSchema>
+// Output type
+interface CropOutput {
+  success: boolean
+  newDimensions: {
+    width: number
+    height: number
+  }
+  scale?: number
+}
 
 /**
  * Adapter for the crop tool to make it AI-compatible
+ * Following AI SDK v5 patterns
  */
 export class CropToolAdapter extends BaseToolAdapter<CropInput, CropOutput> {
   tool = cropTool
   aiName = 'cropImage'
-  aiDescription = 'Crop the image. You can specify exact coordinates or use natural language like "crop 10% from edges", "crop to 16:9", "crop the left half".'
+  description = 'Crop the image to specified pixel coordinates. Parameters must be in pixels (integers), not fractions or percentages. For example, to crop the left half of a 1000x800 image, use width:500, not width:0.5. The x,y coordinates specify the top-left corner of the crop area.'
   
-  inputSchema = CropInputSchema
-  outputSchema = CropOutputSchema
+  parameters = cropParameters
   
-  // Add parameter resolver for natural language support
-  parameterResolver = new CropParameterResolver()
-  
-  async execute(params: CropInput, canvas: NonNullable<import('../../tools/base').ToolExecutionContext['canvas']>): Promise<CropOutput> {
+  async execute(params: CropInput, context: { canvas: import('fabric').Canvas }): Promise<CropOutput> {
+    const canvas = context.canvas
+    
     // Get all objects on canvas
     const objects = canvas.getObjects()
     
@@ -110,7 +108,7 @@ export class CropToolAdapter extends BaseToolAdapter<CropInput, CropOutput> {
     }
   }
   
-  canExecute(canvas: NonNullable<import('../../tools/base').ToolExecutionContext['canvas']>): boolean {
+  canExecute(canvas: import('fabric').Canvas): boolean {
     // Can only crop if there are objects on the canvas
     const hasObjects = canvas.getObjects().length > 0
     if (!hasObjects) {
@@ -119,7 +117,7 @@ export class CropToolAdapter extends BaseToolAdapter<CropInput, CropOutput> {
     return hasObjects
   }
   
-  async generatePreview(params: CropInput, canvas: NonNullable<import('../../tools/base').ToolExecutionContext['canvas']>): Promise<{ before: string; after: string }> {
+  async generatePreview(params: CropInput, canvas: import('fabric').Canvas): Promise<{ before: string; after: string }> {
     // Save current state
     const before = canvas.toDataURL()
     

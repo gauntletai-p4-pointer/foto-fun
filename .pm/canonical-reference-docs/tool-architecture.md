@@ -1,7 +1,7 @@
 # FotoFun Tool Architecture - Canonical Reference
 
-**Last Updated**: Epic 1 - Phase 0 Complete
-**Status**: Foundation established, tools pending migration
+**Last Updated**: Epic 5 - AI Tool Integration Complete
+**Status**: Foundation established, AI integration patterns defined
 
 ## Overview
 
@@ -127,67 +127,250 @@ interface Command {
 }
 ```
 
+## AI Tool Integration (Epic 5)
+
+### Overview
+
+We use AI SDK v5 to enable AI control of canvas tools. The system follows a clean adapter pattern that maintains DRY principles - the same tools work for both UI and AI.
+
+### Architecture
+
+```
+Canvas Tools (UI) → Tool Adapters → AI SDK v5 Tools → AI Chat
+```
+
+### AI Tool Adapter Pattern
+
+#### BaseToolAdapter (`lib/ai/adapters/base.ts`)
+
+The base class for all AI tool adapters:
+
+```typescript
+export abstract class BaseToolAdapter<TInput = unknown, TOutput = unknown> {
+  abstract tool: Tool                           // Reference to canvas tool
+  abstract aiName: string                       // Name AI will use
+  abstract description: string                  // Clear description for AI
+  abstract parameters: z.ZodType<TInput>        // Zod schema for validation
+  
+  abstract execute(
+    params: TInput, 
+    context: { canvas: Canvas }
+  ): Promise<TOutput>
+  
+  // Optional methods
+  canExecute?(canvas: Canvas): boolean
+  generatePreview?(
+    params: TInput, 
+    canvas: Canvas
+  ): Promise<{ before: string; after: string }>
+  
+  // Converts to AI SDK v5 tool
+  toAITool() {
+    return tool({
+      description: this.description,
+      parameters: this.parameters,
+      execute: async (params) => {
+        // Bridge to canvas context
+        const context = CanvasToolBridge.getCanvasContext()
+        if (!context?.canvas) throw new Error('Canvas not available')
+        
+        // Check if executable
+        if (this.canExecute && !this.canExecute(context.canvas)) {
+          throw new Error('Tool cannot be executed in current state')
+        }
+        
+        // Execute with canvas context
+        return this.execute(params, { canvas: context.canvas })
+      }
+    })
+  }
+}
+```
+
+### Creating AI-Compatible Tools
+
+#### Step 1: Determine AI Compatibility
+
+**AI-Compatible Tools** (parameter-based):
+- ✅ Crop, Resize, Rotate - Take discrete parameters
+- ✅ Brightness, Contrast, Filters - Adjustment values
+- ✅ Color adjustments - HSL/RGB values
+
+**Non-AI-Compatible Tools** (require mouse interaction):
+- ❌ Selection tools - Need mouse path
+- ❌ Drawing tools - Need freehand input
+- ❌ Navigation tools - Interactive only
+
+#### Step 2: Create Tool Adapter
+
+Create adapter in `lib/ai/adapters/tools/[toolname].ts`:
+
+```typescript
+import { z } from 'zod'
+import { BaseToolAdapter } from '../base'
+import { myTool } from '@/lib/tools/myTool'
+
+// Define clear parameter schema
+const myToolParameters = z.object({
+  value: z.number()
+    .min(0)
+    .max(100)
+    .describe('Adjustment value from 0-100'),
+  // Be explicit about units (pixels, percentages, etc)
+  width: z.number()
+    .min(1)
+    .describe('Width in pixels (not fraction)')
+})
+
+type MyToolInput = z.infer<typeof myToolParameters>
+
+export class MyToolAdapter extends BaseToolAdapter<MyToolInput, MyToolOutput> {
+  tool = myTool
+  aiName = 'myAITool'
+  
+  // Clear, specific description
+  description = 'Adjust the image brightness. Value must be 0-100 where 50 is neutral.'
+  
+  parameters = myToolParameters
+  
+  async execute(params: MyToolInput, context: { canvas: Canvas }): Promise<MyToolOutput> {
+    // Implementation that mirrors the UI tool behavior
+    // Access canvas through context.canvas
+    return { success: true, /* ... */ }
+  }
+  
+  // Optional: Validation
+  canExecute(canvas: Canvas): boolean {
+    return canvas.getObjects().length > 0
+  }
+  
+  // Optional: Preview generation
+  async generatePreview(params: MyToolInput, canvas: Canvas) {
+    const before = canvas.toDataURL()
+    // Apply changes temporarily
+    const after = canvas.toDataURL()
+    return { before, after }
+  }
+}
+```
+
+#### Step 3: Register Adapter
+
+In `lib/ai/adapters/registry.ts`:
+
+```typescript
+export async function autoDiscoverAdapters(): Promise<void> {
+  // Add your adapter import
+  const { MyToolAdapter } = await import('./tools/myTool')
+  adapterRegistry.register(new MyToolAdapter())
+}
+```
+
+### Best Practices
+
+1. **Clear Parameter Descriptions**
+   - Always specify units (pixels, percentages, degrees)
+   - Use explicit min/max constraints
+   - Provide examples in descriptions
+
+2. **Error Handling**
+   - Check canvas state in `canExecute`
+   - Provide clear error messages
+   - Validate bounds and constraints
+
+3. **Type Safety**
+   - Use Zod inference for types
+   - Avoid `any` types
+   - Let TypeScript catch errors
+
+4. **Consistency**
+   - Follow naming conventions
+   - Mirror UI tool behavior exactly
+   - Use same validation rules
+
+### Canvas Bridge (`lib/ai/tools/canvas-bridge.ts`)
+
+Provides canvas context for AI tools:
+
+```typescript
+interface CanvasContext {
+  canvas: Canvas
+  imageData?: ImageData
+  selection?: FabricObject[]
+  dimensions: { width: number; height: number }
+  metadata?: { zoom?: number; documentName?: string }
+}
+```
+
+### System Integration
+
+The API route (`app/api/ai/chat/route.ts`) automatically:
+1. Discovers all registered adapters
+2. Converts them to AI SDK v5 tools
+3. Provides them to the AI model
+4. Includes descriptions in system prompt
+
 ## Tool Inventory
 
 ### Implemented Tools (Old Architecture)
 
-| Tool | File | Status | Base Class | Notes |
-|------|------|--------|------------|-------|
-| Move Tool | `moveTool.ts` | ✅ Working | None (module) | Needs migration |
-| Rectangular Marquee | `marqueeRectTool.ts` | ✅ Working | None (module) | Should extend SelectionTool |
-| Elliptical Marquee | `marqueeEllipseTool.ts` | ✅ Working | None (module) | Should extend SelectionTool |
-| Lasso Tool | `lassoTool.ts` | ✅ Working | None (module) | Should extend SelectionTool |
-| Magic Wand | `magicWandTool.ts` | ✅ Working | None (module) | Should extend SelectionTool |
-| Crop Tool | `cropTool.ts` | ✅ Working | None (module) | Needs migration |
-| Hand Tool | `handTool.ts` | ✅ Working | None (module) | Needs migration |
-| Zoom Tool | `zoomTool.ts` | ✅ Working | None (module) | Needs migration |
-| Brush Tool | `brushTool.ts` | ✅ Working | None (module) | Should extend DrawingTool |
-| Eraser Tool | `eraserTool.ts` | ✅ Working | None (module) | Should extend DrawingTool |
+| Tool | File | Status | Base Class | AI Ready |
+|------|------|--------|------------|----------|
+| Move Tool | `moveTool.ts` | ✅ Working | None (module) | ❌ Interactive |
+| Rectangular Marquee | `marqueeRectTool.ts` | ✅ Working | None (module) | ❌ Interactive |
+| Elliptical Marquee | `marqueeEllipseTool.ts` | ✅ Working | None (module) | ❌ Interactive |
+| Lasso Tool | `lassoTool.ts` | ✅ Working | None (module) | ❌ Interactive |
+| Magic Wand | `magicWandTool.ts` | ✅ Working | None (module) | ❌ Interactive |
+| Crop Tool | `cropTool.ts` | ✅ Working | None (module) | ✅ Has Adapter |
+| Hand Tool | `handTool.ts` | ✅ Working | None (module) | ❌ Interactive |
+| Zoom Tool | `zoomTool.ts` | ✅ Working | None (module) | ❌ Interactive |
+| Brush Tool | `brushTool.ts` | ✅ Working | None (module) | ❌ Interactive |
+| Eraser Tool | `eraserTool.ts` | ✅ Working | None (module) | ❌ Interactive |
 
 ### Planned Tools (Epic 1)
 
-| Tool | Planned Base Class | Status |
-|------|-------------------|--------|
-| Quick Selection | SelectionTool | 📋 TODO |
-| Eyedropper | BaseTool | 📋 TODO |
+| Tool | Planned Base Class | Status | AI Compatible |
+|------|-------------------|--------|---------------|
+| Quick Selection | SelectionTool | 📋 TODO | ❌ Interactive |
+| Eyedropper | BaseTool | 📋 TODO | ✅ Parameter-based |
 
 ### Future Tools (Epics 2-4)
 
 #### Epic 2 - Text Tools
-- Type Tool → BaseTool
-- Type Mask Tool → SelectionTool
-- Vertical Type Tool → BaseTool
-- Vertical Type Mask Tool → SelectionTool
+- Type Tool → BaseTool (✅ AI: text content, position)
+- Type Mask Tool → SelectionTool (❌ Interactive)
+- Vertical Type Tool → BaseTool (✅ AI: text content, position)
+- Vertical Type Mask Tool → SelectionTool (❌ Interactive)
 
 #### Epic 3 - Shape/Vector Tools
-- Rectangle Tool → BaseShapeTool (extends BaseTool)
-- Rounded Rectangle Tool → BaseShapeTool
-- Ellipse Tool → BaseShapeTool
-- Polygon Tool → BaseShapeTool
-- Line Tool → BaseShapeTool
-- Custom Shape Tool → BaseShapeTool
-- Pen Tool → BaseVectorTool (extends BaseTool)
-- Freeform Pen Tool → BaseVectorTool
-- Curvature Pen Tool → BaseVectorTool
-- Path Selection Tool → BaseTool
-- Direct Selection Tool → BaseTool
+- Rectangle Tool → BaseShapeTool (✅ AI: dimensions, position)
+- Rounded Rectangle Tool → BaseShapeTool (✅ AI: dimensions, radius)
+- Ellipse Tool → BaseShapeTool (✅ AI: dimensions, position)
+- Polygon Tool → BaseShapeTool (✅ AI: sides, size)
+- Line Tool → BaseShapeTool (✅ AI: start/end points)
+- Custom Shape Tool → BaseShapeTool (✅ AI: shape selection)
+- Pen Tool → BaseVectorTool (❌ Interactive path creation)
+- Freeform Pen Tool → BaseVectorTool (❌ Interactive)
+- Curvature Pen Tool → BaseVectorTool (❌ Interactive)
+- Path Selection Tool → BaseTool (❌ Interactive)
+- Direct Selection Tool → BaseTool (❌ Interactive)
 
 #### Epic 4 - Paint/Clone Tools
-- Clone Stamp Tool → BaseCloneTool (extends BaseTool)
-- Pattern Stamp Tool → BaseCloneTool
-- Healing Brush Tool → BaseCloneTool
-- Spot Healing Brush Tool → BaseCloneTool
-- Patch Tool → BaseTool
-- Content-Aware Move Tool → BaseTool
-- Red Eye Tool → BaseTool
-- Gradient Tool → BaseTool
-- Paint Bucket Tool → BaseTool
-- Blur Tool → BaseEffectTool (extends DrawingTool)
-- Sharpen Tool → BaseEffectTool
-- Smudge Tool → BaseEffectTool
-- Dodge Tool → BaseEffectTool
-- Burn Tool → BaseEffectTool
-- Sponge Tool → BaseEffectTool
+- Clone Stamp Tool → BaseCloneTool (✅ AI: source/target points)
+- Pattern Stamp Tool → BaseCloneTool (✅ AI: pattern, position)
+- Healing Brush Tool → BaseCloneTool (✅ AI: area to heal)
+- Spot Healing Brush Tool → BaseCloneTool (✅ AI: spots to heal)
+- Patch Tool → BaseTool (✅ AI: source/target areas)
+- Content-Aware Move Tool → BaseTool (✅ AI: object, new position)
+- Red Eye Tool → BaseTool (✅ AI: eye detection)
+- Gradient Tool → BaseTool (✅ AI: type, colors, angle)
+- Paint Bucket Tool → BaseTool (✅ AI: color, tolerance)
+- Blur Tool → BaseEffectTool (✅ AI: strength, area)
+- Sharpen Tool → BaseEffectTool (✅ AI: strength, area)
+- Smudge Tool → BaseEffectTool (❌ Interactive)
+- Dodge Tool → BaseEffectTool (✅ AI: exposure, area)
+- Burn Tool → BaseEffectTool (✅ AI: exposure, area)
+- Sponge Tool → BaseEffectTool (✅ AI: mode, flow, area)
 
 ## Migration Status
 
@@ -205,12 +388,21 @@ interface Command {
 - [ ] Canvas commands (Add, Remove, Transform, Modify)
 - [ ] Edit menu integration
 
+### Epic 5 ✅ AI Integration Complete
+- [x] AI SDK v5 integration
+- [x] Tool adapter pattern
+- [x] Canvas bridge implementation
+- [x] Crop tool AI adapter
+- [x] Registry system
+- [x] API route integration
+
 ### Tool Migration Plan
 1. **Move Tool** - First migration as reference
 2. **Selection Tools** - Migrate to SelectionTool base
 3. **Drawing Tools** - Migrate to DrawingTool base
 4. **Navigation Tools** - Migrate to BaseTool
 5. **New Tools** - Implement with new architecture
+6. **AI Adapters** - Create for parameter-based tools
 
 ## Code Quality Standards
 
@@ -222,6 +414,14 @@ interface Command {
 5. **Track performance** - Use track() for all operations
 6. **Handle errors gracefully** - Try/catch in critical paths
 7. **Clean up resources** - Implement cleanup() properly
+
+### AI Tool Standards
+1. **Clear parameter schemas** - Use Zod with descriptions
+2. **Explicit units** - Always specify pixels/percentages/degrees
+3. **Validation** - Check bounds and constraints
+4. **Error messages** - Provide actionable feedback
+5. **Preview support** - Implement when visual changes occur
+6. **Type safety** - Use TypeScript inference
 
 ### Anti-Patterns to Avoid
 ```typescript
@@ -237,12 +437,17 @@ class MyTool extends BaseTool {
   })
 }
 
-// ❌ BAD - Manual event management
-canvas.on('mouse:down', this.handleMouseDown)
-// No cleanup!
+// ❌ BAD - Vague AI descriptions
+description = 'Crop the image'
 
-// ✅ GOOD - Automatic cleanup
-this.addCanvasEvent('mouse:down', this.handleMouseDown.bind(this))
+// ✅ GOOD - Clear AI descriptions
+description = 'Crop the image to specified pixel coordinates. The x,y coordinates specify the top-left corner of the crop area.'
+
+// ❌ BAD - Ambiguous parameters
+width: z.number().describe('Width value')
+
+// ✅ GOOD - Explicit parameters
+width: z.number().min(1).describe('Width in pixels (must be at least 1)')
 ```
 
 ## Store Integration
@@ -276,11 +481,19 @@ this.addCanvasEvent('mouse:down', this.handleMouseDown.bind(this))
 - Command generation
 - Error recovery
 
+### AI Tool Tests
+- Parameter validation
+- Canvas state checks
+- Preview generation
+- Error handling
+- Type safety
+
 ### Integration Tests
 - Tool switching
 - Store integration
 - Canvas interaction
 - Performance benchmarks
+- AI chat integration
 
 ## Next Steps
 
@@ -289,6 +502,7 @@ this.addCanvasEvent('mouse:down', this.handleMouseDown.bind(this))
 3. Batch migrate selection tools
 4. Batch migrate drawing tools
 5. Implement new tools (Quick Selection, Eyedropper)
+6. Create AI adapters for all parameter-based tools
 
 ---
 

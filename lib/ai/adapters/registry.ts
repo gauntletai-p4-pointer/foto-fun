@@ -1,70 +1,18 @@
 import type { ToolAdapter } from './base'
-import type { FotoFunTool, ToolExecutionContext } from '../tools/base'
-import { toolRegistry } from '../tools/registry'
-import { ToolFactory } from '../tools/factory'
 
 /**
  * Registry for tool adapters
- * Automatically registers AI tools when adapters are added
+ * Following AI SDK v5 patterns
  */
 class AdapterRegistry {
   private adapters = new Map<string, ToolAdapter>()
   
   /**
    * Register a tool adapter
-   * Automatically registers the AI tool in the main tool registry
    */
   register(adapter: ToolAdapter): void {
-    // Register in adapter registry
-    this.adapters.set(adapter.tool.id, adapter)
-    
-    // Create AI tool using ToolFactory and register in main tool registry
-    const config = 'getToolConfig' in adapter && typeof adapter.getToolConfig === 'function'
-      ? adapter.getToolConfig()
-      : this.createToolConfig(adapter)
-    const aiTool = ToolFactory.createTool(config)
-    toolRegistry.register(aiTool)
-    
-    console.log(`Registered AI adapter for tool: ${adapter.tool.name} as ${adapter.aiName}`)
-  }
-  
-  /**
-   * Fallback method to create tool config if adapter doesn't have getToolConfig
-   */
-  private createToolConfig(adapter: ToolAdapter) {
-    return {
-      name: adapter.aiName,
-      category: 'edit' as const,
-      description: adapter.aiDescription,
-      inputSchema: adapter.inputSchema,
-      outputSchema: adapter.outputSchema,
-      executionSide: 'client' as const,
-      requiresCanvas: true,
-      clientExecutor: async (input: unknown, context: ToolExecutionContext) => {
-        if (!context.canvas) {
-          throw new Error('Canvas is required for this operation')
-        }
-        
-        if (adapter.canExecute && !adapter.canExecute(context.canvas)) {
-          throw new Error('Tool cannot be executed in current state')
-        }
-        
-        return adapter.execute(input, context.canvas)
-      },
-      previewGenerator: adapter.generatePreview ? 
-        async (input: unknown, context: ToolExecutionContext) => {
-          if (!context.canvas) {
-            throw new Error('Canvas is required for preview generation')
-          }
-          const preview = await adapter.generatePreview!(input, context.canvas)
-          return {
-            ...preview,
-            confidence: 1,
-            diff: undefined,
-            alternativeParams: undefined
-          }
-        } : undefined
-    }
+    this.adapters.set(adapter.aiName, adapter)
+    console.log(`Registered AI adapter: ${adapter.aiName}`)
   }
   
   /**
@@ -75,10 +23,10 @@ class AdapterRegistry {
   }
   
   /**
-   * Get adapter by tool ID
+   * Get adapter by name
    */
-  get(toolId: string): ToolAdapter | undefined {
-    return this.adapters.get(toolId)
+  get(name: string): ToolAdapter | undefined {
+    return this.adapters.get(name)
   }
   
   /**
@@ -89,10 +37,17 @@ class AdapterRegistry {
   }
   
   /**
-   * Get all AI tool names for system prompt
+   * Get all AI tools as a record for AI SDK v5
+   * This returns the actual AI SDK tool objects
    */
-  getAIToolNames(): string[] {
-    return this.getAll().map(adapter => adapter.aiName)
+  getAITools(): Record<string, ReturnType<ToolAdapter['toAITool']>> {
+    const tools: Record<string, ReturnType<ToolAdapter['toAITool']>> = {}
+    
+    this.adapters.forEach(adapter => {
+      tools[adapter.aiName] = adapter.toAITool()
+    })
+    
+    return tools
   }
   
   /**
@@ -100,33 +55,15 @@ class AdapterRegistry {
    */
   getToolDescriptions(): string[] {
     return this.getAll().map(adapter => 
-      `- ${adapter.aiName}: ${adapter.aiDescription}`
+      `- ${adapter.aiName}: ${adapter.description}`
     )
   }
   
   /**
    * Check if a tool has an adapter
    */
-  hasAdapter(toolId: string): boolean {
-    return this.adapters.has(toolId)
-  }
-  
-  /**
-   * Get all AI tools as a record for AI SDK
-   */
-  getAITools(): Record<string, FotoFunTool> {
-    const tools: Record<string, FotoFunTool> = {}
-    
-    this.adapters.forEach(adapter => {
-      // Create tool config and use ToolFactory
-      const config = 'getToolConfig' in adapter && typeof adapter.getToolConfig === 'function'
-        ? adapter.getToolConfig()
-        : this.createToolConfig(adapter)
-      const aiTool = ToolFactory.createTool(config)
-      tools[adapter.aiName] = aiTool
-    })
-    
-    return tools
+  hasAdapter(name: string): boolean {
+    return this.adapters.has(name)
   }
 }
 

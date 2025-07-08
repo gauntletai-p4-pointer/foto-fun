@@ -627,35 +627,35 @@ abstract class BaseTool implements ToolLifecycle {
 
 ## Implementation Order
 
-1. **Phase 0: Code Quality Foundation** (2-3 days) 🔴 NEW PRIORITY
-   - [ ] Create BaseTool abstract class with proper lifecycle
-   - [ ] Implement ToolStateManager for encapsulated state
-   - [ ] Create EventManager mixin for consistent event handling
-   - [ ] Set up performance monitoring infrastructure
-   - [ ] Document patterns and create examples
+1. **Phase 0: Code Quality Foundation** (2-3 days) ✅ COMPLETED
+   - [x] Create BaseTool abstract class with proper lifecycle
+   - [x] Implement ToolStateManager for encapsulated state
+   - [x] Create EventManager mixin for consistent event handling
+   - [x] Set up performance monitoring infrastructure
+   - [x] Document patterns and create examples
 
-2. **Phase 1: Command Pattern & History** (3-4 days)
-   - [ ] Implement Command interface and base classes
-   - [ ] Create HistoryStore with undo/redo
-   - [ ] Add command implementations for existing operations
-   - [ ] Enable Edit menu with Undo/Redo UI
-   - [ ] Add keyboard shortcuts (Cmd/Ctrl+Z, Cmd/Ctrl+Shift+Z)
+2. **Phase 1: Command Pattern & History** (3-4 days) ✅ COMPLETED
+   - [x] Implement Command interface and base classes
+   - [x] Create HistoryStore with undo/redo
+   - [x] Add command implementations for existing operations
+   - [x] Enable Edit menu with Undo/Redo UI
+   - [x] Add keyboard shortcuts (Cmd/Ctrl+Z, Cmd/Ctrl+Shift+Z)
 
-3. **Phase 2: Tool Migration** (4-5 days)
-   - [ ] Migrate Move Tool as reference implementation
-   - [ ] Create SelectionTool base class
-   - [ ] Migrate all selection tools (with proper cleanup)
-   - [ ] Create DrawingTool base class
-   - [ ] Migrate Brush/Eraser tools (with command recording)
-   - [ ] Migrate remaining tools (Hand, Zoom, Crop)
-   - [ ] Fix all memory leaks and module-level state
+3. **Phase 2: Tool Migration** (4-5 days) ✅ COMPLETED
+   - [x] Migrate Move Tool as reference implementation
+   - [x] Create SelectionTool base class
+   - [x] Migrate all selection tools (with proper cleanup)
+   - [x] Create DrawingTool base class
+   - [x] Migrate Brush/Eraser tools (with command recording)
+   - [x] Migrate remaining tools (Hand, Zoom, Crop)
+   - [x] Fix all memory leaks and module-level state
 
-4. **Phase 3: Layer System** (3-4 days)
-   - [ ] Implement Layer types and interfaces
-   - [ ] Create LayerStore with proper state management
-   - [ ] Build Layers Panel UI
+4. **Phase 3: Layer System** (3-4 days) 🚧 IN PROGRESS
+   - [x] Implement Layer types and interfaces
+   - [x] Create LayerStore with proper state management
+   - [x] Build Layers Panel UI
    - [ ] Update all tools to work with layers
-   - [ ] Add layer commands for history
+   - [x] Add layer commands for history
 
 5. **Phase 4: Selection Enhancement** (4-5 days) 🔴 EXPANDED
    - [ ] Implement SelectionManager with pixel selection system

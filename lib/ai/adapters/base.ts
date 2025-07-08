@@ -1,160 +1,83 @@
 import { z } from 'zod'
+import { tool } from 'ai'
 import type { Tool } from '@/types'
-import type { FotoFunTool, ToolExecutionContext } from '../tools/base'
-import type { BaseParameterResolver } from './resolvers/base'
-
-// Using fabric.Canvas type from the context
-type CanvasType = NonNullable<ToolExecutionContext['canvas']>
+import type { Canvas } from 'fabric'
 
 /**
- * Base interface for tool adapters
- * Each canvas tool that wants AI compatibility must implement an adapter
+ * Base class for tool adapters following AI SDK v5 patterns
+ * Adapters convert canvas tools to AI-compatible tools
  */
-export interface ToolAdapter<TInput = unknown, TOutput = unknown> {
+export abstract class BaseToolAdapter<
+  TInput = unknown,
+  TOutput = unknown
+> {
   /**
    * The canvas tool being adapted
    */
-  tool: Tool
+  abstract tool: Tool
   
   /**
-   * AI-friendly name for the tool
+   * Name for the AI tool
    */
-  aiName: string
+  abstract aiName: string
   
   /**
    * Description for AI to understand when to use this tool
    */
-  aiDescription: string
+  abstract description: string
   
   /**
-   * Zod schema for input validation
+   * Zod schema for input validation (AI SDK v5 uses 'parameters')
    */
-  inputSchema: z.ZodType<TInput>
+  abstract parameters: z.ZodType<TInput>
   
   /**
-   * Zod schema for output validation
+   * Execute the tool with the given parameters
+   * This follows AI SDK v5's execute pattern
    */
-  outputSchema: z.ZodType<TOutput>
+  abstract execute(params: TInput, context: { canvas: Canvas }): Promise<TOutput>
   
   /**
-   * Convert canvas tool to AI-compatible format
+   * Optional: Check if the tool can be executed in the current state
    */
-  toAITool(): FotoFunTool
+  canExecute?(canvas: Canvas): boolean
   
   /**
-   * Execute the tool with AI parameters
+   * Optional: Generate a preview of the tool's effect
    */
-  execute(params: TInput, canvas: CanvasType): Promise<TOutput>
+  generatePreview?(params: TInput, canvas: Canvas): Promise<{ before: string; after: string }>
   
-  /**
-   * Optional: Generate preview before execution
+    /**
+   * Convert this adapter to an AI SDK v5 tool
+   * This follows the proper pattern from the docs
    */
-  generatePreview?(params: TInput, canvas: CanvasType): Promise<{
-    before: string
-    after: string
-  }>
-  
-  /**
-   * Optional: Validate if tool can be used in current state
-   */
-  canExecute?(canvas: CanvasType): boolean
-}
-
-/**
- * Abstract base class for tool adapters
- */
-export abstract class BaseToolAdapter<TInput = unknown, TOutput = unknown> 
-  implements ToolAdapter<TInput, TOutput> {
-  
-  abstract tool: Tool
-  abstract aiName: string
-  abstract aiDescription: string
-  abstract inputSchema: z.ZodType<TInput>
-  abstract outputSchema: z.ZodType<TOutput>
-  
-  abstract execute(params: TInput, canvas: CanvasType): Promise<TOutput>
-  
-  /**
-   * Optional methods that can be overridden
-   */
-  canExecute?(canvas: CanvasType): boolean
-  generatePreview?(params: TInput, canvas: CanvasType): Promise<{ before: string; after: string }>
-  
-  /**
-   * Optional parameter resolver for natural language input
-   */
-  parameterResolver?: BaseParameterResolver<TInput>
-  
-  /**
-   * Convert to AI SDK compatible tool format
-   * This will be called by the registry which has access to ToolFactory
-   */
-  toAITool(): FotoFunTool {
-    throw new Error('toAITool should be called through the registry')
-  }
-  
-  /**
-   * Get the tool configuration for creating an AI tool
-   */
-  getToolConfig() {
-    const baseConfig = {
-      name: this.aiName,
-      category: 'edit' as const,
-      description: this.aiDescription,
-      inputSchema: this.inputSchema,
-      outputSchema: this.outputSchema,
-      executionSide: 'client' as const,
-      requiresCanvas: true,
-      clientExecutor: async (input: unknown, context: ToolExecutionContext) => {
-        if (!context.canvas) {
-          throw new Error('Canvas is required for this operation')
+  toAITool() {
+    // Using unknown to work around AI SDK v5 beta type issues
+    return tool({
+      description: this.description,
+      parameters: this.parameters,
+      execute: async (params: TInput) => {
+        // Get canvas from our bridge
+        const { CanvasToolBridge } = await import('../tools/canvas-bridge')
+        const context = CanvasToolBridge.getCanvasContext()
+        
+        if (!context?.canvas) {
+          throw new Error('Canvas not available')
         }
         
+        // Check if tool can execute
         if (this.canExecute && !this.canExecute(context.canvas)) {
           throw new Error('Tool cannot be executed in current state')
         }
         
-        // Handle parameter resolution if resolver is available
-        let resolvedInput = input as TInput
-        if (this.parameterResolver && typeof input === 'string') {
-          // Get canvas context for resolver
-          const { CanvasToolBridge } = await import('../tools/canvas-bridge')
-          const canvasContext = CanvasToolBridge.getCanvasContext()
-          if (!canvasContext) {
-            throw new Error('Canvas context not available for parameter resolution')
-          }
-          resolvedInput = await this.parameterResolver.resolve(input, canvasContext)
-        }
-        
-        return this.execute(resolvedInput, context.canvas)
-      },
-      previewGenerator: this.generatePreview ? 
-        async (input: unknown, context: ToolExecutionContext) => {
-          if (!context.canvas) {
-            throw new Error('Canvas is required for preview generation')
-          }
-          
-          // Handle parameter resolution for preview
-          let resolvedInput = input as TInput
-          if (this.parameterResolver && typeof input === 'string') {
-            const { CanvasToolBridge } = await import('../tools/canvas-bridge')
-            const canvasContext = CanvasToolBridge.getCanvasContext()
-            if (!canvasContext) {
-              throw new Error('Canvas context not available for parameter resolution')
-            }
-            resolvedInput = await this.parameterResolver.resolve(input, canvasContext)
-          }
-          
-          const preview = await this.generatePreview!(resolvedInput, context.canvas)
-          return {
-            ...preview,
-            confidence: 1,
-            diff: undefined,
-            alternativeParams: undefined
-          }
-        } : undefined
-    }
-    
-    return baseConfig
+        // Execute the tool
+        return this.execute(params, { canvas: context.canvas })
+      }
+    } as unknown as Parameters<typeof tool>[0]) as unknown as ReturnType<typeof tool>
   }
-} 
+}
+
+/**
+ * Type alias for tool adapters
+ */
+export type ToolAdapter = BaseToolAdapter<any, any> 

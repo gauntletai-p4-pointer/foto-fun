@@ -1,5 +1,5 @@
 import type * as PIXI from 'pixi.js'
-import type { Canvas, TPointerEventInfo, TPointerEvent } from 'fabric'
+import type { Canvas, TPointerEventInfo, TPointerEvent, FabricObject } from 'fabric'
 
 // Canvas types
 export interface CanvasState {
@@ -24,14 +24,45 @@ export interface Document {
 }
 
 // Layer types
+export type LayerType = 'image' | 'text' | 'shape' | 'adjustment' | 'group'
+
+export type BlendMode = 
+  | 'normal'
+  | 'multiply'
+  | 'screen'
+  | 'overlay'
+  | 'darken'
+  | 'lighten'
+  | 'color-dodge'
+  | 'color-burn'
+  | 'hard-light'
+  | 'soft-light'
+  | 'difference'
+  | 'exclusion'
+  | 'hue'
+  | 'saturation'
+  | 'color'
+  | 'luminosity'
+
 export interface Layer {
   id: string
   name: string
+  type: LayerType
   visible: boolean
+  opacity: number // 0-100
+  blendMode: BlendMode
   locked: boolean
-  opacity: number
-  blendMode: string
-  type: 'image' | 'adjustment' | 'text' | 'shape' | 'group'
+  parentId?: string // for groups
+  childIds?: string[] // for groups
+  fabricObject?: FabricObject // The actual canvas object
+  thumbnail?: string // Base64 thumbnail for UI
+  position: number // Layer stack position (0 = bottom)
+}
+
+export interface LayerGroup extends Layer {
+  type: 'group'
+  childIds: string[]
+  expanded: boolean
 }
 
 // Tool event type - properly typed Fabric.js event

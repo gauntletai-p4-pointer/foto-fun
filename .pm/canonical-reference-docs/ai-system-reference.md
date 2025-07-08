@@ -345,25 +345,45 @@ CropToolAdapter.execute()
 - **Aspect Ratio**: "crop to square" → calculate center square
 - **Semantic**: "crop to the person" → use object detection
 
-### Tool Factory Pattern (Epic 5)
+### AI SDK v5 Tool Integration (Epic 5)
 
-The tool factory creates standardized tools that work with AI SDK v5:
+We use the AI SDK v5's native `tool()` function with our adapter pattern:
 
 ```typescript
-interface FotoFunTool {
-  name: string
-  category: 'filter' | 'transform' | 'edit' | 'selection' | 'text' | 'generation'
-  description: string
-  inputSchema: z.ZodType
-  outputSchema: z.ZodType
-  executionSide: 'client' | 'server' | 'both'
-  requiresCanvas: boolean
-  requiresSelection?: boolean
-  confidenceThreshold?: number
+// AI SDK v5 tool structure
+import { tool } from 'ai'
+
+const aiTool = tool({
+  description: 'Clear description for AI',
+  parameters: z.object({
+    // Zod schema with explicit units
+    value: z.number().min(0).max(100).describe('Value in percentage')
+  }),
+  execute: async (params) => {
+    // Execution logic with canvas context
+    const context = CanvasToolBridge.getCanvasContext()
+    return adapter.execute(params, { canvas: context.canvas })
+  }
+})
+
+// Our adapter pattern wraps this for consistency
+export abstract class BaseToolAdapter<TInput, TOutput> {
+  abstract parameters: z.ZodType<TInput>  // AI SDK v5 uses 'parameters'
+  abstract description: string            // Clear, helpful description
+  abstract execute(params: TInput, context: { canvas: Canvas }): Promise<TOutput>
   
-  clientExecutor?: (input: unknown, context: ToolExecutionContext) => Promise<unknown>
-  serverExecutor?: (input: unknown, context: ToolExecutionContext) => Promise<unknown>
-  previewGenerator?: (input: unknown, context: ToolExecutionContext) => Promise<PreviewResult>
+  toAITool() {
+    return tool({
+      description: this.description,
+      parameters: this.parameters,
+      execute: async (params) => {
+        // Bridge to canvas context
+        const context = CanvasToolBridge.getCanvasContext()
+        if (!context?.canvas) throw new Error('Canvas not available')
+        return this.execute(params, { canvas: context.canvas })
+      }
+    })
+  }
 }
 ```
 

@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { cn } from '@/lib/utils'
 import { Bot, Layers } from 'lucide-react'
 import { AIChat } from './AIChat'
+import { LayersPanel } from './LayersPanel'
 
 export function Panels() {
   const [activeTab, setActiveTab] = useState<'ai' | 'layers'>('ai')
@@ -43,9 +44,7 @@ export function Panels() {
         {activeTab === 'ai' ? (
           <AIChat />
         ) : (
-          <div className="p-4 text-muted-foreground text-sm">
-            <p>No layers yet</p>
-          </div>
+          <LayersPanel />
         )}
       </div>
     </div>
