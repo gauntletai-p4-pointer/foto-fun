@@ -66,31 +66,30 @@ class BlurTool extends BaseTool {
       // Apply to all image objects
       objects.forEach((obj) => {
         if (obj instanceof FabricImage) {
-          // Remove existing blur filter
+          // Calculate new filters array
           const existingFilters = obj.filters?.filter(
             (f: unknown) => !(f instanceof filters.Blur)
           ) || []
           
-          // Add new blur filter if value > 0
+          let newFilters: typeof obj.filters
           if (blurValue > 0) {
             const blurFilter = new filters.Blur({
               blur: blurValue / 100 // Convert percentage to 0-1 range
             })
-            obj.filters = [...existingFilters, blurFilter] as typeof obj.filters
+            newFilters = [...existingFilters, blurFilter] as typeof obj.filters
           } else {
-            obj.filters = existingFilters as typeof obj.filters
+            newFilters = existingFilters as typeof obj.filters
           }
           
-          // Apply filters and re-render
-          obj.applyFilters()
-          
-          // Record command for undo/redo
+          // Create command BEFORE modifying the object
           const command = new ModifyCommand(
             canvas,
             obj,
-            { filters: obj.filters },
+            { filters: newFilters },
             `Apply blur: ${blurValue}%`
           )
+          
+          // Execute the command (which will apply the changes and handle applyFilters)
           this.executeCommand(command)
         }
       })

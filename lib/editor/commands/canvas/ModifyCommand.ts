@@ -2,6 +2,39 @@ import { Command } from '../base'
 import type { Canvas, FabricObject } from 'fabric'
 
 /**
+ * Deep clone a value to ensure proper undo/redo
+ */
+function deepClone(value: unknown): unknown {
+  if (value === null || value === undefined) return value
+  
+  // Handle arrays
+  if (Array.isArray(value)) {
+    return value.map(item => deepClone(item))
+  }
+  
+  // Handle objects (but not class instances)
+  if (typeof value === 'object' && value.constructor === Object) {
+    const cloned: Record<string, unknown> = {}
+    for (const key in value) {
+      if (Object.prototype.hasOwnProperty.call(value, key)) {
+        cloned[key] = deepClone((value as Record<string, unknown>)[key])
+      }
+    }
+    return cloned
+  }
+  
+  // For class instances (like Fabric filters), we need to handle them specially
+  if (typeof value === 'object' && 'type' in value) {
+    // This is likely a Fabric filter or similar object
+    // We'll store it as-is since Fabric will handle the recreation
+    return value
+  }
+  
+  // Primitive values
+  return value
+}
+
+/**
  * Command to modify object properties (color, opacity, etc.)
  */
 export class ModifyCommand extends Command {
@@ -19,27 +52,49 @@ export class ModifyCommand extends Command {
     super(description || `Modify ${object.type || 'object'} properties`)
     this.canvas = canvas
     this.object = object
-    this.newProperties = { ...properties }
+    this.newProperties = deepClone(properties) as Record<string, unknown>
     
-    // Capture old properties
+    // Capture old properties with deep cloning
     this.oldProperties = {}
     for (const key in properties) {
-      this.oldProperties[key] = object.get(key as keyof typeof object)
+      const value = object.get(key as keyof typeof object)
+      this.oldProperties[key] = deepClone(value)
     }
   }
   
   async execute(): Promise<void> {
     this.object.set(this.newProperties)
+    
+    // If we're setting filters, we need to apply them
+    if ('filters' in this.newProperties && 'applyFilters' in this.object) {
+      const imageObject = this.object as FabricObject & { applyFilters: () => void }
+      imageObject.applyFilters()
+    }
+    
     this.canvas.renderAll()
   }
   
   async undo(): Promise<void> {
     this.object.set(this.oldProperties)
+    
+    // If we're setting filters, we need to apply them
+    if ('filters' in this.oldProperties && 'applyFilters' in this.object) {
+      const imageObject = this.object as FabricObject & { applyFilters: () => void }
+      imageObject.applyFilters()
+    }
+    
     this.canvas.renderAll()
   }
   
   async redo(): Promise<void> {
     this.object.set(this.newProperties)
+    
+    // If we're setting filters, we need to apply them
+    if ('filters' in this.newProperties && 'applyFilters' in this.object) {
+      const imageObject = this.object as FabricObject & { applyFilters: () => void }
+      imageObject.applyFilters()
+    }
+    
     this.canvas.renderAll()
   }
   

@@ -66,7 +66,7 @@ class SharpenTool extends BaseTool {
       // Apply to all image objects
       objects.forEach((obj) => {
         if (obj instanceof FabricImage) {
-          // Remove existing convolute filter (sharpen)
+          // Calculate new filters array
           const existingFilters = obj.filters?.filter(
             (f) => {
               if (f instanceof filters.Convolute) {
@@ -76,7 +76,7 @@ class SharpenTool extends BaseTool {
             }
           ) || []
           
-          // Add new sharpen filter if value > 0
+          let newFilters: typeof obj.filters
           if (sharpenValue > 0) {
             // Sharpen matrix - intensity is controlled by the center value
             const intensity = 1 + (sharpenValue / 25) // Scale 0-100 to 1-5
@@ -90,21 +90,20 @@ class SharpenTool extends BaseTool {
               matrix: sharpenMatrix,
               opaque: false
             })
-            obj.filters = [...existingFilters, sharpenFilter] as typeof obj.filters
+            newFilters = [...existingFilters, sharpenFilter] as typeof obj.filters
           } else {
-            obj.filters = existingFilters as typeof obj.filters
+            newFilters = existingFilters as typeof obj.filters
           }
           
-          // Apply filters and re-render
-          obj.applyFilters()
-          
-          // Record command for undo/redo
+          // Create command BEFORE modifying the object
           const command = new ModifyCommand(
             canvas,
             obj,
-            { filters: obj.filters },
+            { filters: newFilters },
             `Apply sharpen: ${sharpenValue}%`
           )
+          
+          // Execute the command (which will apply the changes and handle applyFilters)
           this.executeCommand(command)
         }
       })

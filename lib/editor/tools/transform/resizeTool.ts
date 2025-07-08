@@ -1,7 +1,6 @@
 import { Maximize2 } from 'lucide-react'
 import { TOOL_IDS } from '@/constants'
 import type { Canvas, FabricObject } from 'fabric'
-import { Point } from 'fabric'
 import { BaseTool } from '../base/BaseTool'
 import { createToolState } from '../utils/toolState'
 import { useToolOptionsStore } from '@/store/toolOptionsStore'
@@ -127,27 +126,29 @@ class ResizeTool extends BaseTool {
         const newScaleX = (oldScaleX / (this.state.get('lastWidth') / 100)) * scaleX
         const newScaleY = (oldScaleY / (this.state.get('lastHeight') / 100)) * scaleY
         
-        obj.scale(newScaleX)
-        obj.scaleY = newScaleY
-        
-        // Adjust position to keep centered
+        // Calculate new position to keep centered
         const centerX = canvas.getWidth() / 2
         const centerY = canvas.getHeight() / 2
         const objCenter = obj.getCenterPoint()
         
-        const newLeft = centerX + (objCenter.x - centerX) * (scaleX / (this.state.get('lastWidth') / 100))
-        const newTop = centerY + (objCenter.y - centerY) * (scaleY / (this.state.get('lastHeight') / 100))
+        const scaleFactor = scaleX / (this.state.get('lastWidth') / 100)
+        const newLeft = centerX + (objCenter.x - centerX) * scaleFactor
+        const newTop = centerY + (objCenter.y - centerY) * scaleFactor
         
-        obj.setPositionByOrigin(new Point(newLeft, newTop), 'center', 'center')
-        obj.setCoords()
-        
-        // Record command for undo/redo
+        // Create command BEFORE modifying the object
         const command = new ModifyCommand(
           canvas,
           obj,
-          { scaleX: newScaleX, scaleY: newScaleY, left: obj.left, top: obj.top },
+          { 
+            scaleX: newScaleX, 
+            scaleY: newScaleY, 
+            left: newLeft - (obj.width || 0) * newScaleX / 2,
+            top: newTop - (obj.height || 0) * newScaleY / 2
+          },
           `Resize to ${Math.round(widthValue)}%`
         )
+        
+        // Execute the command (which will apply the changes)
         this.executeCommand(command)
       })
       

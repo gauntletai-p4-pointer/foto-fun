@@ -62,29 +62,28 @@ class GrayscaleTool extends BaseTool {
       // Apply to all image objects
       objects.forEach((obj) => {
         if (obj instanceof FabricImage) {
-          // Remove existing grayscale filter
+          // Calculate new filters array
           const existingFilters = obj.filters?.filter(
             (f: unknown) => !(f instanceof filters.Grayscale)
           ) || []
           
-          // Add grayscale filter if enabling
+          let newFilters: typeof obj.filters
           if (newState) {
             const grayscaleFilter = new filters.Grayscale()
-            obj.filters = [...existingFilters, grayscaleFilter] as typeof obj.filters
+            newFilters = [...existingFilters, grayscaleFilter] as typeof obj.filters
           } else {
-            obj.filters = existingFilters as typeof obj.filters
+            newFilters = existingFilters as typeof obj.filters
           }
           
-          // Apply filters and re-render
-          obj.applyFilters()
-          
-          // Record command for undo/redo
+          // Create command BEFORE modifying the object
           const command = new ModifyCommand(
             canvas,
             obj,
-            { filters: obj.filters },
+            { filters: newFilters },
             newState ? 'Apply grayscale' : 'Remove grayscale'
           )
+          
+          // Execute the command (which will apply the changes and handle applyFilters)
           this.executeCommand(command)
         }
       })

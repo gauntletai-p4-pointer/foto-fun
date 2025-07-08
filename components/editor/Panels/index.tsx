@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { cn } from '@/lib/utils'
 import { LayersPanel } from './LayersPanel'
 import { CharacterPanel } from './CharacterPanel'
@@ -9,7 +9,7 @@ import { GlyphsPanel } from './GlyphsPanel'
 import { TextEffectsPanel } from './TextEffectsPanel'
 import { AIChat } from './AIChat'
 import { Bot, Layers, Type, AlignLeft, Sparkles, Shapes } from 'lucide-react'
-import { featureManager, FEATURES } from '@/lib/config/features'
+import { featureManager, FEATURES, type Feature } from '@/lib/config/features'
 
 type PanelType = 'ai' | 'layers' | 'character' | 'paragraph' | 'glyphs' | 'effects'
 
@@ -31,18 +31,51 @@ const allPanels: PanelTab[] = [
 ]
 
 export function Panels() {
-  // Filter panels based on feature availability
+  const [mounted, setMounted] = useState(false)
+  
+  // Filter panels based on feature availability (client-side only)
   const panels = useMemo(() => {
+    if (!mounted) {
+      // On server/initial render, show all panels except those with features
+      return allPanels.filter(panel => !panel.feature)
+    }
+    
+    // On client, check if features are enabled
     return allPanels.filter(panel => {
-      if (!panel.feature) return true // Always show panels without feature requirements
-      return featureManager.isFeatureAvailable(panel.feature as any)
+      if (!panel.feature) return true
+      return featureManager.isFeatureEnabled(panel.feature as Feature)
     })
+  }, [mounted])
+  
+  // Set initial panel to AI if available, otherwise first available panel
+  const getInitialPanel = (): PanelType => {
+    // Check if AI panel is available
+    const aiPanel = panels.find(p => p.id === 'ai')
+    if (aiPanel) return 'ai'
+    
+    // Otherwise use first available panel
+    return panels.length > 0 ? panels[0].id : 'layers'
+  }
+  
+  const [activePanel, setActivePanel] = useState<PanelType>(getInitialPanel())
+  
+  // Update mounted state after hydration
+  useEffect(() => {
+    setMounted(true)
   }, [])
   
-  // Set initial panel to first available panel
-  const [activePanel, setActivePanel] = useState<PanelType>(
-    panels.length > 0 ? panels[0].id : 'layers'
-  )
+  // Update active panel after mount to set AI as default if available
+  useEffect(() => {
+    if (mounted) {
+      const aiPanel = panels.find(p => p.id === 'ai')
+      if (aiPanel && activePanel !== 'ai') {
+        setActivePanel('ai')
+      } else if (!panels.find(p => p.id === activePanel)) {
+        // If current panel is not available, switch to first available
+        setActivePanel(panels.length > 0 ? panels[0].id : 'layers')
+      }
+    }
+  }, [panels, mounted, activePanel])
   
   const ActivePanelComponent = panels.find(p => p.id === activePanel)?.component || LayersPanel
   

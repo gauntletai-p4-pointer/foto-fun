@@ -62,29 +62,28 @@ class InvertTool extends BaseTool {
       // Apply to all image objects
       objects.forEach((obj) => {
         if (obj instanceof FabricImage) {
-          // Remove existing invert filter
+          // Calculate new filters array
           const existingFilters = obj.filters?.filter(
             (f: unknown) => !(f instanceof filters.Invert)
           ) || []
           
-          // Add invert filter if enabling
+          let newFilters: typeof obj.filters
           if (newState) {
             const invertFilter = new filters.Invert()
-            obj.filters = [...existingFilters, invertFilter] as typeof obj.filters
+            newFilters = [...existingFilters, invertFilter] as typeof obj.filters
           } else {
-            obj.filters = existingFilters as typeof obj.filters
+            newFilters = existingFilters as typeof obj.filters
           }
           
-          // Apply filters and re-render
-          obj.applyFilters()
-          
-          // Record command for undo/redo
+          // Create command BEFORE modifying the object
           const command = new ModifyCommand(
             canvas,
             obj,
-            { filters: obj.filters },
+            { filters: newFilters },
             newState ? 'Apply invert' : 'Remove invert'
           )
+          
+          // Execute the command (which will apply the changes and handle applyFilters)
           this.executeCommand(command)
         }
       })
