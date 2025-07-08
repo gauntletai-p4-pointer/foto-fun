@@ -9,26 +9,22 @@ import { eyedropperTool } from './eyedropperTool'
 import { handTool } from './transform/handTool'
 import { zoomTool } from './transform/zoomTool'
 import { brushTool } from './drawing/brushTool'
-import { eraserTool } from './drawing/eraserTool'
 import { horizontalTypeTool, verticalTypeTool, typeMaskTool } from './text'
 import { brightnessTool } from './adjustments/brightnessTool'
 import { contrastTool } from './adjustments/contrastTool'
 import { saturationTool } from './adjustments/saturationTool'
 import { hueTool } from './adjustments/hueTool'
 import { exposureTool } from './adjustments/exposureTool'
-import { TOOL_IDS } from '@/constants'
+import { colorTemperatureTool } from './adjustments/colorTemperatureTool'
 import type { Tool } from '@/types'
-import { Type } from 'lucide-react'
-
-// Placeholder tools (not implemented yet)
-const textTool: Tool = {
-  id: TOOL_IDS.TEXT,
-  name: 'Type Tool',
-  icon: Type,
-  cursor: 'text',
-  shortcut: 'T',
-  isImplemented: false,
-}
+import { rotateTool } from './transform/rotateTool'
+import { flipTool } from './transform/flipTool'
+import { resizeTool } from './transform/resizeTool'
+import { blurTool } from './filters/blurTool'
+import { sharpenTool } from './filters/sharpenTool'
+import { grayscaleTool } from './filters/grayscaleTool'
+import { sepiaTool } from './filters/sepiaTool'
+import { invertTool } from './filters/invertTool'
 
 // Export all tools
 export const tools: Tool[] = [
@@ -43,7 +39,6 @@ export const tools: Tool[] = [
   handTool,
   zoomTool,
   brushTool,
-  eraserTool,
   horizontalTypeTool,
   verticalTypeTool,
   typeMaskTool,
@@ -52,7 +47,15 @@ export const tools: Tool[] = [
   saturationTool,
   hueTool,
   exposureTool,
-  textTool,
+  colorTemperatureTool,
+  rotateTool,
+  flipTool,
+  resizeTool,
+  blurTool,
+  sharpenTool,
+  grayscaleTool,
+  sepiaTool,
+  invertTool,
 ]
 
 // Export individual tools
@@ -68,7 +71,6 @@ export {
   handTool,
   zoomTool,
   brushTool,
-  eraserTool,
   horizontalTypeTool,
   verticalTypeTool,
   typeMaskTool,
@@ -77,5 +79,13 @@ export {
   saturationTool,
   hueTool,
   exposureTool,
-  textTool,
+  colorTemperatureTool,
+  rotateTool,
+  flipTool,
+  resizeTool,
+  blurTool,
+  sharpenTool,
+  grayscaleTool,
+  sepiaTool,
+  invertTool,
 } 

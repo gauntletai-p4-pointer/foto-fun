@@ -68,43 +68,55 @@ export function CharacterPanel() {
   
   return (
     <div className="p-4 space-y-4">
-      <h3 className="font-semibold text-sm">Character</h3>
+      <h3 className="font-semibold text-sm text-foreground">Character</h3>
       
-      {/* Font Family */}
-      <FontSelector 
-        value={activeTextObject.fontFamily || 'Arial'} 
-        onChange={(font) => updateTextProperty('fontFamily', font)}
-      />
-      
-      {/* Font Size */}
-      <FontSizeInput 
-        value={activeTextObject.fontSize || 24}
-        onChange={(size) => updateTextProperty('fontSize', size)}
-      />
-      
-      {/* Font Style Buttons */}
-      <FontStyleButtons 
-        object={activeTextObject}
-        onChange={updateTextProperty}
-      />
-      
-      {/* Text Color */}
-      <TextColorPicker 
-        value={activeTextObject.fill as string || '#000000'}
-        onChange={(color) => updateTextProperty('fill', color)}
-      />
-      
-      {/* Letter Spacing */}
-      <LetterSpacingControl 
-        value={activeTextObject.charSpacing || 0}
-        onChange={(spacing) => updateTextProperty('charSpacing', spacing)}
-      />
-      
-      {/* Line Height */}
-      <LineHeightControl 
-        value={activeTextObject.lineHeight || 1.16}
-        onChange={(height) => updateTextProperty('lineHeight', height)}
-      />
+      <div className="space-y-1">
+        <label className="text-xs font-medium text-foreground">Font Family</label>
+        <FontSelector
+          value={activeTextObject.fontFamily || 'Arial'}
+          onChange={(font) => updateTextProperty('fontFamily', font)}
+        />
+      </div>
+
+      <div className="space-y-1">
+        <label className="text-xs font-medium text-foreground">Font Size</label>
+        <FontSizeInput
+          value={activeTextObject.fontSize || 24}
+          onChange={(size) => updateTextProperty('fontSize', size)}
+        />
+      </div>
+
+      <div className="space-y-1">
+        <label className="text-xs font-medium text-foreground">Font Style</label>
+        <FontStyleButtons
+          object={activeTextObject}
+          onChange={updateTextProperty}
+        />
+      </div>
+
+      <div className="space-y-1">
+        <label className="text-xs font-medium text-foreground">Text Color</label>
+        <TextColorPicker
+          value={activeTextObject.fill as string || '#000000'}
+          onChange={(color) => updateTextProperty('fill', color)}
+        />
+      </div>
+
+      <div className="space-y-1">
+        <label className="text-xs font-medium text-foreground">Letter Spacing</label>
+        <LetterSpacingControl
+          value={activeTextObject.charSpacing || 0}
+          onChange={(spacing) => updateTextProperty('charSpacing', spacing)}
+        />
+      </div>
+
+      <div className="space-y-1">
+        <label className="text-xs font-medium text-foreground">Line Height</label>
+        <LineHeightControl
+          value={activeTextObject.lineHeight || 1.16}
+          onChange={(height) => updateTextProperty('lineHeight', height)}
+        />
+      </div>
       
       {/* Advanced Options */}
       <div className="pt-2 border-t">

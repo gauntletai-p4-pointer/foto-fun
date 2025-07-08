@@ -16,15 +16,13 @@ export class AddTextCommand extends Command {
   }
   
   async execute(): Promise<void> {
-    this.canvas.add(this.textObject)
-    
     // Add to specific layer if provided
     if (this.layerId) {
       const objWithProps = this.textObject as (IText | Textbox) & CustomFabricObjectProps
       objWithProps.layerId = this.layerId
     }
     
-    // Add to active layer
+    // Add to active layer - this will also add to canvas
     const layerStore = useLayerStore.getState()
     layerStore.addObjectToActiveLayer(this.textObject)
     

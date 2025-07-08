@@ -26,7 +26,7 @@ export function LineHeightControl({ value, onChange }: LineHeightControlProps) {
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
-        <label className="text-xs font-medium">Line Height</label>
+        <label className="text-xs font-medium text-foreground">Line Height</label>
         <div className="flex items-center gap-1">
           <Input
             type="number"

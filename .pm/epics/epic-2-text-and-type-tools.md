@@ -448,6 +448,248 @@ export class TextWarp {
 }
 ```
 
+#### 4.3 3D Text Effects
+```typescript
+// lib/editor/text/effects/Text3D.ts
+export class Text3D {
+  static apply3DEffect(text: IText, options: Text3DOptions): void {
+    const { depth, angle, perspective, material } = options
+    
+    // Create 3D extrusion effect
+    const extrudedText = this.createExtrusion(text, depth, angle)
+    
+    // Apply material/texture
+    this.applyMaterial(extrudedText, material)
+    
+    // Apply perspective transformation
+    this.applyPerspective(extrudedText, perspective)
+  }
+  
+  static createBevel(text: IText, options: BevelOptions): void {
+    const { style, size, soften } = options
+    // Create beveled edges for 3D appearance
+  }
+}
+
+interface Text3DOptions {
+  depth: number
+  angle: number
+  perspective: number
+  material: 'plastic' | 'metal' | 'glass' | 'wood'
+}
+
+interface BevelOptions {
+  style: 'inner' | 'outer' | 'emboss' | 'pillow'
+  size: number
+  soften: number
+}
+```
+
+#### 4.4 Layer Styles (Text Effects)
+```typescript
+// lib/editor/text/effects/LayerStyles.ts
+export class TextLayerStyles {
+  static applyDropShadow(text: IText, options: DropShadowOptions): void {
+    text.shadow = new Shadow({
+      color: options.color,
+      blur: options.blur,
+      offsetX: options.distance * Math.cos(options.angle * Math.PI / 180),
+      offsetY: options.distance * Math.sin(options.angle * Math.PI / 180),
+      opacity: options.opacity
+    })
+  }
+  
+  static applyStroke(text: IText, options: StrokeOptions): void {
+    text.stroke = options.color
+    text.strokeWidth = options.width
+    text.strokeLineJoin = 'round'
+    text.strokeLineCap = 'round'
+    
+    // Handle inside/outside/center positioning
+    if (options.position === 'outside') {
+      text.paintFirst = 'stroke'
+    } else if (options.position === 'inside') {
+      // Use clipping to achieve inside stroke
+      text.clipPath = this.createStrokeClipPath(text)
+    }
+  }
+  
+  static applyGlow(text: IText, options: GlowOptions): void {
+    // Create outer glow effect using shadow with 0 offset
+    text.shadow = new Shadow({
+      color: options.color,
+      blur: options.size,
+      offsetX: 0,
+      offsetY: 0,
+      opacity: options.opacity
+    })
+    
+    // For inner glow, create a separate effect
+    if (options.type === 'inner') {
+      this.applyInnerGlow(text, options)
+    }
+  }
+  
+  static applyGradientFill(text: IText, options: GradientOptions): void {
+    const gradient = new Gradient({
+      type: options.type,
+      coords: this.calculateGradientCoords(text, options),
+      colorStops: options.colorStops
+    })
+    
+    text.fill = gradient
+  }
+  
+  static applyPattern(text: IText, pattern: Pattern): void {
+    text.fill = pattern
+  }
+}
+
+interface DropShadowOptions {
+  color: string
+  opacity: number
+  angle: number
+  distance: number
+  blur: number
+  spread?: number
+}
+
+interface StrokeOptions {
+  color: string
+  width: number
+  position: 'outside' | 'inside' | 'center'
+  opacity?: number
+  gradient?: GradientOptions
+}
+
+interface GlowOptions {
+  type: 'outer' | 'inner'
+  color: string
+  size: number
+  opacity: number
+  technique?: 'softer' | 'precise'
+}
+
+interface GradientOptions {
+  type: 'linear' | 'radial'
+  angle?: number
+  colorStops: Array<{ offset: number; color: string }>
+}
+```
+
+#### 4.5 Text Effects Panel
+```typescript
+// components/editor/Panels/TextEffectsPanel/index.tsx
+export function TextEffectsPanel() {
+  const { fabricCanvas } = useCanvasStore()
+  const [activeTextObject, setActiveTextObject] = useState<IText | null>(null)
+  
+  return (
+    <div className="p-4 space-y-4">
+      <h3 className="font-semibold text-sm">Text Effects</h3>
+      
+      {/* Warp Text */}
+      <WarpTextSection object={activeTextObject} />
+      
+      {/* 3D Effects */}
+      <Text3DSection object={activeTextObject} />
+      
+      {/* Layer Styles */}
+      <LayerStylesSection object={activeTextObject} />
+      
+      {/* Presets */}
+      <TextPresetsSection object={activeTextObject} />
+    </div>
+  )
+}
+```
+
+#### 4.6 Text Styles & Presets
+```typescript
+// lib/editor/text/TextStyleManager.ts
+export class TextStyleManager {
+  private static styles = new Map<string, TextStyle>()
+  
+  static registerStyle(name: string, style: TextStyle): void {
+    this.styles.set(name, style)
+  }
+  
+  static applyStyle(text: IText, styleName: string): void {
+    const style = this.styles.get(styleName)
+    if (!style) return
+    
+    // Apply all style properties
+    Object.assign(text, style.textProperties)
+    
+    // Apply effects
+    if (style.effects) {
+      this.applyEffects(text, style.effects)
+    }
+  }
+  
+  static getBuiltInStyles(): TextStyle[] {
+    return [
+      {
+        name: 'Heading 1',
+        textProperties: {
+          fontSize: 48,
+          fontWeight: 'bold',
+          lineHeight: 1.2
+        },
+        effects: {
+          dropShadow: { distance: 2, blur: 4, opacity: 0.3 }
+        }
+      },
+      {
+        name: 'Neon',
+        textProperties: {
+          fontSize: 36,
+          fontFamily: 'Arial Black'
+        },
+        effects: {
+          stroke: { color: '#fff', width: 2 },
+          glow: { type: 'outer', color: '#0ff', size: 20, opacity: 0.8 }
+        }
+      },
+      {
+        name: '3D Metal',
+        textProperties: {
+          fontSize: 42,
+          fontWeight: 'bold'
+        },
+        effects: {
+          gradient: {
+            type: 'linear',
+            angle: 90,
+            colorStops: [
+              { offset: 0, color: '#666' },
+              { offset: 0.5, color: '#fff' },
+              { offset: 1, color: '#333' }
+            ]
+          },
+          bevel: { style: 'emboss', size: 5 },
+          dropShadow: { distance: 5, blur: 8, opacity: 0.5 }
+        }
+      }
+    ]
+  }
+}
+
+interface TextStyle {
+  name: string
+  textProperties: Partial<ITextProps>
+  effects?: {
+    dropShadow?: DropShadowOptions
+    stroke?: StrokeOptions
+    glow?: GlowOptions
+    gradient?: GradientOptions
+    bevel?: BevelOptions
+    warp?: { style: string; amount: number }
+    threeDimension?: Text3DOptions
+  }
+}
+```
+
 ### Phase 5: AI Integration (Day 5)
 
 #### 5.1 Text Tool AI Adapter
@@ -1510,24 +1752,33 @@ __tests__/
 
 ## Deliverables Checklist
 
+### Core Text Tools
 - [x] Horizontal Type Tool (MVP)
 - [x] Vertical Type Tool (MVP)
 - [x] Type Mask Tool (MVP)
-- [x] Character Panel UI
-- [ ] Paragraph Panel UI
+- [ ] Type on Path Tool
 - [x] Font Manager service
 - [x] Text commands for undo/redo
 - [x] Tool options configuration
+
+### Typography Panels
+- [x] Character Panel UI
+- [x] Paragraph Panel UI
+- [ ] Glyphs Panel UI
+- [ ] Text Effects Panel UI
+
+### Advanced Text Effects
+- [ ] Text warping effects (arc, bulge, wave, flag, fish)
+- [ ] 3D text effects (extrusion, bevel, perspective)
+- [ ] Layer styles (drop shadow, stroke, glow, gradient)
+- [ ] Text styles/presets system
+- [ ] OpenType features support
+
+### Testing & Documentation
 - [ ] Unit tests (80% coverage)
 - [ ] Manual test documentation
 - [ ] Performance benchmarks
-- [ ] Horizontal Type Tool (Full)
-- [ ] Vertical Type Tool (Full)
-- [ ] Type Mask Tool (Full)
-- [ ] Type on Path Tool
-- [ ] Text warping effects
-- [ ] OpenType features panel
-- [ ] Text styles/presets system
+- [ ] AI integration for text tools
 
 ## Progress Summary
 
@@ -1545,6 +1796,7 @@ __tests__/
   - Font, size, color, alignment controls
   - Bold, italic, underline support
   - Layer integration
+  - Fixed canvas rendering issues (no more disappearing images)
 - **VerticalTypeTool**: Complete with vertical text support
   - 90-degree rotation for vertical orientation
   - Asian typography considerations
@@ -1563,14 +1815,32 @@ __tests__/
   - TextColorPicker with presets
   - LetterSpacingControl with slider
   - LineHeightControl with percentage display
-- **Paragraph Panel**: Not started ❌
+  - Fixed text color visibility in light/dark modes
+- **Paragraph Panel**: Complete ✅
+  - AlignmentButtons for text alignment
+  - IndentControls for left/right/first line indentation
+  - SpacingControls for line height and paragraph spacing
+  - JustificationOptions for text justification
+  - TextDirectionControl for LTR/RTL
 - **Glyphs Panel**: Not started ❌
+- **Text Effects Panel**: Partial ⏳
+  - Drop shadow effects ✅
+  - Stroke effects ✅
+  - Glow effects (inner/outer) ✅
+  - Gradient fills ✅
+  - Text presets (Neon, Shadow, Outline) ✅
+  - Text warping ❌
+  - 3D effects ❌
 
-### Phase 4: Advanced Features (Not Started) ❌
-- Type on Path Tool
-- Text warping effects
-- OpenType features
-- Text styles/presets
+### Phase 4: Advanced Features (Partial) ⏳
+- **Type on Path Tool**: Not started ❌
+- **Text warping effects**: Not started ❌
+- **3D text effects**: Not started ❌
+- **OpenType features**: Not started ❌
+- **Text styles/presets system**: Basic implementation ✅
+  - TextLayerStyles class implemented
+  - Basic presets working
+  - Save/load custom styles ❌
 
 ### Phase 5: AI Integration (Not Started) ❌
 - AddText AI adapter
@@ -1583,32 +1853,38 @@ __tests__/
 - Performance optimization
 - Documentation
 
+## Technical Improvements Made
+
+### Canvas Rendering Fixes
+- Fixed issue where adding text made images disappear
+- Removed duplicate canvas.add() calls throughout text creation flow
+- Made syncLayersToCanvas() non-destructive to prevent canvas clearing
+- Fixed layer type detection to create appropriate layers (text vs image)
+- Updated AddObjectCommand to check for existing objects
+- Fixed similar issues in brush tool
+
+### UI/UX Improvements
+- Fixed text color visibility in both light and dark modes
+- Added proper text-foreground classes to all labels
+- Ensured consistent styling across all panels
+
 ## Next Steps
 
 1. **Complete Phase 3**:
-   - Create Paragraph Panel for alignment and spacing
    - Create Glyphs Panel for special characters
+   - Add text warping to Text Effects Panel
+   - Add 3D effects to Text Effects Panel
 
-2. **Begin Phase 4**:
+2. **Complete Phase 4**:
    - Implement Type on Path Tool
-   - Add text warping effects
+   - Add full OpenType features support
+   - Complete text styles save/load system
 
-3. **Testing**:
-   - Test all text tools with various fonts
-   - Test text editing and selection
-   - Test with different zoom levels
-   - Verify undo/redo functionality
+3. **Phase 5 - AI Integration**:
+   - Create AI adapter for text tools
+   - Implement natural language text placement
 
-## Technical Notes
-
-- All text tools properly extend BaseTextTool
-- State management uses createToolState for encapsulation
-- Commands integrate with history system
-- Layer awareness implemented
-- Selection system integration complete for TypeMaskTool
-- Font loading infrastructure ready (needs Google Fonts API integration)
-
-## File Organization
-
-### New Files to Create
-```
+4. **Phase 6 - Testing**:
+   - Write comprehensive unit tests
+   - Performance optimization
+   - Create documentation

@@ -278,7 +278,7 @@ export function LayersPanel() {
             {/* Opacity slider */}
             <div className="space-y-1">
               <div className="flex items-center justify-between">
-                <label className="text-xs font-medium">Opacity</label>
+                <label className="text-xs font-medium text-foreground">Opacity</label>
                 <span className="text-xs text-muted-foreground">{activeLayer.opacity}%</span>
               </div>
               <Slider
@@ -293,7 +293,7 @@ export function LayersPanel() {
             
             {/* Blend mode dropdown */}
             <div className="space-y-1">
-              <label className="text-xs font-medium">Blend Mode</label>
+              <label className="text-xs font-medium text-foreground">Blend Mode</label>
               <Select
                 value={activeLayer.blendMode}
                 onValueChange={handleBlendModeChange}

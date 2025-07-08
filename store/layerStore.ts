@@ -461,20 +461,34 @@ export const useLayerStore = create<LayerState>()(
         }
       })
       
-      // Clear canvas and re-add in correct order
-      canvas.clear()
+      // Instead of clearing, just reorder objects
+      const orderedObjects: FabricObject[] = []
       
       layers.forEach(layer => {
         if (layer.visible && objectsByLayer.has(layer.id)) {
           const layerObjects = objectsByLayer.get(layer.id)!
           layerObjects.forEach(obj => {
             obj.opacity = (layer.opacity / 100) * (obj.opacity || 1)
-            canvas.add(obj)
+            obj.visible = layer.visible
+            orderedObjects.push(obj)
           })
         }
       })
       
-      canvas.renderAll()
+      // Only manipulate canvas if order actually changed
+      const currentOrder = canvas.getObjects()
+      const orderChanged = orderedObjects.length !== currentOrder.length ||
+        orderedObjects.some((obj, index) => obj !== currentOrder[index])
+      
+      if (orderChanged) {
+        // Remove all objects without clearing (preserves background, etc)
+        currentOrder.forEach(obj => canvas.remove(obj))
+        
+        // Re-add in correct order
+        orderedObjects.forEach(obj => canvas.add(obj))
+        
+        canvas.renderAll()
+      }
     },
     
     // Update layer thumbnail
@@ -565,8 +579,9 @@ export const useLayerStore = create<LayerState>()(
     addObjectToActiveLayer: (object: FabricObject) => {
       let activeLayer = get().getActiveLayer()
       if (!activeLayer) {
-        // Create a default layer if none exists
-        activeLayer = get().addLayer({ type: 'image' })
+        // Create a default layer based on object type
+        const layerType = object.type === 'i-text' || object.type === 'textbox' ? 'text' : 'image'
+        activeLayer = get().addLayer({ type: layerType })
       }
       
       const canvas = useCanvasStore.getState().fabricCanvas
@@ -578,8 +593,10 @@ export const useLayerStore = create<LayerState>()(
       object.set('id' as any, objectId)
       object.set('layerId' as any, activeLayer.id)
       
-      // Add the object to canvas
-      canvas.add(object)
+      // Check if object is already on canvas before adding
+      if (!canvas.contains(object)) {
+        canvas.add(object)
+      }
       
       // Update layer's object list
       const currentObjects = activeLayer.objectIds || []

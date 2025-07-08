@@ -17,9 +17,10 @@ export class AddObjectCommand extends Command {
   }
   
   async execute(): Promise<void> {
-    // TODO: When layer system is implemented, add to specific layer
-    // For now, just add to canvas
-    this.canvas.add(this.object)
+    // Check if object is already on canvas before adding
+    if (!this.canvas.contains(this.object)) {
+      this.canvas.add(this.object)
+    }
     this.canvas.setActiveObject(this.object)
     this.canvas.renderAll()
   }

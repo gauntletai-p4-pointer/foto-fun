@@ -4,24 +4,81 @@ import { useChat } from '@ai-sdk/react'
 import { DefaultChatTransport } from 'ai'
 import type { UIMessage } from 'ai'
 import { useState, useCallback, useRef, useEffect } from 'react'
-import { Send, Bot, User, Loader2, AlertCircle } from 'lucide-react'
+import { Send, Bot, User, Loader2, AlertCircle, Wrench, Check, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { cn } from '@/lib/utils'
 import { ClientToolExecutor } from '@/lib/ai/client/tool-executor'
 import { useCanvasStore } from '@/store/canvasStore'
+import { adapterRegistry } from '@/lib/ai/adapters/registry'
+
+// Get all AI tool names for highlighting
+const getAIToolNames = () => {
+  try {
+    const adapters = adapterRegistry.getAll()
+    return adapters.map(adapter => adapter.aiName)
+  } catch (err) {
+    // Return empty array if adapters not loaded yet
+    return []
+  }
+}
+
+// Function to parse text and highlight tool names
+const parseMessageWithTools = (text: string, toolNames: string[]) => {
+  // If no tool names available, just return the text
+  if (toolNames.length === 0) {
+    return text
+  }
+  
+  // Create a regex pattern that matches any tool name
+  const toolPattern = new RegExp(`\\b(${toolNames.join('|')})\\b`, 'gi')
+  
+  // Split text by tool names while keeping the matched parts
+  const parts = text.split(toolPattern)
+  
+  return parts.map((part, index) => {
+    // Check if this part is a tool name
+    if (toolNames.some(tool => tool.toLowerCase() === part.toLowerCase())) {
+      return (
+        <span
+          key={index}
+          className="inline-flex items-center gap-1 px-2 py-0.5 mx-0.5 bg-primary text-primary-foreground rounded-md text-xs font-medium"
+        >
+          <Wrench className="w-3 h-3" />
+          {part}
+        </span>
+      )
+    }
+    return part
+  })
+}
 
 export function AIChat() {
   const scrollAreaRef = useRef<HTMLDivElement>(null)
   const [input, setInput] = useState('')
+  const [toolNames, setToolNames] = useState<string[]>([])
   const { isReady: isCanvasReady, initializationError, waitForReady, hasContent } = useCanvasStore()
+  
+  // Initialize adapter registry and get tool names
+  useEffect(() => {
+    const loadAdapters = async () => {
+      try {
+        const { autoDiscoverAdapters } = await import('@/lib/ai/adapters/registry')
+        await autoDiscoverAdapters()
+        const names = getAIToolNames()
+        setToolNames(names)
+      } catch (error) {
+        console.error('Failed to load adapters:', error)
+      }
+    }
+    loadAdapters()
+  }, [])
   
   const {
     messages,
     sendMessage,
     status,
-    error,
   } = useChat({
     transport: new DefaultChatTransport({
       api: '/api/ai/chat',
@@ -205,7 +262,14 @@ export function AIChat() {
                 {/* Render message parts */}
                 {message.parts?.map((part, index) => {
                   if (part.type === 'text') {
-                    return <p key={index} className="text-sm whitespace-pre-wrap">{part.text}</p>
+                    return (
+                      <div key={index} className="text-sm whitespace-pre-wrap">
+                        {message.role === 'assistant' 
+                          ? parseMessageWithTools(part.text, toolNames)
+                          : part.text
+                        }
+                      </div>
+                    )
                   }
                   
                   // Check if it's a tool invocation part (handles both generic and specific tool types)
@@ -247,7 +311,22 @@ export function AIChat() {
                         key={toolCallId}
                         className="mt-2 p-3 bg-background/50 rounded border border-border/50"
                       >
-                        <div className="font-medium text-xs mb-1">{toolName}</div>
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className="inline-flex items-center gap-1 px-2 py-1 bg-primary text-primary-foreground rounded-md text-xs font-medium">
+                            <Wrench className="w-3 h-3" />
+                            {toolName}
+                          </span>
+                          {state === 'output-available' && (
+                            <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-green-500 text-white">
+                              <Check className="w-3 h-3" />
+                            </span>
+                          )}
+                          {state === 'output-error' && (
+                            <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-red-500 text-white">
+                              <X className="w-3 h-3" />
+                            </span>
+                          )}
+                        </div>
                         
                         {state === 'input-streaming' && (
                           <div className="space-y-2">
@@ -256,9 +335,12 @@ export function AIChat() {
                               <span className="text-xs">Preparing parameters...</span>
                             </div>
                             {input ? (
-                              <pre className="text-xs bg-muted/50 p-2 rounded overflow-auto">
-                                {JSON.stringify(input, null, 2)}
-                              </pre>
+                              <details className="text-xs">
+                                <summary className="cursor-pointer text-muted-foreground hover:text-foreground">Parameters</summary>
+                                <pre className="mt-1 bg-muted/50 p-2 rounded overflow-auto">
+                                  {String(JSON.stringify(input, null, 2))}
+                                </pre>
+                              </details>
                             ) : null}
                           </div>
                         )}
@@ -267,39 +349,31 @@ export function AIChat() {
                           <div className="space-y-2">
                             <div className="flex items-center gap-2 text-muted-foreground">
                               <Loader2 className="w-3 h-3 animate-spin" />
-                              <span className="text-xs">Executing {toolName}...</span>
+                              <span className="text-xs">Executing...</span>
                             </div>
                             {input ? (
-                              <pre className="text-xs bg-muted/50 p-2 rounded overflow-auto">
-                                {JSON.stringify(input, null, 2)}
-                              </pre>
+                              <details className="text-xs">
+                                <summary className="cursor-pointer text-muted-foreground hover:text-foreground">Parameters</summary>
+                                <pre className="mt-1 bg-muted/50 p-2 rounded overflow-auto">
+                                  {String(JSON.stringify(input, null, 2))}
+                                </pre>
+                              </details>
                             ) : null}
                           </div>
                         )}
                         
-                        {state === 'output-available' && (
-                          <div className="space-y-2">
-                            <div className="flex items-center gap-2 text-green-600 dark:text-green-400">
-                              <span className="text-xs">✓</span>
-                              <span className="text-xs">{toolName} completed</span>
-                            </div>
-                            {output ? (
-                              <pre className="text-xs bg-muted/50 p-2 rounded overflow-auto">
-                                {JSON.stringify(output, null, 2)}
-                              </pre>
-                            ) : null}
-                          </div>
-                        )}
+                        {state === 'output-available' && output ? (
+                          <details className="text-xs">
+                            <summary className="cursor-pointer text-muted-foreground hover:text-foreground">Result</summary>
+                            <pre className="mt-1 bg-muted/50 p-2 rounded overflow-auto">
+                              {String(JSON.stringify(output, null, 2))}
+                            </pre>
+                          </details>
+                        ) : null}
                         
                         {state === 'output-error' && (
-                          <div className="space-y-2">
-                            <div className="flex items-center gap-2 text-destructive">
-                              <AlertCircle className="w-3 h-3" />
-                              <span className="text-xs">Error in {toolName}</span>
-                            </div>
-                            <div className="text-xs text-destructive/90">
-                              {errorText || 'Unknown error occurred'}
-                            </div>
+                          <div className="text-xs text-destructive/90">
+                            {errorText || 'Unknown error occurred'}
                           </div>
                         )}
                       </div>
@@ -335,12 +409,12 @@ export function AIChat() {
             </div>
           )}
           
-          {error && (
+          {/* error && (
             <div className="flex items-center gap-2 text-destructive text-sm p-3 bg-destructive/10 rounded-lg">
               <AlertCircle className="w-4 h-4" />
               <span>Error: {error.message}</span>
             </div>
-          )}
+          ) */}
         </div>
       </ScrollArea>
       

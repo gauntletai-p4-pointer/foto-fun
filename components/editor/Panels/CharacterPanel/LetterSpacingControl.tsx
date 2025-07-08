@@ -23,7 +23,7 @@ export function LetterSpacingControl({ value, onChange }: LetterSpacingControlPr
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
-        <label className="text-xs font-medium">Letter Spacing</label>
+        <label className="text-xs font-medium text-foreground">Letter Spacing</label>
         <Input
           type="number"
           value={value}

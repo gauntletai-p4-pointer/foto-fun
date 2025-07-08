@@ -29,7 +29,7 @@ export function FontSizeInput({ value, onChange }: FontSizeInputProps) {
   
   return (
     <div className="space-y-2">
-      <label className="text-xs font-medium">Size</label>
+      <label className="text-xs font-medium text-foreground">Size</label>
       <div className="flex items-center gap-1">
         <Input
           type="number"

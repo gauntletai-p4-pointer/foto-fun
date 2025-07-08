@@ -345,36 +345,6 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
     ]
   },
   
-  [TOOL_IDS.ERASER]: {
-    toolId: TOOL_IDS.ERASER,
-    options: [
-      {
-        id: 'size',
-        type: 'slider',
-        label: 'Size',
-        value: 20,
-        props: {
-          min: 1,
-          max: 200,
-          step: 1,
-          unit: 'px'
-        }
-      },
-      {
-        id: 'hardness',
-        type: 'slider',
-        label: 'Hardness',
-        value: 100,
-        props: {
-          min: 0,
-          max: 100,
-          step: 1,
-          unit: '%'
-        }
-      }
-    ]
-  },
-  
   [TOOL_IDS.EYEDROPPER]: {
     toolId: TOOL_IDS.EYEDROPPER,
     options: [
@@ -509,6 +479,183 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
     ]
   },
   
+  [TOOL_IDS.COLOR_TEMPERATURE]: {
+    toolId: TOOL_IDS.COLOR_TEMPERATURE,
+    options: [
+      {
+        id: 'temperature',
+        type: 'slider',
+        label: 'Temperature',
+        value: 0,
+        props: { min: -100, max: 100, step: 1, unit: '%' }
+      }
+    ]
+  },
+  
+  // Transform tools
+  [TOOL_IDS.ROTATE]: {
+    toolId: TOOL_IDS.ROTATE,
+    options: [
+      {
+        id: 'angle',
+        type: 'slider',
+        label: 'Angle',
+        value: 0,
+        props: { min: -180, max: 180, step: 1, unit: '°' }
+      },
+      {
+        id: 'quickRotate',
+        type: 'button-group',
+        label: 'Quick Rotate',
+        value: null,
+        props: {
+          options: [
+            { value: -90, label: '⟲ 90°' },
+            { value: 90, label: '⟳ 90°' },
+            { value: 180, label: '↻ 180°' }
+          ]
+        }
+      }
+    ]
+  },
+  
+  [TOOL_IDS.FLIP]: {
+    toolId: TOOL_IDS.FLIP,
+    options: [
+      {
+        id: 'flipAction',
+        type: 'button-group',
+        label: 'Flip',
+        value: null,
+        props: {
+          options: [
+            { value: 'horizontal', label: 'Horizontal' },
+            { value: 'vertical', label: 'Vertical' }
+          ]
+        }
+      }
+    ]
+  },
+  
+  [TOOL_IDS.RESIZE]: {
+    toolId: TOOL_IDS.RESIZE,
+    options: [
+      {
+        id: 'mode',
+        type: 'dropdown',
+        label: 'Mode',
+        value: 'percentage',
+        props: {
+          options: [
+            { value: 'percentage', label: 'Percentage' },
+            { value: 'absolute', label: 'Absolute Size' }
+          ]
+        }
+      },
+      {
+        id: 'percentage',
+        type: 'slider',
+        label: 'Size',
+        value: 100,
+        props: { min: 10, max: 200, step: 5, unit: '%' }
+      },
+      {
+        id: 'width',
+        type: 'number',
+        label: 'Width',
+        value: 800,
+        props: { min: 1, max: 4096, step: 1, unit: 'px' }
+      },
+      {
+        id: 'height',
+        type: 'number',
+        label: 'Height',
+        value: 600,
+        props: { min: 1, max: 4096, step: 1, unit: 'px' }
+      },
+      {
+        id: 'maintainAspectRatio',
+        type: 'checkbox',
+        label: 'Maintain Aspect Ratio',
+        value: true
+      }
+    ]
+  },
+  
+  // Filter tools
+  [TOOL_IDS.BLUR]: {
+    toolId: TOOL_IDS.BLUR,
+    options: [
+      {
+        id: 'blur',
+        type: 'slider',
+        label: 'Blur Amount',
+        value: 0,
+        props: { min: 0, max: 100, step: 1, unit: '%' }
+      }
+    ]
+  },
+  
+  [TOOL_IDS.SHARPEN]: {
+    toolId: TOOL_IDS.SHARPEN,
+    options: [
+      {
+        id: 'sharpen',
+        type: 'slider',
+        label: 'Sharpen Amount',
+        value: 0,
+        props: { min: 0, max: 100, step: 1, unit: '%' }
+      }
+    ]
+  },
+  
+  [TOOL_IDS.GRAYSCALE]: {
+    toolId: TOOL_IDS.GRAYSCALE,
+    options: [
+      {
+        id: 'action',
+        type: 'button-group',
+        label: 'Grayscale',
+        value: null,
+        props: {
+          options: [
+            { value: 'toggle', label: 'Toggle Grayscale' }
+          ]
+        }
+      }
+    ]
+  },
+  
+  [TOOL_IDS.SEPIA]: {
+    toolId: TOOL_IDS.SEPIA,
+    options: [
+      {
+        id: 'intensity',
+        type: 'slider',
+        label: 'Sepia Intensity',
+        value: 0,
+        props: { min: 0, max: 100, step: 1, unit: '%' }
+      }
+    ]
+  },
+  
+  [TOOL_IDS.INVERT]: {
+    toolId: TOOL_IDS.INVERT,
+    options: [
+      {
+        id: 'action',
+        type: 'button-group',
+        label: 'Invert',
+        value: null,
+        props: {
+          options: [
+            { value: 'toggle', label: 'Toggle Invert' }
+          ]
+        }
+      }
+    ]
+  },
+
   // Text tools
   [TOOL_IDS.TYPE_HORIZONTAL]: {
     toolId: TOOL_IDS.TYPE_HORIZONTAL,

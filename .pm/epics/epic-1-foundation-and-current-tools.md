@@ -165,7 +165,7 @@ export {
 
 2. **Drawing Tools** (extend DrawingTool)
    - Brush Tool
-   - Eraser Tool
+   - Eraser Tool (❌ REMOVED - see eraserTool.ts for documentation)
 
 3. **Transform Tools** (extend BaseTool)
    - Move Tool
@@ -269,7 +269,7 @@ This epic established the foundation of FotoFun, including core architecture, al
 | **Hand Tool** | H | BaseTool | • Pan canvas<br>• Space key temporary<br>• Grab cursor |
 | **Zoom Tool** | Z | BaseTool | • Click zoom in/out<br>• Alt+click zoom out<br>• Zoom levels |
 | **Brush Tool** | B | DrawingTool | • Size/opacity control<br>• Color picker<br>• Layer integration |
-| **Eraser Tool** | E | DrawingTool | • Theme-aware erasing<br>• Size control<br>• Layer integration |
+| **Eraser Tool** | E | DrawingTool | ❌ REMOVED - See lib/editor/tools/drawing/eraserTool.ts for documentation |
 
 ## Implementation Progress by Phase
 
@@ -357,7 +357,7 @@ lib/editor/
 │   └── clipboard/ # Clipboard commands
 ├── tools/         # All tools organized by type
 │   ├── base/      # Base tool classes
-│   ├── drawing/   # Brush, Eraser
+│   ├── drawing/   # Brush, Eraser (removed)
 │   ├── selection/ # Marquee, Lasso, Magic Wand, Quick Selection
 │   ├── transform/ # Move, Crop, Hand, Zoom
 │   ├── utils/     # Tool utilities

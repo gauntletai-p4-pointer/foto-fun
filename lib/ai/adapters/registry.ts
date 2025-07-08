@@ -84,6 +84,15 @@ export async function autoDiscoverAdapters(): Promise<void> {
     const { default: SaturationAdapter } = await import('./tools/saturation')
     const { default: HueAdapter } = await import('./tools/hue')
     const { default: ExposureAdapter } = await import('./tools/exposure')
+    const { default: ColorTemperatureAdapter } = await import('./tools/colorTemperature')
+    const { default: RotateAdapter } = await import('./tools/rotate')
+    const { default: FlipAdapter } = await import('./tools/flip')
+    const { default: ResizeAdapter } = await import('./tools/resize')
+    const { default: BlurAdapter } = await import('./tools/blur')
+    const { default: SharpenAdapter } = await import('./tools/sharpen')
+    const { default: GrayscaleAdapter } = await import('./tools/grayscale')
+    const { default: SepiaAdapter } = await import('./tools/sepia')
+    const { default: InvertAdapter } = await import('./tools/invert')
     
     // Register all adapters
     adapterRegistry.register(new CropToolAdapter())
@@ -92,8 +101,17 @@ export async function autoDiscoverAdapters(): Promise<void> {
     adapterRegistry.register(new SaturationAdapter())
     adapterRegistry.register(new HueAdapter())
     adapterRegistry.register(ExposureAdapter)
+    adapterRegistry.register(ColorTemperatureAdapter)
+    adapterRegistry.register(RotateAdapter)
+    adapterRegistry.register(FlipAdapter)
+    adapterRegistry.register(ResizeAdapter)
+    adapterRegistry.register(BlurAdapter)
+    adapterRegistry.register(SharpenAdapter)
+    adapterRegistry.register(GrayscaleAdapter)
+    adapterRegistry.register(SepiaAdapter)
+    adapterRegistry.register(InvertAdapter)
     
-    console.log('[AdapterRegistry] Registered 6 tool adapters')
+    console.log('[AdapterRegistry] Registered 15 tool adapters')
   } catch (error) {
     console.error('[AdapterRegistry] Error during auto-discovery:', error)
   }

@@ -160,7 +160,7 @@ protected state = createToolState<SelectionToolState>({
 ```
 
 #### DrawingTool (`lib/editor/tools/base/DrawingTool.ts`)
-Base class for all drawing/painting tools (brush, eraser).
+Base class for all drawing/painting tools (brush, pencil, eraser - removed).
 
 **Extends**: BaseTool
 **Provides**:
@@ -214,7 +214,7 @@ state.reset()
 
 #### Drawing Tools
 - **Base Class**: DrawingTool
-- **Examples**: Brush, Eraser, Pencil
+- **Examples**: Brush, Pencil (Eraser - removed)
 - **Integration**: LayerStore, HistoryStore
 - **Pattern**: Track strokes → Create path → Add to canvas
 
@@ -360,7 +360,7 @@ class MyInteractiveTool extends BaseTool {
 | Hand Tool | `handTool.ts` | BaseTool | H | Navigation |
 | Zoom Tool | `zoomTool.ts` | BaseTool | Z | Navigation |
 | Brush Tool | `brushTool.ts` | DrawingTool | B | Drawing |
-| Eraser Tool | `eraserTool.ts` | DrawingTool | E | Drawing |
+| Eraser Tool | `eraserTool.ts` | DrawingTool | E | Drawing | ❌ REMOVED |
 
 ### Tool Option Types
 

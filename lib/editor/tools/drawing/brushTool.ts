@@ -8,6 +8,7 @@ import type { CustomFabricObjectProps } from '@/types'
 import { LayerAwareMixin } from '../utils/layerAware'
 import { useHistoryStore } from '@/store/historyStore'
 import { AddObjectCommand } from '@/lib/editor/commands/canvas'
+import { useLayerStore } from '@/store/layerStore'
 
 /**
  * Brush Tool - Freehand drawing tool
@@ -98,12 +99,12 @@ class BrushTool extends DrawingTool {
     
     this.track('pathCreated', () => {
       try {
-        // Remove the path temporarily (it was already added by Fabric)
-        this.canvas!.remove(path)
+        // The path is already on the canvas from Fabric's drawing mode
+        // Just add it to the layer system and create command
         
-        // Add the path using LayerAwareMixin to properly associate with layer
-        const context = { canvas: this.canvas! }
-        LayerAwareMixin.addObjectToLayer.call(context, path as FabricObject)
+        // This will add layer information to the existing path
+        const layerStore = useLayerStore.getState()
+        layerStore.addObjectToActiveLayer(path as FabricObject)
         
         // Create and execute command for history
         const pathWithProps = path as Path & CustomFabricObjectProps
@@ -120,10 +121,6 @@ class BrushTool extends DrawingTool {
         })
       } catch (error) {
         console.error('Error creating brush stroke:', error)
-        // Re-add the path if there was an error
-        if (!this.canvas!.contains(path)) {
-          this.canvas!.add(path)
-        }
       }
     })
   }

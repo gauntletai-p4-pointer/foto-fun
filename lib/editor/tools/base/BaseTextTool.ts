@@ -5,7 +5,6 @@ import { createToolState } from '../utils/toolState'
 import type { ToolOption } from '@/store/toolOptionsStore'
 import { AddTextCommand } from '../../commands/text/AddTextCommand'
 import { EditTextCommand } from '../../commands/text/EditTextCommand'
-import { useLayerStore } from '@/store/layerStore'
 
 // Extend TextToolState to satisfy Record constraint
 interface ExtendedTextToolState extends Record<string, unknown> {
@@ -156,6 +155,12 @@ export abstract class BaseTextTool extends BaseTool {
   }
   
   /**
+   * Create text object with tool-specific properties
+   * Subclasses must implement this to create their specific text type
+   */
+  protected abstract createTextObject(x: number, y: number): IText | Textbox
+  
+  /**
    * Create new text object at the specified position
    */
   protected createNewText(x: number, y: number): void {
@@ -163,18 +168,20 @@ export abstract class BaseTextTool extends BaseTool {
     
     const textObject = this.createTextObject(x, y)
     
-    // Add to canvas
+    // Ensure proper Unicode/emoji support
+    textObject.set('splitByGrapheme', true)
+    
+    // Temporarily add to canvas for editing (will be removed and re-added by command)
     this.canvas.add(textObject)
     this.canvas.setActiveObject(textObject)
-    
-    // Add to active layer
-    const layerStore = useLayerStore.getState()
-    layerStore.addObjectToActiveLayer(textObject)
     
     // Enter edit mode
     this.enterEditMode(textObject)
     
-    // Record command for undo/redo
+    // Remove from canvas before command execution
+    this.canvas.remove(textObject)
+    
+    // Record command for undo/redo - this will add to canvas and layer properly
     const command = new AddTextCommand(this.canvas, textObject)
     this.executeCommand(command)
     
@@ -324,10 +331,4 @@ export abstract class BaseTextTool extends BaseTool {
   protected getOptionValue<T = unknown>(optionId: string): T | undefined {
     return this.toolOptionsStore.getOptionValue<T>(this.id, optionId)
   }
-  
-  /**
-   * Create a text object with current tool options
-   * Override in derived classes for specific text types
-   */
-  protected abstract createTextObject(x: number, y: number): IText | Textbox
 } 

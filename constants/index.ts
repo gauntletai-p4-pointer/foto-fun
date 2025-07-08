@@ -47,7 +47,6 @@ export const TOOL_IDS = {
   ZOOM: 'zoom',
   BRUSH: 'brush',
   ERASER: 'eraser',
-  TEXT: 'text',
   TYPE_HORIZONTAL: 'type-horizontal',
   TYPE_VERTICAL: 'type-vertical',
   TYPE_MASK: 'type-mask',
@@ -58,6 +57,7 @@ export const TOOL_IDS = {
   SATURATION: 'saturation',
   HUE: 'hue',
   EXPOSURE: 'exposure',
+  COLOR_TEMPERATURE: 'color-temperature',
   // Transform tools
   ROTATE: 'rotate',
   FLIP: 'flip',

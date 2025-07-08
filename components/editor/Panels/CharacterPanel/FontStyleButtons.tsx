@@ -16,7 +16,7 @@ export function FontStyleButtons({ object, onChange }: FontStyleButtonsProps) {
   
   return (
     <div className="space-y-2">
-      <label className="text-xs font-medium">Style</label>
+      <label className="text-xs font-medium text-foreground">Style</label>
       <div className="flex gap-1">
         <Toggle
           size="sm"

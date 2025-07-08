@@ -38,7 +38,7 @@ export function TextColorPicker({ value, onChange }: TextColorPickerProps) {
   
   return (
     <div className="space-y-2">
-      <label className="text-xs font-medium">Color</label>
+      <label className="text-xs font-medium text-foreground">Color</label>
       <div className="flex gap-2">
         <Popover open={open} onOpenChange={setOpen}>
           <PopoverTrigger asChild>

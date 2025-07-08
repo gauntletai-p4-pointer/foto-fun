@@ -62,7 +62,7 @@ export function FontSelector({ value, onChange }: FontSelectorProps) {
   
   return (
     <div className="space-y-2">
-      <label className="text-xs font-medium">Font</label>
+      <label className="text-xs font-medium text-foreground">Font</label>
       <Select value={value} onValueChange={handleFontChange} disabled={loading}>
         <SelectTrigger className="w-full h-8">
           <SelectValue>
