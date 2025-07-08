@@ -3,11 +3,13 @@ import { TOOL_IDS } from '@/constants'
 import type { Canvas, FabricObject } from 'fabric'
 import { BaseTool } from './base/BaseTool'
 import { createToolState } from './utils/toolState'
+import { TransformCommand } from '@/lib/commands/canvas'
 
 // Move tool state
 type MoveToolState = {
   isDragging: boolean
   lastActiveObject: FabricObject | null
+  initialTransform: ReturnType<typeof TransformCommand.captureState> | null
 }
 
 /**
@@ -25,7 +27,8 @@ class MoveTool extends BaseTool {
   // Encapsulated state
   private state = createToolState<MoveToolState>({
     isDragging: false,
-    lastActiveObject: null
+    lastActiveObject: null,
+    initialTransform: null
   })
   
   /**
@@ -51,7 +54,11 @@ class MoveTool extends BaseTool {
       this.handleMouseDown(event)
     })
     
-    this.addCanvasEvent('object:moving', () => this.handleObjectMoving())
+    this.addCanvasEvent('object:moving', (e: unknown) => {
+      const event = e as { target: FabricObject }
+      this.handleObjectMoving(event)
+    })
+    
     this.addCanvasEvent('object:modified', (e: unknown) => {
       this.handleObjectModified(e as { target: FabricObject })
     })
@@ -106,10 +113,14 @@ class MoveTool extends BaseTool {
   }
   
   /**
-   * Handle object moving - track drag state
+   * Handle object moving - track drag state and capture initial transform
    */
-  private handleObjectMoving(): void {
-    this.state.set('isDragging', true)
+  private handleObjectMoving(e: { target: FabricObject }): void {
+    // Capture initial state on first move
+    if (!this.state.get('isDragging')) {
+      this.state.set('isDragging', true)
+      this.state.set('initialTransform', TransformCommand.captureState(e.target))
+    }
   }
   
   /**
@@ -118,19 +129,27 @@ class MoveTool extends BaseTool {
   private handleObjectModified(e: { target: FabricObject }): void {
     if (!this.canvas) return
     
-    this.track('objectModified', () => {
-      this.state.set('isDragging', false)
+    this.trackAsync('objectModified', async () => {
+      const initialTransform = this.state.get('initialTransform')
       
-      // TODO: Create and execute a TransformCommand when command system is implemented
-      // For now, just log the modification
-      console.log('Object modified:', {
-        object: e.target.type,
-        left: e.target.left,
-        top: e.target.top,
-        scaleX: e.target.scaleX,
-        scaleY: e.target.scaleY,
-        angle: e.target.angle
-      })
+      if (initialTransform) {
+        // Capture final state
+        const finalTransform = TransformCommand.captureState(e.target)
+        
+        // Create and execute transform command
+        const command = new TransformCommand(
+          this.canvas!,
+          e.target,
+          initialTransform,
+          finalTransform
+        )
+        
+        await this.executeCommand(command)
+      }
+      
+      // Reset state
+      this.state.set('isDragging', false)
+      this.state.set('initialTransform', null)
     })
   }
 }

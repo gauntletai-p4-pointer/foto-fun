@@ -52,10 +52,14 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
   
   // Initialize canvas
   initCanvas: (element, width, height) => {
+    // Get theme-aware background color
+    const isDarkMode = document.documentElement.classList.contains('dark')
+    const bgColor = isDarkMode ? '#191817' : '#FAF9F5'
+    
     const canvas = new Canvas(element, {
       width,
       height,
-      backgroundColor: '#ffffff',
+      backgroundColor: bgColor,
       preserveObjectStacking: true,
       selection: true,
       renderOnAddRemove: true,
@@ -87,7 +91,8 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
       fabricCanvas: canvas, 
       width, 
       height,
-      zoom: DEFAULT_ZOOM / 100
+      zoom: DEFAULT_ZOOM / 100,
+      backgroundColor: bgColor
     })
   },
   

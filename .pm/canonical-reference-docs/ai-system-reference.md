@@ -230,6 +230,121 @@ interface AutonomySettings {
 
 ## Tool System
 
+### Tool Adapter Architecture (Epic 5 - NEW)
+
+The FotoFun AI system uses a scalable adapter pattern to make canvas tools AI-compatible:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                     Canvas Tools (UI)                         │
+│  ┌────────────┐  ┌────────────┐  ┌────────────────────┐    │
+│  │ Crop Tool  │  │ Move Tool  │  │ Brightness Tool    │    │
+│  └──────┬─────┘  └────────────┘  └────────┬───────────┘    │
+│         │                                  │                  │
+│         ▼                                  ▼                  │
+│  ┌─────────────────┐              ┌──────────────────┐      │
+│  │ CropToolAdapter │              │ BrightnessAdapter│      │
+│  └─────────┬───────┘              └────────┬─────────┘      │
+│            │                                │                 │
+└────────────┼────────────────────────────────┼─────────────────┘
+             │                                │
+┌────────────▼────────────────────────────────▼─────────────────┐
+│                      Adapter Registry                          │
+│  - Auto-registration of adapters                              │
+│  - Dynamic tool discovery                                     │
+│  - Unified tool interface                                     │
+└────────────────────────────────────────────────────────────────┘
+             │
+┌────────────▼───────────────────────────────────────────────────┐
+│                      Tool Registry                             │
+│  - Single source of truth for all AI tools                    │
+│  - Both native AI tools and adapted canvas tools              │
+│  - Consistent execution interface                             │
+└────────────────────────────────────────────────────────────────┘
+```
+
+#### Key Design Principles
+
+1. **DRY (Don't Repeat Yourself)**: Canvas tools work for both UI and AI
+2. **Scalability**: Each tool adapter is independent
+3. **Type Safety**: Full TypeScript support with generics
+4. **Auto-discovery**: Tools automatically available to AI
+5. **Consistent Interface**: All tools follow BaseToolAdapter pattern
+
+#### Creating Tool Adapters
+
+```typescript
+// Step 1: Create adapter file
+// lib/ai/adapters/tools/[toolname].ts
+
+export class MyToolAdapter extends BaseToolAdapter<InputType, OutputType> {
+  tool = myCanvasTool           // Reference to the actual canvas tool
+  aiName = 'myAIToolName'       // Name AI will use
+  aiDescription = '...'         // Help AI understand when to use it
+  
+  inputSchema = z.object({...}) // Zod schema for validation
+  outputSchema = z.object({...}) // Expected output structure
+  
+  async execute(params: InputType, canvas: Canvas): Promise<OutputType> {
+    // Implementation that uses the canvas tool programmatically
+  }
+  
+  // Optional methods
+  canExecute?(canvas: Canvas): boolean
+  generatePreview?(params: InputType, canvas: Canvas): Promise<PreviewResult>
+}
+
+// Step 2: Register in autoDiscoverAdapters()
+adapterRegistry.register(new MyToolAdapter())
+```
+
+#### AI-Compatible vs Non-Compatible Tools
+
+**AI-Compatible Tools** (parameter-based):
+- ✅ **Crop Tool**: Takes x, y, width, height parameters
+- ✅ **Brightness/Contrast**: Adjustment values
+- ✅ **Filters**: Filter type and intensity
+- ✅ **Resize**: Target dimensions
+- ✅ **Rotate**: Angle in degrees
+- ✅ **Color Adjustments**: HSL/RGB values
+
+**Non-AI-Compatible Tools** (require mouse interaction):
+- ❌ **Selection Tools**: Need mouse path drawing
+- ❌ **Brush/Pencil**: Need freehand paths
+- ❌ **Move Tool**: Needs object selection first
+- ❌ **Hand/Zoom**: Navigation only
+- ❌ **Pen Tool**: Vector path creation
+
+The key distinction: AI can use tools that accept discrete parameters, not tools that require continuous mouse input.
+
+#### Parameter Resolvers (Epic 5 Enhancement)
+
+To bridge the gap between natural language and exact parameters, we introduce **Parameter Resolvers**:
+
+```typescript
+// Natural language input
+"Crop 10% from all sides"
+     ↓
+CropParameterResolver
+     ↓
+// Resolved parameters
+{ x: 100, y: 80, width: 800, height: 640 }
+     ↓
+CropToolAdapter.execute()
+```
+
+**Benefits:**
+- Tools work with both natural language and exact parameters
+- No need to wait for Epic 6's full orchestration
+- Each tool can have its own resolver logic
+- Progressive enhancement - add resolvers as needed
+
+**Example Resolver Patterns:**
+- **Percentage**: "crop 10%" → calculate from canvas dimensions
+- **Relative**: "make it brighter" → adjustment: +20
+- **Aspect Ratio**: "crop to square" → calculate center square
+- **Semantic**: "crop to the person" → use object detection
+
 ### Tool Factory Pattern (Epic 5)
 
 The tool factory creates standardized tools that work with AI SDK v5:

@@ -222,9 +222,11 @@ class LayerStore {
 ```
 
 ### 3. Selection Operations 🟡 HIGH
-**Problem**: Only 'new' selection mode works
-**Solution**: Implement boolean operations
+**Problem**: Only 'new' selection mode works, selections don't actually select pixels
+**Solution**: Implement full selection system with pixel operations
+
 ```typescript
+// Selection modes
 enum SelectionMode {
   New = 'new',
   Add = 'add',
@@ -232,14 +234,113 @@ enum SelectionMode {
   Intersect = 'intersect'
 }
 
+// Selection manager for boolean operations and pixel selection
 class SelectionManager {
+  private activeSelection: Selection | null = null
+  private selectionMask: ImageData | null = null
+  
+  // Boolean operations on selections
   combineSelections(
     existing: Path,
     new: Path,
     mode: SelectionMode
   ): Path
+  
+  // Create pixel mask from selection path
+  createMaskFromSelection(
+    selection: Path,
+    canvas: Canvas
+  ): ImageData
+  
+  // Selection operations
+  invertSelection(): void
+  expandSelection(pixels: number): void
+  contractSelection(pixels: number): void
+  featherSelection(radius: number): void
+  
+  // Get selected pixels
+  getSelectedPixels(canvas: Canvas): ImageData
+  
+  // Apply operation only to selected area
+  applyToSelection(
+    operation: (pixels: ImageData) => ImageData
+  ): void
+}
+
+// Selection-aware operations
+interface SelectionAwareOperation {
+  // Check if operation should be limited to selection
+  respectsSelection: boolean
+  
+  // Apply operation with selection mask
+  applyWithMask(
+    canvas: Canvas,
+    selection: Selection,
+    params: any
+  ): void
+}
+
+// Integration with other tools
+class ToolSelectionIntegration {
+  // Make tools respect selection boundaries
+  constrainToSelection(tool: Tool): void
+  
+  // Enable copy/cut/paste operations
+  copySelection(): ClipboardData
+  cutSelection(): ClipboardData
+  pasteAsNewLayer(data: ClipboardData): Layer
+  
+  // Layer operations from selection
+  createLayerViaСopy(): Layer
+  createLayerViaCut(): Layer
+  createMaskFromSelection(): LayerMask
 }
 ```
+
+**Full Selection Functionality to Implement:**
+
+1. **Pixel Selection System**
+   - Convert vector selection paths to pixel masks
+   - Store selection as alpha channel
+   - Support partial selection (0-255 alpha values)
+
+2. **Selection Operations**
+   - Select All (Ctrl/Cmd+A)
+   - Deselect (Ctrl/Cmd+D)
+   - Reselect (Ctrl/Cmd+Shift+D)
+   - Inverse (Ctrl/Cmd+Shift+I)
+   - Color Range selection
+   - Grow/Similar selection
+
+3. **Selection Modification**
+   - Border (create selection from edges)
+   - Smooth (smooth selection edges)
+   - Expand/Contract by pixels
+   - Feather (soft edges)
+   - Transform Selection (without transforming content)
+
+4. **Copy/Cut/Paste Integration**
+   - Copy/Cut selected pixels to clipboard
+   - Paste as new layer
+   - Paste Into (use selection as mask)
+   - Clear (delete selected pixels)
+
+5. **Tool Integration**
+   - All painting tools respect selection
+   - Filters apply only to selected area
+   - Adjustments limited to selection
+   - Fill/Stroke selection
+
+6. **Visual Feedback**
+   - Marching ants animation ✅ (already done)
+   - Quick Mask mode (edit selection as grayscale)
+   - Show/Hide selection edges
+   - Selection preview
+
+7. **Save/Load Selections**
+   - Save selection as alpha channel
+   - Load saved selections
+   - Selection to path conversion
 
 ### 4. Base Tool Class 🟡 HIGH
 **Problem**: Repetitive tool code, module-level state
@@ -556,11 +657,42 @@ abstract class BaseTool implements ToolLifecycle {
    - [ ] Update all tools to work with layers
    - [ ] Add layer commands for history
 
-5. **Phase 4: Selection Enhancement** (2-3 days)
-   - [ ] Implement SelectionManager with boolean operations
-   - [ ] Add add/subtract/intersect modes to all selection tools
-   - [ ] Implement selection transformation
+5. **Phase 4: Selection Enhancement** (4-5 days) 🔴 EXPANDED
+   - [ ] Implement SelectionManager with pixel selection system
+      - [ ] Convert vector paths to pixel masks
+      - [ ] Store selection as ImageData with alpha channel
+      - [ ] Support partial selection (anti-aliasing)
+   - [ ] Add boolean operations for selection modes
+      - [ ] Add mode (union)
+      - [ ] Subtract mode (difference) 
+      - [ ] Intersect mode (intersection)
+      - [ ] XOR mode (symmetric difference)
+   - [ ] Implement selection operations
+      - [ ] Select All (Cmd/Ctrl+A)
+      - [ ] Deselect (Cmd/Ctrl+D)
+      - [ ] Reselect (Cmd/Ctrl+Shift+D)
+      - [ ] Inverse (Cmd/Ctrl+Shift+I)
+      - [ ] Expand/Contract/Feather/Smooth
+   - [ ] Add copy/cut/paste functionality
+      - [ ] Copy selected pixels (Cmd/Ctrl+C)
+      - [ ] Cut selected pixels (Cmd/Ctrl+X)
+      - [ ] Paste as new layer (Cmd/Ctrl+V)
+      - [ ] Clear selection (Delete key)
+   - [ ] Integrate selections with all tools
+      - [ ] Painting tools respect selection mask
+      - [ ] Filters/adjustments apply only to selection
+      - [ ] Transform tools work on selected pixels
    - [ ] Add selection commands for history
+      - [ ] CreateSelectionCommand
+      - [ ] ModifySelectionCommand
+      - [ ] ClearSelectionCommand
+   - [ ] Implement Quick Mask mode
+      - [ ] Toggle selection/mask view (Q key)
+      - [ ] Edit selection as grayscale image
+      - [ ] Add selection persistence
+      - [ ] Save selection as channel
+      - [ ] Load saved selections
+      - [ ] Export selection as path
 
 6. **Phase 5: Missing Tools** (2-3 days)
    - [ ] Implement Quick Selection Tool (W)
@@ -722,13 +854,35 @@ components/
 ```
 lib/
 ├── selection/
-│   ├── SelectionManager.ts          # Boolean operations
+│   ├── SelectionManager.ts          # Core selection engine
+│   ├── SelectionMask.ts            # Pixel mask generation/manipulation
 │   ├── SelectionPath.ts            # Path-based selections
 │   ├── SelectionTransform.ts       # Transform selections
+│   ├── SelectionOperations.ts      # Expand/contract/feather/smooth
+│   ├── BooleanOperations.ts        # Add/subtract/intersect/xor
+│   ├── SelectionClipboard.ts       # Copy/cut/paste functionality
+│   ├── QuickMask.ts                # Quick mask mode implementation
 │   └── index.ts
 
 store/
 ├── selectionStore.ts                # UPDATE existing file
+├── clipboardStore.ts               # NEW - Clipboard management
+
+components/
+├── editor/
+│   ├── MenuBar/
+│   │   ├── menus/
+│   │   │   └── SelectMenu.tsx      # NEW - Selection menu
+│   ├── QuickMask/
+│   │   └── QuickMaskOverlay.tsx    # NEW - Quick mask UI
+
+lib/
+├── commands/
+│   ├── selection/
+│   │   ├── CreateSelectionCommand.ts
+│   │   ├── ModifySelectionCommand.ts
+│   │   ├── TransformSelectionCommand.ts
+│   │   └── ClearSelectionCommand.ts
 ```
 
 #### 5. Filter Pipeline
@@ -871,7 +1025,12 @@ components/
 - [ ] **BaseTool class** - All tools inherit from it
 - [ ] **HistoryStore** - Full undo/redo working
 - [ ] **LayerStore** - Basic layer management
-- [ ] **SelectionManager** - Boolean operations working
+- [ ] **SelectionManager** - Full pixel selection system working
+  - [ ] Boolean operations (add/subtract/intersect)
+  - [ ] Pixel mask generation from paths
+  - [ ] Selection operations (expand/contract/feather)
+  - [ ] Copy/cut/paste integration
+  - [ ] Tool selection constraints
 - [ ] **ToolStateManager** - Encapsulated state management
 - [ ] **EventManager** - Consistent event handling
 - [ ] **PerformanceMonitor** - Tracking all operations
@@ -884,6 +1043,7 @@ components/
   - [ ] Proper state encapsulation
   - [ ] Clean event management
   - [ ] Layer awareness
+  - [ ] Selection awareness (respect selection boundaries)
   - [ ] Performance tracking
 
 ### UI Complete
@@ -891,6 +1051,12 @@ components/
 - [ ] **History panel** - Shows operation history
 - [ ] **Layers panel** - Basic layer management UI
 - [ ] **Selection modes** - UI for add/subtract/intersect
+- [ ] **Selection menu** - All selection operations available
+  - [ ] Select All/Deselect/Reselect/Inverse
+  - [ ] Modify selection (expand/contract/feather)
+  - [ ] Color range selection
+  - [ ] Transform selection
+- [ ] **Quick Mask mode** - Toggle and edit selections as masks
 
 ### Documentation & Testing
 - [ ] **Architecture guide** - Patterns documented for future epics
@@ -906,5 +1072,6 @@ Epic 1 is complete when:
 3. All existing tools work with the new patterns
 4. Undo/redo works for all operations
 5. Basic layer system is functional
-6. No regressions in existing functionality
-7. Future epics can build on these patterns without refactoring
+6. Full selection system with pixel operations is working
+7. No regressions in existing functionality
+8. Future epics can build on these patterns without refactoring

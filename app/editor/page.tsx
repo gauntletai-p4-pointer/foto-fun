@@ -12,6 +12,7 @@ import { NewDocumentDialog } from '@/components/dialogs/NewDocumentDialog'
 import { useDocumentStore } from '@/store/documentStore'
 import { useToolStore } from '@/store/toolStore'
 import { createClient } from '@/lib/db/supabase/client'
+import { historyKeyboardHandlers } from '@/store/historyStore'
 
 export default function EditorPage() {
   const { saveDocument, currentDocument, createNewDocument } = useDocumentStore()
@@ -49,6 +50,21 @@ export default function EditorPage() {
       }
       
       const isMeta = e.metaKey || e.ctrlKey
+      
+      // Check for undo/redo first (handled by historyStore)
+      if (isMeta && e.key === 'z') {
+        if (e.shiftKey) {
+          historyKeyboardHandlers.handleRedo(e)
+        } else {
+          historyKeyboardHandlers.handleUndo(e)
+        }
+        return
+      }
+      
+      if (isMeta && e.key === 'y') {
+        historyKeyboardHandlers.handleRedo(e)
+        return
+      }
       
       // Save (Cmd/Ctrl + S)
       if (isMeta && e.key === 's') {

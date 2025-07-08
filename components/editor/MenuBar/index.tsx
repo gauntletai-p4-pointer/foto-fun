@@ -7,6 +7,7 @@ import { useTheme } from '@/hooks/useTheme'
 import { useAuth } from '@/hooks/useAuth'
 import { signOut } from '@/lib/auth/actions'
 import { NewDocumentDialog } from '@/components/dialogs/NewDocumentDialog'
+import { useHistoryStore } from '@/store/historyStore'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -15,7 +16,7 @@ import {
   DropdownMenuTrigger,
   DropdownMenuShortcut,
 } from '@/components/ui/dropdown-menu'
-import { FileDown, FileImage, FilePlus, Save, Sun, Moon, LogOut } from 'lucide-react'
+import { FileDown, FileImage, FilePlus, Save, Sun, Moon, LogOut, Undo, Redo } from 'lucide-react'
 
 export function MenuBar() {
   const [newDocumentOpen, setNewDocumentOpen] = useState(false)
@@ -23,6 +24,7 @@ export function MenuBar() {
   const { saveDocument, currentDocument, hasUnsavedChanges } = useDocumentStore()
   const { theme, setTheme } = useTheme()
   const { user } = useAuth()
+  const { undo, redo, canUndo, canRedo } = useHistoryStore()
   
   const handleSave = () => {
     if (currentDocument) {
@@ -32,6 +34,14 @@ export function MenuBar() {
   
   const handleSignOut = async () => {
     await signOut()
+  }
+  
+  const handleUndo = () => {
+    undo()
+  }
+  
+  const handleRedo = () => {
+    redo()
   }
   
   return (
@@ -79,7 +89,56 @@ export function MenuBar() {
             </DropdownMenuContent>
           </DropdownMenu>
           
-          <button className="hover:text-foreground/80" disabled>Edit</button>
+          <DropdownMenu>
+            <DropdownMenuTrigger className="hover:text-foreground/80 outline-none">
+              Edit
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-56">
+              <DropdownMenuItem 
+                onClick={handleUndo}
+                disabled={!canUndo()}
+              >
+                <Undo className="mr-2 h-4 w-4" />
+                Undo
+                <DropdownMenuShortcut>⌘Z</DropdownMenuShortcut>
+              </DropdownMenuItem>
+              <DropdownMenuItem 
+                onClick={handleRedo}
+                disabled={!canRedo()}
+              >
+                <Redo className="mr-2 h-4 w-4" />
+                Redo
+                <DropdownMenuShortcut>⌘⇧Z</DropdownMenuShortcut>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem disabled>
+                Cut
+                <DropdownMenuShortcut>⌘X</DropdownMenuShortcut>
+              </DropdownMenuItem>
+              <DropdownMenuItem disabled>
+                Copy
+                <DropdownMenuShortcut>⌘C</DropdownMenuShortcut>
+              </DropdownMenuItem>
+              <DropdownMenuItem disabled>
+                Paste
+                <DropdownMenuShortcut>⌘V</DropdownMenuShortcut>
+              </DropdownMenuItem>
+              <DropdownMenuItem disabled>
+                Delete
+                <DropdownMenuShortcut>⌫</DropdownMenuShortcut>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem disabled>
+                Select All
+                <DropdownMenuShortcut>⌘A</DropdownMenuShortcut>
+              </DropdownMenuItem>
+              <DropdownMenuItem disabled>
+                Deselect
+                <DropdownMenuShortcut>⌘D</DropdownMenuShortcut>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          
           <button className="hover:text-foreground/80" disabled>Image</button>
           <button className="hover:text-foreground/80" disabled>Layer</button>
           <button className="hover:text-foreground/80" disabled>Select</button>

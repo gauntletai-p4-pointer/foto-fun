@@ -1,119 +1,106 @@
 import { Circle } from 'lucide-react'
 import { TOOL_IDS } from '@/constants'
-import type { Tool, ToolEvent } from '@/types'
-import type { Canvas, TPointerEvent } from 'fabric'
+import type { Canvas } from 'fabric'
 import { Ellipse } from 'fabric'
+import { SelectionTool } from './base/SelectionTool'
 import { selectionStyle, startMarchingAnts, stopMarchingAnts, type SelectionShape } from './utils/selectionRenderer'
-import { useSelectionStore } from '@/store/selectionStore'
 
-let isDrawing = false
-let startX = 0
-let startY = 0
-let currentEllipse: Ellipse | null = null
-
-export const marqueeEllipseTool: Tool = {
-  id: TOOL_IDS.MARQUEE_ELLIPSE,
-  name: 'Elliptical Marquee Tool',
-  icon: Circle,
-  cursor: 'crosshair',
-  shortcut: 'M',
-  isImplemented: true,
+/**
+ * Elliptical Marquee Tool - Creates elliptical/circular selections
+ * Extends SelectionTool for consistent selection behavior
+ */
+class MarqueeEllipseTool extends SelectionTool {
+  // Tool identification
+  id = TOOL_IDS.MARQUEE_ELLIPSE
+  name = 'Elliptical Marquee Tool'
+  icon = Circle
+  cursor = 'crosshair'
+  shortcut = 'M'
   
-  onMouseDown: (event: ToolEvent) => {
-    const canvas = event.target as Canvas
-    const pointer = canvas.getPointer(event.e as TPointerEvent)
+  // Override to use Ellipse instead of Path
+  protected feedbackEllipse: Ellipse | null = null
+  
+  /**
+   * Create visual feedback (ellipse)
+   */
+  protected createFeedback(): void {
+    if (!this.canvas) return
     
-    isDrawing = true
-    startX = pointer.x
-    startY = pointer.y
+    const startPoint = this.state.get('startPoint')
+    if (!startPoint) return
     
     // Create initial ellipse
-    currentEllipse = new Ellipse({
-      left: startX,
-      top: startY,
-      originX: 'left',
-      originY: 'top',
+    this.feedbackEllipse = new Ellipse({
+      left: startPoint.x,
+      top: startPoint.y,
       rx: 0,
       ry: 0,
       ...selectionStyle
     })
     
-    canvas.add(currentEllipse)
-    canvas.renderAll()
-  },
+    this.canvas.add(this.feedbackEllipse)
+    this.canvas.renderAll()
+  }
   
-  onMouseMove: (event: ToolEvent) => {
-    if (!isDrawing || !currentEllipse) return
+  /**
+   * Update visual feedback during selection
+   */
+  protected updateFeedback(): void {
+    if (!this.canvas || !this.feedbackEllipse) return
     
-    const canvas = event.target as Canvas
-    const pointer = canvas.getPointer(event.e as TPointerEvent)
-    const e = event.e as TPointerEvent
+    const dimensions = this.getConstrainedDimensions()
     
-    let width = Math.abs(pointer.x - startX)
-    let height = Math.abs(pointer.y - startY)
+    // Ellipse uses center point and radii
+    this.feedbackEllipse.set({
+      left: dimensions.x + dimensions.width / 2,
+      top: dimensions.y + dimensions.height / 2,
+      rx: dimensions.width / 2,
+      ry: dimensions.height / 2
+    })
     
-    // Check for shift key (constrain to circle)
-    if (e.shiftKey) {
-      const size = Math.max(width, height)
-      width = size
-      height = size
-    }
+    this.canvas.renderAll()
+  }
+  
+  /**
+   * Finalize the selection
+   */
+  protected finalizeSelection(): void {
+    if (!this.canvas || !this.feedbackEllipse) return
     
-    // Check for alt/option key (draw from center)
-    if (e.altKey) {
-      currentEllipse.set({
-        left: startX,
-        top: startY,
-        originX: 'center',
-        originY: 'center',
-        rx: width / 2,
-        ry: height / 2,
-      })
+    // Only keep the selection if it has a minimum size
+    const minSize = 2
+    const rx = this.feedbackEllipse.rx ?? 0
+    const ry = this.feedbackEllipse.ry ?? 0
+    
+    if (rx < minSize || ry < minSize) {
+      // Too small, remove it
+      this.canvas.remove(this.feedbackEllipse)
     } else {
-      currentEllipse.set({
-        left: Math.min(startX, pointer.x),
-        top: Math.min(startY, pointer.y),
-        originX: 'left',
-        originY: 'top',
-        rx: width / 2,
-        ry: height / 2,
+      // Start marching ants animation
+      startMarchingAnts(this.feedbackEllipse as SelectionShape, this.canvas)
+      
+      // Apply selection based on current mode
+      this.selectionStore.applySelection(this.canvas, this.feedbackEllipse)
+      
+      // TODO: Create SelectionCommand when command system is implemented
+      console.log('Ellipse selection created:', {
+        mode: this.selectionMode,
+        bounds: {
+          left: this.feedbackEllipse.left,
+          top: this.feedbackEllipse.top,
+          rx: this.feedbackEllipse.rx,
+          ry: this.feedbackEllipse.ry
+        }
       })
     }
     
-    canvas.renderAll()
-  },
+    this.feedbackEllipse = null
+  }
   
-  onMouseUp: (event: ToolEvent) => {
-    const canvas = event.target as Canvas
-    isDrawing = false
-    
-    if (currentEllipse) {
-      // Only keep the selection if it has a minimum size
-      const minSize = 2
-      if ((currentEllipse.rx ?? 0) < minSize || (currentEllipse.ry ?? 0) < minSize) {
-        canvas.remove(currentEllipse)
-      } else {
-        // Start marching ants animation
-        startMarchingAnts(currentEllipse as SelectionShape, canvas)
-        
-        // Apply selection based on current mode
-        const selectionStore = useSelectionStore.getState()
-        selectionStore.applySelection(canvas, currentEllipse)
-      }
-      
-      currentEllipse = null
-    }
-    
-    canvas.renderAll()
-  },
-  
-  onActivate: (canvas: Canvas) => {
-    canvas.defaultCursor = 'crosshair'
-    canvas.hoverCursor = 'crosshair'
-    canvas.selection = false
-  },
-  
-  onDeactivate: (canvas: Canvas) => {
+  /**
+   * Override cleanup to handle marching ants
+   */
+  protected cleanup(canvas: Canvas): void {
     // Clean up any existing selections
     const objects = canvas.getObjects()
     objects.forEach(obj => {
@@ -123,11 +110,16 @@ export const marqueeEllipseTool: Tool = {
       }
     })
     
-    canvas.defaultCursor = 'default'
-    canvas.hoverCursor = 'move'
-    canvas.selection = true
-    isDrawing = false
-    currentEllipse = null
-    canvas.renderAll()
+    // Clean up feedback ellipse if exists
+    if (this.feedbackEllipse && canvas.contains(this.feedbackEllipse)) {
+      canvas.remove(this.feedbackEllipse)
+      this.feedbackEllipse = null
+    }
+    
+    // Call parent cleanup
+    super.cleanup(canvas)
   }
-} 
+}
+
+// Export singleton instance
+export const marqueeEllipseTool = new MarqueeEllipseTool() 

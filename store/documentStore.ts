@@ -59,7 +59,12 @@ export const useDocumentStore = create<DocumentStore>((set, get) => ({
     const canvasStore = useCanvasStore.getState()
     if (canvasStore.fabricCanvas) {
       canvasStore.resize(newDocument.width, newDocument.height)
-      canvasStore.setBackgroundColor('#ffffff')
+      
+      // Use theme-aware background color
+      const isDarkMode = document.documentElement.classList.contains('dark')
+      const bgColor = isDarkMode ? '#191817' : '#FAF9F5'
+      canvasStore.setBackgroundColor(bgColor)
+      
       canvasStore.fabricCanvas.clear()
       canvasStore.centerContent()
       canvasStore.zoomToFit()

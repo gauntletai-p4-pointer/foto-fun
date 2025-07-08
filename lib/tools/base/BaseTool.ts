@@ -5,8 +5,9 @@ import { useCanvasStore } from '@/store/canvasStore'
 import { useToolOptionsStore } from '@/store/toolOptionsStore'
 import type { ToolOption } from '@/store/toolOptionsStore'
 import { usePerformanceStore } from '@/store/performanceStore'
+import type { ICommand } from '@/lib/commands/base'
+import { useHistoryStore } from '@/store/historyStore'
 // TODO: Uncomment when stores are implemented
-// import { useHistoryStore } from '@/store/historyStore'
 // import { useLayerStore } from '@/store/layerStore'
 import type { StoreApi } from 'zustand'
 
@@ -56,8 +57,8 @@ export abstract class BaseTool implements Tool {
   protected canvasStore = useCanvasStore.getState()
   protected toolOptionsStore = useToolOptionsStore.getState()
   protected performanceMonitor = usePerformanceStore.getState()
+  protected historyStore = useHistoryStore.getState()
   // TODO: Uncomment when stores are implemented
-  // protected historyStore = useHistoryStore.getState()
   // protected layerStore = useLayerStore.getState()
   
   /**
@@ -212,11 +213,8 @@ export abstract class BaseTool implements Tool {
   /**
    * Execute a command and record it in history
    */
-  protected async executeCommand(command: Command): Promise<void> {
-    // TODO: Implement when history store is available
-    // await this.historyStore.executeCommand(command)
-    console.log('Command execution:', command.description)
-    await command.execute()
+  protected async executeCommand(command: ICommand): Promise<void> {
+    await this.historyStore.executeCommand(command)
   }
   
   // Performance Tracking
@@ -262,16 +260,4 @@ export abstract class BaseTool implements Tool {
   onMouseWheel?(e: ToolEvent): void
   onKeyDown?(e: KeyboardEvent): void
   onKeyUp?(e: KeyboardEvent): void
-}
-
-// Command interface (will be moved to separate file)
-export interface Command {
-  id: string
-  timestamp: number
-  description: string
-  execute(): Promise<void>
-  undo(): Promise<void>
-  redo(): Promise<void>
-  canExecute(): boolean
-  canUndo(): boolean
 } 

@@ -1,113 +1,103 @@
 import { Square } from 'lucide-react'
 import { TOOL_IDS } from '@/constants'
-import type { Tool, ToolEvent } from '@/types'
-import type { Canvas, TPointerEvent } from 'fabric'
+import type { Canvas } from 'fabric'
 import { Rect } from 'fabric'
+import { SelectionTool } from './base/SelectionTool'
 import { selectionStyle, startMarchingAnts, stopMarchingAnts, type SelectionShape } from './utils/selectionRenderer'
-import { useSelectionStore } from '@/store/selectionStore'
 
-let isDrawing = false
-let startX = 0
-let startY = 0
-let currentRect: Rect | null = null
-
-export const marqueeRectTool: Tool = {
-  id: TOOL_IDS.MARQUEE_RECT,
-  name: 'Rectangular Marquee Tool',
-  icon: Square,
-  cursor: 'crosshair',
-  shortcut: 'M',
-  isImplemented: true,
+/**
+ * Rectangular Marquee Tool - Creates rectangular selections
+ * Extends SelectionTool for consistent selection behavior
+ */
+class MarqueeRectTool extends SelectionTool {
+  // Tool identification
+  id = TOOL_IDS.MARQUEE_RECT
+  name = 'Rectangular Marquee Tool'
+  icon = Square
+  cursor = 'crosshair'
+  shortcut = 'M'
   
-  onMouseDown: (event: ToolEvent) => {
-    const canvas = event.target as Canvas
-    const pointer = canvas.getPointer(event.e as TPointerEvent)
+  // Override to use Rect instead of Path
+  protected feedbackRect: Rect | null = null
+  
+  /**
+   * Create visual feedback (rectangle)
+   */
+  protected createFeedback(): void {
+    if (!this.canvas) return
     
-    isDrawing = true
-    startX = pointer.x
-    startY = pointer.y
+    const startPoint = this.state.get('startPoint')
+    if (!startPoint) return
     
     // Create initial rectangle
-    currentRect = new Rect({
-      left: startX,
-      top: startY,
+    this.feedbackRect = new Rect({
+      left: startPoint.x,
+      top: startPoint.y,
       width: 0,
       height: 0,
       ...selectionStyle
     })
     
-    canvas.add(currentRect)
-    canvas.renderAll()
-  },
+    this.canvas.add(this.feedbackRect)
+    this.canvas.renderAll()
+  }
   
-  onMouseMove: (event: ToolEvent) => {
-    if (!isDrawing || !currentRect) return
+  /**
+   * Update visual feedback during selection
+   */
+  protected updateFeedback(): void {
+    if (!this.canvas || !this.feedbackRect) return
     
-    const canvas = event.target as Canvas
-    const pointer = canvas.getPointer(event.e as TPointerEvent)
-    const e = event.e as TPointerEvent
+    const dimensions = this.getConstrainedDimensions()
     
-    let width = pointer.x - startX
-    let height = pointer.y - startY
+    this.feedbackRect.set({
+      left: dimensions.x,
+      top: dimensions.y,
+      width: dimensions.width,
+      height: dimensions.height
+    })
     
-    // Check for shift key (constrain to square)
-    if (e.shiftKey) {
-      const size = Math.max(Math.abs(width), Math.abs(height))
-      width = width < 0 ? -size : size
-      height = height < 0 ? -size : size
-    }
+    this.canvas.renderAll()
+  }
+  
+  /**
+   * Finalize the selection
+   */
+  protected finalizeSelection(): void {
+    if (!this.canvas || !this.feedbackRect) return
     
-    // Check for alt/option key (draw from center)
-    if (e.altKey) {
-      currentRect.set({
-        left: startX - Math.abs(width),
-        top: startY - Math.abs(height),
-        width: Math.abs(width) * 2,
-        height: Math.abs(height) * 2,
-      })
+    // Only keep the selection if it has a minimum size
+    const minSize = 2
+    
+    if ((this.feedbackRect.width ?? 0) < minSize || (this.feedbackRect.height ?? 0) < minSize) {
+      // Too small, remove it
+      this.canvas.remove(this.feedbackRect)
     } else {
-      currentRect.set({
-        left: width < 0 ? pointer.x : startX,
-        top: height < 0 ? pointer.y : startY,
-        width: Math.abs(width),
-        height: Math.abs(height),
+      // Start marching ants animation
+      startMarchingAnts(this.feedbackRect as SelectionShape, this.canvas)
+      
+      // Apply selection based on current mode
+      this.selectionStore.applySelection(this.canvas, this.feedbackRect)
+      
+      // TODO: Create SelectionCommand when command system is implemented
+      console.log('Rectangle selection created:', {
+        mode: this.selectionMode,
+        bounds: {
+          left: this.feedbackRect.left,
+          top: this.feedbackRect.top,
+          width: this.feedbackRect.width,
+          height: this.feedbackRect.height
+        }
       })
     }
     
-    canvas.renderAll()
-  },
+    this.feedbackRect = null
+  }
   
-  onMouseUp: (event: ToolEvent) => {
-    const canvas = event.target as Canvas
-    isDrawing = false
-    
-    if (currentRect) {
-      // Only keep the selection if it has a minimum size
-      const minSize = 2
-      if ((currentRect.width ?? 0) < minSize || (currentRect.height ?? 0) < minSize) {
-        canvas.remove(currentRect)
-      } else {
-        // Start marching ants animation
-        startMarchingAnts(currentRect as SelectionShape, canvas)
-        
-        // Apply selection based on current mode
-        const selectionStore = useSelectionStore.getState()
-        selectionStore.applySelection(canvas, currentRect)
-      }
-      
-      currentRect = null
-    }
-    
-    canvas.renderAll()
-  },
-  
-  onActivate: (canvas: Canvas) => {
-    canvas.defaultCursor = 'crosshair'
-    canvas.hoverCursor = 'crosshair'
-    canvas.selection = false
-  },
-  
-  onDeactivate: (canvas: Canvas) => {
+  /**
+   * Override cleanup to handle marching ants
+   */
+  protected cleanup(canvas: Canvas): void {
     // Clean up any existing selections
     const objects = canvas.getObjects()
     objects.forEach(obj => {
@@ -117,11 +107,16 @@ export const marqueeRectTool: Tool = {
       }
     })
     
-    canvas.defaultCursor = 'default'
-    canvas.hoverCursor = 'move'
-    canvas.selection = true
-    isDrawing = false
-    currentRect = null
-    canvas.renderAll()
+    // Clean up feedback rect if exists
+    if (this.feedbackRect && canvas.contains(this.feedbackRect)) {
+      canvas.remove(this.feedbackRect)
+      this.feedbackRect = null
+    }
+    
+    // Call parent cleanup
+    super.cleanup(canvas)
   }
-} 
+}
+
+// Export singleton instance
+export const marqueeRectTool = new MarqueeRectTool() 

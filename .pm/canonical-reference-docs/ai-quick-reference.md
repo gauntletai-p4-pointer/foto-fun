@@ -1,5 +1,107 @@
 # FotoFun AI System - Quick Reference
 
+## Tool Adapter Pattern (NEW - Epic 5)
+
+### Creating a Tool Adapter
+```typescript
+// lib/ai/adapters/tools/brightness.ts
+import { z } from 'zod'
+import { BaseToolAdapter } from '../base'
+import { brightnessTool } from '@/lib/tools/brightnessTool'
+
+const BrightnessInputSchema = z.object({
+  adjustment: z.number().min(-100).max(100)
+    .describe('Brightness adjustment from -100 to 100')
+})
+
+const BrightnessOutputSchema = z.object({
+  success: z.boolean(),
+  previousValue: z.number(),
+  newValue: z.number()
+})
+
+export class BrightnessToolAdapter extends BaseToolAdapter<
+  z.infer<typeof BrightnessInputSchema>,
+  z.infer<typeof BrightnessOutputSchema>
+> {
+  tool = brightnessTool
+  aiName = 'adjustBrightness'
+  aiDescription = 'Adjust image brightness by a percentage'
+  
+  inputSchema = BrightnessInputSchema
+  outputSchema = BrightnessOutputSchema
+  
+  async execute(params, canvas) {
+    // Your implementation here
+    return { success: true, previousValue: 0, newValue: params.adjustment }
+  }
+  
+  // Optional: Add preview generation
+  async generatePreview(params, canvas) {
+    const before = canvas.toDataURL()
+    // Apply temporary change for preview
+    const after = canvas.toDataURL()
+    return { before, after }
+  }
+}
+```
+
+### Registering the Adapter
+```typescript
+// In lib/ai/adapters/registry.ts autoDiscoverAdapters()
+const { BrightnessToolAdapter } = await import('./tools/brightness')
+adapterRegistry.register(new BrightnessToolAdapter())
+```
+
+### Key Points
+- Each tool gets its own adapter file
+- Extends BaseToolAdapter for consistency
+- Auto-registers with the AI system
+- Type-safe with Zod schemas
+- Preview generation is optional but recommended
+
+### Parameter Resolvers (For Natural Language)
+```typescript
+// lib/ai/adapters/resolvers/brightness.ts
+export class BrightnessParameterResolver extends BaseParameterResolver<BrightnessInput> {
+  async resolve(naturalInput: string, context: CanvasContext): Promise<BrightnessInput> {
+    // Use AI to understand intent
+    const { object } = await generateObject({
+      model: openai('gpt-4'),
+      schema: z.object({
+        direction: z.enum(['brighter', 'darker', 'auto']),
+        intensity: z.enum(['slight', 'moderate', 'significant']).optional(),
+        amount: z.number().optional()
+      }),
+      prompt: naturalInput
+    })
+    
+    // Convert to exact parameters
+    if (object.amount) return { adjustment: object.amount }
+    
+    const amounts = {
+      brighter: { slight: 10, moderate: 25, significant: 50 },
+      darker: { slight: -10, moderate: -25, significant: -50 }
+    }
+    
+    return { 
+      adjustment: amounts[object.direction]?.[object.intensity || 'moderate'] || 20 
+    }
+  }
+}
+
+// In your adapter
+export class BrightnessToolAdapter extends BaseToolAdapter<...> {
+  parameterResolver = new BrightnessParameterResolver()
+  // ... rest of implementation
+}
+```
+
+Now your tool works with:
+- "Make it brighter" → adjustment: 25
+- "Significantly darker" → adjustment: -50
+- "Increase brightness by 30" → adjustment: 30
+
 ## Tool Creation Cheat Sheet
 
 ### Basic Tool Template
@@ -305,6 +407,32 @@ it('should erase detected object', async () => {
 })
 ```
 
+## Tool Adapter Troubleshooting
+
+### Common Issues
+
+1. **Tool not appearing in AI chat**
+   - Check adapter is registered in `autoDiscoverAdapters()`
+   - Verify adapter extends `BaseToolAdapter`
+   - Check for import errors in registry
+
+2. **"Canvas required" errors**
+   - Ensure tool is marked with `requiresCanvas: true`
+   - Check canvas context is available
+   - Verify Fabric.js canvas is initialized
+
+3. **Type errors in adapter**
+   ```typescript
+   // Use type inference for schemas
+   type MyInput = z.infer<typeof MyInputSchema>
+   type MyOutput = z.infer<typeof MyOutputSchema>
+   ```
+
+4. **Tool execution fails**
+   - Check canvas has objects (for tools like crop)
+   - Validate input parameters are within bounds
+   - Test execute method independently
+
 ## Common Gotchas
 
 1. **Canvas State**: Always check `context.canvas` exists before using
@@ -315,6 +443,8 @@ it('should erase detected object', async () => {
 6. **Vision API Limits**: GPT-4V has rate limits - implement retry logic
 7. **Base64 Size**: Large images can exceed limits - resize if needed
 8. **Coordinate Systems**: Fabric.js uses different origin than some APIs
+9. **Adapter Pattern**: Each tool needs its own adapter file
+10. **Auto-discovery**: Must manually add to registry for now
 
 ## Debugging Commands
 

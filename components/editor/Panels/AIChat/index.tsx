@@ -9,10 +9,13 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { cn } from '@/lib/utils'
+import { ClientToolExecutor } from '@/lib/ai/client/tool-executor'
+import { useCanvasStore } from '@/store/canvasStore'
 
 export function AIChat() {
   const scrollAreaRef = useRef<HTMLDivElement>(null)
   const [input, setInput] = useState('')
+  const fabricCanvas = useCanvasStore((state) => state.fabricCanvas)
   
   const {
     messages,
@@ -25,6 +28,27 @@ export function AIChat() {
     }),
     onError: (error: Error) => {
       console.error('Chat error:', error)
+    },
+    onToolCall: async ({ toolCall }) => {
+      // Execute tool on client side
+      try {
+        // Check if canvas is ready and has content
+        if (!fabricCanvas) {
+          throw new Error('Canvas not initialized. Please wait for the editor to load.')
+        }
+        
+        const objects = fabricCanvas.getObjects()
+        if (objects.length === 0) {
+          throw new Error('No image loaded. Please upload an image first.')
+        }
+        
+        const args = 'args' in toolCall ? (toolCall as unknown as { args: unknown }).args : undefined
+        const result = await ClientToolExecutor.execute(toolCall.toolName, args)
+        return result
+      } catch (error) {
+        console.error('Tool execution error:', error)
+        throw error
+      }
     }
   })
   

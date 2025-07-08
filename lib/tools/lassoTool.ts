@@ -1,125 +1,132 @@
 import { Lasso } from 'lucide-react'
 import { TOOL_IDS } from '@/constants'
-import type { Tool, ToolEvent } from '@/types'
-import type { Canvas, TPointerEvent } from 'fabric'
+import type { Canvas } from 'fabric'
 import { Polygon } from 'fabric'
+import { SelectionTool } from './base/SelectionTool'
 import { selectionStyle, startMarchingAnts, stopMarchingAnts, type SelectionShape } from './utils/selectionRenderer'
-import { useSelectionStore } from '@/store/selectionStore'
 
-let isDrawing = false
-let points: Array<{ x: number; y: number }> = []
-let currentPath: Polygon | null = null
-let previewPath: Polygon | null = null
-
-export const lassoTool: Tool = {
-  id: TOOL_IDS.LASSO,
-  name: 'Lasso Tool',
-  icon: Lasso,
-  cursor: 'crosshair',
-  shortcut: 'L',
-  isImplemented: true,
+/**
+ * Lasso Tool - Creates freehand selections
+ * Extends SelectionTool for consistent selection behavior
+ */
+class LassoTool extends SelectionTool {
+  // Tool identification
+  id = TOOL_IDS.LASSO
+  name = 'Lasso Tool'
+  icon = Lasso
+  cursor = 'crosshair'
+  shortcut = 'L'
   
-  onMouseDown: (event: ToolEvent) => {
-    const canvas = event.target as Canvas
-    const pointer = canvas.getPointer(event.e as TPointerEvent)
-    
-    if (!isDrawing) {
-      // Start new lasso selection
-      isDrawing = true
-      points = [{ x: pointer.x, y: pointer.y }]
-      
-      // Create preview path
-      previewPath = new Polygon(points, {
-        ...selectionStyle,
-        fill: 'transparent',
-        strokeDashArray: [3, 3],
-      })
-      
-      canvas.add(previewPath)
-      canvas.renderAll()
-    }
-  },
+  // Tool-specific properties
+  protected previewPath: Polygon | null = null
+  protected finalPath: Polygon | null = null
   
-  onMouseMove: (event: ToolEvent) => {
-    if (!isDrawing || !previewPath) return
+  /**
+   * Create visual feedback (polygon path)
+   */
+  protected createFeedback(): void {
+    if (!this.canvas) return
     
-    const canvas = event.target as Canvas
-    const pointer = canvas.getPointer(event.e as TPointerEvent)
+    const startPoint = this.state.get('startPoint')
+    if (!startPoint) return
     
-    // Add point to path
-    points.push({ x: pointer.x, y: pointer.y })
-    
-    // Update preview path
-    canvas.remove(previewPath)
-    previewPath = new Polygon(points, {
+    // Create initial preview path
+    this.previewPath = new Polygon([startPoint], {
       ...selectionStyle,
       fill: 'transparent',
       strokeDashArray: [3, 3],
     })
-    canvas.add(previewPath)
     
-    canvas.renderAll()
-  },
+    this.canvas.add(this.previewPath)
+    this.canvas.renderAll()
+  }
   
-  onMouseUp: (event: ToolEvent) => {
-    if (!isDrawing || !previewPath) return
+  /**
+   * Update visual feedback during selection
+   */
+  protected updateFeedback(): void {
+    if (!this.canvas || !this.previewPath) return
     
-    const canvas = event.target as Canvas
-    isDrawing = false
+    const selectionPath = this.state.get('selectionPath')
+    if (selectionPath.length < 2) return
     
-    // Remove preview path
-    canvas.remove(previewPath)
+    // Remove old preview
+    this.canvas.remove(this.previewPath)
+    
+    // Create new preview with all points
+    this.previewPath = new Polygon(selectionPath, {
+      ...selectionStyle,
+      fill: 'transparent',
+      strokeDashArray: [3, 3],
+    })
+    
+    this.canvas.add(this.previewPath)
+    this.canvas.renderAll()
+  }
+  
+  /**
+   * Finalize the lasso selection
+   */
+  protected finalizeSelection(): void {
+    if (!this.canvas || !this.previewPath) return
+    
+    const selectionPath = this.state.get('selectionPath')
     
     // Check if we have enough points for a valid selection
-    if (points.length < 3) {
-      points = []
-      previewPath = null
-      canvas.renderAll()
+    if (selectionPath.length < 3) {
+      this.canvas.remove(this.previewPath)
+      this.previewPath = null
+      this.canvas.renderAll()
       return
     }
     
     // Close the path by connecting to the first point
-    const firstPoint = points[0]
-    const lastPoint = points[points.length - 1]
+    const firstPoint = selectionPath[0]
+    const lastPoint = selectionPath[selectionPath.length - 1]
     const distance = Math.sqrt(
       Math.pow(lastPoint.x - firstPoint.x, 2) + 
       Math.pow(lastPoint.y - firstPoint.y, 2)
     )
     
     // Auto-close if last point is far from first
+    const closedPath = [...selectionPath]
     if (distance > 10) {
-      points.push({ x: firstPoint.x, y: firstPoint.y })
+      closedPath.push({ x: firstPoint.x, y: firstPoint.y })
     }
     
+    // Remove preview path
+    this.canvas.remove(this.previewPath)
+    this.previewPath = null
+    
     // Create final selection polygon
-    currentPath = new Polygon(points, {
+    this.finalPath = new Polygon(closedPath, {
       ...selectionStyle,
     })
     
-    canvas.add(currentPath)
+    this.canvas.add(this.finalPath)
     
     // Start marching ants animation
-    startMarchingAnts(currentPath as SelectionShape, canvas)
+    startMarchingAnts(this.finalPath as SelectionShape, this.canvas)
     
     // Apply selection based on current mode
-    const selectionStore = useSelectionStore.getState()
-    selectionStore.applySelection(canvas, currentPath)
+    this.selectionStore.applySelection(this.canvas, this.finalPath)
     
-    // Reset
-    points = []
-    previewPath = null
-    currentPath = null
+    // TODO: Create SelectionCommand when selection commands are implemented
+    console.log('Lasso selection created:', {
+      mode: this.selectionMode,
+      points: closedPath.length
+    })
     
-    canvas.renderAll()
-  },
+    // Reset final path reference
+    this.finalPath = null
+    
+    this.canvas.renderAll()
+  }
   
-  onActivate: (canvas: Canvas) => {
-    canvas.defaultCursor = 'crosshair'
-    canvas.hoverCursor = 'crosshair'
-    canvas.selection = false
-  },
-  
-  onDeactivate: (canvas: Canvas) => {
+  /**
+   * Override cleanup to handle marching ants
+   */
+  protected cleanup(canvas: Canvas): void {
     // Clean up any existing selections
     const objects = canvas.getObjects()
     objects.forEach(obj => {
@@ -129,18 +136,16 @@ export const lassoTool: Tool = {
       }
     })
     
-    // Clean up if still drawing
-    if (previewPath) {
-      canvas.remove(previewPath)
+    // Clean up preview path if exists
+    if (this.previewPath && canvas.contains(this.previewPath)) {
+      canvas.remove(this.previewPath)
+      this.previewPath = null
     }
     
-    canvas.defaultCursor = 'default'
-    canvas.hoverCursor = 'move'
-    canvas.selection = true
-    isDrawing = false
-    points = []
-    previewPath = null
-    currentPath = null
-    canvas.renderAll()
+    // Call parent cleanup
+    super.cleanup(canvas)
   }
-} 
+}
+
+// Export singleton instance
+export const lassoTool = new LassoTool() 
