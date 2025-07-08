@@ -42,6 +42,48 @@
 - Don't modify files being worked on in other epics
 - If you need changes in shared files (e.g., constants, types), coordinate with team
 
+### Epic Start Process
+
+Before implementing any tools or infrastructure:
+
+1. **Deep Dive Analysis** (Required)
+   - Analyze ALL existing tool implementations in `lib/tools/`
+   - Study Fabric.js integration patterns in the codebase
+   - Document current state management in stores
+   - Understand event handling patterns
+   - NO ASSUMPTIONS - verify everything in actual code
+
+2. **Research Phase**
+   - Study how each tool works in Photoshop
+   - Research alternative implementation approaches
+   - Document pros/cons of each approach
+   - Justify chosen implementation
+
+3. **Gap Identification**
+   - List missing infrastructure
+   - Identify type definitions needed
+   - Document integration challenges
+   - Plan solutions for each gap
+
+### Epic End Process
+
+1. **Quality Validation**
+   - All code follows existing patterns EXACTLY
+   - Comprehensive error handling
+   - Performance profiled and optimized
+   - No `any` types or suppressions
+
+2. **Integration Testing**
+   - Test with all zoom levels
+   - Test with large documents
+   - Test undo/redo for all operations
+   - Test keyboard shortcuts
+
+3. **Documentation**
+   - Update this epic doc
+   - Document architecture decisions
+   - Create migration guide for other epics
+
 ---
 
 ## Overview

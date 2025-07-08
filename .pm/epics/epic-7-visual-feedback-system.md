@@ -43,6 +43,48 @@
 - Don't modify files being worked on in other epics
 - If you need changes in shared files (e.g., constants, types), coordinate with team
 
+### Epic Start Process
+
+Before implementing visual feedback:
+
+1. **Deep Dive Analysis** (Required)
+   - Study existing UI component patterns
+   - Analyze current dialog/modal systems
+   - Understand image comparison approaches
+   - Document UI state management patterns
+   - NO ASSUMPTIONS - verify everything in actual code
+
+2. **Research Phase**
+   - Study Photoshop's preview systems
+   - Research diff visualization algorithms
+   - Investigate slider comparison UIs
+   - Compare approval flow patterns
+
+3. **Gap Identification**
+   - Image comparison components
+   - Diff generation algorithms
+   - Parameter adjustment UI system
+   - Confidence visualization design
+
+### Epic End Process
+
+1. **Quality Validation**
+   - All comparison modes smooth
+   - Diff visualization accurate
+   - Parameter updates real-time
+   - Approval flow intuitive
+
+2. **Integration Testing**
+   - Test with various image sizes
+   - Test all comparison modes
+   - Test parameter adjustment ranges
+   - Verify performance metrics
+
+3. **Documentation**
+   - UI component library docs
+   - Diff algorithm explanation
+   - Visual feedback patterns
+
 ---
 
 ## Overview

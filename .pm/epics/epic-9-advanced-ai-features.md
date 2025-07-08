@@ -43,6 +43,48 @@
 - Don't modify files being worked on in other epics
 - If you need changes in shared files (e.g., constants, types), coordinate with team
 
+### Epic Start Process
+
+Before implementing advanced features:
+
+1. **Deep Dive Analysis** (Required)
+   - Study AI SDK v5 image generation docs
+   - Analyze existing canvas-to-image pipelines
+   - Understand current selection systems
+   - Document autonomous agent patterns
+   - NO ASSUMPTIONS - verify everything in actual code
+
+2. **Research Phase**
+   - Study DALL-E API capabilities/limits
+   - Research inpainting algorithms
+   - Investigate computer use patterns
+   - Compare batch processing approaches
+
+3. **Gap Identification**
+   - Image generation integration
+   - Mask creation for inpainting
+   - Screenshot capture mechanism
+   - Batch processing infrastructure
+
+### Epic End Process
+
+1. **Quality Validation**
+   - Image generation <10s response
+   - Inpainting blends seamlessly
+   - Autonomous agent reliable
+   - Batch processing efficient
+
+2. **Integration Testing**
+   - Test with various prompts
+   - Test inpainting edge cases
+   - Test autonomous agent scenarios
+   - Verify API rate limits
+
+3. **Documentation**
+   - Image generation guide
+   - Computer use patterns
+   - Batch processing docs
+
 ---
 
 ## Overview

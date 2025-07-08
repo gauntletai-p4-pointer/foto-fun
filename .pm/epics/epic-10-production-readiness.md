@@ -44,6 +44,48 @@
 - Don't modify files being worked on in other epics
 - If you need changes in shared files (e.g., constants, types), coordinate with team
 
+### Epic Start Process
+
+Before implementing production features:
+
+1. **Deep Dive Analysis** (Required)
+   - Study existing error handling patterns
+   - Analyze current performance bottlenecks
+   - Understand API integration points
+   - Document monitoring approaches
+   - NO ASSUMPTIONS - verify everything in actual code
+
+2. **Research Phase**
+   - Study production best practices
+   - Research caching strategies
+   - Investigate monitoring solutions
+   - Compare rate limiting approaches
+
+3. **Gap Identification**
+   - Error handling coverage gaps
+   - Performance optimization needs
+   - Monitoring infrastructure
+   - Security vulnerabilities
+
+### Epic End Process
+
+1. **Quality Validation**
+   - 99.9% uptime achievable
+   - <5s p95 latency for chat
+   - All errors handled gracefully
+   - Cost tracking accurate
+
+2. **Integration Testing**
+   - Load test with 100+ concurrent users
+   - Test all failure scenarios
+   - Test rate limiting enforcement
+   - Verify monitoring accuracy
+
+3. **Documentation**
+   - Production deployment guide
+   - Monitoring dashboard setup
+   - Incident response playbook
+
 ---
 
 ## Overview

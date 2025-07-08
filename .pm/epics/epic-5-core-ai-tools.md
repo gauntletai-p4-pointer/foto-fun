@@ -42,6 +42,48 @@
 - Don't modify files being worked on in other epics
 - If you need changes in shared files (e.g., constants, types), coordinate with team
 
+### Epic Start Process
+
+Before implementing AI tools:
+
+1. **Deep Dive Analysis** (Required)
+   - Study existing AI chat implementation in `app/api/ai/chat/route.ts`
+   - Analyze current tool factory and registry patterns
+   - Understand AI SDK v5 beta type issues and solutions
+   - Document canvas-to-AI integration points
+   - NO ASSUMPTIONS - verify everything in actual code
+
+2. **Research Phase**
+   - Study how Photoshop's AI features work
+   - Research confidence scoring algorithms
+   - Investigate preview generation techniques
+   - Compare server vs client-side tool execution
+
+3. **Gap Identification**
+   - Tool-canvas bridge implementation
+   - Confidence scoring system design
+   - Preview generation pipeline
+   - Error handling for AI operations
+
+### Epic End Process
+
+1. **Quality Validation**
+   - All 15 tools working with real images
+   - Confidence scoring accurate (>0.7 threshold)
+   - Preview generation <500ms
+   - Proper AI SDK v5 integration
+
+2. **Integration Testing**
+   - Test tools with various image types
+   - Test error scenarios and fallbacks
+   - Test performance with multiple operations
+   - Verify tool state management
+
+3. **Documentation**
+   - AI tool creation guide
+   - Confidence scoring methodology
+   - Tool factory patterns
+
 ---
 
 ## Overview

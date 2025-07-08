@@ -43,6 +43,48 @@
 - Don't modify files being worked on in other epics
 - If you need changes in shared files (e.g., constants, types), coordinate with team
 
+### Epic Start Process
+
+Before implementing evaluation system:
+
+1. **Deep Dive Analysis** (Required)
+   - Study AI SDK v5 evaluator-optimizer patterns
+   - Analyze existing quality metrics in codebase
+   - Understand current feedback mechanisms
+   - Document optimization approaches used
+   - NO ASSUMPTIONS - verify everything in actual code
+
+2. **Research Phase**
+   - Study image quality assessment algorithms
+   - Research iterative optimization techniques
+   - Investigate A/B testing methodologies
+   - Compare different quality metrics
+
+3. **Gap Identification**
+   - Quality metric calculations
+   - Optimization convergence logic
+   - Feedback collection UI
+   - Learning system storage
+
+### Epic End Process
+
+1. **Quality Validation**
+   - Evaluations accurate and consistent
+   - Optimization improves scores 15%+
+   - A/B tests statistically significant
+   - Learning system improving
+
+2. **Integration Testing**
+   - Test with diverse image types
+   - Test optimization convergence
+   - Test feedback collection flow
+   - Verify performance impact
+
+3. **Documentation**
+   - Quality metrics explanation
+   - Optimization algorithm docs
+   - A/B testing methodology
+
 ---
 
 ## Overview

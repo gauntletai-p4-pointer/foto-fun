@@ -43,6 +43,48 @@
 - Don't modify files being worked on in other epics
 - If you need changes in shared files (e.g., constants, types), coordinate with team
 
+### Epic Start Process
+
+Before implementing orchestration:
+
+1. **Deep Dive Analysis** (Required)
+   - Study AI SDK v5 orchestrator-worker patterns
+   - Analyze existing tool execution flow
+   - Understand current state management
+   - Document async operation patterns
+   - NO ASSUMPTIONS - verify everything in actual code
+
+2. **Research Phase**
+   - Study multi-agent orchestration systems
+   - Research dependency resolution algorithms
+   - Investigate parallel execution strategies
+   - Compare different workflow engines
+
+3. **Gap Identification**
+   - Task queue implementation needed
+   - Dependency graph algorithms
+   - Progress tracking infrastructure
+   - Cancellation mechanism design
+
+### Epic End Process
+
+1. **Quality Validation**
+   - Complex workflows execute correctly
+   - Dependencies properly resolved
+   - Parallel execution optimized
+   - Cancellation works reliably
+
+2. **Integration Testing**
+   - Test with 10+ step workflows
+   - Test circular dependency detection
+   - Test progress tracking accuracy
+   - Verify memory management
+
+3. **Documentation**
+   - Orchestration pattern guide
+   - Workflow template creation
+   - Performance tuning guide
+
 ---
 
 ## Overview

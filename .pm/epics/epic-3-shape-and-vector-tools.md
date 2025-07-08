@@ -40,6 +40,48 @@
    - Update this epic document marking completed items
    - Commit the updated epic document
 
+### Epic Start Process
+
+Before implementing shape/vector tools:
+
+1. **Deep Dive Analysis** (Required)
+   - Study Fabric.js shape classes and path handling
+   - Analyze existing selection tool patterns
+   - Understand canvas coordinate systems
+   - Document vector math utilities needed
+   - NO ASSUMPTIONS - verify everything in actual code
+
+2. **Research Phase**
+   - Master Photoshop's pen tool behaviors
+   - Study Bezier curve mathematics
+   - Research vector editing best practices
+   - Compare SVG path vs Canvas path approaches
+
+3. **Gap Identification**
+   - Path editing UI components needed
+   - Bezier handle manipulation
+   - Shape combination operations
+   - Vector math library requirements
+
+### Epic End Process
+
+1. **Quality Validation**
+   - Smooth Bezier curve editing
+   - Precise path point manipulation
+   - Shape boolean operations working
+   - Performance with complex paths
+
+2. **Integration Testing**
+   - Test path editing at all zoom levels
+   - Test shape combination operations
+   - Test with existing selection tools
+   - Verify undo/redo for all operations
+
+3. **Documentation**
+   - Vector math utilities guide
+   - Path editing architecture
+   - Shape tool usage documentation
+
 ### Coordination
 - Depends on Epic 1's BaseTool class
 - May need to coordinate with Epic 4 on shared drawing utilities
