@@ -17,9 +17,13 @@ type CleanupFunction = () => void
 type CanvasEventName = 
   | 'mouse:down' | 'mouse:move' | 'mouse:up' 
   | 'mouse:over' | 'mouse:out' | 'mouse:wheel'
+  | 'mouse:dblclick' | 'mouse:down:before' | 'mouse:move:before' | 'mouse:up:before'
   | 'selection:created' | 'selection:updated' | 'selection:cleared'
   | 'object:added' | 'object:removed' | 'object:modified'
+  | 'object:moving' | 'object:scaling' | 'object:rotating'
+  | 'object:skewing' | 'object:resizing' | 'object:selected' | 'object:deselected'
   | 'path:created' | 'text:changed' | 'text:editing:entered' | 'text:editing:exited'
+  | 'before:transform' | 'before:selection:cleared'
 
 // Generic event handler type
 type CanvasEventHandler = (options: unknown) => void

@@ -2,19 +2,20 @@
 
 ## Table of Contents
 1. [Overview](#overview)
-2. [Core Architecture](#core-architecture)
-3. [Tool System](#tool-system)
-4. [Object & Region Detection](#object--region-detection)
-5. [Orchestration & Intent Recognition](#orchestration--intent-recognition)
-6. [Visual Feedback & Approval](#visual-feedback--approval)
-7. [Quality Control & Evaluation](#quality-control--evaluation)
-8. [Advanced Features](#advanced-features)
-9. [Integration Patterns](#integration-patterns)
-10. [Implementation Timeline](#implementation-timeline)
+2. [Karpathy Framework Implementation](#karpathy-framework-implementation)
+3. [Core Architecture](#core-architecture)
+4. [Tool System](#tool-system)
+5. [Object & Region Detection](#object--region-detection)
+6. [Orchestration & Intent Recognition](#orchestration--intent-recognition)
+7. [Visual Feedback & Approval](#visual-feedback--approval)
+8. [Quality Control & Evaluation](#quality-control--evaluation)
+9. [Advanced Features](#advanced-features)
+10. [Integration Patterns](#integration-patterns)
+11. [Implementation Timeline](#implementation-timeline)
 
 ## Overview
 
-The FotoFun AI system is built on AI SDK v5 beta and implements a comprehensive photo editing assistant that can understand natural language requests, identify objects and regions in images, and execute complex multi-step editing workflows.
+The FotoFun AI system is built on AI SDK v5 beta and implements a comprehensive photo editing assistant that can understand natural language requests, identify objects and regions in images, and execute complex multi-step editing workflows. The system is designed following Andrej Karpathy's agent design framework, emphasizing human-AI collaboration through intelligent context management, generation with verification, and adjustable autonomy.
 
 ### Key Capabilities
 - **Natural Language Understanding**: Parse user requests into actionable intents
@@ -24,6 +25,163 @@ The FotoFun AI system is built on AI SDK v5 beta and implements a comprehensive 
 - **Visual Feedback**: Preview changes before applying
 - **Quality Assurance**: AI-powered evaluation of edits
 - **Autonomous Editing**: Self-correcting agents that iterate until satisfied
+
+## Karpathy Framework Implementation
+
+Our system implements all five key principles from Andrej Karpathy's agent design framework:
+
+### 1. Context Management - Solving "Anterograde Amnesia"
+
+The system maintains comprehensive context across all operations to prevent the AI from "forgetting" important information:
+
+```typescript
+interface ToolExecutionContext {
+  canvas: fabric.Canvas           // Current canvas state
+  selection: fabric.Object[]      // Active selections
+  conversation: Message[]         // Full chat history
+  workflowState: {
+    currentStep: number
+    completedSteps: Step[]
+    pendingSteps: Step[]
+    results: Map<string, any>   // Results from previous steps
+  }
+  userPreferences: {
+    autoApprovalThreshold: number
+    preferredComparisonMode: ComparisonMode
+    historicalChoices: Decision[]
+  }
+  imageAnalysis: {
+    detectedObjects: DetectedObject[]
+    semanticRegions: ImageRegions
+    lastAnalyzedAt: number
+  }
+}
+```
+
+**Key Features:**
+- **Workflow Memory**: Tracks all steps in multi-step operations
+- **Object Persistence**: Remembers detected objects across operations
+- **User Learning**: Adapts based on historical user decisions
+- **State Preservation**: Maintains canvas state between operations
+
+### 2. Generation + Verification Pattern
+
+Every AI operation follows a strict generate-then-verify flow:
+
+```
+┌─────────────┐     ┌──────────────┐     ┌─────────────┐     ┌────────────┐
+│ AI Generate │ --> │ Preview Gen  │ --> │ User Review │ --> │   Apply    │
+│  Solution   │     │ + Confidence │     │ & Approve   │     │  Changes   │
+└─────────────┘     └──────────────┘     └─────────────┘     └────────────┘
+       │                                          │
+       └──────────── Alternative ─────────────────┘
+                    Suggestions
+```
+
+**Implementation Details:**
+- **Preview Generation**: Every tool includes `previewGenerator` function
+- **Confidence Scoring**: Operations include confidence levels
+- **Alternative Paths**: AI suggests multiple approaches when confidence is low
+- **Parameter Adjustment**: Users can fine-tune before applying
+
+### 3. Incremental Processing
+
+Complex tasks are automatically broken into reviewable chunks:
+
+```typescript
+// Example: "Make the photo look vintage and add text"
+{
+  steps: [
+    {
+      id: "1",
+      tool: "adjustSaturation",
+      params: { amount: -30 },
+      checkpoint: true  // Create restore point
+    },
+    {
+      id: "2", 
+      tool: "applyVintageFilter",
+      params: { style: "sepia" },
+      dependencies: ["1"],
+      requiresApproval: true  // Force user review
+    },
+    {
+      id: "3",
+      tool: "semanticText",
+      params: { text: "Memories", placement: "bottom-right" },
+      dependencies: ["2"]
+    }
+  ]
+}
+```
+
+**Features:**
+- **Step Dependencies**: Ensures logical order
+- **Checkpoints**: Create restore points at critical stages
+- **Progress Tracking**: Visual indicators for each step
+- **Partial Execution**: Can pause/resume workflows
+
+### 4. Visual Interface & Diff Visualization
+
+Rich visual feedback makes verification fast and intuitive:
+
+#### Comparison Modes
+1. **Side-by-Side**: Classic before/after view
+2. **Overlay**: Adjustable opacity overlay
+3. **Difference Map**: Heatmap highlighting changes
+4. **Interactive Slider**: Drag to reveal changes
+
+#### Diff Visualization System
+```typescript
+class DiffGenerator {
+  static async generateDiff(before: ImageData, after: ImageData): Promise<DiffResult> {
+    return {
+      pixelDiff: // Pixel-level changes
+      structuralDiff: // SSIM-based structural changes
+      perceptualDiff: // Human-perceptible differences
+      changedRegions: // Bounding boxes of modified areas
+      diffHeatmap: // Visual heatmap of changes
+    }
+  }
+}
+```
+
+**Visual Elements:**
+- **Real-time Preview Updates**: Parameter changes instantly update preview
+- **Confidence Indicators**: Visual representation of AI confidence
+- **Change Highlighting**: Clearly marks what will be modified
+- **Progress Visualization**: Step-by-step progress bars
+
+### 5. Partial Autonomy Controls - "Autonomy Sliders"
+
+Users have granular control over AI independence:
+
+```typescript
+interface AutonomySettings {
+  // Global Settings
+  autoApprovalThreshold: number  // 0.0 - 1.0
+  maxAutonomousSteps: number     // How many steps without approval
+  
+  // Per-Operation Settings
+  operationPolicies: {
+    'color-adjustment': 'auto-approve' | 'always-ask' | 'ask-if-unsure'
+    'object-removal': 'always-ask'
+    'text-addition': 'ask-if-unsure'
+    'generation': 'always-ask'
+  }
+  
+  // Learning Settings
+  adaptFromHistory: boolean      // Learn from past decisions
+  suggestionCount: 1 | 3 | 5     // How many alternatives to show
+}
+```
+
+**Autonomy Features:**
+- **Confidence-Based Routing**: Different thresholds for different operations
+- **Operation-Specific Rules**: Set autonomy per operation type
+- **Learning Mode**: System adapts based on approval/rejection patterns
+- **Batch Autonomy**: Different rules for batch vs single operations
+- **Emergency Stop**: Cancel all autonomous operations instantly
 
 ## Core Architecture
 
@@ -162,50 +320,179 @@ The system understands:
 
 ## Orchestration & Intent Recognition
 
-### Intent Recognition (Epic 6)
+### Context-Aware Intent Recognition (Epic 6)
+
+The system maintains full context to understand complex, multi-part requests:
 
 ```typescript
-IntentSchema = {
+interface IntentWithContext {
+  // What the user wants
   primaryIntent: 'adjust-colors' | 'apply-effects' | 'semantic-edit' | ...
   confidence: number
+  
+  // Extracted entities with context
   entities: {
     targets: ['specific-object', ...]
-    objects: ["hat", "person's shirt"]
+    objects: ["hat", "person's shirt"]  // With ownership relationships
     spatialReferences: ["on the left", "below the logo"]
     adjustments: ["brightness", "contrast"]
     parameters: { amount: 50 }
   }
+  
+  // Context from conversation
+  referenceContext: {
+    pronounReferences: Map<string, string>  // "it" -> "the hat"
+    previousOperations: Operation[]         // What we did before
+    userCorrections: Correction[]           // Learning from mistakes
+  }
+  
   suggestedTools: ["semanticErase", "adjustBrightness"]
   complexity: 'simple' | 'moderate' | 'complex'
 }
 ```
 
-### Orchestrator-Worker Pattern
+### Incremental Processing with Orchestrator-Worker Pattern
 
-The orchestrator coordinates complex multi-step operations:
-
-1. **Intent Recognition**: Parse user request
-2. **Task Planning**: Generate execution plan with dependencies
-3. **Dependency Resolution**: Topological sort for parallel execution
-4. **Worker Assignment**: Distribute tasks to specialized workers
-5. **Progress Tracking**: Monitor and report progress
-6. **Result Aggregation**: Combine outputs
-
-### Workflow Examples
+The orchestrator breaks complex tasks into manageable, reviewable chunks:
 
 ```typescript
-// Simple workflow: "Make it brighter"
-{
-  steps: [
-    { id: "1", tool: "adjustBrightness", params: { amount: 20 } }
-  ]
+class FotoFunOrchestrator {
+  async orchestrate(request: string, context: CanvasContext) {
+    // 1. Parse into incremental steps
+    const plan = await this.createIncrementalPlan(request, context)
+    
+    // 2. Present plan for review (optional based on complexity)
+    if (plan.complexity === 'complex') {
+      await this.presentPlanForApproval(plan)
+    }
+    
+    // 3. Execute incrementally
+    for (const batch of plan.batches) {
+      // Execute parallel operations in batch
+      const results = await this.executeBatch(batch)
+      
+      // Checkpoint after each batch
+      await this.createCheckpoint(batch.id)
+      
+      // Update context for next batch
+      context = this.updateContext(context, results)
+      
+      // Allow user intervention between batches
+      if (batch.requiresReview) {
+        await this.pauseForReview(results)
+      }
+    }
+  }
+  
+  private createIncrementalPlan(request: string, context: CanvasContext) {
+    // Break into logical chunks
+    return {
+      batches: [
+        {
+          id: 'prepare',
+          steps: [/* preparation steps */],
+          canRunInParallel: true,
+          requiresReview: false
+        },
+        {
+          id: 'main-edit',
+          steps: [/* main editing steps */],
+          canRunInParallel: false,
+          requiresReview: true
+        },
+        {
+          id: 'finishing',
+          steps: [/* finishing touches */],
+          canRunInParallel: true,
+          requiresReview: false
+        }
+      ],
+      complexity: this.assessComplexity(request),
+      estimatedDuration: this.estimateDuration(request)
+    }
+  }
 }
+```
 
-// Complex workflow: "Remove the hat and add 'SALE' text on his shirt"
+### Workflow Memory & State Management
+
+```typescript
+interface WorkflowState {
+  id: string
+  startedAt: number
+  
+  // Maintain complete history
+  history: {
+    steps: ExecutedStep[]
+    decisions: UserDecision[]
+    rollbacks: Rollback[]
+  }
+  
+  // Current state
+  current: {
+    step: number
+    batch: number
+    results: Map<string, any>
+    detectedObjects: DetectedObject[]  // Persisted across steps
+  }
+  
+  // Future steps with context
+  pending: {
+    steps: PlannedStep[]
+    dependencies: DependencyGraph
+    alternatives: Map<string, Alternative[]>
+  }
+  
+  // Checkpoints for rollback
+  checkpoints: {
+    id: string
+    step: number
+    canvasState: string
+    timestamp: number
+  }[]
+}
+```
+
+### Example: Complex Workflow with Context Preservation
+
+```typescript
+// User: "Remove all the people except the one in the middle, then make it look like sunset"
 {
-  steps: [
-    { id: "1", tool: "semanticErase", params: { target: "the hat" } },
-    { id: "2", tool: "semanticText", params: { text: "SALE", placement: "on his shirt" }, dependencies: ["1"] }
+  batches: [
+    {
+      id: 'analyze',
+      steps: [
+        { 
+          tool: 'semanticAnalyze',
+          purpose: 'Identify all people and determine middle person'
+        }
+      ]
+    },
+    {
+      id: 'remove-people',
+      steps: [
+        { 
+          tool: 'semanticErase',
+          params: { target: 'person-1' },
+          context: { preserving: 'person-middle' }
+        },
+        { 
+          tool: 'semanticErase',
+          params: { target: 'person-3' },
+          context: { preserving: 'person-middle' }
+        }
+      ],
+      requiresReview: true  // Show user what will be removed
+    },
+    {
+      id: 'sunset-effect',
+      steps: [
+        { tool: 'adjustColorTemperature', params: { warmth: 80 } },
+        { tool: 'adjustExposure', params: { amount: -20 } },
+        { tool: 'addGradientOverlay', params: { colors: ['orange', 'purple'] } }
+      ],
+      requiresReview: true
+    }
   ]
 }
 ```
@@ -214,28 +501,124 @@ The orchestrator coordinates complex multi-step operations:
 
 ### Generation + Verification Pattern (Epic 7)
 
-All significant edits follow this pattern:
-1. **Generate Preview**: Create before/after comparison
-2. **Present Options**: Show multiple variations if applicable
-3. **Get Approval**: User confirms or adjusts
-4. **Apply Changes**: Execute on canvas
+This is the core implementation of Karpathy's generation + verification principle:
 
-### Comparison Modes
+#### Approval Dialog System
+```typescript
+interface ApprovalRequest {
+  id: string
+  operation: string
+  params: any
+  confidence: number
+  preview: {
+    before: string      // base64
+    after: string       // base64
+    diff?: string       // base64 difference map
+  }
+  alternatives?: Alternative[]
+  explanation: string   // Human-readable explanation
+  estimatedImpact: {
+    pixelsAffected: number
+    percentageChanged: number
+    reversible: boolean
+  }
+}
+```
+
+#### Visual Comparison Implementation
 
 ```typescript
+// Four distinct comparison modes for different verification needs
 interface ComparisonMode {
-  'side-by-side': { before: Image, after: Image }
-  'overlay': { base: Image, overlay: Image, opacity: number }
-  'difference': { diff: Image, highlights: Region[] }
-  'slider': { images: [Image, Image], position: number }
+  'side-by-side': { 
+    before: Image, 
+    after: Image,
+    syncZoom: boolean,      // Synchronized zoom/pan
+    highlightDiffs: boolean // Outline changed areas
+  }
+  'overlay': { 
+    base: Image, 
+    overlay: Image, 
+    opacity: number,        // 0-100 slider
+    blendMode: BlendMode    // normal, difference, etc.
+  }
+  'difference': { 
+    diff: Image,            // Heatmap of changes
+    highlights: Region[],   // Specific areas changed
+    threshold: number       // Sensitivity setting
+  }
+  'slider': { 
+    images: [Image, Image], 
+    position: number,       // 0-100 slider position
+    orientation: 'vertical' | 'horizontal'
+  }
+}
+```
+
+#### Interactive Parameter Adjustment
+```typescript
+// Real-time parameter updates with instant preview
+export function ParameterAdjustment({ tool, params, onChange }) {
+  const [preview, setPreview] = useState(null)
+  const [isUpdating, setIsUpdating] = useState(false)
+  
+  // Debounced preview generation
+  const updatePreview = useDebouncedCallback(async (newParams) => {
+    setIsUpdating(true)
+    const newPreview = await tool.previewGenerator(newParams, context)
+    setPreview(newPreview)
+    setIsUpdating(false)
+  }, 300)
+  
+  return (
+    <div className="space-y-4">
+      {/* Dynamic UI based on tool schema */}
+      {Object.entries(tool.inputSchema.shape).map(([key, schema]) => (
+        <ParameterField
+          key={key}
+          schema={schema}
+          value={params[key]}
+          onChange={(value) => {
+            const newParams = { ...params, [key]: value }
+            onChange(newParams)
+            updatePreview(newParams)
+          }}
+        />
+      ))}
+      
+      {/* Live preview update indicator */}
+      {isUpdating && <LoadingSpinner />}
+    </div>
+  )
 }
 ```
 
 ### Confidence-Based Routing
 
-- **High confidence (>0.8)**: Apply with quick preview
-- **Medium confidence (0.5-0.8)**: Show detailed comparison
-- **Low confidence (<0.5)**: Request clarification
+Intelligent routing based on multiple factors:
+
+```typescript
+class ConfidenceRouter {
+  route(operation: string, params: any, confidence: number): RoutingDecision {
+    // Multi-factor decision making
+    const factors = {
+      operationRisk: this.assessOperationRisk(operation),
+      parameterMagnitude: this.assessParameterImpact(params),
+      userHistory: this.getUserTrustLevel(operation),
+      imageComplexity: this.assessImageComplexity()
+    }
+    
+    // Weighted decision
+    if (confidence > 0.8 && factors.operationRisk < 0.3) {
+      return { action: 'auto-approve', showQuickPreview: true }
+    } else if (confidence > 0.5) {
+      return { action: 'show-comparison', suggestAlternatives: false }
+    } else {
+      return { action: 'require-approval', suggestAlternatives: true }
+    }
+  }
+}
+```
 
 ## Quality Control & Evaluation
 
@@ -431,4 +814,40 @@ useCanvasStore.setState({
 - Filter inappropriate requests
 - Validate generated content
 - Implement user reporting
-- Maintain audit logs 
+- Maintain audit logs
+
+## Summary: Karpathy Framework Compliance
+
+Our FotoFun AI system fully implements Andrej Karpathy's agent design framework:
+
+### ✅ Context Management
+- **Comprehensive context preservation** across all operations
+- **Workflow memory** maintains state between steps
+- **Object persistence** remembers detected items
+- **Learning from history** adapts to user preferences
+
+### ✅ Generation + Verification
+- **Every operation previewed** before applying
+- **Multiple comparison modes** for easy verification
+- **Alternative suggestions** when confidence is low
+- **Real-time parameter adjustment** with instant preview
+
+### ✅ Incremental Processing
+- **Complex tasks broken down** into reviewable batches
+- **Checkpoints** at critical stages
+- **Dependencies managed** automatically
+- **Pause/resume** capabilities
+
+### ✅ Visual Interface
+- **Rich diff visualization** with heatmaps
+- **Interactive comparison tools** (slider, overlay, side-by-side)
+- **Progress indicators** for transparency
+- **Confidence visualization** for trust building
+
+### ✅ Partial Autonomy
+- **Adjustable autonomy levels** globally and per-operation
+- **Learning from decisions** to improve over time
+- **Emergency stop** for user control
+- **Batch vs. single operation** different rules
+
+The system goes beyond basic requirements by adding semantic understanding, quality evaluation, and production-ready features while maintaining the human-in-the-loop philosophy central to Karpathy's vision. 
