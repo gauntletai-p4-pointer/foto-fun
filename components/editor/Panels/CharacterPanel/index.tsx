@@ -49,7 +49,7 @@ export function CharacterPanel() {
   
   if (!activeTextObject) {
     return (
-      <div className="p-4 text-center text-muted-foreground">
+      <div className="p-4 text-center text-foreground/60">
         <Type className="w-12 h-12 mx-auto mb-2 opacity-20" />
         <p>Select text to see character options</p>
       </div>
@@ -119,7 +119,7 @@ export function CharacterPanel() {
       </div>
       
       {/* Advanced Options */}
-      <div className="pt-2 border-t">
+      <div className="pt-2 border-t border-foreground/10">
         <Button variant="outline" size="sm" className="w-full">
           More Options...
         </Button>

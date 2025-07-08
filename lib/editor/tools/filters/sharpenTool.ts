@@ -68,9 +68,11 @@ class SharpenTool extends BaseTool {
         if (obj instanceof FabricImage) {
           // Remove existing convolute filter (sharpen)
           const existingFilters = obj.filters?.filter(
-            (f: unknown) => {
-              const filter = f as any
-              return !(filter instanceof filters.Convolute && filter.opaque === false)
+            (f) => {
+              if (f instanceof filters.Convolute) {
+                return f.opaque !== false
+              }
+              return true
             }
           ) || []
           

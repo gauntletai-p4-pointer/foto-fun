@@ -16,11 +16,11 @@ export function DemoSection() {
   const [selectedCommand, setSelectedCommand] = useState(0)
 
   return (
-    <section className="py-24 bg-secondary/30 relative overflow-hidden">
+    <section className="py-24 bg-foreground/5/30 relative overflow-hidden">
       {/* Background decoration */}
       <div className="absolute inset-0 -z-10">
         <div className="absolute top-1/2 left-0 w-96 h-96 bg-primary/5 rounded-full blur-3xl -translate-y-1/2" />
-        <div className="absolute top-1/2 right-0 w-96 h-96 bg-accent/5 rounded-full blur-3xl -translate-y-1/2" />
+        <div className="absolute top-1/2 right-0 w-96 h-96 bg-primary/10/5 rounded-full blur-3xl -translate-y-1/2" />
       </div>
 
       <div className="container mx-auto px-4">
@@ -36,7 +36,7 @@ export function DemoSection() {
               Magic in Action
             </span>
           </h2>
-          <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+          <p className="text-lg text-foreground/60 max-w-2xl mx-auto">
             Try FotoFun right now - no signup required. Click a command below to see instant AI-powered editing.
           </p>
         </div>
@@ -46,7 +46,7 @@ export function DemoSection() {
           <div className="bg-background rounded-2xl border shadow-xl overflow-hidden">
             {/* Command Bar */}
             <div className="border-b p-6">
-              <h3 className="text-sm font-medium text-muted-foreground mb-4">Try these AI commands:</h3>
+              <h3 className="text-sm font-medium text-foreground/60 mb-4">Try these AI commands:</h3>
               <div className="flex flex-wrap gap-2">
                 {sampleCommands.map((command, index) => (
                   <Button
@@ -68,7 +68,7 @@ export function DemoSection() {
                 <div className="w-48 h-48 mx-auto mb-6 rounded-xl bg-gradient-to-br from-primary/20 to-accent/20 animate-pulse flex items-center justify-center">
                   <Sparkles className="h-12 w-12 text-primary/50" />
                 </div>
-                <p className="text-muted-foreground mb-4">
+                <p className="text-foreground/60 mb-4">
                   Selected command: <span className="font-medium text-foreground">{sampleCommands[selectedCommand]}</span>
                 </p>
                 <Button className="group">
@@ -88,15 +88,15 @@ export function DemoSection() {
           <div className="grid sm:grid-cols-3 gap-4 mt-8">
             <div className="text-center">
               <div className="text-2xl font-bold text-primary mb-1">0.3s</div>
-              <p className="text-sm text-muted-foreground">Average processing time</p>
+              <p className="text-sm text-foreground/60">Average processing time</p>
             </div>
             <div className="text-center">
               <div className="text-2xl font-bold text-primary mb-1">100+</div>
-              <p className="text-sm text-muted-foreground">AI commands available</p>
+              <p className="text-sm text-foreground/60">AI commands available</p>
             </div>
             <div className="text-center">
               <div className="text-2xl font-bold text-primary mb-1">∞</div>
-              <p className="text-sm text-muted-foreground">Creative possibilities</p>
+              <p className="text-sm text-foreground/60">Creative possibilities</p>
             </div>
           </div>
         </div>

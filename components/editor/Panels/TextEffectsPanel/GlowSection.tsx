@@ -147,7 +147,7 @@ export function GlowSection({ object, onChange }: GlowSectionProps) {
               }}
               className="h-8 w-16"
             />
-            <span className="text-xs text-muted-foreground">
+            <span className="text-xs text-foreground/60">
               {options.color}
             </span>
           </div>
@@ -157,7 +157,7 @@ export function GlowSection({ object, onChange }: GlowSectionProps) {
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <label className="text-xs font-medium text-foreground">Size</label>
-            <span className="text-xs text-muted-foreground">
+            <span className="text-xs text-foreground/60">
               {options.size}px
             </span>
           </div>
@@ -175,7 +175,7 @@ export function GlowSection({ object, onChange }: GlowSectionProps) {
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <label className="text-xs font-medium text-foreground">Opacity</label>
-            <span className="text-xs text-muted-foreground">
+            <span className="text-xs text-foreground/60">
               {Math.round(options.opacity * 100)}%
             </span>
           </div>

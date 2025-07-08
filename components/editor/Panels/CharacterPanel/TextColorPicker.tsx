@@ -65,7 +65,7 @@ export function TextColorPicker({ value, onChange }: TextColorPickerProps) {
               ))}
             </div>
             <div className="mt-3 flex items-center gap-2">
-              <Palette className="h-4 w-4 text-muted-foreground" />
+              <Palette className="h-4 w-4 text-foreground/60" />
               <Input
                 type="text"
                 value={inputValue}

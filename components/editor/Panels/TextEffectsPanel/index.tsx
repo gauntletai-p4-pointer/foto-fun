@@ -9,6 +9,7 @@ import { StrokeSection } from './StrokeSection'
 import { GlowSection } from './GlowSection'
 import { GradientSection } from './GradientSection'
 import { TextPresetsSection } from './TextPresetsSection'
+import { TextWarpSection } from './TextWarpSection'
 import { Button } from '@/components/ui/button'
 import { TextLayerStyles } from '@/lib/editor/text/effects'
 
@@ -53,7 +54,7 @@ export function TextEffectsPanel() {
   
   if (!activeTextObject) {
     return (
-      <div className="p-4 text-center text-muted-foreground">
+      <div className="p-4 text-center text-foreground/60">
         <Sparkles className="w-12 h-12 mx-auto mb-2 opacity-20" />
         <p>Select text to add effects</p>
       </div>
@@ -102,6 +103,11 @@ export function TextEffectsPanel() {
       <GradientSection 
         object={activeTextObject}
         onChange={handleEffectChange}
+      />
+      
+      {/* Text Warp */}
+      <TextWarpSection 
+        object={activeTextObject}
       />
       
       {/* Clear All Effects */}

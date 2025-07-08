@@ -18,7 +18,7 @@ const getAIToolNames = () => {
   try {
     const adapters = adapterRegistry.getAll()
     return adapters.map(adapter => adapter.aiName)
-  } catch (err) {
+  } catch {
     // Return empty array if adapters not loaded yet
     return []
   }
@@ -58,6 +58,7 @@ export function AIChat() {
   const scrollAreaRef = useRef<HTMLDivElement>(null)
   const [input, setInput] = useState('')
   const [toolNames, setToolNames] = useState<string[]>([])
+  const [quickActions, setQuickActions] = useState<string[]>([])
   const { isReady: isCanvasReady, initializationError, waitForReady, hasContent } = useCanvasStore()
   
   // Initialize adapter registry and get tool names
@@ -73,6 +74,46 @@ export function AIChat() {
       }
     }
     loadAdapters()
+  }, [])
+  
+  // Initialize quick actions - rotate on each mount
+  useEffect(() => {
+    const allQuickActions = [
+      // Brightness & Exposure
+      "Make it brighter",
+      "Make it darker",
+      "Fix the lighting",
+      "Increase exposure",
+      
+      // Color adjustments
+      "Enhance colors",
+      "Make it more vibrant",
+      "Mute the colors",
+      "Warmer tones",
+      "Cooler tones",
+      
+      // Effects & Filters
+      "Convert to black & white",
+      "Add sepia tone",
+      "Invert colors",
+      "Add blur effect",
+      "Sharpen the image",
+      
+      // Contrast & Style
+      "Increase contrast",
+      "Softer look",
+      "Make it dramatic",
+      "Vintage style",
+      
+      // Transform
+      "Rotate 90 degrees",
+      "Flip horizontally",
+      "Crop to square"
+    ]
+    
+    // Shuffle and pick 4 random actions
+    const shuffled = [...allQuickActions].sort(() => Math.random() - 0.5)
+    setQuickActions(shuffled.slice(0, 4))
   }, [])
   
   const {
@@ -217,23 +258,48 @@ export function AIChat() {
           )}
           
           {isCanvasReady && !hasContent() && (
-            <div className="text-center text-muted-foreground text-sm p-3 bg-muted/10 rounded-lg border border-muted/20">
+            <div className="text-center text-foreground/60 text-sm p-3 bg-foreground/10/10 rounded-lg border border-foreground/20">
               <AlertCircle className="w-4 h-4 inline-block mr-2" />
               Please open an image file to start editing.
             </div>
           )}
           
           {messages.length === 0 && (
-            <div className="text-center text-muted-foreground text-sm py-8">
-              <Bot className="w-8 h-8 mx-auto mb-3 opacity-50" />
-              <p>Hi! I&apos;m your AI photo editing assistant.</p>
-              <p className="mt-2">I can help you:</p>
-              <ul className="mt-3 space-y-1 text-xs">
-                <li>• Edit and enhance your photos</li>
-                <li>• Apply filters and effects</li>
-                <li>• Adjust colors and lighting</li>
-                <li>• Create selections and masks</li>
-              </ul>
+            <div className="flex gap-2">
+              {/* Bot avatar - same as actual messages */}
+              <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+                <Bot className="w-3 h-3 text-primary" />
+              </div>
+              
+              {/* Welcome message styled like assistant message */}
+              <div className="flex-1 space-y-3">
+                <div className="bg-foreground/5 text-foreground rounded-lg px-3 py-2 max-w-[85%]">
+                  <p className="text-sm">Welcome! I&apos;m ready to help edit your photo. What would you like to do?</p>
+                </div>
+                
+                {/* Quick start suggestions */}
+                <div className="space-y-2">
+                  <p className="text-xs text-foreground/60 ml-1">Try asking me to...</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {[
+                      "Enhance the colors",
+                      "Make it brighter",
+                      "Add blur effect",
+                      "Convert to black & white"
+                    ].map((suggestion) => (
+                      <button
+                        key={suggestion}
+                        type="button"
+                        onClick={() => handleQuickAction(suggestion)}
+                        className="text-xs px-2 py-1 rounded-md bg-foreground/10 hover:bg-foreground/10/80 text-foreground transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        disabled={!isCanvasReady || !hasContent()}
+                      >
+                        {suggestion}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
             </div>
           )}
           
@@ -256,7 +322,7 @@ export function AIChat() {
                   "max-w-[85%] rounded-lg px-3 py-2",
                   message.role === 'user'
                     ? 'bg-primary text-primary-foreground'
-                    : 'bg-secondary text-foreground'
+                    : 'bg-foreground/5 text-foreground'
                 )}
               >
                 {/* Render message parts */}
@@ -309,7 +375,7 @@ export function AIChat() {
                     return (
                       <div
                         key={toolCallId}
-                        className="mt-2 p-3 bg-background/50 rounded border border-border/50"
+                        className="mt-2 p-3 bg-background/50 rounded border border-foreground/10/50"
                       >
                         <div className="flex items-center gap-2 mb-2">
                           <span className="inline-flex items-center gap-1 px-2 py-1 bg-primary text-primary-foreground rounded-md text-xs font-medium">
@@ -330,14 +396,14 @@ export function AIChat() {
                         
                         {state === 'input-streaming' && (
                           <div className="space-y-2">
-                            <div className="flex items-center gap-2 text-muted-foreground">
+                            <div className="flex items-center gap-2 text-foreground/60">
                               <Loader2 className="w-3 h-3 animate-spin" />
                               <span className="text-xs">Preparing parameters...</span>
                             </div>
                             {input ? (
                               <details className="text-xs">
-                                <summary className="cursor-pointer text-muted-foreground hover:text-foreground">Parameters</summary>
-                                <pre className="mt-1 bg-muted/50 p-2 rounded overflow-auto">
+                                <summary className="cursor-pointer text-foreground/60 hover:text-foreground">Parameters</summary>
+                                <pre className="mt-1 bg-foreground/10/50 p-2 rounded overflow-auto">
                                   {String(JSON.stringify(input, null, 2))}
                                 </pre>
                               </details>
@@ -347,14 +413,14 @@ export function AIChat() {
                         
                         {state === 'input-available' && (
                           <div className="space-y-2">
-                            <div className="flex items-center gap-2 text-muted-foreground">
+                            <div className="flex items-center gap-2 text-foreground/60">
                               <Loader2 className="w-3 h-3 animate-spin" />
                               <span className="text-xs">Executing...</span>
                             </div>
                             {input ? (
                               <details className="text-xs">
-                                <summary className="cursor-pointer text-muted-foreground hover:text-foreground">Parameters</summary>
-                                <pre className="mt-1 bg-muted/50 p-2 rounded overflow-auto">
+                                <summary className="cursor-pointer text-foreground/60 hover:text-foreground">Parameters</summary>
+                                <pre className="mt-1 bg-foreground/10/50 p-2 rounded overflow-auto">
                                   {String(JSON.stringify(input, null, 2))}
                                 </pre>
                               </details>
@@ -364,8 +430,8 @@ export function AIChat() {
                         
                         {state === 'output-available' && output ? (
                           <details className="text-xs">
-                            <summary className="cursor-pointer text-muted-foreground hover:text-foreground">Result</summary>
-                            <pre className="mt-1 bg-muted/50 p-2 rounded overflow-auto">
+                            <summary className="cursor-pointer text-foreground/60 hover:text-foreground">Result</summary>
+                            <pre className="mt-1 bg-foreground/10/50 p-2 rounded overflow-auto">
                               {String(JSON.stringify(output, null, 2))}
                             </pre>
                           </details>
@@ -391,7 +457,7 @@ export function AIChat() {
               </div>
               
               {message.role === 'user' && (
-                <div className="w-6 h-6 rounded-full bg-secondary flex items-center justify-center flex-shrink-0 mt-0.5">
+                <div className="w-6 h-6 rounded-full bg-foreground/5 flex items-center justify-center flex-shrink-0 mt-0.5">
                   <User className="w-3 h-3 text-foreground" />
                 </div>
               )}
@@ -403,7 +469,7 @@ export function AIChat() {
               <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center mt-0.5">
                 <Bot className="w-3 h-3 text-primary" />
               </div>
-              <div className="bg-secondary text-foreground rounded-lg px-3 py-2">
+              <div className="bg-foreground/5 text-foreground rounded-lg px-3 py-2">
                 <Loader2 className="w-4 h-4 animate-spin" />
               </div>
             </div>
@@ -419,7 +485,7 @@ export function AIChat() {
       </ScrollArea>
       
       {/* Input */}
-      <form onSubmit={handleSubmit} className="border-t border-border p-3">
+      <form onSubmit={handleSubmit} className="border-t border-foreground/10 p-3">
         <div className="flex gap-2">
           <Input
             value={input}
@@ -443,18 +509,13 @@ export function AIChat() {
         
         {/* Quick actions */}
         <div className="mt-2 flex flex-wrap gap-1.5">
-          {[
-            "Make it brighter",
-            "Add blur effect",
-            "Convert to black & white",
-            "Enhance colors"
-          ].map((suggestion) => (
+          {quickActions.map((suggestion) => (
             <button
               key={suggestion}
               type="button"
               onClick={() => handleQuickAction(suggestion)}
-              className="text-xs px-2 py-1 rounded-md bg-muted hover:bg-muted/80 text-foreground transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              disabled={isLoading || !isCanvasReady}
+              className="text-xs px-2 py-1 rounded-md bg-foreground/10 hover:bg-foreground/10/80 text-foreground transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={isLoading || !isCanvasReady || !hasContent()}
             >
               {suggestion}
             </button>

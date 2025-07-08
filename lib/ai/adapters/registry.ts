@@ -93,6 +93,7 @@ export async function autoDiscoverAdapters(): Promise<void> {
     const { default: GrayscaleAdapter } = await import('./tools/grayscale')
     const { default: SepiaAdapter } = await import('./tools/sepia')
     const { default: InvertAdapter } = await import('./tools/invert')
+    const { addTextAdapter } = await import('./tools/addText')
     
     // Register all adapters
     adapterRegistry.register(new CropToolAdapter())
@@ -110,8 +111,9 @@ export async function autoDiscoverAdapters(): Promise<void> {
     adapterRegistry.register(GrayscaleAdapter)
     adapterRegistry.register(SepiaAdapter)
     adapterRegistry.register(InvertAdapter)
+    adapterRegistry.register(addTextAdapter)
     
-    console.log('[AdapterRegistry] Registered 15 tool adapters')
+    console.log('[AdapterRegistry] Registered 16 tool adapters')
   } catch (error) {
     console.error('[AdapterRegistry] Error during auto-discovery:', error)
   }

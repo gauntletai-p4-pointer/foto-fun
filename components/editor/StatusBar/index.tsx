@@ -8,7 +8,7 @@ export function StatusBar() {
   const { zoom } = useCanvasStore()
   
   return (
-    <div className="h-6 bg-background border-t border-border flex items-center px-4 text-xs text-muted-foreground">
+    <div className="h-6 bg-background border-t border-foreground/10 flex items-center px-4 text-xs text-foreground/60">
       <div className="flex items-center gap-4">
         {currentDocument && (
           <>

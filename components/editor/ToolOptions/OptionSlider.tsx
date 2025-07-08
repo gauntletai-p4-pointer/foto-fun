@@ -33,7 +33,7 @@ export function OptionSlider({ option, onChange, defaultValue = 0 }: OptionSlide
       {showReset && (
         <button
           onClick={() => onChange(defaultValue)}
-          className="p-1 hover:bg-accent rounded-md transition-colors"
+          className="p-1 hover:bg-primary/10 rounded-md transition-colors"
           title="Reset to default"
         >
           <RotateCcw className="h-3 w-3" />

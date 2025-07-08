@@ -27,7 +27,7 @@ export function OptionNumber({ option, onChange }: OptionNumberProps) {
           className="w-20 h-8 text-foreground"
         />
         {unit && (
-          <span className="text-sm text-muted-foreground">{unit}</span>
+          <span className="text-sm text-foreground/60">{unit}</span>
         )}
       </div>
     </div>

@@ -9,7 +9,7 @@ import { eyedropperTool } from './eyedropperTool'
 import { handTool } from './transform/handTool'
 import { zoomTool } from './transform/zoomTool'
 import { brushTool } from './drawing/brushTool'
-import { horizontalTypeTool, verticalTypeTool, typeMaskTool } from './text'
+import { horizontalTypeTool, verticalTypeTool, typeMaskTool, typeOnPathTool } from './text'
 import { brightnessTool } from './adjustments/brightnessTool'
 import { contrastTool } from './adjustments/contrastTool'
 import { saturationTool } from './adjustments/saturationTool'
@@ -42,6 +42,7 @@ export const tools: Tool[] = [
   horizontalTypeTool,
   verticalTypeTool,
   typeMaskTool,
+  typeOnPathTool,
   brightnessTool,
   contrastTool,
   saturationTool,
@@ -74,6 +75,7 @@ export {
   horizontalTypeTool,
   verticalTypeTool,
   typeMaskTool,
+  typeOnPathTool,
   brightnessTool,
   contrastTool,
   saturationTool,

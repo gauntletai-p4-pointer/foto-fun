@@ -1,20 +1,19 @@
 'use client'
 
-import { ToolOptions } from '@/components/editor/ToolOptions'
 import { useToolStore } from '@/store/toolStore'
-import { TOOL_IDS } from '@/constants'
+import { ToolOptions } from '../ToolOptions'
 
 export function OptionsBar() {
-  const activeTool = useToolStore((state) => state.activeTool)
+  const { activeTool } = useToolStore()
   
   return (
-    <div className="h-10 bg-background border-b flex items-center px-4 gap-4">
+    <div className="h-10 bg-background border-b border-foreground/10 flex items-center px-4 gap-4">
       <ToolOptions />
       
-      {/* Show help text for specific tools */}
-      {activeTool === TOOL_IDS.CROP && (
-        <div className="ml-auto text-sm text-muted-foreground">
-          Press <kbd className="px-1.5 py-0.5 text-xs font-semibold bg-muted rounded">Enter</kbd> to apply crop or <kbd className="px-1.5 py-0.5 text-xs font-semibold bg-muted rounded">Esc</kbd> to cancel
+      {/* Crop tool specific UI */}
+      {activeTool === 'crop' && (
+        <div className="ml-auto text-sm text-foreground/60">
+          Press <kbd className="px-1.5 py-0.5 text-xs font-semibold bg-foreground/10 rounded">Enter</kbd> to apply crop or <kbd className="px-1.5 py-0.5 text-xs font-semibold bg-foreground/10 rounded">Esc</kbd> to cancel
         </div>
       )}
     </div>

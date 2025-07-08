@@ -10,6 +10,7 @@ export class FontManager {
   private fontCache = new Map<string, FontFace>()
   private systemFonts: string[] = []
   private googleFonts: string[] = []
+  private googleFontsLoaded = false
   
   // Common web-safe fonts that are likely available
   private readonly WEB_SAFE_FONTS = [
@@ -29,8 +30,8 @@ export class FontManager {
     'Verdana'
   ]
   
-  // Popular Google Fonts to preload
-  private readonly GOOGLE_FONTS = [
+  // Popular Google Fonts to show initially (before full list loads)
+  private readonly POPULAR_GOOGLE_FONTS = [
     'Roboto',
     'Open Sans',
     'Lato',
@@ -40,11 +41,26 @@ export class FontManager {
     'Poppins',
     'Merriweather',
     'Playfair Display',
-    'Ubuntu'
+    'Ubuntu',
+    'Nunito',
+    'Quicksand',
+    'Bebas Neue',
+    'Dancing Script',
+    'Pacifico',
+    'Caveat',
+    'Satisfy',
+    'Great Vibes',
+    'Permanent Marker',
+    'Amatic SC'
   ]
+  
+  // Google Fonts API key (optional - works without it but has rate limits)
+  private readonly GOOGLE_FONTS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_FONTS_API_KEY || ''
   
   private constructor() {
     this.detectSystemFonts()
+    // Load popular Google Fonts list immediately
+    this.googleFonts = [...this.POPULAR_GOOGLE_FONTS]
   }
   
   /**
@@ -55,6 +71,51 @@ export class FontManager {
       FontManager.instance = new FontManager()
     }
     return FontManager.instance
+  }
+  
+  /**
+   * Load the full Google Fonts list from API
+   */
+  async loadGoogleFontsList(): Promise<void> {
+    if (this.googleFontsLoaded) return
+    
+    try {
+      const apiUrl = this.GOOGLE_FONTS_API_KEY 
+        ? `https://www.googleapis.com/webfonts/v1/webfonts?key=${this.GOOGLE_FONTS_API_KEY}&sort=popularity`
+        : 'https://www.googleapis.com/webfonts/v1/webfonts?sort=popularity'
+      
+      const response = await fetch(apiUrl)
+      if (!response.ok) {
+        console.warn('Failed to load Google Fonts list, using popular fonts only')
+        return
+      }
+      
+      const data = await response.json()
+      // Take top 100 most popular fonts
+      this.googleFonts = data.items
+        .slice(0, 100)
+        .map((font: { family: string }) => font.family)
+      
+      this.googleFontsLoaded = true
+    } catch (error) {
+      console.warn('Failed to load Google Fonts list:', error)
+      // Keep using the popular fonts list
+    }
+  }
+  
+  /**
+   * Search fonts by name
+   */
+  async searchFonts(query: string): Promise<FontInfo[]> {
+    // Ensure Google Fonts list is loaded
+    await this.loadGoogleFontsList()
+    
+    const searchTerm = query.toLowerCase()
+    const allFonts = this.getAvailableFonts()
+    
+    return allFonts.filter(font => 
+      font.name.toLowerCase().includes(searchTerm)
+    )
   }
   
   /**
@@ -73,7 +134,7 @@ export class FontManager {
         document.fonts.add(font)
         this.fontCache.set(fontFamily, font)
         this.loadedFonts.add(fontFamily)
-      } else if (this.googleFonts.includes(fontFamily)) {
+      } else if (this.googleFonts.includes(fontFamily) || await this.isGoogleFont(fontFamily)) {
         // Load from Google Fonts
         await this.loadGoogleFont(fontFamily)
       } else {
@@ -87,17 +148,33 @@ export class FontManager {
   }
   
   /**
-   * Load a font from Google Fonts
+   * Check if a font is available on Google Fonts
    */
-  async loadGoogleFont(fontFamily: string): Promise<void> {
+  private async isGoogleFont(fontFamily: string): Promise<boolean> {
+    // Try to load it from Google Fonts API
+    try {
+      const response = await fetch(
+        `https://fonts.googleapis.com/css2?family=${fontFamily.replace(' ', '+')}`
+      )
+      return response.ok
+    } catch {
+      return false
+    }
+  }
+  
+  /**
+   * Load a font from Google Fonts with variants
+   */
+  async loadGoogleFont(fontFamily: string, variants: string[] = ['400', '700']): Promise<void> {
     if (this.loadedFonts.has(fontFamily)) {
       return
     }
     
     try {
-      // Create link element for Google Fonts
+      // Create link element for Google Fonts with multiple weights
       const link = document.createElement('link')
-      link.href = `https://fonts.googleapis.com/css2?family=${fontFamily.replace(' ', '+')}:wght@400;700&display=swap`
+      const weights = variants.join(',')
+      link.href = `https://fonts.googleapis.com/css2?family=${fontFamily.replace(' ', '+')}:wght@${weights}&display=swap`
       link.rel = 'stylesheet'
       
       // Wait for font to load
@@ -107,11 +184,13 @@ export class FontManager {
         document.head.appendChild(link)
       })
       
-      // Wait a bit for font to be ready
+      // Wait for fonts to be ready
       await document.fonts.ready
       
       this.loadedFonts.add(fontFamily)
-      this.googleFonts.push(fontFamily)
+      if (!this.googleFonts.includes(fontFamily)) {
+        this.googleFonts.push(fontFamily)
+      }
     } catch (error) {
       console.error(`Failed to load Google Font: ${fontFamily}`, error)
       throw error
@@ -135,7 +214,7 @@ export class FontManager {
     })
     
     // Add Google fonts
-    this.GOOGLE_FONTS.forEach(family => {
+    this.googleFonts.forEach(family => {
       fonts.push({
         family,
         name: family,

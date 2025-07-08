@@ -18,7 +18,7 @@ export function GlyphGrid({ glyphs, onSelect }: GlyphGridProps) {
           key={`${glyph}-${index}`}
           variant="ghost"
           size="sm"
-          className="h-8 w-8 p-0 hover:bg-accent"
+          className="h-8 w-8 p-0 hover:bg-primary/10"
           onClick={() => onSelect(glyph)}
           title={glyph}
         >

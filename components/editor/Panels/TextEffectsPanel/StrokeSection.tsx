@@ -80,7 +80,7 @@ export function StrokeSection({ object, onChange }: StrokeSectionProps) {
               onChange={(e) => updateOption('color', e.target.value)}
               className="h-8 w-16"
             />
-            <span className="text-xs text-muted-foreground">
+            <span className="text-xs text-foreground/60">
               {options.color}
             </span>
           </div>
@@ -90,7 +90,7 @@ export function StrokeSection({ object, onChange }: StrokeSectionProps) {
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <label className="text-xs font-medium text-foreground">Width</label>
-            <span className="text-xs text-muted-foreground">
+            <span className="text-xs text-foreground/60">
               {options.width}px
             </span>
           </div>

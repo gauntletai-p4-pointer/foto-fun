@@ -25,55 +25,12 @@
   --background: #F5F4ED;
   --foreground: #1A1A1A;
   --content-background: #FAF9F5;
-
-  --card: #FFFFFF;
-  --card-foreground: #1A1A1A;
-
-  --popover: #FFFFFF;
-  --popover-foreground: #1A1A1A;
-
   --primary: #3B82F6;
   --primary-foreground: #FFFFFF;
-
-  --secondary: #E5E7EB;
-  --secondary-foreground: #1A1A1A;
-
-  --muted: #F5F5F4;
-  --muted-foreground: #6B7280;
-
-  --accent: #F1F5F9;
-  --accent-foreground: #1A1A1A;
-
   --destructive: #EF4444;
   --destructive-foreground: #FFFFFF;
-
-  --border: #E5E7EB;
-  --input: #E5E7EB;
   --ring: #3B82F6;
-
-  /* === SIDEBAR SPECIFIC === */
-  --sidebar: #F5F4ED;
-  --sidebar-foreground: #1A1A1A;
-  --sidebar-primary: #3B82F6;
-  --sidebar-primary-foreground: #FFFFFF;
-  --sidebar-accent: #EFEEE7;
-  --sidebar-accent-foreground: #1A1A1A;
-  --sidebar-border: #E5E4DD;
-  --sidebar-ring: #3B82F6;
-  --sidebar-input: #FFFFFF;
-  --sidebar-input-foreground: #1A1A1A;
-
-  /* === SIDEBAR DARK MODE === */
-  --sidebar-dark: #212020;
-  --sidebar-foreground-dark: #FAFAFA;
-  --sidebar-primary-dark: #3B82F6;
-  --sidebar-primary-foreground-dark: #FFFFFF;
-  --sidebar-accent-dark: #2A2929;
-  --sidebar-accent-foreground-dark: #FAFAFA;
-  --sidebar-border-dark: #333232;
-  --sidebar-ring-dark: #3B82F6;
-  --sidebar-input-dark: #1A1A19;
-  --sidebar-input-foreground-dark: #FAFAFA;
+  --border: rgb(26 26 26 / 0.1);
 
   /* === CHART COLORS === */
   --chart-1: #3B82F6;
@@ -82,44 +39,23 @@
   --chart-4: #EF4444;
   --chart-5: #8B5CF6;
 
-  /* === EXISTING TAILWIND V4 COLORS === */
+  /* === TAILWIND V4 COLORS === */
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-content-background: var(--content-background);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-ring: var(--ring);
+  --color-border: var(--border);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-  --color-sidebar-ring: light-dark(var(--sidebar-ring), var(--sidebar-ring-dark));
-  --color-sidebar-border: light-dark(var(--sidebar-border), var(--sidebar-border-dark));
-  --color-sidebar-accent-foreground: light-dark(var(--sidebar-accent-foreground), var(--sidebar-accent-foreground-dark));
-  --color-sidebar-accent: light-dark(var(--sidebar-accent), var(--sidebar-accent-dark));
-  --color-sidebar-primary-foreground: light-dark(var(--sidebar-primary-foreground), var(--sidebar-primary-foreground-dark));
-  --color-sidebar-primary: light-dark(var(--sidebar-primary), var(--sidebar-primary-dark));
-  --color-sidebar-foreground: light-dark(var(--sidebar-foreground), var(--sidebar-foreground-dark));
-  --color-sidebar: light-dark(var(--sidebar), var(--sidebar-dark));
-  --color-sidebar-input: light-dark(var(--sidebar-input), var(--sidebar-input-dark));
-  --color-sidebar-input-foreground: light-dark(var(--sidebar-input-foreground), var(--sidebar-input-foreground-dark));
-  --color-destructive-foreground: var(--destructive-foreground);
-  --color-chart-5: var(--chart-5);
-  --color-chart-4: var(--chart-4);
-  --color-chart-3: var(--chart-3);
-  --color-chart-2: var(--chart-2);
-  --color-chart-1: var(--chart-1);
-  --color-ring: var(--ring);
-  --color-input: var(--input);
-  --color-border: var(--border);
-  --color-destructive: var(--destructive);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-accent: var(--accent);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-muted: var(--muted);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-secondary: var(--secondary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-primary: var(--primary);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-popover: var(--popover);
-  --color-card-foreground: var(--card-foreground);
-  --color-card: var(--card);
-  --color-content-background: var(--content-background);
   --radius: var(--radius-md);
 }
 
@@ -128,31 +64,12 @@
   --background: #212020;
   --foreground: #FAFAFA;
   --content-background: #191817;
-
-  --card: #1A1A1A;
-  --card-foreground: #FAFAFA;
-
-  --popover: #1A1A1A;
-  --popover-foreground: #FAFAFA;
-
   --primary: #3B82F6;
   --primary-foreground: #FFFFFF;
-
-  --secondary: #374151;
-  --secondary-foreground: #FAFAFA;
-
-  --muted: #262626;
-  --muted-foreground: #9CA3AF;
-
-  --accent: #1F2937;
-  --accent-foreground: #FAFAFA;
-
   --destructive: #EF4444;
   --destructive-foreground: #FFFFFF;
-
-  --border: #212020;
-  --input: #191817;
   --ring: #3B82F6;
+  --border: rgb(250 250 250 / 0.1);
 
   /* === CHART COLORS DARK === */
   --chart-1: #60A5FA;
@@ -183,11 +100,11 @@
   }
 
   ::-webkit-scrollbar-thumb {
-    @apply bg-muted-foreground/20 rounded-full;
+    @apply bg-foreground/20 rounded-full;
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    @apply bg-muted-foreground/30;
+    @apply bg-foreground/30;
   }
 
   /* === SELECTION === */
@@ -212,20 +129,20 @@
   }
 
   .btn-secondary {
-    @apply bg-secondary text-secondary-foreground hover:bg-secondary/80;
+    @apply bg-foreground/5 text-foreground hover:bg-foreground/10;
   }
 
   .btn-ghost {
-    @apply hover:bg-accent hover:text-accent-foreground;
+    @apply hover:bg-foreground/5 hover:text-foreground;
   }
 
   .btn-outline {
-    @apply border border-input bg-background hover:bg-accent hover:text-accent-foreground;
+    @apply border border-foreground/10 bg-background hover:bg-foreground/5 hover:text-foreground;
   }
 
   /* === CARD DEFAULTS === */
   .card {
-    @apply rounded-lg border bg-card text-card-foreground shadow-sm;
+    @apply rounded-lg border border-foreground/10 bg-background text-foreground shadow-sm;
   }
 
   .card-header {
@@ -238,7 +155,7 @@
 
   /* === INPUT DEFAULTS === */
   .input {
-    @apply flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50;
+    @apply flex h-10 w-full rounded-md border border-foreground/10 bg-transparent px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-foreground/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50;
   }
 
   /* === HOVER STATES === */
@@ -272,7 +189,7 @@
 
   /* === PANEL RESIZE HANDLE === */
   .panel-resize-handle {
-    @apply relative flex w-px items-center justify-center bg-border hover:bg-accent transition-colors cursor-col-resize;
+    @apply relative flex w-px items-center justify-center bg-border hover:bg-foreground/20 transition-colors cursor-col-resize;
   }
 
   .panel-resize-handle::after {
@@ -303,7 +220,7 @@
   }
 
   .gradient-subtle {
-    @apply bg-gradient-to-b from-background to-muted/50;
+    @apply bg-gradient-to-b from-background to-background/50;
   }
 }
 

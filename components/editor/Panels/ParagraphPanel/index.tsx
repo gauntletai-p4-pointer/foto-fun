@@ -48,7 +48,7 @@ export function ParagraphPanel() {
   
   if (!activeTextObject) {
     return (
-      <div className="p-4 text-center text-muted-foreground">
+      <div className="p-4 text-center text-foreground/60">
         <AlignLeft className="w-12 h-12 mx-auto mb-2 opacity-20" />
         <p>Select text to see paragraph options</p>
       </div>

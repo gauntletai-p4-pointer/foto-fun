@@ -58,7 +58,7 @@ export function FontSizeInput({ value, onChange }: FontSizeInputProps) {
             <ChevronDown className="h-3 w-3" />
           </Button>
         </div>
-        <span className="text-xs text-muted-foreground ml-1">pt</span>
+        <span className="text-xs text-foreground/60 ml-1">pt</span>
       </div>
     </div>
   )

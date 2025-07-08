@@ -129,7 +129,7 @@ export function ToolOptions() {
       {options.map(renderOption)}
       
       {showModifierHints && (
-        <div className="flex items-center gap-4 ml-auto mr-4 text-xs text-muted-foreground">
+        <div className="flex items-center gap-4 ml-auto mr-4 text-xs text-foreground/60">
           <span className={modifiers.shift ? 'text-foreground font-medium' : ''}>
             Shift: Square
           </span>

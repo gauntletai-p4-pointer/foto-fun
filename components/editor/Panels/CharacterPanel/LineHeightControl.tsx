@@ -45,7 +45,7 @@ export function LineHeightControl({ value, onChange }: LineHeightControlProps) {
             min={50}
             max={300}
           />
-          <span className="text-xs text-muted-foreground">%</span>
+          <span className="text-xs text-foreground/60">%</span>
         </div>
       </div>
       <Slider

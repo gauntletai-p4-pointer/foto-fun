@@ -49,7 +49,7 @@ export function OptionColor({ option, onChange }: OptionColorProps) {
             className="h-8 px-2 flex items-center gap-2"
           >
             <div 
-              className="w-5 h-5 rounded border border-input"
+              className="w-5 h-5 rounded border border-foreground/10"
               style={{ backgroundColor: option.value }}
             />
             <span className="text-xs font-mono text-foreground">{option.value}</span>
@@ -59,7 +59,7 @@ export function OptionColor({ option, onChange }: OptionColorProps) {
           <div className="space-y-3">
             {/* Hex input */}
             <div className="space-y-1">
-              <label className="text-xs text-muted-foreground">Hex Color</label>
+              <label className="text-xs text-foreground/60">Hex Color</label>
               <Input
                 value={tempColor}
                 onChange={handleInputChange}
@@ -71,12 +71,12 @@ export function OptionColor({ option, onChange }: OptionColorProps) {
             {/* Recent colors */}
             {recentColors.length > 0 && (
               <div className="space-y-1">
-                <label className="text-xs text-muted-foreground">Recent</label>
+                <label className="text-xs text-foreground/60">Recent</label>
                 <div className="grid grid-cols-8 gap-1">
                   {recentColors.slice(0, 8).map((color, index) => (
                     <button
                       key={`${color}-${index}`}
-                      className="w-6 h-6 rounded border border-input hover:scale-110 transition-transform"
+                      className="w-6 h-6 rounded border border-foreground/10 hover:scale-110 transition-transform"
                       style={{ backgroundColor: color }}
                       onClick={() => handleColorChange(color)}
                       aria-label={`Select recent color ${color}`}
@@ -88,12 +88,12 @@ export function OptionColor({ option, onChange }: OptionColorProps) {
             
             {/* Preset colors */}
             <div className="space-y-1">
-              <label className="text-xs text-muted-foreground">Presets</label>
+              <label className="text-xs text-foreground/60">Presets</label>
               <div className="grid grid-cols-5 gap-1">
                 {presetColors.map((color) => (
                   <button
                     key={color}
-                    className="w-8 h-8 rounded border border-input hover:scale-110 transition-transform"
+                    className="w-8 h-8 rounded border border-foreground/10 hover:scale-110 transition-transform"
                     style={{ backgroundColor: color }}
                     onClick={() => handleColorChange(color)}
                     aria-label={`Select color ${color}`}

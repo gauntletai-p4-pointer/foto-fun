@@ -121,12 +121,12 @@ function LayerItem({ layer, isActive, onDragStart, onDragOver, onDrop }: LayerIt
       onClick={() => setActiveLayer(layer.id)}
       className={cn(
         "group flex items-center gap-2 p-2 rounded-md cursor-pointer transition-colors",
-        isActive ? "bg-primary/10" : "hover:bg-secondary/50",
+        isActive ? "bg-primary/10 text-primary" : "hover:bg-foreground/5",
         !layer.visible && "opacity-50"
       )}
     >
       {/* Layer icon */}
-      <Icon className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+      <Icon className="w-4 h-4 flex-shrink-0" />
       
       {/* Layer name */}
       <span className="flex-1 text-sm truncate">{layer.name}</span>
@@ -272,14 +272,14 @@ export function LayersPanel() {
   return (
     <div className="flex flex-col h-full bg-background">
       {/* Layer controls */}
-      <div className="p-3 border-b border-border space-y-3">
+      <div className="p-3 border-b border-foreground/10 space-y-3">
         {activeLayer && (
           <>
             {/* Opacity slider */}
             <div className="space-y-1">
               <div className="flex items-center justify-between">
                 <label className="text-xs font-medium text-foreground">Opacity</label>
-                <span className="text-xs text-muted-foreground">{activeLayer.opacity}%</span>
+                <span className="text-xs text-foreground/60">{activeLayer.opacity}%</span>
               </div>
               <Slider
                 value={[activeLayer.opacity]}
@@ -317,7 +317,7 @@ export function LayersPanel() {
       {/* Layer list */}
       <div className="flex-1 overflow-y-auto p-2">
         {displayLayers.length === 0 ? (
-          <div className="text-center text-muted-foreground text-sm py-8">
+          <div className="text-center text-foreground/60 text-sm py-8">
             <Layers className="w-8 h-8 mx-auto mb-3 opacity-50" />
             <p>No layers yet</p>
             <p className="mt-2 text-xs">Click the button below to add a layer</p>
@@ -339,7 +339,7 @@ export function LayersPanel() {
       </div>
       
       {/* Add layer button */}
-      <div className="p-3 border-t border-border">
+      <div className="p-3 border-t border-foreground/10">
         <Button
           variant="outline"
           size="sm"

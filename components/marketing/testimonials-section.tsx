@@ -56,7 +56,7 @@ export function TestimonialsSection() {
               Creators Worldwide
             </span>
           </h2>
-          <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+          <p className="text-lg text-foreground/60 max-w-2xl mx-auto">
             Join thousands of creators who are already transforming their workflow with FotoFun&apos;s AI-powered editing.
           </p>
         </div>
@@ -74,7 +74,7 @@ export function TestimonialsSection() {
               <div className="text-3xl sm:text-4xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent mb-2">
                 {metric.value}
               </div>
-              <p className="text-sm text-muted-foreground">{metric.label}</p>
+              <p className="text-sm text-foreground/60">{metric.label}</p>
             </div>
           ))}
         </div>
@@ -101,7 +101,7 @@ export function TestimonialsSection() {
                 </div>
 
                 {/* Quote */}
-                <p className="text-muted-foreground mb-6 relative z-10">
+                <p className="text-foreground/60 mb-6 relative z-10">
                   &quot;{testimonial.quote}&quot;
                 </p>
 
@@ -118,7 +118,7 @@ export function TestimonialsSection() {
                   </div>
                   <div>
                     <p className="font-semibold">{testimonial.author}</p>
-                    <p className="text-sm text-muted-foreground">{testimonial.role}</p>
+                    <p className="text-sm text-foreground/60">{testimonial.role}</p>
                   </div>
                 </div>
 
@@ -131,12 +131,12 @@ export function TestimonialsSection() {
 
         {/* Use Cases */}
         <div className="mt-16 text-center">
-          <p className="text-sm text-muted-foreground mb-4">Perfect for</p>
+          <p className="text-sm text-foreground/60 mb-4">Perfect for</p>
           <div className="flex flex-wrap justify-center gap-4">
             {['Portrait Photography', 'Product Shots', 'Social Media', 'E-commerce', 'Real Estate'].map((useCase) => (
               <div
                 key={useCase}
-                className="px-4 py-2 rounded-full bg-secondary text-sm font-medium"
+                className="px-4 py-2 rounded-full bg-foreground/5 text-sm font-medium"
               >
                 {useCase}
               </div>

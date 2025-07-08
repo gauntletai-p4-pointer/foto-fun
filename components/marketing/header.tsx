@@ -86,7 +86,7 @@ export function Header() {
                 <Link
                   key={item.name}
                   href={item.href}
-                  className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+                  className="text-sm font-medium text-foreground/60 hover:text-foreground transition-colors"
                 >
                   {item.name}
                 </Link>
@@ -115,7 +115,7 @@ export function Header() {
                 >
                   <Github className="h-4 w-4" />
                   {githubStars && (
-                    <span className="bg-secondary px-2 py-0.5 rounded-full text-xs">
+                    <span className="bg-foreground/5 px-2 py-0.5 rounded-full text-xs">
                       {githubStars}
                     </span>
                   )}
@@ -161,7 +161,7 @@ export function Header() {
                 <Link
                   key={item.name}
                   href={item.href}
-                  className="block py-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+                  className="block py-2 text-sm font-medium text-foreground/60 hover:text-foreground transition-colors"
                   onClick={() => setIsMobileMenuOpen(false)}
                 >
                   {item.name}
@@ -188,7 +188,7 @@ export function Header() {
                 <Github className="h-4 w-4" />
                 GitHub
                 {githubStars && (
-                  <span className="bg-secondary px-2 py-0.5 rounded-full text-xs">
+                  <span className="bg-foreground/5 px-2 py-0.5 rounded-full text-xs">
                     {githubStars}
                   </span>
                 )}

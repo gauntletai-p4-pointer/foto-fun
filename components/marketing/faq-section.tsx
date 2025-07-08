@@ -35,7 +35,7 @@ export function FAQSection() {
   const [openIndex, setOpenIndex] = useState<number | null>(0)
 
   return (
-    <section className="py-24 bg-secondary/30 relative overflow-hidden">
+    <section className="py-24 bg-foreground/5/30 relative overflow-hidden">
       {/* Background decoration */}
       <div className="absolute inset-0 -z-10">
         <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[1000px] h-[500px] bg-gradient-to-t from-primary/5 via-transparent to-transparent rounded-full blur-3xl" />
@@ -54,7 +54,7 @@ export function FAQSection() {
               Questions
             </span>
           </h2>
-          <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+          <p className="text-lg text-foreground/60 max-w-2xl mx-auto">
             Everything you need to know about FotoFun. Can&apos;t find what you&apos;re looking for? Feel free to contact our support team.
           </p>
         </div>
@@ -77,7 +77,7 @@ export function FAQSection() {
                   <h3 className="text-lg font-semibold pr-8">{faq.question}</h3>
                   <ChevronDown 
                     className={cn(
-                      "h-5 w-5 text-muted-foreground shrink-0 transition-transform duration-300",
+                      "h-5 w-5 text-foreground/60 shrink-0 transition-transform duration-300",
                       openIndex === index && "rotate-180"
                     )}
                   />
@@ -91,7 +91,7 @@ export function FAQSection() {
                   )}
                 >
                   <div className="overflow-hidden">
-                    <p className="text-muted-foreground">{faq.answer}</p>
+                    <p className="text-foreground/60">{faq.answer}</p>
                   </div>
                 </div>
               </button>
@@ -101,11 +101,11 @@ export function FAQSection() {
 
         {/* Bottom CTA */}
         <div className="text-center mt-16">
-          <p className="text-muted-foreground mb-4">Still have questions?</p>
+          <p className="text-foreground/60 mb-4">Still have questions?</p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <a
               href="/docs"
-              className="inline-flex items-center justify-center px-6 py-3 rounded-lg border hover:bg-secondary transition-colors"
+              className="inline-flex items-center justify-center px-6 py-3 rounded-lg border hover:bg-foreground/5 transition-colors"
             >
               Read Documentation
             </a>

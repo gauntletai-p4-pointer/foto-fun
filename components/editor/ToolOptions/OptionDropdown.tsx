@@ -33,7 +33,7 @@ export function OptionDropdown({ option, onChange }: OptionDropdownProps) {
         {option.label}:
       </label>
       <Select value={option.value} onValueChange={onChange}>
-        <SelectTrigger className="h-8 min-w-[120px] bg-background text-foreground border-input">
+        <SelectTrigger className="h-8 min-w-[120px] bg-background text-foreground border-foreground/10">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>

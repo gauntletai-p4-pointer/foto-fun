@@ -105,7 +105,7 @@ export function PricingSection() {
               Transparent Pricing
             </span>
           </h2>
-          <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+          <p className="text-lg text-foreground/60 max-w-2xl mx-auto">
             Start free, upgrade as you grow. No hidden fees, no surprises.
           </p>
         </div>
@@ -139,12 +139,12 @@ export function PricingSection() {
 
                 {/* Plan details */}
                 <h3 className="text-xl font-semibold mb-2">{plan.name}</h3>
-                <p className="text-sm text-muted-foreground mb-4">{plan.description}</p>
+                <p className="text-sm text-foreground/60 mb-4">{plan.description}</p>
                 
                 {/* Price */}
                 <div className="mb-6">
                   <span className="text-4xl font-bold">{plan.price}</span>
-                  {plan.period && <span className="text-muted-foreground">{plan.period}</span>}
+                  {plan.period && <span className="text-foreground/60">{plan.period}</span>}
                 </div>
 
                 {/* Features */}
@@ -181,7 +181,7 @@ export function PricingSection() {
                     </Button>
                   )}
                   {plan.note && (
-                    <p className="text-xs text-center text-muted-foreground mt-2">{plan.note}</p>
+                    <p className="text-xs text-center text-foreground/60 mt-2">{plan.note}</p>
                   )}
                 </div>
 
@@ -194,10 +194,10 @@ export function PricingSection() {
 
         {/* Bottom note */}
         <div className="text-center mt-16">
-          <p className="text-muted-foreground mb-4">
+          <p className="text-foreground/60 mb-4">
             All plans include access to our AI-powered editing tools
           </p>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm text-foreground/60">
             Questions? <Link href="/contact" className="text-primary hover:underline">Contact our team</Link>
           </p>
         </div>

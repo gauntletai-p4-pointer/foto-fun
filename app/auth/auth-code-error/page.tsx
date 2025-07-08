@@ -11,22 +11,21 @@ export default function AuthCodeErrorPage() {
             <AlertCircle className="w-8 h-8 text-destructive" />
           </div>
           
-          <h1 className="text-3xl font-bold">Authentication Error</h1>
-          
-          <p className="text-muted-foreground">
-            There was an error during the authentication process. This could be due to an expired link or a network issue.
+          <h1 className="text-2xl font-semibold">Authentication Error</h1>
+          <p className="text-foreground/60">
+            There was an error signing you in. Please try again.
           </p>
         </div>
         
-        <div className="space-y-4">
-          <Button asChild className="w-full">
-            <Link href="/">
+        <div className="space-y-2">
+          <Link href="/" className="block">
+            <Button className="w-full">
               Return to Home
-            </Link>
-          </Button>
+            </Button>
+          </Link>
           
-          <p className="text-sm text-muted-foreground">
-            If this problem persists, please contact support or try again later.
+          <p className="text-sm text-foreground/60">
+            If this problem persists, please contact support.
           </p>
         </div>
       </div>

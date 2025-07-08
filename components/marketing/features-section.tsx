@@ -53,7 +53,7 @@ export function FeaturesSection() {
       {/* Background decoration */}
       <div className="absolute inset-0 -z-10">
         <div className="absolute top-0 left-1/4 w-96 h-96 bg-primary/5 rounded-full blur-3xl" />
-        <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-accent/5 rounded-full blur-3xl" />
+        <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-primary/10/5 rounded-full blur-3xl" />
       </div>
 
       <div className="container mx-auto px-4">
@@ -69,7 +69,7 @@ export function FeaturesSection() {
               Edit Like a Pro
             </span>
           </h2>
-          <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+          <p className="text-lg text-foreground/60 max-w-2xl mx-auto">
             Professional tools enhanced by AI, accessible from anywhere, with the power to transform your creative workflow.
           </p>
         </div>
@@ -101,14 +101,14 @@ export function FeaturesSection() {
 
                 {/* Content */}
                 <h3 className="text-xl font-semibold mb-3">{feature.title}</h3>
-                <p className="text-muted-foreground mb-6">{feature.description}</p>
+                <p className="text-foreground/60 mb-6">{feature.description}</p>
 
                 {/* Highlights */}
                 <ul className="space-y-2">
                   {feature.highlights.map((highlight) => (
                     <li key={highlight} className="flex items-center gap-2 text-sm">
                       <div className={`w-1.5 h-1.5 rounded-full bg-gradient-to-r ${feature.gradient}`} />
-                      <span className="text-muted-foreground">{highlight}</span>
+                      <span className="text-foreground/60">{highlight}</span>
                     </li>
                   ))}
                 </ul>
@@ -124,7 +124,7 @@ export function FeaturesSection() {
 
         {/* Bottom CTA */}
         <div className="text-center mt-16">
-          <p className="text-muted-foreground mb-4">Ready to experience the future of photo editing?</p>
+          <p className="text-foreground/60 mb-4">Ready to experience the future of photo editing?</p>
           <a
             href="/editor"
             className="inline-flex items-center gap-2 text-primary hover:text-primary/80 font-medium transition-colors"

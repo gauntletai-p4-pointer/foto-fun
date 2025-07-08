@@ -46,7 +46,7 @@ export function MarketingFooter() {
               </div>
               <span className="text-xl font-bold">FotoFun</span>
             </Link>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-foreground/60">
               AI-Native Photo Editing
             </p>
           </div>
@@ -59,7 +59,7 @@ export function MarketingFooter() {
                 <li key={link.label}>
                   <Link
                     href={link.href}
-                    className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                    className="text-sm text-foreground/60 hover:text-foreground transition-colors"
                   >
                     {link.label}
                   </Link>
@@ -76,7 +76,7 @@ export function MarketingFooter() {
                 <li key={link.label}>
                   <Link
                     href={link.href}
-                    className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                    className="text-sm text-foreground/60 hover:text-foreground transition-colors"
                   >
                     {link.label}
                   </Link>
@@ -93,7 +93,7 @@ export function MarketingFooter() {
                 <li key={link.label}>
                   <Link
                     href={link.href}
-                    className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                    className="text-sm text-foreground/60 hover:text-foreground transition-colors"
                   >
                     {link.label}
                   </Link>
@@ -112,7 +112,7 @@ export function MarketingFooter() {
                     href={link.href}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-sm text-muted-foreground hover:text-foreground transition-colors flex items-center gap-2"
+                    className="text-sm text-foreground/60 hover:text-foreground transition-colors flex items-center gap-2"
                   >
                     {link.icon && <link.icon className="h-4 w-4" />}
                     {link.label}
@@ -126,25 +126,25 @@ export function MarketingFooter() {
         {/* Bottom Section */}
         <div className="pt-8 border-t">
           <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-            <p className="text-sm text-muted-foreground text-center md:text-left">
+            <p className="text-sm text-foreground/60 text-center md:text-left">
               © 2024 FotoFun. Made with ❤️ by creators, for creators.
             </p>
             <div className="flex items-center gap-6">
               <Link
                 href="/privacy"
-                className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                className="text-sm text-foreground/60 hover:text-foreground transition-colors"
               >
                 Privacy
               </Link>
               <Link
                 href="/terms"
-                className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                className="text-sm text-foreground/60 hover:text-foreground transition-colors"
               >
                 Terms
               </Link>
               <Link
                 href="/security"
-                className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                className="text-sm text-foreground/60 hover:text-foreground transition-colors"
               >
                 Security
               </Link>

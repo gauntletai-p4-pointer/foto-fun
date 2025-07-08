@@ -53,7 +53,7 @@ export function SpacingControls({ object, onChange }: SpacingControlsProps) {
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <Label className="text-xs">Line Height</Label>
-          <span className="text-xs text-muted-foreground">
+          <span className="text-xs text-foreground/60">
             {(lineHeight * 100).toFixed(0)}%
           </span>
         </div>
@@ -79,7 +79,7 @@ export function SpacingControls({ object, onChange }: SpacingControlsProps) {
           max={100}
           step={1}
         />
-        <span className="text-xs text-muted-foreground">pt</span>
+        <span className="text-xs text-foreground/60">pt</span>
       </div>
       
       {/* Space After */}
@@ -94,7 +94,7 @@ export function SpacingControls({ object, onChange }: SpacingControlsProps) {
           max={100}
           step={1}
         />
-        <span className="text-xs text-muted-foreground">pt</span>
+        <span className="text-xs text-foreground/60">pt</span>
       </div>
     </div>
   )

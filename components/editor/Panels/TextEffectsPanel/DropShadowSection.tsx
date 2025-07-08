@@ -110,7 +110,7 @@ export function DropShadowSection({ object, onChange }: DropShadowSectionProps) 
               }}
               className="h-8 w-16"
             />
-            <span className="text-xs text-muted-foreground">
+            <span className="text-xs text-foreground/60">
               {options.color}
             </span>
           </div>
@@ -120,7 +120,7 @@ export function DropShadowSection({ object, onChange }: DropShadowSectionProps) 
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <label className="text-xs font-medium text-foreground">Opacity</label>
-            <span className="text-xs text-muted-foreground">
+            <span className="text-xs text-foreground/60">
               {Math.round(options.opacity * 100)}%
             </span>
           </div>
@@ -141,7 +141,7 @@ export function DropShadowSection({ object, onChange }: DropShadowSectionProps) 
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <label className="text-xs font-medium text-foreground">Angle</label>
-            <span className="text-xs text-muted-foreground">
+            <span className="text-xs text-foreground/60">
               {options.angle}°
             </span>
           </div>
@@ -159,7 +159,7 @@ export function DropShadowSection({ object, onChange }: DropShadowSectionProps) 
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <label className="text-xs font-medium text-foreground">Distance</label>
-            <span className="text-xs text-muted-foreground">
+            <span className="text-xs text-foreground/60">
               {options.distance}px
             </span>
           </div>
@@ -177,7 +177,7 @@ export function DropShadowSection({ object, onChange }: DropShadowSectionProps) 
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <label className="text-xs font-medium text-foreground">Blur</label>
-            <span className="text-xs text-muted-foreground">
+            <span className="text-xs text-foreground/60">
               {options.blur}px
             </span>
           </div>

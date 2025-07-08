@@ -23,6 +23,15 @@ This directory contains all epic documentation for the FotoFun AI integration pr
 | 9 | Advanced AI Features | 📋 Planned | Dev 1 | `epic-9-advanced-ai` | Epics 5, 6 |
 | 10 | Production Readiness | 📋 Planned | Dev 3 | `epic-10-production-readiness` | All |
 
+### Platform Enhancement Epics (Epics 12-16)
+| Epic | Title | Status | Developer | Branch | Dependencies |
+|------|-------|---------|-----------|---------|--------------|
+| 12 | Multi-Tenancy & Collaboration | 📋 Planned | TBD | `epic-12-collaboration` | - |
+| 13 | Plugin & Extension System | 📋 Planned | TBD | `epic-13-plugins` | - |
+| 14 | Enhanced Version History | 📋 Planned | TBD | `epic-14-version-history` | Epic 12 |
+| 15 | Macros, Scripts & Batch | 📋 Planned | TBD | `epic-15-automation` | Epic 14 |
+| 16 | AI Image Generation | 📋 Planned | TBD | `epic-16-ai-generation` | - |
+
 ### Backlog & Future Work
 | Epic | Title | Status | Purpose |
 |------|-------|---------|----------|
@@ -153,6 +162,11 @@ graph TD
 - Quality optimization (Epic 8)
 - Advanced features (Epic 9)
 - Production readiness (Epic 10)
+- Multi-tenancy & collaboration (Epic 12)
+- Plugin system (Epic 13)
+- Enhanced version history (Epic 14)
+- Macros & batch processing (Epic 15)
+- AI image generation (Epic 16)
 
 ## Resource Links
 
@@ -434,6 +448,6 @@ Before creating PR:
 ---
 
 Last Updated: [Current Date]
-Epic Count: 10
-Active Developers: 4
+Epic Count: 16 (10 core + 5 platform enhancements + 1 backlog)
+Active Developers: 4 (core team) + TBD (enhancement epics)
 Target Completion: [Project Timeline] 

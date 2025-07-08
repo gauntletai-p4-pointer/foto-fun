@@ -23,10 +23,12 @@ import {
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
 } from '@/components/ui/dropdown-menu'
-import { FileDown, FileImage, FilePlus, Save, Sun, Moon, LogOut, Undo, Redo, Copy, Scissors, Clipboard } from 'lucide-react'
+import { FileDown, FileImage, FilePlus, Save, Sun, Moon, LogOut, Undo, Redo, Copy, Scissors, Clipboard, Settings } from 'lucide-react'
+import { SettingsDialog } from './SettingsDialog'
 
 export function MenuBar() {
   const [newDocumentOpen, setNewDocumentOpen] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const { fileInputRef, handleFileSelect, triggerFileInput } = useFileHandler()
   const { saveDocument, currentDocument, hasUnsavedChanges } = useDocumentStore()
   const { theme, setTheme } = useTheme()
@@ -124,7 +126,7 @@ export function MenuBar() {
   
   return (
     <>
-      <div className="h-8 bg-background border-b border-border flex items-center px-2 text-sm text-foreground">
+      <div className="h-8 bg-background border-b border-foreground/10 flex items-center px-2 text-sm text-foreground">
         <div className="flex gap-4">
           <DropdownMenu>
             <DropdownMenuTrigger className="hover:text-foreground/80 outline-none">
@@ -154,6 +156,12 @@ export function MenuBar() {
                 <FileDown className="mr-2 h-4 w-4" />
                 Export As...
                 <DropdownMenuShortcut>⌘⇧E</DropdownMenuShortcut>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => setSettingsOpen(true)}>
+                <Settings className="mr-2 h-4 w-4" />
+                Settings
+                <DropdownMenuShortcut>⌘,</DropdownMenuShortcut>
               </DropdownMenuItem>
               {user && (
                 <>
@@ -361,7 +369,7 @@ export function MenuBar() {
         {/* Document title in center */}
         <div className="flex-1 text-center">
           {currentDocument && (
-            <span className="text-muted-foreground">
+            <span className="text-foreground/60">
               {currentDocument.name}
               {hasUnsavedChanges && ' •'}
             </span>
@@ -382,6 +390,12 @@ export function MenuBar() {
       <NewDocumentDialog 
         open={newDocumentOpen}
         onOpenChange={setNewDocumentOpen}
+      />
+      
+      {/* Settings Dialog */}
+      <SettingsDialog
+        open={settingsOpen}
+        onOpenChange={setSettingsOpen}
       />
     </>
   )

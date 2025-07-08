@@ -50,7 +50,7 @@ export function OptionButtonGroup({ option, onChange }: OptionButtonGroupProps) 
               key={opt.value}
               value={opt.value}
               aria-label={opt.label}
-              className="h-8 px-3 data-[state=on]:bg-primary data-[state=on]:text-primary-foreground hover:bg-muted hover:text-foreground"
+              className="h-8 px-3 data-[state=on]:bg-primary data-[state=on]:text-primary-foreground hover:bg-foreground/10 hover:text-foreground"
             >
               {Icon ? <Icon className="h-4 w-4" /> : opt.label}
             </ToggleGroupItem>

@@ -79,7 +79,7 @@ export function GlyphsPanel() {
   
   if (!activeTextObject) {
     return (
-      <div className="p-4 text-center text-muted-foreground">
+      <div className="p-4 text-center text-foreground/60">
         <Hash className="w-12 h-12 mx-auto mb-2 opacity-20" />
         <p>Select text to insert glyphs</p>
       </div>
@@ -174,7 +174,7 @@ export function GlyphsPanel() {
       {/* Glyph Grid */}
       <ScrollArea className="flex-1">
         {category === 'recent' && recentGlyphs.length === 0 ? (
-          <div className="text-center text-muted-foreground py-8">
+          <div className="text-center text-foreground/60 py-8">
             <p className="text-sm">No recent glyphs</p>
             <p className="text-xs mt-1">Selected glyphs will appear here</p>
           </div>
@@ -188,7 +188,7 @@ export function GlyphsPanel() {
       
       {/* Active text indicator */}
       {activeTextObject.isEditing && (
-        <div className="text-xs text-muted-foreground text-center">
+        <div className="text-xs text-foreground/60 text-center">
           Click a glyph to insert at cursor
         </div>
       )}

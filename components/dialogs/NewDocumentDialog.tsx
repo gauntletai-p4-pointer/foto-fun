@@ -112,7 +112,7 @@ export function NewDocumentDialog({ open, onOpenChange }: NewDocumentDialogProps
                     min="1"
                     max="8192"
                   />
-                  <span className="flex items-center text-sm text-muted-foreground">px</span>
+                  <span className="flex items-center text-sm text-foreground/60">px</span>
                 </div>
               </div>
               
@@ -129,7 +129,7 @@ export function NewDocumentDialog({ open, onOpenChange }: NewDocumentDialogProps
                     min="1"
                     max="8192"
                   />
-                  <span className="flex items-center text-sm text-muted-foreground">px</span>
+                  <span className="flex items-center text-sm text-foreground/60">px</span>
                 </div>
               </div>
               
@@ -146,14 +146,14 @@ export function NewDocumentDialog({ open, onOpenChange }: NewDocumentDialogProps
                     min="72"
                     max="600"
                   />
-                  <span className="flex items-center text-sm text-muted-foreground">DPI</span>
+                  <span className="flex items-center text-sm text-foreground/60">DPI</span>
                 </div>
               </div>
             </>
           )}
           
           {preset !== 'default' && (
-            <div className="text-sm text-muted-foreground ml-[116px]">
+            <div className="text-sm text-foreground/60 ml-[116px]">
               {selectedPreset.width} × {selectedPreset.height} px at {selectedPreset.resolution} DPI
             </div>
           )}

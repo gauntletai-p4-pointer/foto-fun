@@ -258,7 +258,7 @@ export function Canvas() {
       <canvas ref={canvasRef} className="absolute inset-0" />
       
       {/* Zoom indicator */}
-      <div className="absolute bottom-4 right-4 bg-popover/90 backdrop-blur-sm text-popover-foreground px-3 py-1 rounded-md text-sm font-mono border border-border">
+      <div className="absolute bottom-4 right-4 bg-background/90 backdrop-blur-sm text-foreground px-3 py-1 rounded-md text-sm font-mono border border-foreground/10 shadow-lg">
         {Math.round(zoom * 100)}%
       </div>
     </div>

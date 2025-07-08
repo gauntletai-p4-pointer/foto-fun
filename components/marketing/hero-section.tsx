@@ -86,7 +86,7 @@ export function HeroSection() {
               </h1>
 
               {/* Subheadline */}
-              <p className="text-lg sm:text-xl text-muted-foreground mb-8 animate-in fade-in slide-in-from-bottom-3 duration-500 delay-200">
+              <p className="text-lg sm:text-xl text-foreground/60 mb-8 animate-in fade-in slide-in-from-bottom-3 duration-500 delay-200">
                 Professional photo editing powered by AI. Edit with natural language, 
                 get instant results, no installation required.
               </p>
@@ -109,7 +109,7 @@ export function HeroSection() {
                 <Button 
                   size="lg" 
                   variant="outline"
-                  className="border-2 hover:bg-muted/50 backdrop-blur-sm"
+                  className="border-2 hover:bg-foreground/10/50 backdrop-blur-sm"
                   asChild
                 >
                   <Link href="#demo">
@@ -120,7 +120,7 @@ export function HeroSection() {
               </div>
 
               {/* Trust indicators */}
-              <div className="flex flex-wrap items-center gap-6 mt-8 text-sm text-muted-foreground justify-center lg:justify-start animate-in fade-in slide-in-from-bottom-3 duration-500 delay-400">
+              <div className="flex flex-wrap items-center gap-6 mt-8 text-sm text-foreground/60 justify-center lg:justify-start animate-in fade-in slide-in-from-bottom-3 duration-500 delay-400">
                 <div className="flex items-center gap-2">
                   <Zap className="h-4 w-4 text-yellow-500" />
                   <span>No Installation Required</span>
@@ -141,14 +141,14 @@ export function HeroSection() {
               {/* Editor preview */}
               <div className="relative rounded-xl overflow-hidden shadow-2xl bg-background border">
                 {/* Browser chrome */}
-                <div className="bg-secondary/50 px-4 py-3 flex items-center gap-2 border-b">
+                <div className="bg-foreground/5/50 px-4 py-3 flex items-center gap-2 border-b">
                   <div className="flex gap-1.5">
                     <div className="w-3 h-3 rounded-full bg-red-500/20" />
                     <div className="w-3 h-3 rounded-full bg-yellow-500/20" />
                     <div className="w-3 h-3 rounded-full bg-green-500/20" />
                   </div>
                   <div className="flex-1 flex justify-center">
-                    <div className="bg-background/50 rounded-md px-3 py-1 text-xs text-muted-foreground">
+                    <div className="bg-background/50 rounded-md px-3 py-1 text-xs text-foreground/60">
                       fotofun.app/editor
                     </div>
                   </div>
@@ -161,7 +161,7 @@ export function HeroSection() {
                     <div className="flex items-center gap-3">
                       <Sparkles className="h-5 w-5 text-primary animate-pulse" />
                       <div className="flex-1">
-                        <p className="text-sm text-muted-foreground mb-1">AI Command</p>
+                        <p className="text-sm text-foreground/60 mb-1">AI Command</p>
                         <p className="font-medium">
                           {commandText}
                           <span className="inline-block w-0.5 h-5 bg-primary animate-pulse ml-1" />
@@ -174,7 +174,7 @@ export function HeroSection() {
                   <div className="absolute inset-0 flex items-center justify-center">
                     <div className="text-center">
                       <div className="w-32 h-32 mx-auto mb-4 rounded-lg bg-gradient-to-br from-primary/20 to-accent/20 animate-pulse" />
-                      <p className="text-sm text-muted-foreground">Live preview updates in real-time</p>
+                      <p className="text-sm text-foreground/60">Live preview updates in real-time</p>
                     </div>
                   </div>
 
@@ -190,7 +190,7 @@ export function HeroSection() {
                 AI Powered
               </div>
               <div className="absolute -bottom-4 -left-4 bg-background border rounded-lg px-3 py-1.5 text-sm shadow-lg animate-in fade-in slide-in-from-left-3 duration-500 delay-500">
-                <span className="text-muted-foreground">Try:</span> <span className="font-medium">&quot;Make it pop&quot;</span>
+                <span className="text-foreground/60">Try:</span> <span className="font-medium">&quot;Make it pop&quot;</span>
               </div>
             </div>
           </div>
@@ -199,8 +199,8 @@ export function HeroSection() {
 
       {/* Scroll indicator */}
       <div className="absolute bottom-8 left-1/2 -translate-x-1/2 animate-bounce">
-        <div className="w-6 h-10 rounded-full border-2 border-muted-foreground/30 flex items-start justify-center p-1">
-          <div className="w-1 h-3 bg-muted-foreground/30 rounded-full animate-in slide-in-from-top-2 duration-1000 repeat-infinite" />
+        <div className="w-6 h-10 rounded-full border-2 border-foreground/30 flex items-start justify-center p-1">
+          <div className="w-1 h-2 bg-foreground/30 rounded-full animate-scroll" />
         </div>
       </div>
     </section>

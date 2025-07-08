@@ -1,4 +1,4 @@
-# Epic 5.5: Karpathy Agent Design Framework Integration
+# Epic 5.25: Karpathy Agent Design Framework Integration
 
 ## Overview
 
@@ -49,7 +49,7 @@ Using Karpathy's insights, your agent should:
    - Font management system planning
    - Text command infrastructure
 
-#### ⏳ After Epic 5.5 Simplified Implementation
+#### ⏳ After Epic 5.25 Simplified Implementation
 1. **Context Management**
    - ✅ Basic workflow state tracking in canvas store
    - ✅ Simple operation history in localStorage
@@ -111,6 +111,41 @@ Using Karpathy's insights, your agent should:
 - Show current step number
 - List of steps with checkmarks
 - Progress bar
+
+#### 2.3 Context-Aware Quick Actions 🆕
+- **Smart Suggestions Based on Context**
+  - Analyze current canvas content (image properties, existing edits)
+  - Track user's most frequently used tools
+  - Consider time of day and editing patterns
+  - Show relevant suggestions based on workflow stage
+  
+- **Implementation Details**
+  ```typescript
+  interface ContextualQuickActions {
+    // Track usage patterns
+    toolUsageHistory: Map<string, number>
+    lastUsedTools: string[]
+    
+    // Analyze current state
+    currentImageAnalysis: {
+      brightness: 'dark' | 'normal' | 'bright'
+      hasColor: boolean
+      isBlurry: boolean
+      hasEdits: boolean
+    }
+    
+    // Generate suggestions
+    getSuggestions(): string[]
+  }
+  ```
+
+- **Context Factors**
+  - Image brightness → suggest brightness/exposure adjustments
+  - Color presence → suggest saturation/hue adjustments
+  - No edits yet → suggest common starting operations
+  - Previous edits → suggest complementary operations
+  - Time patterns → morning edits vs evening edits
+  - User expertise level → basic vs advanced suggestions
 
 ### Phase 3: Simple Multi-Step Processing (1.5 days)
 
@@ -175,7 +210,7 @@ Using Karpathy's insights, your agent should:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│              Simplified Epic 5.5 Components                   │
+│              Simplified Epic 5.25 Components                  │
 ├─────────────────────────────────────────────────────────────┤
 │  ┌─────────────────┐  ┌──────────────────┐                 │
 │  │ Simple Workflow │  │ Approval Dialog  │                 │
@@ -314,6 +349,161 @@ export function AutonomySettings() {
 }
 ```
 
+### Context-Aware Quick Actions 🆕
+```typescript
+// lib/ai/context/quick-actions.ts
+export class ContextualQuickActions {
+  private toolUsage: Map<string, number> = new Map()
+  private recentTools: string[] = []
+  private readonly MAX_RECENT = 10
+  
+  constructor() {
+    this.loadHistory()
+  }
+  
+  private loadHistory() {
+    const saved = localStorage.getItem('tool-usage-history')
+    if (saved) {
+      this.toolUsage = new Map(JSON.parse(saved))
+    }
+  }
+  
+  private saveHistory() {
+    localStorage.setItem('tool-usage-history', 
+      JSON.stringify(Array.from(this.toolUsage.entries()))
+    )
+  }
+  
+  recordToolUse(toolName: string) {
+    const count = this.toolUsage.get(toolName) || 0
+    this.toolUsage.set(toolName, count + 1)
+    
+    this.recentTools.unshift(toolName)
+    if (this.recentTools.length > this.MAX_RECENT) {
+      this.recentTools.pop()
+    }
+    
+    this.saveHistory()
+  }
+  
+  private analyzeImage(canvas: Canvas): ImageAnalysis {
+    const objects = canvas.getObjects()
+    const images = objects.filter(obj => obj.type === 'image')
+    
+    if (images.length === 0) {
+      return { brightness: 'normal', hasColor: true, isBlurry: false, hasEdits: false }
+    }
+    
+    // Simple analysis based on filters applied
+    const hasFilters = images.some(img => img.filters && img.filters.length > 0)
+    
+    return {
+      brightness: this.detectBrightness(images[0]),
+      hasColor: !this.hasGrayscaleFilter(images[0]),
+      isBlurry: this.hasBlurFilter(images[0]),
+      hasEdits: hasFilters
+    }
+  }
+  
+  getSuggestions(canvas: Canvas): string[] {
+    const analysis = this.analyzeImage(canvas)
+    const suggestions: string[] = []
+    
+    // Context-based suggestions
+    if (analysis.brightness === 'dark') {
+      suggestions.push("Make it brighter", "Increase exposure")
+    } else if (analysis.brightness === 'bright') {
+      suggestions.push("Make it darker", "Reduce exposure")
+    }
+    
+    if (!analysis.hasColor) {
+      suggestions.push("Restore color", "Add sepia tone")
+    } else {
+      suggestions.push("Enhance colors", "Convert to black & white")
+    }
+    
+    if (!analysis.hasEdits) {
+      // First-time suggestions
+      suggestions.push("Auto enhance", "Crop image")
+    } else {
+      // Follow-up suggestions based on recent tools
+      if (this.recentTools.includes('adjustBrightness')) {
+        suggestions.push("Adjust contrast", "Fine-tune exposure")
+      }
+      if (this.recentTools.includes('applyBlur')) {
+        suggestions.push("Sharpen details", "Adjust focus")
+      }
+    }
+    
+    // Add frequently used tools
+    const topTools = Array.from(this.toolUsage.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3)
+      .map(([tool]) => this.toolToSuggestion(tool))
+      .filter(Boolean)
+    
+    suggestions.push(...topTools)
+    
+    // Remove duplicates and limit to 4
+    return [...new Set(suggestions)].slice(0, 4)
+  }
+  
+  private toolToSuggestion(toolName: string): string {
+    const mappings: Record<string, string> = {
+      adjustBrightness: "Adjust brightness",
+      adjustContrast: "Adjust contrast", 
+      adjustSaturation: "Enhance colors",
+      applyBlur: "Add blur effect",
+      applyGrayscale: "Convert to black & white",
+      cropImage: "Crop image",
+      rotateImage: "Rotate image"
+    }
+    return mappings[toolName] || ""
+  }
+}
+```
+
+### Enhanced AI Chat Component
+```typescript
+// components/editor/Panels/AIChat/index.tsx
+import { ContextualQuickActions } from '@/lib/ai/context/quick-actions'
+
+export function AIChat() {
+  const [quickActions, setQuickActions] = useState<string[]>([])
+  const contextualActions = useRef(new ContextualQuickActions())
+  const { fabricCanvas } = useCanvasStore()
+  
+  // Update quick actions when canvas changes
+  useEffect(() => {
+    if (!fabricCanvas) return
+    
+    const updateSuggestions = () => {
+      const suggestions = contextualActions.current.getSuggestions(fabricCanvas)
+      setQuickActions(suggestions)
+    }
+    
+    // Update on canvas changes
+    fabricCanvas.on('object:modified', updateSuggestions)
+    fabricCanvas.on('path:created', updateSuggestions)
+    
+    // Initial suggestions
+    updateSuggestions()
+    
+    return () => {
+      fabricCanvas.off('object:modified', updateSuggestions)
+      fabricCanvas.off('path:created', updateSuggestions)
+    }
+  }, [fabricCanvas])
+  
+  // Track tool usage in chat
+  const handleToolExecution = useCallback((toolName: string) => {
+    contextualActions.current.recordToolUse(toolName)
+  }, [])
+  
+  // ... rest of component
+}
+```
+
 ## Success Metrics (Simplified)
 
 1. **Visual Approval**: 100% of operations show preview before applying
@@ -321,6 +511,7 @@ export function AutonomySettings() {
 3. **Simple Autonomy**: Users can adjust confidence threshold
 4. **Progress Tracking**: Multi-step operations show progress
 5. **Decision History**: System tracks approval/rejection rates
+6. **Context Awareness**: Quick actions adapt to user behavior and image content 🆕
 
 ## Deliverables (Current Phase)
 
@@ -337,6 +528,7 @@ export function AutonomySettings() {
 - [x] SliderComparison component
 - [x] WorkflowProgress (basic)
 - [x] AutonomySettings (single slider)
+- [x] ContextualQuickActions (smart suggestions) 🆕
 
 ### Integration
 - [x] Modified AI chat with approval flow
@@ -347,7 +539,7 @@ export function AutonomySettings() {
 ## Timeline (Simplified)
 
 - **Days 1-2**: Visual Approval System
-- **Day 3**: Basic Context & Workflow
+- **Day 3**: Basic Context & Workflow (including Context-Aware Quick Actions)
 - **Day 4**: Simple Multi-Step Processing
 - **Day 5**: Basic Autonomy Controls
 - **Day 6**: Integration & Testing
