@@ -26,36 +26,42 @@ export class CanvasToolBridge {
    * Get the current canvas context for tool execution
    */
   static getCanvasContext(): CanvasContext | null {
-    const canvasStore = useCanvasStore.getState()
-    const documentStore = useDocumentStore.getState()
+    const { fabricCanvas, isReady } = useCanvasStore.getState()
     
-    const canvas = canvasStore.fabricCanvas
-    if (!canvas) {
-      console.error('No canvas available')
+    console.log('[CanvasToolBridge] getCanvasContext called:', {
+      isReady,
+      hasCanvas: !!fabricCanvas,
+      canvasId: fabricCanvas ? fabricCanvas.toString().substring(0, 50) : 'null'
+    })
+    
+    if (!fabricCanvas || !isReady) {
+      console.warn('[CanvasToolBridge] Canvas not ready:', { isReady, hasCanvas: !!fabricCanvas })
       return null
     }
     
+    const documentStore = useDocumentStore.getState()
+    
     // Check if canvas has any content
-    const objects = canvas.getObjects()
+    const objects = fabricCanvas.getObjects()
     if (objects.length === 0) {
       console.warn('Canvas has no objects')
     }
     
     // Get active selection if any
-    const activeSelection = canvas.getActiveObjects()
+    const activeSelection = fabricCanvas.getActiveObjects()
     
     return {
-      canvas,
+      canvas: fabricCanvas,
       selection: activeSelection.length > 0 ? activeSelection : undefined,
       dimensions: {
-        width: canvas.getWidth(),
-        height: canvas.getHeight()
+        width: fabricCanvas.getWidth(),
+        height: fabricCanvas.getHeight()
       },
       metadata: {
-        zoom: canvasStore.zoom,
+        zoom: useCanvasStore.getState().zoom,
         documentName: documentStore.currentDocument?.name
       },
-      canvasStore,
+      canvasStore: useCanvasStore.getState(),
       documentStore,
       toolStore: undefined, // Will be injected by tool executor
     }

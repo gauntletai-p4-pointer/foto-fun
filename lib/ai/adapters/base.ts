@@ -6,6 +6,17 @@ import type { Canvas } from 'fabric'
 /**
  * Base class for tool adapters following AI SDK v5 patterns
  * Adapters convert canvas tools to AI-compatible tools
+ * 
+ * IMPORTANT: When creating new tool adapters:
+ * 1. Write descriptions that explicitly tell AI to calculate values
+ * 2. Include common usage patterns in the description
+ * 3. Never imply the AI should ask users for exact measurements
+ * 4. Provide calculation examples where applicable
+ * 
+ * Example description pattern:
+ * "Adjust the image brightness. You MUST calculate the adjustment value based on user intent.
+ *  Common patterns: 'brighter' → +20%, 'much brighter' → +40%, 'slightly darker' → -10%
+ *  NEVER ask for exact values - interpret the user's intent."
  */
 export abstract class BaseToolAdapter<
   TInput = unknown,
@@ -27,9 +38,9 @@ export abstract class BaseToolAdapter<
   abstract description: string
   
   /**
-   * Zod schema for input validation (AI SDK v5 uses 'parameters')
+   * Zod schema for input validation (AI SDK v5 beta.9 uses 'inputSchema')
    */
-  abstract parameters: z.ZodType<TInput>
+  abstract inputSchema: z.ZodType<TInput>
   
   /**
    * Execute the tool with the given parameters
@@ -50,34 +61,33 @@ export abstract class BaseToolAdapter<
   /**
    * Convert this adapter to an AI SDK v5 tool
    * This follows the proper pattern from the docs
+   * Returns unknown to avoid exposing internal AI SDK types
    */
-  toAITool(): ReturnType<typeof tool> {
-    // Create a properly typed tool using AI SDK v5
-    // Cast to any to bypass TypeScript's generic inference issues
+  toAITool(): unknown {
+    // Create the tool following AI SDK v5 beta.9 pattern
+    // Build the configuration object explicitly to avoid type inference issues
     const toolConfig = {
       description: this.description,
-      parameters: this.parameters,
-      execute: async (params: z.infer<typeof this.parameters>) => {
-        // Get canvas from our bridge
-        const { CanvasToolBridge } = await import('../tools/canvas-bridge')
-        const context = CanvasToolBridge.getCanvasContext()
+      inputSchema: this.inputSchema as z.ZodSchema, // Cast to base Zod type
+      execute: async (args: unknown) => {
+        // Server-side execution just returns the parameters
+        // The actual execution happens on the client side
+        console.log(`[${this.aiName}] Server-side tool call with args:`, args)
         
-        if (!context?.canvas) {
-          throw new Error('Canvas not available')
+        // Return a placeholder result that indicates client-side execution is needed
+        return {
+          success: true,
+          message: `Tool ${this.aiName} will be executed on the client`,
+          clientExecutionRequired: true,
+          params: args
         }
-        
-        // Check if tool can execute
-        if (this.canExecute && !this.canExecute(context.canvas)) {
-          throw new Error('Tool cannot be executed in current state')
-        }
-        
-        // Execute the tool
-        return this.execute(params as TInput, { canvas: context.canvas })
       }
     }
     
-    // Cast through unknown to satisfy TypeScript's type checker
-    return tool(toolConfig as unknown as Parameters<typeof tool>[0]) as ReturnType<typeof tool>
+    // Pass the configuration to the tool function
+    // We need to cast to unknown first to bypass strict type checking
+    // This is necessary because the AI SDK's tool function has complex overloads
+    return tool(toolConfig as unknown as Parameters<typeof tool>[0])
   }
 }
 

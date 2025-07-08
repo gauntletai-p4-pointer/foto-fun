@@ -3,7 +3,9 @@ import { marqueeRectTool } from './selection/marqueeRectTool'
 import { marqueeEllipseTool } from './selection/marqueeEllipseTool'
 import { lassoTool } from './selection/lassoTool'
 import { magicWandTool } from './selection/magicWandTool'
+import { quickSelectionTool } from './selection/quickSelectionTool'
 import { cropTool } from './transform/cropTool'
+import { eyedropperTool } from './eyedropperTool'
 import { handTool } from './transform/handTool'
 import { zoomTool } from './transform/zoomTool'
 import { brushTool } from './drawing/brushTool'
@@ -29,7 +31,9 @@ export const tools: Tool[] = [
   marqueeEllipseTool,
   lassoTool,
   magicWandTool,
+  quickSelectionTool,
   cropTool,
+  eyedropperTool,
   handTool,
   zoomTool,
   brushTool,
@@ -44,7 +48,9 @@ export {
   marqueeEllipseTool,
   lassoTool,
   magicWandTool,
+  quickSelectionTool,
   cropTool,
+  eyedropperTool,
   handTool,
   zoomTool,
   brushTool,

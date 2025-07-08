@@ -1,4 +1,5 @@
 import type { ToolAdapter } from './base'
+import type { Tool } from 'ai'
 
 /**
  * Registry for tool adapters
@@ -39,12 +40,13 @@ class AdapterRegistry {
   /**
    * Get all AI tools as a record for AI SDK v5
    * This returns the actual AI SDK tool objects
+   * The type matches what the AI SDK expects for ToolSet
    */
-  getAITools(): Record<string, ReturnType<ToolAdapter['toAITool']>> {
-    const tools: Record<string, ReturnType<ToolAdapter['toAITool']>> = {}
+  getAITools(): Record<string, Tool<unknown, unknown>> {
+    const tools: Record<string, Tool<unknown, unknown>> = {}
     
     this.adapters.forEach(adapter => {
-      tools[adapter.aiName] = adapter.toAITool()
+      tools[adapter.aiName] = adapter.toAITool() as Tool<unknown, unknown>
     })
     
     return tools

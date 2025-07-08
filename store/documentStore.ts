@@ -98,9 +98,11 @@ export const useDocumentStore = create<DocumentStore>((set, get) => ({
           // Load image into canvas
           const canvasStore = useCanvasStore.getState()
           if (canvasStore.fabricCanvas) {
+            console.log('[DocumentStore] Loading image into canvas...')
             canvasStore.resize(newDocument.width, newDocument.height)
             
             FabricImage.fromURL(e.target?.result as string).then((fabricImg) => {
+              console.log('[DocumentStore] FabricImage created, adding to canvas')
               canvasStore.fabricCanvas!.clear()
               canvasStore.fabricCanvas!.add(fabricImg)
               fabricImg.set({
@@ -112,6 +114,7 @@ export const useDocumentStore = create<DocumentStore>((set, get) => ({
               canvasStore.fabricCanvas!.renderAll()
               canvasStore.centerContent()
               canvasStore.zoomToFit()
+              console.log('[DocumentStore] Image loaded successfully, objects:', canvasStore.fabricCanvas!.getObjects().length)
             })
           }
           

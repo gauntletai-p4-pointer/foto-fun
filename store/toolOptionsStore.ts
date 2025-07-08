@@ -373,5 +373,58 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         }
       }
     ]
+  },
+  
+  [TOOL_IDS.EYEDROPPER]: {
+    toolId: TOOL_IDS.EYEDROPPER,
+    options: [
+      {
+        id: 'sampleAllLayers',
+        type: 'checkbox',
+        label: 'Sample All Layers',
+        value: true
+      }
+    ]
+  },
+  
+  [TOOL_IDS.QUICK_SELECTION]: {
+    toolId: TOOL_IDS.QUICK_SELECTION,
+    options: [
+      {
+        id: 'brushSize',
+        type: 'slider',
+        label: 'Brush Size',
+        value: 20,
+        props: {
+          min: 5,
+          max: 100,
+          step: 1,
+          unit: 'px'
+        }
+      },
+      {
+        id: 'tolerance',
+        type: 'slider',
+        label: 'Tolerance',
+        value: 25,
+        props: {
+          min: 0,
+          max: 100,
+          step: 1
+        }
+      },
+      {
+        id: 'autoExpand',
+        type: 'checkbox',
+        label: 'Auto-Expand',
+        value: true
+      },
+      {
+        id: 'edgeDetection',
+        type: 'checkbox',
+        label: 'Edge Detection',
+        value: true
+      }
+    ]
   }
 } 

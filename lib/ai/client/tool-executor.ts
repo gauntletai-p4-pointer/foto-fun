@@ -1,85 +1,148 @@
-import type { ToolExecutionContext } from '../tools/base'
-import { toolRegistry } from '../tools/registry'
 import { CanvasToolBridge } from '../tools/canvas-bridge'
+import { adapterRegistry, autoDiscoverAdapters } from '../adapters/registry'
+import { useCanvasStore } from '@/store/canvasStore'
 
 /**
  * Client-side tool executor for AI operations
  * Handles execution of AI tools in the browser context
+ * 
+ * This executor ONLY works with AI-adapted tools from the adapter registry.
+ * Regular canvas tools must be adapted before they can be used by AI.
  */
 export class ClientToolExecutor {
+  private static initialized = false
+  
   /**
-   * Execute a tool by name with given parameters
+   * Initialize adapters on first use
+   */
+  private static async initialize() {
+    if (!this.initialized) {
+      console.log('[ClientToolExecutor] Initializing adapters...')
+      await autoDiscoverAdapters()
+      this.initialized = true
+      console.log('[ClientToolExecutor] Adapters initialized:', adapterRegistry.getAll().map(t => t.aiName))
+    }
+  }
+  
+  /**
+   * Execute an AI-adapted tool by name with given parameters
    */
   static async execute(
     toolName: string,
-    params: unknown,
-    additionalContext?: Partial<ToolExecutionContext>
+    params: unknown
   ): Promise<unknown> {
-    // Get canvas context
-    const context = CanvasToolBridge.getCanvasContext()
-    if (!context) {
-      throw new Error('No canvas context available')
-    }
+    console.log('[ClientToolExecutor] Executing tool:', toolName, 'with params:', params)
     
-    // Merge additional context
-    const fullContext = {
-      ...context,
-      ...additionalContext
-    } as ToolExecutionContext
+    // Initialize adapters if not already done
+    await this.initialize()
     
-    // Try to get the tool from registry (includes both AI tools and adapted tools)
-    const tool = toolRegistry.get(toolName)
+    // Get tool from registry
+    const tool = adapterRegistry.get(toolName)
     if (!tool) {
-      throw new Error(`Unknown tool: ${toolName}`)
+      console.error('[ClientToolExecutor] Tool not found:', toolName)
+      console.log('[ClientToolExecutor] Available tools:', adapterRegistry.getAll().map(t => t.aiName))
+      throw new Error(`Tool not found: ${toolName}`)
     }
     
-    // Validate requirements
-    if (tool.requiresCanvas && !fullContext.canvas) {
-      throw new Error(`Tool ${tool.name} requires canvas`)
-    }
+    // Wait for canvas to be ready
+    console.log('[ClientToolExecutor] Waiting for canvas...')
     
-    if (tool.requiresSelection && (!fullContext.selection || fullContext.selection.length === 0)) {
-      throw new Error(`Tool ${tool.name} requires selection`)
-    }
+    // First check current state
+    const initialState = useCanvasStore.getState()
+    console.log('[ClientToolExecutor] Initial state:', {
+      isReady: initialState.isReady,
+      hasCanvas: !!initialState.fabricCanvas,
+      hasContent: initialState.fabricCanvas ? initialState.fabricCanvas.getObjects().length : 0,
+      initPromise: !!initialState.initializationPromise
+    })
     
-    // Execute client-side
-    if (tool.executionSide === 'client' || tool.executionSide === 'both') {
-      if (!tool.clientExecutor) {
-        throw new Error(`Tool ${tool.name} has no client executor`)
+    try {
+      await useCanvasStore.getState().waitForReady()
+      console.log('[ClientToolExecutor] Canvas ready after wait')
+    } catch (error) {
+      console.error('[ClientToolExecutor] Canvas wait failed:', error)
+      
+      // Check if this is because no canvas exists at all
+      const state = useCanvasStore.getState()
+      if (!state.fabricCanvas && !state.initializationPromise) {
+        throw new Error('No image loaded. Please open an image file before using AI tools.')
       }
       
+      // Otherwise, it's a real initialization error
+      throw new Error('Canvas initialization failed. Please refresh the page and try again.')
+    }
+    
+    // Get canvas directly from store to ensure we have the latest state
+    const canvasState = useCanvasStore.getState()
+    const { fabricCanvas, isReady, hasContent } = canvasState
+    
+    console.log('[ClientToolExecutor] State after wait:', {
+      isReady,
+      hasCanvas: !!fabricCanvas,
+      hasContent: hasContent(),
+      objectCount: fabricCanvas ? fabricCanvas.getObjects().length : 0
+    })
+    
+    // Verify canvas is available
+    if (!fabricCanvas || !isReady) {
+      console.error('[ClientToolExecutor] Canvas not available after waitForReady')
+      console.log('[ClientToolExecutor] Canvas state:', {
+        isReady,
+        hasCanvas: !!fabricCanvas,
+        initError: canvasState.initializationError
+      })
+      throw new Error('Canvas is not available. Please ensure an image is loaded.')
+    }
+    
+    // Check if canvas has content
+    if (!hasContent()) {
+      console.error('[ClientToolExecutor] Canvas has no content')
+      throw new Error('No image loaded. Please open an image file before using AI tools.')
+    }
+    
+    // Get full context from bridge, but use our verified canvas
+    const context = CanvasToolBridge.getCanvasContext()
+    if (!context) {
+      // If bridge doesn't have context, create a minimal one with our verified canvas
+      console.log('[ClientToolExecutor] Bridge context not available, using direct canvas')
+      const minimalContext = { canvas: fabricCanvas }
+      
       try {
-        // Validate input
-        const validatedInput = tool.validateInput(params)
-        
-        // Execute
-        const result = await tool.clientExecutor(validatedInput, fullContext)
-        
-        // Validate output
-        return tool.validateOutput(result)
+        // Execute the adapter with minimal context
+        const result = await tool.execute(params, minimalContext)
+        console.log('[ClientToolExecutor] Adapter execution successful:', result)
+        return result
       } catch (error) {
-        console.error(`Tool execution failed for ${tool.name}:`, error)
+        console.error(`AI tool execution failed for ${toolName}:`, error)
         throw error
       }
     }
     
-    throw new Error(`Tool ${tool.name} cannot be executed on client`)
+    try {
+      // Execute the adapter with full context
+      const result = await tool.execute(params, { canvas: fabricCanvas })
+      console.log('[ClientToolExecutor] Adapter execution successful:', result)
+      return result
+    } catch (error) {
+      console.error(`AI tool execution failed for ${toolName}:`, error)
+      throw error
+    }
   }
   
   /**
-   * Check if a tool is available for AI execution
+   * Check if an AI tool is available
    */
   static isToolAvailable(toolName: string): boolean {
-    return toolRegistry.get(toolName) !== undefined
+    return adapterRegistry.hasAdapter(toolName)
   }
   
   /**
-   * Get list of available tools for AI
+   * Get list of available AI tools
    */
   static getAvailableTools(): Array<{ name: string; description: string }> {
-    return toolRegistry.getAll().map(tool => ({
-      name: tool.name,
-      description: tool.description
+    return adapterRegistry.getAll().map(adapter => ({
+      name: adapter.aiName,
+      description: adapter.description
     }))
   }
 } 

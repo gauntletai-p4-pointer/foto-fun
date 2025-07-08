@@ -15,7 +15,7 @@ import { useCanvasStore } from '@/store/canvasStore'
 export function AIChat() {
   const scrollAreaRef = useRef<HTMLDivElement>(null)
   const [input, setInput] = useState('')
-  const fabricCanvas = useCanvasStore((state) => state.fabricCanvas)
+  const { isReady: isCanvasReady, initializationError, waitForReady, hasContent } = useCanvasStore()
   
   const {
     messages,
@@ -25,15 +25,7 @@ export function AIChat() {
   } = useChat({
     transport: new DefaultChatTransport({
       api: '/api/ai/chat',
-      body: {
-        canvasContext: fabricCanvas ? {
-          dimensions: {
-            width: fabricCanvas.getWidth(),
-            height: fabricCanvas.getHeight()
-          },
-          hasContent: fabricCanvas.getObjects().length > 0
-        } : undefined
-      }
+      credentials: 'include',
     }),
     maxSteps: 5, // Enable multi-step tool calls
     onError: (error: Error) => {
@@ -42,21 +34,56 @@ export function AIChat() {
     onToolCall: async ({ toolCall }) => {
       // Execute tool on client side
       try {
-        // Check if canvas is ready and has content
-        if (!fabricCanvas) {
-          throw new Error('Canvas not initialized. Please wait for the editor to load.')
+        console.log('[AIChat] onToolCall triggered with:', toolCall)
+        
+        // Wait for canvas to be ready before executing tools
+        try {
+          await waitForReady()
+        } catch (error) {
+          console.error('[AIChat] Canvas initialization failed:', error)
+          throw new Error('Canvas failed to initialize. Please refresh the page and try again.')
         }
         
-        const objects = fabricCanvas.getObjects()
+        // Extract tool name - AI SDK v5 might prefix with 'tool-'
+        let toolName = toolCall.toolName || (toolCall as unknown as { name?: string }).name || 'unknown'
+        
+        // Remove 'tool-' prefix if present
+        if (toolName.startsWith('tool-')) {
+          toolName = toolName.substring(5)
+        }
+        
+        // Extract args from various possible locations
+        const args = 'args' in toolCall ? (toolCall as unknown as { args: unknown }).args : 
+                     'input' in toolCall ? (toolCall as unknown as { input: unknown }).input : 
+                     undefined
+        
+        console.log('[AIChat] Extracted toolName:', toolName)
+        console.log('[AIChat] Extracted args:', args)
+        
+        // Get fresh state from store instead of using stale closure values
+        const currentState = useCanvasStore.getState()
+        console.log('[AIChat] Canvas ready:', currentState.isReady)
+        console.log('[AIChat] FabricCanvas:', currentState.fabricCanvas)
+        
+        // Double-check canvas is ready after waiting
+        if (!currentState.fabricCanvas) {
+          throw new Error('Canvas is not available after initialization.')
+        }
+        
+        const objects = currentState.fabricCanvas.getObjects()
+        console.log('[AIChat] Canvas objects:', objects.length)
+        
+        // Check if there's actually an image loaded
         if (objects.length === 0) {
-          throw new Error('No image loaded. Please upload an image first.')
+          throw new Error('No image loaded. Please open an image file before using AI tools.')
         }
         
-        const args = 'args' in toolCall ? (toolCall as unknown as { args: unknown }).args : undefined
-        const result = await ClientToolExecutor.execute(toolCall.toolName, args)
+        // Execute the tool - canvas context is now handled internally by ClientToolExecutor
+        const result = await ClientToolExecutor.execute(toolName, args)
+        console.log('[AIChat] Tool execution result:', result)
         return result
       } catch (error) {
-        console.error('Tool execution error:', error)
+        console.error('[AIChat] Tool execution error:', error)
         throw error
       }
     }
@@ -73,17 +100,72 @@ export function AIChat() {
   
   const handleSubmit = useCallback((e: React.FormEvent) => {
     e.preventDefault()
-    if (input.trim() && !isLoading) {
-      sendMessage({ text: input })
+    // Get fresh state from store
+    const currentState = useCanvasStore.getState()
+    if (input.trim() && !isLoading && currentState.hasContent()) {
+      // Include canvas context with each message
+      const canvasContext = currentState.fabricCanvas ? {
+        dimensions: {
+          width: currentState.fabricCanvas.getWidth(),
+          height: currentState.fabricCanvas.getHeight()
+        },
+        hasContent: currentState.fabricCanvas.getObjects().length > 0
+      } : undefined
+      
+      sendMessage(
+        { text: input },
+        { body: { canvasContext } }
+      )
       setInput('')
     }
   }, [input, isLoading, sendMessage])
+  
+  const handleQuickAction = useCallback((suggestion: string) => {
+    // Get fresh state from store
+    const currentState = useCanvasStore.getState()
+    if (!isLoading && suggestion && currentState.hasContent()) {
+      // Include canvas context with quick actions too
+      const canvasContext = currentState.fabricCanvas ? {
+        dimensions: {
+          width: currentState.fabricCanvas.getWidth(),
+          height: currentState.fabricCanvas.getHeight()
+        },
+        hasContent: currentState.fabricCanvas.getObjects().length > 0
+      } : undefined
+      
+      sendMessage(
+        { text: suggestion },
+        { body: { canvasContext } }
+      )
+    }
+  }, [isLoading, sendMessage])
   
   return (
     <div className="flex flex-col h-full bg-background">
       {/* Messages */}
       <ScrollArea className="flex-1 p-3" ref={scrollAreaRef}>
         <div className="space-y-3">
+          {initializationError && (
+            <div className="text-center text-destructive text-sm p-3 bg-destructive/10 rounded-lg border border-destructive/20">
+              <AlertCircle className="w-4 h-4 inline-block mr-2" />
+              Canvas initialization failed. Please refresh the page.
+            </div>
+          )}
+          
+          {!isCanvasReady && !initializationError && (
+            <div className="text-center text-warning text-sm p-3 bg-warning/10 rounded-lg border border-warning/20">
+              <Loader2 className="w-4 h-4 inline-block mr-2 animate-spin" />
+              Canvas is initializing... Please wait.
+            </div>
+          )}
+          
+          {isCanvasReady && !hasContent() && (
+            <div className="text-center text-muted-foreground text-sm p-3 bg-muted/10 rounded-lg border border-muted/20">
+              <AlertCircle className="w-4 h-4 inline-block mr-2" />
+              Please open an image file to start editing.
+            </div>
+          )}
+          
           {messages.length === 0 && (
             <div className="text-center text-muted-foreground text-sm py-8">
               <Bot className="w-8 h-8 mx-auto mb-3 opacity-50" />
@@ -122,88 +204,112 @@ export function AIChat() {
               >
                 {/* Render message parts */}
                 {message.parts?.map((part, index) => {
-                  // Debug log to see the actual part structure
-                  console.log('Message part:', part)
-                  
                   if (part.type === 'text') {
                     return <p key={index} className="text-sm whitespace-pre-wrap">{part.text}</p>
                   }
                   
-                  // Check if it's a tool invocation part
-                  if (part.type === 'tool-invocation' || (part as unknown as { toolInvocation?: unknown }).toolInvocation) {
-                    const toolPart = part as unknown as {
-                      toolInvocation: {
-                        toolCallId: string
-                        toolName: string
-                        state: 'input-streaming' | 'input-available' | 'output-available' | 'output-error'
+                  // Check if it's a tool invocation part (handles both generic and specific tool types)
+                  if (part.type === 'tool-invocation' || 
+                      part.type?.startsWith('tool-') || 
+                      (part as unknown as { toolInvocation?: unknown }).toolInvocation) {
+                    
+                    // Handle AI SDK v5 tool message format
+                    const toolData = part as unknown as {
+                      type?: string
+                      toolInvocation?: {
+                        toolName?: string
+                        state?: string
                         input?: unknown
                         output?: unknown
                         errorText?: string
+                        toolCallId?: string
                       }
+                      toolName?: string
+                      state?: string
+                      input?: unknown
+                      output?: unknown
+                      errorText?: string
+                      toolCallId?: string | number
                     }
+                    const toolName = toolData.type?.startsWith('tool-') ? toolData.type.substring(5) : 
+                                   toolData.toolInvocation?.toolName || 
+                                   toolData.toolName || 
+                                   'unknown'
+                    
+                    const state = toolData.state || toolData.toolInvocation?.state
+                    const input = toolData.input || toolData.toolInvocation?.input
+                    const output = toolData.output || toolData.toolInvocation?.output
+                    const errorText = toolData.errorText || toolData.toolInvocation?.errorText
+                    const toolCallId = toolData.toolCallId || toolData.toolInvocation?.toolCallId || index
                     
                     return (
                       <div
-                        key={toolPart.toolInvocation.toolCallId || index}
+                        key={toolCallId}
                         className="mt-2 p-3 bg-background/50 rounded border border-border/50"
                       >
-                        <div className="font-medium text-xs mb-1">{toolPart.toolInvocation.toolName}</div>
+                        <div className="font-medium text-xs mb-1">{toolName}</div>
                         
-                        {toolPart.toolInvocation.state === 'input-streaming' && (
+                        {state === 'input-streaming' && (
                           <div className="space-y-2">
                             <div className="flex items-center gap-2 text-muted-foreground">
                               <Loader2 className="w-3 h-3 animate-spin" />
                               <span className="text-xs">Preparing parameters...</span>
                             </div>
-                            {toolPart.toolInvocation.input ? (
+                            {input ? (
                               <pre className="text-xs bg-muted/50 p-2 rounded overflow-auto">
-                                {JSON.stringify(toolPart.toolInvocation.input, null, 2)}
+                                {JSON.stringify(input, null, 2)}
                               </pre>
                             ) : null}
                           </div>
                         )}
                         
-                        {toolPart.toolInvocation.state === 'input-available' && (
+                        {state === 'input-available' && (
                           <div className="space-y-2">
                             <div className="flex items-center gap-2 text-muted-foreground">
                               <Loader2 className="w-3 h-3 animate-spin" />
-                              <span className="text-xs">Executing {toolPart.toolInvocation.toolName}...</span>
+                              <span className="text-xs">Executing {toolName}...</span>
                             </div>
-                            {toolPart.toolInvocation.input ? (
+                            {input ? (
                               <pre className="text-xs bg-muted/50 p-2 rounded overflow-auto">
-                                {JSON.stringify(toolPart.toolInvocation.input, null, 2)}
+                                {JSON.stringify(input, null, 2)}
                               </pre>
                             ) : null}
                           </div>
                         )}
                         
-                        {toolPart.toolInvocation.state === 'output-available' && (
+                        {state === 'output-available' && (
                           <div className="space-y-2">
                             <div className="flex items-center gap-2 text-green-600 dark:text-green-400">
                               <span className="text-xs">✓</span>
-                              <span className="text-xs">{toolPart.toolInvocation.toolName} completed</span>
+                              <span className="text-xs">{toolName} completed</span>
                             </div>
-                            {toolPart.toolInvocation.output ? (
+                            {output ? (
                               <pre className="text-xs bg-muted/50 p-2 rounded overflow-auto">
-                                {JSON.stringify(toolPart.toolInvocation.output, null, 2)}
+                                {JSON.stringify(output, null, 2)}
                               </pre>
                             ) : null}
                           </div>
                         )}
                         
-                        {toolPart.toolInvocation.state === 'output-error' && (
+                        {state === 'output-error' && (
                           <div className="space-y-2">
                             <div className="flex items-center gap-2 text-destructive">
                               <AlertCircle className="w-3 h-3" />
-                              <span className="text-xs">Error in {toolPart.toolInvocation.toolName}</span>
+                              <span className="text-xs">Error in {toolName}</span>
                             </div>
                             <div className="text-xs text-destructive/90">
-                              {toolPart.toolInvocation.errorText || 'Unknown error occurred'}
+                              {errorText || 'Unknown error occurred'}
                             </div>
                           </div>
                         )}
                       </div>
                     )
+                  }
+                  
+                  // Skip step-start and other non-renderable parts
+                  const partType = (part as unknown as { type?: string }).type
+                  if (partType === 'step-start' || partType === 'step-end') {
+                    return null
                   }
                   
                   return null
@@ -244,14 +350,14 @@ export function AIChat() {
           <Input
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Ask me anything about editing your photo..."
-            disabled={isLoading}
+            placeholder={isCanvasReady ? "Ask me anything about editing your photo..." : "Waiting for canvas to load..."}
+            disabled={isLoading || !isCanvasReady}
             className="flex-1 text-foreground bg-background"
           />
           <Button
             type="submit"
             size="icon"
-            disabled={!input.trim() || isLoading}
+            disabled={!input.trim() || isLoading || !isCanvasReady}
           >
             {isLoading ? (
               <Loader2 className="w-4 h-4 animate-spin" />
@@ -272,13 +378,9 @@ export function AIChat() {
             <button
               key={suggestion}
               type="button"
-              onClick={() => {
-                if (!isLoading && suggestion) {
-                  sendMessage({ text: suggestion })
-                }
-              }}
-              className="text-xs px-2 py-1 rounded-md bg-muted hover:bg-muted/80 text-foreground transition-colors"
-              disabled={isLoading}
+              onClick={() => handleQuickAction(suggestion)}
+              className="text-xs px-2 py-1 rounded-md bg-muted hover:bg-muted/80 text-foreground transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={isLoading || !isCanvasReady}
             >
               {suggestion}
             </button>

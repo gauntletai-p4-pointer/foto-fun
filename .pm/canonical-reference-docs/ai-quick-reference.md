@@ -274,15 +274,6 @@ The AI will:
 4. Execute through your adapter
 5. Show results to user
 
-## Common Gotchas
-
-1. **Canvas State**: Always check canvas has objects before operating
-2. **Units**: Be explicit about pixels vs percentages vs degrees
-3. **Bounds**: Validate parameters are within valid ranges
-4. **Types**: Use Zod inference for type safety
-5. **Errors**: Provide clear, actionable error messages
-6. **Preview**: Clone canvas for preview, don't modify original
-
 ## Quick Debugging
 
 ```typescript
@@ -305,29 +296,179 @@ console.log(cropTool.parameters.shape)
 3. **Validation**: Do cheap checks before expensive operations
 4. **Memory**: Dispose temporary canvases after use
 
-## Future Patterns (Coming in Later Epics)
+## Common Gotchas & Solutions
 
-### Semantic Understanding (Epic 9)
+### 1. Canvas Not Available Error
+**Problem**: "Canvas is not available after initialization"
+**Cause**: Race condition between canvas init and tool execution
+**Solution**: 
 ```typescript
-// Future: Natural language parameters
-"Make it 20% brighter" → { adjustment: 20 }
-"Crop to the person" → { target: 'detected-person-bounds' }
+// Always wait for canvas and verify it exists
+await useCanvasStore.getState().waitForReady()
+const canvas = useCanvasStore.getState().fabricCanvas
+if (!canvas) throw new Error('Canvas not ready')
 ```
 
-### Multi-Step Operations (Epic 6)
+### 2. Tool Not Found
+**Problem**: "No AI adapter found for tool: X"
+**Cause**: Tool not registered or wrong name used
+**Solution**:
 ```typescript
-// Future: Complex workflows
-"Remove background and add blur" → [
-  { tool: 'removeBackground' },
-  { tool: 'addBlur', params: { strength: 5 } }
-]
+// Check available tools
+console.log(adapterRegistry.getAll().map(t => t.aiName))
+// Ensure adapter is registered in autoDiscoverAdapters()
 ```
 
-### Quality Evaluation (Epic 8)
+### 3. Natural Language Not Working
+**Problem**: AI asks for exact parameters instead of calculating
+**Cause**: Canvas context not passed or system prompt incomplete
+**Solution**:
 ```typescript
-// Future: AI evaluates results
-const quality = await evaluateEdit(before, after, intent)
-if (quality.score < 0.7) {
-  // Suggest improvements
+// Pass canvas context with EVERY message
+const canvasContext = {
+  dimensions: { width: canvas.getWidth(), height: canvas.getHeight() },
+  hasContent: canvas.getObjects().length > 0
 }
-``` 
+sendMessage({ text }, { body: { canvasContext } })
+```
+
+### 4. TypeScript Errors with AI SDK v5
+**Problem**: Type inference fails with `tool()` function
+**Solution**:
+```typescript
+// Cast through unknown for complex types
+return tool({...}) as unknown as Tool<unknown, unknown>
+```
+
+### 5. Tool Parameters Not Validating
+**Problem**: Zod validation fails unexpectedly
+**Solution**:
+```typescript
+// Be explicit with descriptions and constraints
+z.number()
+  .min(0)
+  .max(100)
+  .describe('Value from 0 to 100') // Clear description
+```
+
+## Debugging Checklist
+
+When a tool isn't working:
+
+1. **Check Canvas State**
+   ```typescript
+   const state = useCanvasStore.getState()
+   console.log({
+     isReady: state.isReady,
+     hasCanvas: !!state.fabricCanvas,
+     objects: state.fabricCanvas?.getObjects().length
+   })
+   ```
+
+2. **Verify Tool Registration**
+   ```typescript
+   console.log('Registered tools:', adapterRegistry.getAll().map(t => t.aiName))
+   ```
+
+3. **Test Tool Directly**
+   ```typescript
+   const adapter = adapterRegistry.get('cropImage')
+   const result = await adapter.execute(
+     { x: 0, y: 0, width: 100, height: 100 },
+     { canvas: fabricCanvas }
+   )
+   ```
+
+4. **Check AI Messages**
+   - Look for tool invocation parts in the message
+   - Verify parameters are being passed correctly
+   - Check for error messages in tool state
+
+5. **Verify Canvas Context**
+   ```typescript
+   const context = CanvasToolBridge.getCanvasContext()
+   console.log('Canvas context:', context)
+   ```
+
+## Best Practices Summary
+
+### DO:
+- ✅ Pass canvas dimensions with every AI message
+- ✅ Use descriptive error messages for users
+- ✅ Log extensively during development
+- ✅ Test with real images, not empty canvas
+- ✅ Handle edge cases (no image, disposed canvas)
+- ✅ Use singleton pattern for tools
+- ✅ Let AI model handle natural language math
+
+### DON'T:
+- ❌ Build complex parameter resolvers
+- ❌ Assume canvas is ready without checking
+- ❌ Use `inputSchema` (use `parameters` instead)
+- ❌ Export tool classes directly
+- ❌ Mix promises with state management
+- ❌ Suppress TypeScript errors
+- ❌ Forget to batch canvas operations
+
+## Testing Your AI Tool
+
+```bash
+# 1. Start dev server
+bun dev
+
+# 2. Load an image
+# 3. Open browser console for logs
+# 4. Try these test phrases:
+- "crop 50% of the image"
+- "crop to 500x500"
+- "crop the top half"
+
+# 5. Check for:
+- Tool execution visible in UI
+- Canvas updates after execution
+- No console errors
+- Proper error messages for edge cases
+```
+
+## Architecture Insights
+
+### State Management Issues
+The current Zustand store has async initialization challenges:
+- State updates aren't atomic
+- Promises can capture stale closures
+- Multiple sources of truth (`isReady`, `fabricCanvas`, promises)
+
+### Recommended Patterns
+1. **Single State Update**: Update all related state atomically
+2. **Polling Over Promises**: For checking ready state
+3. **Defensive Programming**: Always verify canvas operations
+4. **Explicit Context**: Pass context explicitly, don't rely on globals
+
+### Tool Adapter Pattern Success
+The adapter pattern works well because:
+- Separates AI concerns from tool logic
+- Allows progressive enhancement
+- Maintains single implementation
+- Scales to many tools
+
+## Future Epic Guidance
+
+### Epic 6 (Orchestration)
+- Build on single-tool execution
+- Add transaction/rollback support
+- Consider command pattern
+
+### Epic 7 (Visual Feedback)
+- Preview infrastructure exists
+- Need temporary canvas approach
+- Consider performance impact
+
+### Epic 8 (Quality)
+- Define confidence metrics per tool
+- Add quality assessment hooks
+- Consider user preference learning
+
+### Epic 9 (Semantic)
+- Current approach limits semantic understanding
+- Need object detection for "crop to person"
+- Consider progressive enhancement 

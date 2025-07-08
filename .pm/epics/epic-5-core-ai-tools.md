@@ -828,3 +828,240 @@ export class ConfidenceScorer {
 - Canvas context passed to system prompt
 - Natural language handled by AI model (no custom resolvers needed)
 - Tool execution visible in UI with proper state transitions
+
+## Lessons Learned & Implementation Gotchas
+
+### 1. AI SDK v5 Beta Specifics
+
+#### Tool Function Overloads
+The AI SDK v5's `tool()` function has complex TypeScript overloads that can cause type inference issues:
+```typescript
+// ❌ BAD - TypeScript can't infer the return type
+toAITool() {
+  return tool({
+    description: this.description,
+    parameters: this.parameters,
+    execute: async (params) => { ... }
+  })
+}
+
+// ✅ GOOD - Cast through unknown to help TypeScript
+toAITool() {
+  return tool({
+    description: this.description,
+    parameters: this.parameters,
+    execute: async (params) => { ... }
+  }) as unknown as Tool<unknown, unknown>
+}
+```
+
+#### Parameter Naming
+AI SDK v5 uses `parameters` not `inputSchema`:
+```typescript
+// ❌ OLD (AI SDK v3/v4)
+inputSchema: z.object({ ... })
+
+// ✅ NEW (AI SDK v5)
+parameters: z.object({ ... })
+```
+
+#### Message Handling
+```typescript
+// Tool invocation parts in messages can have various formats:
+// - part.type === 'tool-invocation'
+// - part.type?.startsWith('tool-')
+// - part.toolInvocation (nested structure)
+```
+
+### 2. Canvas Context Management
+
+#### The Race Condition Problem
+We discovered a critical race condition between canvas initialization and AI tool execution:
+- Canvas initialization is asynchronous with multiple state updates
+- Components may see intermediate states where `isReady: true` but `fabricCanvas: null`
+- Promises can capture stale closures
+
+#### Passing Canvas Context
+Canvas dimensions must be passed with EVERY message to the AI:
+```typescript
+const canvasContext = fabricCanvas ? {
+  dimensions: {
+    width: fabricCanvas.getWidth(),
+    height: fabricCanvas.getHeight()
+  },
+  hasContent: fabricCanvas.getObjects().length > 0
+} : undefined
+
+sendMessage(
+  { text: input },
+  { body: { canvasContext } }  // Include with every message
+)
+```
+
+### 3. Natural Language Parameter Resolution
+
+#### AI Model-Based Approach (What Works)
+Instead of building custom parameter resolvers, we let the AI model handle natural language:
+```typescript
+// In system prompt:
+`Current canvas: ${width}x${height} pixels
+
+For the crop tool:
+- "crop 50%": For a 1000x800 image → x:250, y:200, width:500, height:400
+- "crop the left half": For a 1000x800 image → x:0, y:0, width:500, height:800`
+```
+
+#### Why Custom Resolvers Failed
+- Added complexity without clear benefit
+- AI models are already good at math/calculations
+- Maintenance burden for each tool
+- Better to provide examples in system prompt
+
+### 4. Tool Adapter Architecture Insights
+
+#### Singleton Pattern
+Tools should be singleton instances:
+```typescript
+// ✅ GOOD
+export const cropTool = new CropTool()
+
+// ❌ BAD
+export class CropTool { ... }  // Don't export class directly
+```
+
+#### Adapter Registration
+Auto-discovery pattern works well but needs careful import management:
+```typescript
+// Dynamic imports prevent circular dependencies
+const { CropToolAdapter } = await import('./tools/crop')
+adapterRegistry.register(new CropToolAdapter())
+```
+
+### 5. Error Handling Best Practices
+
+#### User-Friendly Messages
+```typescript
+// ❌ BAD
+throw new Error('Canvas not available')
+
+// ✅ GOOD
+throw new Error('No image loaded. Please upload an image first before using AI tools.')
+```
+
+#### Detailed Logging
+Always log state when debugging canvas issues:
+```typescript
+console.log('[Component] Canvas state:', {
+  isReady: state.isReady,
+  hasCanvas: !!state.fabricCanvas,
+  initError: state.initializationError,
+  objects: state.fabricCanvas?.getObjects().length
+})
+```
+
+### 6. UI/UX Considerations
+
+#### Tool Execution Visibility
+Users need to see:
+- Tool being executed
+- Parameters being used
+- Progress indication
+- Success/failure state
+
+#### Confidence Communication
+Even though we haven't implemented confidence scoring yet, the UI structure should support it:
+```typescript
+{state === 'input-available' && (
+  <div>
+    <span>Executing {toolName}...</span>
+    {/* Future: Add confidence indicator here */}
+  </div>
+)}
+```
+
+### 7. Performance Considerations
+
+#### Canvas Operations
+- Always check if canvas has objects before operating
+- Batch multiple canvas operations before `renderAll()`
+- Use `requestAnimationFrame` for visual updates
+
+#### Tool Execution
+- Tools should complete in <500ms for good UX
+- Long operations need progress indicators
+- Consider web workers for heavy processing
+
+### 8. Testing Insights
+
+#### Manual Testing Checklist
+Before considering a tool "working":
+1. Load an image
+2. Try natural language ("make it brighter")
+3. Try specific values ("increase brightness by 20")
+4. Try edge cases ("brightness 200" - out of range)
+5. Check undo/redo works
+6. Verify canvas updates properly
+
+#### Common Failure Modes
+1. Canvas not initialized when tool executes
+2. Natural language not resolved to parameters
+3. Tool found but adapter not registered
+4. Canvas context lost between messages
+
+### 9. Future Epic Considerations
+
+#### For Epic 6 (Orchestration)
+- Current single-tool execution works well
+- Multi-step will need transaction-like behavior
+- Consider command pattern for rollback
+
+#### For Epic 7 (Visual Feedback)
+- Preview generation infrastructure exists in BaseToolAdapter
+- Need temporary canvas for non-destructive preview
+- Consider performance impact of live preview
+
+#### For Epic 8 (Quality Evaluation)
+- Confidence scoring hooks exist but not implemented
+- Need to define what "confidence" means per tool
+- Consider user preference learning
+
+#### For Epic 9 (Semantic Understanding)
+- Current exact-parameter approach is limiting
+- "Crop to the person" needs object detection
+- Consider progressive enhancement approach
+
+### 10. Architecture Recommendations
+
+#### State Management
+The current Zustand store pattern has issues with async initialization:
+- Consider state machines for initialization flow
+- Avoid mixing promises with declarative state
+- Single source of truth for "ready" state
+
+#### Tool Discovery
+Current pattern works but could be improved:
+- Consider build-time tool registration
+- Type-safe tool names (const enum)
+- Better error messages for missing tools
+
+#### Canvas Bridge
+Works well but needs defensive programming:
+- Always verify canvas operations work
+- Handle disposal/cleanup properly
+- Consider WeakMap for canvas metadata
+
+### Summary for Future Developers
+
+1. **Start Simple**: Get one tool working end-to-end before adding more
+2. **Trust the AI Model**: Let it handle natural language, don't over-engineer
+3. **Log Everything**: Debugging async issues requires extensive logging
+4. **Test With Real Images**: Many issues only appear with actual canvas content
+5. **Handle Edge Cases**: No image, disposed canvas, initialization races
+6. **Keep UI Responsive**: Show progress, handle errors gracefully
+7. **Document Patterns**: This epic establishes patterns for all future tools
+
+The foundation is solid, but watch out for:
+- Canvas initialization race conditions
+- TypeScript complexity with AI SDK v5
+- Natural language parameter expectations
+- User feedback for AI operations

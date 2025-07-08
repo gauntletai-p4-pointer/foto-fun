@@ -30,15 +30,31 @@ interface CropOutput {
 export class CropToolAdapter extends BaseToolAdapter<CropInput, CropOutput> {
   tool = cropTool
   aiName = 'cropImage'
-  description = 'Crop the image to specified pixel coordinates. The x,y coordinates specify the top-left corner of the crop area, and width,height specify the crop dimensions. All values must be positive integers in pixels.'
+  description = `Crop the image to a specific area. You MUST calculate exact pixel coordinates based on user intent.
+Common patterns you should handle:
+- "crop left/right half" → calculate x:0 or x:width/2 accordingly
+- "crop top/bottom half" → calculate y:0 or y:height/2 accordingly  
+- "crop 50%" or "crop to 50%" → keep center 50% (trim 25% from each edge)
+- "crop X% from edges" → trim that percentage from all sides
+- "crop to square" → calculate largest centered square
+- "crop to 16:9" → calculate dimensions maintaining aspect ratio
+NEVER ask for pixel values - always calculate them from the canvas dimensions.`
   
-  parameters = cropParameters
+  inputSchema = cropParameters
   
   async execute(params: CropInput, context: { canvas: import('fabric').Canvas }): Promise<CropOutput> {
+    console.log('[CropToolAdapter] Execute called with params:', params)
     const canvas = context.canvas
+    
+    if (!canvas) {
+      throw new Error('Canvas is required but not provided in context')
+    }
+    
+    console.log('[CropToolAdapter] Canvas dimensions:', canvas.getWidth(), 'x', canvas.getHeight())
     
     // Get all objects on canvas
     const objects = canvas.getObjects()
+    console.log('[CropToolAdapter] Objects on canvas:', objects.length)
     
     if (objects.length === 0) {
       throw new Error('No objects to crop')

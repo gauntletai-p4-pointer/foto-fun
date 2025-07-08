@@ -61,17 +61,19 @@ export const useLayerStore = create<LayerState>()(
     // Add a new layer
     addLayer: (layerData) => {
       const layers = get().layers
+      // Extract id from layerData to ensure we never use it
+      const { id: _, ...layerDataWithoutId } = layerData
       const newLayer: Layer = {
         id: uuidv4(),
-        name: layerData.name || get().generateLayerName(layerData.type || 'image'),
-        type: layerData.type || 'image',
+        name: layerDataWithoutId.name || get().generateLayerName(layerDataWithoutId.type || 'image'),
+        type: layerDataWithoutId.type || 'image',
         visible: true,
         opacity: 100,
         blendMode: 'normal',
         locked: false,
         position: layers.length,
         objectIds: [],
-        ...layerData
+        ...layerDataWithoutId
       }
       
       set((state) => ({

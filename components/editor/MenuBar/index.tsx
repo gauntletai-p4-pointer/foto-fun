@@ -8,6 +8,10 @@ import { useAuth } from '@/hooks/useAuth'
 import { signOut } from '@/lib/auth/actions'
 import { NewDocumentDialog } from '@/components/dialogs/NewDocumentDialog'
 import { useHistoryStore } from '@/store/historyStore'
+import { useCanvasStore } from '@/store/canvasStore'
+import { useSelectionStore } from '@/store/selectionStore'
+import { CopyCommand, CutCommand, PasteCommand } from '@/lib/editor/commands/clipboard'
+import { ModifySelectionCommand, ClearSelectionCommand } from '@/lib/editor/commands/selection'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -15,8 +19,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
   DropdownMenuShortcut,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
 } from '@/components/ui/dropdown-menu'
-import { FileDown, FileImage, FilePlus, Save, Sun, Moon, LogOut, Undo, Redo } from 'lucide-react'
+import { FileDown, FileImage, FilePlus, Save, Sun, Moon, LogOut, Undo, Redo, Copy, Scissors, Clipboard } from 'lucide-react'
 
 export function MenuBar() {
   const [newDocumentOpen, setNewDocumentOpen] = useState(false)
@@ -24,7 +31,9 @@ export function MenuBar() {
   const { saveDocument, currentDocument, hasUnsavedChanges } = useDocumentStore()
   const { theme, setTheme } = useTheme()
   const { user } = useAuth()
-  const { undo, redo, canUndo, canRedo } = useHistoryStore()
+  const { undo, redo, canUndo, canRedo, executeCommand } = useHistoryStore()
+  const { fabricCanvas, selectionManager, clipboardManager } = useCanvasStore()
+  const { hasSelection } = useSelectionStore()
   
   const handleSave = () => {
     if (currentDocument) {
@@ -42,6 +51,75 @@ export function MenuBar() {
   
   const handleRedo = () => {
     redo()
+  }
+  
+  const handleCopy = () => {
+    if (clipboardManager) {
+      const command = new CopyCommand(clipboardManager)
+      executeCommand(command)
+    }
+  }
+  
+  const handleCut = () => {
+    if (clipboardManager && fabricCanvas && selectionManager) {
+      const command = new CutCommand(fabricCanvas, clipboardManager, selectionManager)
+      executeCommand(command)
+    }
+  }
+  
+  const handlePaste = () => {
+    if (clipboardManager && fabricCanvas) {
+      const command = new PasteCommand(fabricCanvas, clipboardManager)
+      executeCommand(command)
+    }
+  }
+  
+  const handleSelectAll = () => {
+    if (selectionManager) {
+      selectionManager.selectAll()
+      useSelectionStore.getState().updateSelectionState(true, {
+        x: 0,
+        y: 0,
+        width: fabricCanvas?.width || 0,
+        height: fabricCanvas?.height || 0
+      })
+    }
+  }
+  
+  const handleDeselect = () => {
+    if (selectionManager) {
+      const command = new ClearSelectionCommand(selectionManager)
+      executeCommand(command)
+      useSelectionStore.getState().updateSelectionState(false)
+    }
+  }
+  
+  const handleInvertSelection = () => {
+    if (selectionManager) {
+      const command = new ModifySelectionCommand(selectionManager, 'invert')
+      executeCommand(command)
+    }
+  }
+  
+  const handleExpandSelection = (pixels: number) => {
+    if (selectionManager) {
+      const command = new ModifySelectionCommand(selectionManager, 'expand', pixels)
+      executeCommand(command)
+    }
+  }
+  
+  const handleContractSelection = (pixels: number) => {
+    if (selectionManager) {
+      const command = new ModifySelectionCommand(selectionManager, 'contract', pixels)
+      executeCommand(command)
+    }
+  }
+  
+  const handleFeatherSelection = (pixels: number) => {
+    if (selectionManager) {
+      const command = new ModifySelectionCommand(selectionManager, 'feather', pixels)
+      executeCommand(command)
+    }
   }
   
   return (
@@ -111,15 +189,27 @@ export function MenuBar() {
                 <DropdownMenuShortcut>⌘⇧Z</DropdownMenuShortcut>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem disabled>
+              <DropdownMenuItem 
+                onClick={handleCut}
+                disabled={!selectionManager || (!hasSelection && !fabricCanvas?.getActiveObject())}
+              >
+                <Scissors className="mr-2 h-4 w-4" />
                 Cut
                 <DropdownMenuShortcut>⌘X</DropdownMenuShortcut>
               </DropdownMenuItem>
-              <DropdownMenuItem disabled>
+              <DropdownMenuItem 
+                onClick={handleCopy}
+                disabled={!selectionManager || (!hasSelection && !fabricCanvas?.getActiveObject())}
+              >
+                <Copy className="mr-2 h-4 w-4" />
                 Copy
                 <DropdownMenuShortcut>⌘C</DropdownMenuShortcut>
               </DropdownMenuItem>
-              <DropdownMenuItem disabled>
+              <DropdownMenuItem 
+                onClick={handlePaste}
+                disabled={!clipboardManager?.hasClipboardData()}
+              >
+                <Clipboard className="mr-2 h-4 w-4" />
                 Paste
                 <DropdownMenuShortcut>⌘V</DropdownMenuShortcut>
               </DropdownMenuItem>
@@ -128,11 +218,17 @@ export function MenuBar() {
                 <DropdownMenuShortcut>⌫</DropdownMenuShortcut>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem disabled>
+              <DropdownMenuItem 
+                onClick={handleSelectAll}
+                disabled={!selectionManager}
+              >
                 Select All
                 <DropdownMenuShortcut>⌘A</DropdownMenuShortcut>
               </DropdownMenuItem>
-              <DropdownMenuItem disabled>
+              <DropdownMenuItem 
+                onClick={handleDeselect}
+                disabled={!hasSelection}
+              >
                 Deselect
                 <DropdownMenuShortcut>⌘D</DropdownMenuShortcut>
               </DropdownMenuItem>
@@ -141,7 +237,86 @@ export function MenuBar() {
           
           <button className="hover:text-foreground/80" disabled>Image</button>
           <button className="hover:text-foreground/80" disabled>Layer</button>
-          <button className="hover:text-foreground/80" disabled>Select</button>
+          
+          <DropdownMenu>
+            <DropdownMenuTrigger className="hover:text-foreground/80 outline-none">
+              Select
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-56">
+              <DropdownMenuItem 
+                onClick={handleSelectAll}
+                disabled={!selectionManager}
+              >
+                All
+                <DropdownMenuShortcut>⌘A</DropdownMenuShortcut>
+              </DropdownMenuItem>
+              <DropdownMenuItem 
+                onClick={handleDeselect}
+                disabled={!hasSelection}
+              >
+                Deselect
+                <DropdownMenuShortcut>⌘D</DropdownMenuShortcut>
+              </DropdownMenuItem>
+              <DropdownMenuItem 
+                onClick={handleInvertSelection}
+                disabled={!selectionManager}
+              >
+                Inverse
+                <DropdownMenuShortcut>⌘⇧I</DropdownMenuShortcut>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger disabled={!hasSelection}>
+                  Modify
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent className="w-48">
+                  <DropdownMenuItem onClick={() => handleExpandSelection(1)}>
+                    Expand... (1px)
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleExpandSelection(2)}>
+                    Expand... (2px)
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleExpandSelection(5)}>
+                    Expand... (5px)
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => handleContractSelection(1)}>
+                    Contract... (1px)
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleContractSelection(2)}>
+                    Contract... (2px)
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleContractSelection(5)}>
+                    Contract... (5px)
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => handleFeatherSelection(1)}>
+                    Feather... (1px)
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleFeatherSelection(2)}>
+                    Feather... (2px)
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleFeatherSelection(5)}>
+                    Feather... (5px)
+                  </DropdownMenuItem>
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem disabled>
+                Color Range...
+              </DropdownMenuItem>
+              <DropdownMenuItem disabled>
+                Focus Area...
+              </DropdownMenuItem>
+              <DropdownMenuItem disabled>
+                Subject
+              </DropdownMenuItem>
+              <DropdownMenuItem disabled>
+                Sky
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          
           <button className="hover:text-foreground/80" disabled>Filter</button>
           
           <DropdownMenu>

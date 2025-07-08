@@ -40,7 +40,8 @@ import {
   CreateLayerCommand,
   RemoveLayerCommand,
   UpdateLayerCommand,
-  ReorderLayersCommand
+  ReorderLayersCommand,
+  DuplicateLayerCommand
 } from '@/lib/editor/commands/layer'
 
 // Icons for different layer types
@@ -84,8 +85,7 @@ function LayerItem({ layer, isActive, onDragStart, onDragOver, onDrop }: LayerIt
   const { 
     updateLayer, 
     toggleLayerVisibility, 
-    setActiveLayer,
-    duplicateLayer
+    setActiveLayer
   } = useLayerStore()
   const { executeCommand } = useHistoryStore()
   
@@ -105,10 +105,7 @@ function LayerItem({ layer, isActive, onDragStart, onDragOver, onDrop }: LayerIt
   }
   
   const handleDuplicate = () => {
-    const duplicated = duplicateLayer(layer.id)
-    if (duplicated) {
-      executeCommand(new CreateLayerCommand(duplicated))
-    }
+    executeCommand(new DuplicateLayerCommand(layer.id))
   }
   
   const handleDelete = () => {
@@ -202,7 +199,6 @@ export function LayersPanel() {
     layers, 
     activeLayerId, 
     getActiveLayer,
-    addLayer,
     reorderLayers,
     setLayerOpacity,
     setLayerBlendMode
@@ -217,13 +213,15 @@ export function LayersPanel() {
   useEffect(() => {
     if (layers.length === 0 && !hasInitialized) {
       setHasInitialized(true)
-      const defaultLayer = addLayer({
-        name: 'Background',
-        type: 'image'
+      // Defer command execution to avoid running during render
+      queueMicrotask(() => {
+        executeCommand(new CreateLayerCommand({
+          name: 'Background',
+          type: 'image'
+        }))
       })
-      executeCommand(new CreateLayerCommand(defaultLayer))
     }
-  }, [layers.length, addLayer, executeCommand, hasInitialized])
+  }, [layers.length, executeCommand, hasInitialized])
   
   const handleDragStart = (e: React.DragEvent, layer: Layer) => {
     setDraggedLayer(layer)
@@ -251,10 +249,9 @@ export function LayersPanel() {
   }
   
   const handleAddLayer = () => {
-    const newLayer = addLayer({
+    executeCommand(new CreateLayerCommand({
       type: 'image'
-    })
-    executeCommand(new CreateLayerCommand(newLayer))
+    }))
   }
   
   const handleOpacityChange = (value: number[]) => {

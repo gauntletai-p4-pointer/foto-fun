@@ -4,8 +4,12 @@ import { useEffect, useRef } from 'react'
 import { useCanvasStore } from '@/store/canvasStore'
 import { useToolStore } from '@/store/toolStore'
 import { useFileHandler } from '@/hooks/useFileHandler'
+import { useHistoryStore } from '@/store/historyStore'
 import type { TPointerEventInfo, TPointerEvent } from 'fabric'
 import type { ToolEvent } from '@/types'
+import { CopyCommand, CutCommand, PasteCommand } from '@/lib/editor/commands/clipboard'
+import { ClearSelectionCommand } from '@/lib/editor/commands/selection'
+import { useSelectionStore } from '@/store/selectionStore'
 
 export function Canvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -22,20 +26,33 @@ export function Canvas() {
     zoomToFit,
     zoomToActual,
     zoom,
-    fabricCanvas
+    fabricCanvas,
+    selectionManager,
+    clipboardManager
   } = useCanvasStore()
   
   const { getActiveTool } = useToolStore()
   const { handleDrop, handleDragOver } = useFileHandler()
+  const { executeCommand } = useHistoryStore()
   
   // Initialize canvas
   useEffect(() => {
-    if (!canvasRef.current || !containerRef.current) return
+    const container = containerRef.current
+    const canvas = canvasRef.current
+    if (!container || !canvas) return
     
-    const { width, height } = containerRef.current.getBoundingClientRect()
-    initCanvas(canvasRef.current, width, height)
+    console.log('[Canvas] Starting initialization...')
+    const startTime = Date.now()
+    
+    // Initialize canvas
+    initCanvas(canvas, container.offsetWidth, container.offsetHeight).then(() => {
+      console.log('[Canvas] Initialization complete after', Date.now() - startTime, 'ms')
+    }).catch((error) => {
+      console.error('[Canvas] Initialization failed:', error)
+    })
     
     return () => {
+      console.log('[Canvas] Disposing canvas...')
       disposeCanvas()
     }
   }, [initCanvas, disposeCanvas])
@@ -50,8 +67,40 @@ export function Canvas() {
       
       const isMeta = e.metaKey || e.ctrlKey
       
+      // Clipboard shortcuts
+      if (isMeta && e.key === 'c' && clipboardManager) {
+        e.preventDefault()
+        const command = new CopyCommand(clipboardManager)
+        executeCommand(command)
+      } else if (isMeta && e.key === 'x' && clipboardManager && fabricCanvas && selectionManager) {
+        e.preventDefault()
+        const command = new CutCommand(fabricCanvas, clipboardManager, selectionManager)
+        executeCommand(command)
+      } else if (isMeta && e.key === 'v' && clipboardManager && fabricCanvas) {
+        e.preventDefault()
+        const command = new PasteCommand(fabricCanvas, clipboardManager)
+        executeCommand(command)
+      }
+      
+      // Selection shortcuts
+      else if (isMeta && e.key === 'a' && selectionManager) {
+        e.preventDefault()
+        selectionManager.selectAll()
+        useSelectionStore.getState().updateSelectionState(true, {
+          x: 0,
+          y: 0,
+          width: fabricCanvas?.width || 0,
+          height: fabricCanvas?.height || 0
+        })
+      } else if (isMeta && e.key === 'd' && selectionManager) {
+        e.preventDefault()
+        const command = new ClearSelectionCommand(selectionManager)
+        executeCommand(command)
+        useSelectionStore.getState().updateSelectionState(false)
+      }
+      
       // Zoom shortcuts
-      if (isMeta && e.key === '=') {
+      else if (isMeta && e.key === '=') {
         e.preventDefault()
         zoomIn()
       } else if (isMeta && e.key === '-') {
@@ -89,7 +138,7 @@ export function Canvas() {
       window.removeEventListener('keydown', handleKeyDown)
       window.removeEventListener('keyup', handleKeyUp)
     }
-  }, [fabricCanvas, zoomIn, zoomOut, zoomToFit, zoomToActual, endPanning])
+  }, [fabricCanvas, clipboardManager, selectionManager, zoomIn, zoomOut, zoomToFit, zoomToActual, endPanning, executeCommand])
   
   // Handle tool events
   useEffect(() => {

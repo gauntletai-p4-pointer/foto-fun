@@ -382,10 +382,174 @@ export abstract class BaseToolAdapter<TInput, TOutput> {
         if (!context?.canvas) throw new Error('Canvas not available')
         return this.execute(params, { canvas: context.canvas })
       }
-    })
+    }) as unknown as Tool<unknown, unknown>  // TypeScript workaround
   }
 }
 ```
+
+#### Key Learnings from Implementation
+
+1. **Parameter Naming**: AI SDK v5 uses `parameters` not `inputSchema`
+2. **TypeScript Challenges**: The `tool()` function has complex overloads requiring type casting
+3. **Canvas Context**: Must be passed with every message, not just once
+4. **Natural Language**: Let the AI model handle calculations, don't build resolvers
+
+### Implementation Challenges & Solutions
+
+#### 1. Canvas Initialization Race Condition
+
+**Challenge**: The most significant issue discovered was a race condition between canvas initialization and AI tool execution. The canvas would report as "ready" but still be null when accessed.
+
+**Root Cause**: 
+- Asynchronous state updates in Zustand
+- Multiple state updates during initialization
+- Promises capturing stale closures
+- Mixing imperative (promises) and declarative (state) patterns
+
+**Solution Attempts**:
+```typescript
+// Atomic state updates
+set({
+  fabricCanvas: canvas,
+  selectionManager: manager,
+  selectionRenderer: renderer,
+  isReady: true  // All in one update
+})
+
+// Better ready checking
+waitForReady: async () => {
+  const state = get()
+  if (state.isReady && state.fabricCanvas) {
+    return Promise.resolve()
+  }
+  // ... wait logic with timeout
+}
+```
+
+**Architectural Recommendation**: Move to a state machine pattern for initialization rather than boolean flags.
+
+#### 2. Natural Language Parameter Resolution
+
+**Challenge**: Users expect to say "crop 50%" but tools need exact pixel coordinates.
+
+**Initial Approach**: Build parameter resolvers for each tool
+```typescript
+// We tried this but abandoned it
+class CropParameterResolver {
+  resolve(input: string, canvas: Canvas) {
+    // Complex parsing logic
+  }
+}
+```
+
+**Final Solution**: Use AI model's capability
+```typescript
+// In system prompt
+`Current canvas: ${width}x${height} pixels
+Examples:
+- "crop 50%": For 1000x800 → x:250, y:200, width:500, height:400`
+```
+
+**Learning**: Don't fight the AI model - it's already good at math and understanding context.
+
+#### 3. Tool Discovery & Registration
+
+**Challenge**: Managing tool registration across the codebase without circular dependencies.
+
+**Solution**: Dynamic imports with auto-discovery
+```typescript
+async function autoDiscoverAdapters() {
+  const adapters = [
+    import('./tools/crop'),
+    import('./tools/brightness'),
+    // ... more adapters
+  ]
+  
+  for (const adapterImport of adapters) {
+    const { default: Adapter } = await adapterImport
+    adapterRegistry.register(new Adapter())
+  }
+}
+```
+
+#### 4. Message Format Complexity
+
+**Challenge**: AI SDK v5 beta has various message part formats for tool invocations.
+
+**Solution**: Defensive parsing
+```typescript
+if (part.type === 'tool-invocation' || 
+    part.type?.startsWith('tool-') || 
+    (part as any).toolInvocation) {
+  // Handle all possible formats
+}
+```
+
+#### 5. Canvas Context Persistence
+
+**Challenge**: Canvas context was lost between messages, causing AI to lose track of image dimensions.
+
+**Solution**: Include context with every message
+```typescript
+sendMessage(
+  { text: input },
+  { body: { canvasContext: {
+    dimensions: { width, height },
+    hasContent: true
+  }}}
+)
+```
+
+### Best Practices Established
+
+1. **Extensive Logging**: Essential for debugging async issues
+   ```typescript
+   console.log('[Component] State:', {
+     isReady: state.isReady,
+     hasCanvas: !!state.fabricCanvas,
+     timestamp: Date.now()
+   })
+   ```
+
+2. **Defensive Programming**: Always verify canvas state
+   ```typescript
+   if (!canvas) throw new Error('Canvas not available')
+   if (canvas.getObjects().length === 0) throw new Error('No image loaded')
+   ```
+
+3. **User-Friendly Errors**: 
+   ```typescript
+   // ❌ "Canvas is null"
+   // ✅ "Please load an image before using AI tools"
+   ```
+
+4. **Singleton Tools**: Export instances, not classes
+   ```typescript
+   export const cropTool = new CropTool()  // ✅
+   export class CropTool { }  // ❌
+   ```
+
+### Architecture Insights
+
+The current architecture reveals several patterns:
+
+**What Works Well**:
+- Adapter pattern for tool integration
+- Separation of AI and canvas concerns
+- Auto-discovery for scalability
+- Single implementation for UI and AI
+
+**What Needs Improvement**:
+- Canvas initialization state management
+- Promise-based initialization pattern
+- Multiple sources of truth for "ready" state
+- Lack of state machine for initialization flow
+
+**Recommendations for Future Epics**:
+1. Consider state machines for complex flows
+2. Implement transaction patterns for multi-step operations
+3. Add operation queuing for better control
+4. Build proper abstraction over canvas operations
 
 ### Tool Categories
 
