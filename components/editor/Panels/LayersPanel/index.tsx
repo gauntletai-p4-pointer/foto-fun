@@ -271,7 +271,7 @@ export function LayersPanel() {
   const displayLayers = [...layers].reverse()
   
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full bg-background">
       {/* Layer controls */}
       <div className="p-3 border-b border-border space-y-3">
         {activeLayer && (
@@ -319,7 +319,9 @@ export function LayersPanel() {
       <div className="flex-1 overflow-y-auto p-2">
         {displayLayers.length === 0 ? (
           <div className="text-center text-muted-foreground text-sm py-8">
-            No layers yet
+            <Layers className="w-8 h-8 mx-auto mb-3 opacity-50" />
+            <p>No layers yet</p>
+            <p className="mt-2 text-xs">Click the button below to add a layer</p>
           </div>
         ) : (
           <div className="space-y-1">
