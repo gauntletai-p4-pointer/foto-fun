@@ -4,6 +4,8 @@ import { useState } from 'react'
 import { useDocumentStore } from '@/store/documentStore'
 import { useFileHandler } from '@/hooks/useFileHandler'
 import { useTheme } from '@/hooks/useTheme'
+import { useAuth } from '@/hooks/useAuth'
+import { signOut } from '@/lib/auth/actions'
 import { NewDocumentDialog } from '@/components/dialogs/NewDocumentDialog'
 import {
   DropdownMenu,
@@ -13,18 +15,23 @@ import {
   DropdownMenuTrigger,
   DropdownMenuShortcut,
 } from '@/components/ui/dropdown-menu'
-import { FileDown, FileImage, FilePlus, Save, Sun, Moon } from 'lucide-react'
+import { FileDown, FileImage, FilePlus, Save, Sun, Moon, LogOut } from 'lucide-react'
 
 export function MenuBar() {
   const [newDocumentOpen, setNewDocumentOpen] = useState(false)
   const { fileInputRef, handleFileSelect, triggerFileInput } = useFileHandler()
   const { saveDocument, currentDocument, hasUnsavedChanges } = useDocumentStore()
   const { theme, setTheme } = useTheme()
+  const { user } = useAuth()
   
   const handleSave = () => {
     if (currentDocument) {
       saveDocument()
     }
+  }
+  
+  const handleSignOut = async () => {
+    await signOut()
   }
   
   return (
@@ -60,6 +67,15 @@ export function MenuBar() {
                 Export As...
                 <DropdownMenuShortcut>⌘⇧E</DropdownMenuShortcut>
               </DropdownMenuItem>
+              {user && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={handleSignOut}>
+                    <LogOut className="mr-2 h-4 w-4" />
+                    Logout
+                  </DropdownMenuItem>
+                </>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
           
