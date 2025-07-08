@@ -5,7 +5,7 @@ export * from './base'
 export * from './canvas'
 
 // TODO: Add layer commands when layer system is implemented
-// export * from './layer'
+export * from './layer'
 
 // TODO: Add selection commands when selection system is enhanced
-// export * from './selection' 
+export * from './selection' 

@@ -70,6 +70,7 @@ export const useLayerStore = create<LayerState>()(
         blendMode: 'normal',
         locked: false,
         position: layers.length,
+        objectIds: [],
         ...layerData
       }
       
@@ -107,10 +108,13 @@ export const useLayerStore = create<LayerState>()(
         }
       })
       
-      // Remove from canvas
+      // Remove all objects associated with this layer from canvas
       const canvas = useCanvasStore.getState().fabricCanvas
-      if (canvas && layer.fabricObject) {
-        canvas.remove(layer.fabricObject)
+      if (canvas && layer.objectIds) {
+        const objectsToRemove = canvas.getObjects().filter(obj => 
+          layer.objectIds?.includes(obj.get('id' as any) as string)
+        )
+        objectsToRemove.forEach(obj => canvas.remove(obj))
         canvas.renderAll()
       }
     },
@@ -120,12 +124,37 @@ export const useLayerStore = create<LayerState>()(
       const layer = get().getLayerById(layerId)
       if (!layer) return null
       
+      const canvas = useCanvasStore.getState().fabricCanvas
+      if (!canvas) return null
+      
+      // Create new layer with unique ID
       const duplicated: Layer = {
         ...layer,
         id: uuidv4(),
         name: `${layer.name} copy`,
         position: layer.position + 1,
-        fabricObject: undefined // Will be created when syncing to canvas
+        objectIds: [] // Will be populated when we duplicate objects
+      }
+      
+      // Duplicate all objects in the layer
+      if (layer.objectIds && layer.objectIds.length > 0) {
+        const objectsToDuplicate = canvas.getObjects().filter(obj => 
+          layer.objectIds?.includes(obj.get('id' as any) as string)
+        )
+        
+        objectsToDuplicate.forEach(async (obj) => {
+          // Clone the object using async/await pattern for Fabric.js v6
+          try {
+            const cloned = await obj.clone()
+            const newId = `${obj.type}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+            cloned.set('id' as any, newId)
+            cloned.set('layerId' as any, duplicated.id)
+            canvas.add(cloned)
+            duplicated.objectIds!.push(newId)
+          } catch (error) {
+            console.error('Error cloning object:', error)
+          }
+        })
       }
       
       set((state) => {
@@ -143,7 +172,7 @@ export const useLayerStore = create<LayerState>()(
         }
       })
       
-      get().syncLayersToCanvas()
+      canvas.renderAll()
       return duplicated
     },
     
@@ -155,20 +184,27 @@ export const useLayerStore = create<LayerState>()(
         )
       }))
       
-      // Update canvas object if needed
+      // Update canvas objects if visibility or opacity changed
       const layer = get().getLayerById(layerId)
       const canvas = useCanvasStore.getState().fabricCanvas
-      if (layer?.fabricObject && canvas) {
-        if ('visible' in updates) {
-          layer.fabricObject.visible = updates.visible!
-        }
-        if ('opacity' in updates) {
-          layer.fabricObject.opacity = updates.opacity! / 100
-        }
-        if ('locked' in updates) {
-          layer.fabricObject.selectable = !updates.locked
-          layer.fabricObject.evented = !updates.locked
-        }
+      if (layer && canvas && layer.objectIds) {
+        const layerObjects = canvas.getObjects().filter(obj => 
+          layer.objectIds?.includes(obj.get('id' as any) as string)
+        )
+        
+        layerObjects.forEach(obj => {
+          if ('visible' in updates) {
+            obj.visible = updates.visible!
+          }
+          if ('opacity' in updates) {
+            obj.opacity = updates.opacity! / 100
+          }
+          if ('locked' in updates) {
+            obj.selectable = !updates.locked
+            obj.evented = !updates.locked
+          }
+        })
+        
         canvas.renderAll()
       }
     },
@@ -213,16 +249,18 @@ export const useLayerStore = create<LayerState>()(
     setActiveLayer: (layerId) => {
       set({ activeLayerId: layerId })
       
-      // Update canvas active object
+      // Update canvas selection if needed
       const layer = layerId ? get().getLayerById(layerId) : null
       const canvas = useCanvasStore.getState().fabricCanvas
-      if (canvas) {
-        if (layer?.fabricObject) {
-          canvas.setActiveObject(layer.fabricObject)
-        } else {
-          canvas.discardActiveObject()
+      if (canvas && layer && layer.objectIds && layer.objectIds.length > 0) {
+        // Select first object in layer for visual feedback
+        const firstObject = canvas.getObjects().find(obj => 
+          layer.objectIds?.includes(obj.get('id' as any) as string)
+        )
+        if (firstObject) {
+          canvas.setActiveObject(firstObject)
+          canvas.renderAll()
         }
-        canvas.renderAll()
       }
     },
     
@@ -303,12 +341,23 @@ export const useLayerStore = create<LayerState>()(
       const topLayer = layers[index]
       const bottomLayer = layers[index - 1]
       
-      if (!topLayer.fabricObject || !bottomLayer.fabricObject) return
+      const canvas = useCanvasStore.getState().fabricCanvas
+      if (!canvas || !topLayer.objectIds || !bottomLayer.objectIds) return
       
-      // TODO: Implement actual pixel merging
-      // For now, just remove the top layer
-      console.log('Merge down not fully implemented - would merge', topLayer.name, 'into', bottomLayer.name)
+      // Move all objects from top layer to bottom layer
+      const topObjects = canvas.getObjects().filter(obj => 
+        topLayer.objectIds?.includes(obj.get('id' as any) as string)
+      )
+      
+      topObjects.forEach(obj => {
+        obj.set('layerId' as any, bottomLayer.id)
+        bottomLayer.objectIds!.push(obj.get('id' as any) as string)
+      })
+      
+      // Remove the top layer
       get().removeLayer(topLayer.id)
+      
+      canvas.renderAll()
     },
     
     // Merge visible layers
@@ -316,8 +365,37 @@ export const useLayerStore = create<LayerState>()(
       const visibleLayers = get().getVisibleLayers()
       if (visibleLayers.length <= 1) return
       
-      // TODO: Implement actual merging
-      console.log('Merge visible not implemented - would merge', visibleLayers.length, 'layers')
+      const canvas = useCanvasStore.getState().fabricCanvas
+      if (!canvas) return
+      
+      // Create a new layer for merged content
+      const mergedLayer = get().addLayer({
+        name: 'Merged',
+        type: 'image'
+      })
+      
+      // Move all objects from visible layers to the new layer
+      visibleLayers.forEach(layer => {
+        if (layer.objectIds) {
+          const objects = canvas.getObjects().filter(obj => 
+            layer.objectIds?.includes(obj.get('id' as any) as string)
+          )
+          
+          objects.forEach(obj => {
+            obj.set('layerId' as any, mergedLayer.id)
+            mergedLayer.objectIds!.push(obj.get('id' as any) as string)
+          })
+        }
+      })
+      
+      // Remove the original layers
+      visibleLayers.forEach(layer => {
+        if (layer.id !== mergedLayer.id) {
+          get().removeLayer(layer.id)
+        }
+      })
+      
+      canvas.renderAll()
     },
     
     // Flatten image
@@ -325,8 +403,38 @@ export const useLayerStore = create<LayerState>()(
       const layers = get().layers
       if (layers.length <= 1) return
       
-      // TODO: Implement actual flattening
-      console.log('Flatten image not implemented - would flatten', layers.length, 'layers')
+      // This is essentially merge all layers
+      const canvas = useCanvasStore.getState().fabricCanvas
+      if (!canvas) return
+      
+      // Create a new background layer
+      const flattenedLayer = get().addLayer({
+        name: 'Background',
+        type: 'image'
+      })
+      
+      // Move all objects to the flattened layer
+      layers.forEach(layer => {
+        if (layer.id !== flattenedLayer.id && layer.objectIds) {
+          const objects = canvas.getObjects().filter(obj => 
+            layer.objectIds?.includes(obj.get('id' as any) as string)
+          )
+          
+          objects.forEach(obj => {
+            obj.set('layerId' as any, flattenedLayer.id)
+            flattenedLayer.objectIds!.push(obj.get('id' as any) as string)
+          })
+        }
+      })
+      
+      // Remove all other layers
+      layers.forEach(layer => {
+        if (layer.id !== flattenedLayer.id) {
+          get().removeLayer(layer.id)
+        }
+      })
+      
+      canvas.renderAll()
     },
     
     // Sync layers to canvas
@@ -334,14 +442,33 @@ export const useLayerStore = create<LayerState>()(
       const canvas = useCanvasStore.getState().fabricCanvas
       if (!canvas) return
       
+      // Get all objects and sort by layer position
+      const layers = get().layers
+      const allObjects = canvas.getObjects()
+      
+      // Create a map of objects by layer
+      const objectsByLayer = new Map<string, FabricObject[]>()
+      
+      allObjects.forEach(obj => {
+        const layerId = obj.get('layerId' as any) as string
+        if (layerId) {
+          if (!objectsByLayer.has(layerId)) {
+            objectsByLayer.set(layerId, [])
+          }
+          objectsByLayer.get(layerId)!.push(obj)
+        }
+      })
+      
       // Clear canvas and re-add in correct order
       canvas.clear()
       
-      const layers = get().layers
       layers.forEach(layer => {
-        if (layer.fabricObject && layer.visible) {
-          layer.fabricObject.opacity = layer.opacity / 100
-          canvas.add(layer.fabricObject)
+        if (layer.visible && objectsByLayer.has(layer.id)) {
+          const layerObjects = objectsByLayer.get(layer.id)!
+          layerObjects.forEach(obj => {
+            obj.opacity = (layer.opacity / 100) * (obj.opacity || 1)
+            canvas.add(obj)
+          })
         }
       })
       
@@ -361,11 +488,45 @@ export const useLayerStore = create<LayerState>()(
       thumbCanvas.height = 50
       const thumbCtx = thumbCanvas.getContext('2d')
       
-      if (thumbCtx && layer.fabricObject) {
-        // TODO: Render layer object to thumbnail
-        // For now, just create a placeholder
-        thumbCtx.fillStyle = '#ccc'
-        thumbCtx.fillRect(0, 0, 50, 50)
+      if (thumbCtx && layer.objectIds && layer.objectIds.length > 0) {
+        // Get layer objects
+        const layerObjects = canvas.getObjects().filter(obj => 
+          layer.objectIds?.includes(obj.get('id' as any) as string)
+        )
+        
+        if (layerObjects.length > 0) {
+          // Calculate bounds of all objects
+          let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+          
+          layerObjects.forEach(obj => {
+            const bounds = obj.getBoundingRect()
+            minX = Math.min(minX, bounds.left)
+            minY = Math.min(minY, bounds.top)
+            maxX = Math.max(maxX, bounds.left + bounds.width)
+            maxY = Math.max(maxY, bounds.top + bounds.height)
+          })
+          
+          // Scale to fit thumbnail
+          const width = maxX - minX
+          const height = maxY - minY
+          const scale = Math.min(50 / width, 50 / height) * 0.9
+          
+          // Draw objects to thumbnail
+          thumbCtx.save()
+          thumbCtx.translate(25, 25)
+          thumbCtx.scale(scale, scale)
+          thumbCtx.translate(-(minX + width / 2), -(minY + height / 2))
+          
+          layerObjects.forEach(obj => {
+            obj.render(thumbCtx as any)
+          })
+          
+          thumbCtx.restore()
+        } else {
+          // Empty layer - draw placeholder
+          thumbCtx.fillStyle = '#ccc'
+          thumbCtx.fillRect(0, 0, 50, 50)
+        }
         
         const thumbnail = thumbCanvas.toDataURL()
         get().updateLayer(layerId, { thumbnail })
@@ -403,23 +564,26 @@ export const useLayerStore = create<LayerState>()(
       let activeLayer = get().getActiveLayer()
       if (!activeLayer) {
         // Create a default layer if none exists
-        const newLayer = get().addLayer({ type: 'image' })
-        activeLayer = newLayer
+        activeLayer = get().addLayer({ type: 'image' })
       }
       
       const canvas = useCanvasStore.getState().fabricCanvas
       if (!canvas) return
       
+      // Generate ID for the object if it doesn't have one
+      const objectId = object.get('id' as any) as string || 
+        `${object.type}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+      object.set('id' as any, objectId)
+      object.set('layerId' as any, activeLayer.id)
+      
       // Add the object to canvas
       canvas.add(object)
       
-      // Associate the object with the layer
-      // For now, we'll store a reference in the layer
-      // In a full implementation, we'd track all objects per layer
-      activeLayer.fabricObject = object
-      
-      // Update the layer to trigger re-render
-      get().updateLayer(activeLayer.id, { fabricObject: object })
+      // Update layer's object list
+      const currentObjects = activeLayer.objectIds || []
+      get().updateLayer(activeLayer.id, { 
+        objectIds: [...currentObjects, objectId] 
+      })
       
       canvas.renderAll()
     }

@@ -210,18 +210,20 @@ export function LayersPanel() {
   const { executeCommand } = useHistoryStore()
   
   const [draggedLayer, setDraggedLayer] = useState<Layer | null>(null)
+  const [hasInitialized, setHasInitialized] = useState(false)
   const activeLayer = getActiveLayer()
   
   // Initialize with a default layer if none exist
   useEffect(() => {
-    if (layers.length === 0) {
+    if (layers.length === 0 && !hasInitialized) {
+      setHasInitialized(true)
       const defaultLayer = addLayer({
         name: 'Background',
         type: 'image'
       })
       executeCommand(new CreateLayerCommand(defaultLayer))
     }
-  }, [layers.length, addLayer, executeCommand])
+  }, [layers.length, addLayer, executeCommand, hasInitialized])
   
   const handleDragStart = (e: React.DragEvent, layer: Layer) => {
     setDraggedLayer(layer)

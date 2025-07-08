@@ -54,7 +54,7 @@ export interface Layer {
   locked: boolean
   parentId?: string // for groups
   childIds?: string[] // for groups
-  fabricObject?: FabricObject // The actual canvas object
+  objectIds?: string[] // IDs of fabric objects in this layer
   thumbnail?: string // Base64 thumbnail for UI
   position: number // Layer stack position (0 = bottom)
 }
@@ -93,6 +93,12 @@ export interface HistoryEntry {
   timestamp: number
   thumbnail?: string
   data?: any
+}
+
+// Custom properties we add to Fabric objects
+export interface CustomFabricObjectProps {
+  layerId?: string
+  id?: string
 }
 
 // Export types

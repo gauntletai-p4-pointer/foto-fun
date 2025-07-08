@@ -3,10 +3,12 @@ import { TOOL_IDS } from '@/constants'
 import type { Canvas } from 'fabric'
 import { Ellipse } from 'fabric'
 import { SelectionTool } from '../base/SelectionTool'
-import { selectionStyle, startMarchingAnts, stopMarchingAnts, type SelectionShape } from '../utils/selectionRenderer'
+import { selectionStyle } from '../utils/selectionRenderer'
+import { useCanvasStore } from '@/store/canvasStore'
+import { useSelectionStore } from '@/store/selectionStore'
 
 /**
- * Elliptical Marquee Tool - Creates elliptical/circular selections
+ * Elliptical Marquee Tool - Creates elliptical selections
  * Extends SelectionTool for consistent selection behavior
  */
 class MarqueeEllipseTool extends SelectionTool {
@@ -15,7 +17,7 @@ class MarqueeEllipseTool extends SelectionTool {
   name = 'Elliptical Marquee Tool'
   icon = Circle
   cursor = 'crosshair'
-  shortcut = 'M'
+  shortcut = 'M' // Same as rectangular marquee (cycle between them)
   
   // Override to use Ellipse instead of Path
   protected feedbackEllipse: Ellipse | null = null
@@ -50,12 +52,17 @@ class MarqueeEllipseTool extends SelectionTool {
     
     const dimensions = this.getConstrainedDimensions()
     
-    // Ellipse uses center point and radii
+    // Calculate center and radii
+    const centerX = dimensions.x + dimensions.width / 2
+    const centerY = dimensions.y + dimensions.height / 2
+    const rx = dimensions.width / 2
+    const ry = dimensions.height / 2
+    
     this.feedbackEllipse.set({
-      left: dimensions.x + dimensions.width / 2,
-      top: dimensions.y + dimensions.height / 2,
-      rx: dimensions.width / 2,
-      ry: dimensions.height / 2
+      left: centerX,
+      top: centerY,
+      rx: rx,
+      ry: ry
     })
     
     this.canvas.renderAll()
@@ -76,21 +83,46 @@ class MarqueeEllipseTool extends SelectionTool {
       // Too small, remove it
       this.canvas.remove(this.feedbackEllipse)
     } else {
-      // Start marching ants animation
-      startMarchingAnts(this.feedbackEllipse as SelectionShape, this.canvas)
+      // Get selection manager and mode
+      const canvasStore = useCanvasStore.getState()
+      const selectionStore = useSelectionStore.getState()
       
-      // Apply selection based on current mode
-      this.selectionStore.applySelection(this.canvas, this.feedbackEllipse)
+      if (!canvasStore.selectionManager || !canvasStore.selectionRenderer) {
+        console.error('Selection system not initialized')
+        this.canvas.remove(this.feedbackEllipse)
+        return
+      }
       
-      // TODO: Create SelectionCommand when command system is implemented
+      // Create pixel selection
+      const cx = this.feedbackEllipse.left ?? 0
+      const cy = this.feedbackEllipse.top ?? 0
+      
+      canvasStore.selectionManager.createEllipse(
+        cx,
+        cy,
+        rx,
+        ry,
+        selectionStore.mode
+      )
+      
+      // Update selection state
+      selectionStore.updateSelectionState(true, {
+        x: cx - rx,
+        y: cy - ry,
+        width: rx * 2,
+        height: ry * 2
+      })
+      
+      // Start rendering the selection
+      canvasStore.selectionRenderer.startRendering()
+      
+      // Remove the temporary feedback ellipse
+      this.canvas.remove(this.feedbackEllipse)
+      
       console.log('Ellipse selection created:', {
-        mode: this.selectionMode,
-        bounds: {
-          left: this.feedbackEllipse.left,
-          top: this.feedbackEllipse.top,
-          rx: this.feedbackEllipse.rx,
-          ry: this.feedbackEllipse.ry
-        }
+        mode: selectionStore.mode,
+        center: { x: cx, y: cy },
+        radii: { rx, ry }
       })
     }
     
@@ -98,18 +130,9 @@ class MarqueeEllipseTool extends SelectionTool {
   }
   
   /**
-   * Override cleanup to handle marching ants
+   * Override cleanup
    */
   protected cleanup(canvas: Canvas): void {
-    // Clean up any existing selections
-    const objects = canvas.getObjects()
-    objects.forEach(obj => {
-      if (obj instanceof Ellipse && !obj.selectable) {
-        stopMarchingAnts(obj as SelectionShape)
-        canvas.remove(obj)
-      }
-    })
-    
     // Clean up feedback ellipse if exists
     if (this.feedbackEllipse && canvas.contains(this.feedbackEllipse)) {
       canvas.remove(this.feedbackEllipse)

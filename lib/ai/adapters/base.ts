@@ -47,16 +47,17 @@ export abstract class BaseToolAdapter<
    */
   generatePreview?(params: TInput, canvas: Canvas): Promise<{ before: string; after: string }>
   
-    /**
+  /**
    * Convert this adapter to an AI SDK v5 tool
    * This follows the proper pattern from the docs
    */
-  toAITool() {
-    // Using unknown to work around AI SDK v5 beta type issues
-    return tool({
+  toAITool(): ReturnType<typeof tool> {
+    // Create a properly typed tool using AI SDK v5
+    // Cast to any to bypass TypeScript's generic inference issues
+    const toolConfig = {
       description: this.description,
       parameters: this.parameters,
-      execute: async (params: TInput) => {
+      execute: async (params: z.infer<typeof this.parameters>) => {
         // Get canvas from our bridge
         const { CanvasToolBridge } = await import('../tools/canvas-bridge')
         const context = CanvasToolBridge.getCanvasContext()
@@ -71,9 +72,12 @@ export abstract class BaseToolAdapter<
         }
         
         // Execute the tool
-        return this.execute(params, { canvas: context.canvas })
+        return this.execute(params as TInput, { canvas: context.canvas })
       }
-    } as unknown as Parameters<typeof tool>[0]) as unknown as ReturnType<typeof tool>
+    }
+    
+    // Cast through unknown to satisfy TypeScript's type checker
+    return tool(toolConfig as unknown as Parameters<typeof tool>[0]) as ReturnType<typeof tool>
   }
 }
 

@@ -30,7 +30,7 @@ interface CropOutput {
 export class CropToolAdapter extends BaseToolAdapter<CropInput, CropOutput> {
   tool = cropTool
   aiName = 'cropImage'
-  description = 'Crop the image to specified pixel coordinates. Parameters must be in pixels (integers), not fractions or percentages. For example, to crop the left half of a 1000x800 image, use width:500, not width:0.5. The x,y coordinates specify the top-left corner of the crop area.'
+  description = 'Crop the image to specified pixel coordinates. The x,y coordinates specify the top-left corner of the crop area, and width,height specify the crop dimensions. All values must be positive integers in pixels.'
   
   parameters = cropParameters
   

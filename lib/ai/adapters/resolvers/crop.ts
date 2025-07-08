@@ -1,3 +1,21 @@
+/**
+ * CURRENTLY UNUSED - Kept for potential future implementation
+ * 
+ * This was a parameter resolver for the crop tool that would convert natural language
+ * like "crop 50% from edges" into exact pixel coordinates.
+ * 
+ * We decided not to use this approach because:
+ * 1. The AI model (GPT-4) can calculate pixel values when given canvas dimensions
+ * 2. Adding resolvers for every tool creates unnecessary complexity
+ * 3. The AI SDK v5 is designed for the model to handle parameter resolution
+ * 
+ * Current approach: System prompt includes canvas dimensions and calculation examples,
+ * allowing the AI to directly provide exact parameters.
+ * 
+ * This file demonstrates how we could implement sophisticated parameter resolution
+ * if needed in the future (e.g., for object detection-based cropping).
+ */
+
 import { z } from 'zod'
 import { generateObject } from 'ai'
 import { openai } from '@/lib/ai/providers'

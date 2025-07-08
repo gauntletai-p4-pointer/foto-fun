@@ -1,50 +1,47 @@
 import { create } from 'zustand'
-import type { Canvas, FabricObject } from 'fabric'
+import { devtools } from 'zustand/middleware'
+import type { SelectionMode } from '@/lib/editor/selection'
 
-interface SelectionStore {
-  activeSelection: FabricObject | null
-  selectionMode: 'new' | 'add' | 'subtract' | 'intersect'
+interface SelectionState {
+  // Selection mode
+  mode: SelectionMode
   
-  setActiveSelection: (selection: FabricObject | null) => void
-  setSelectionMode: (mode: 'new' | 'add' | 'subtract' | 'intersect') => void
-  clearSelection: (canvas: Canvas) => void
+  // Selection options
+  feather: number
+  antiAlias: boolean
   
-  // Helper to apply selection with current mode
-  applySelection: (canvas: Canvas, newSelection: FabricObject) => void
+  // Selection state
+  hasSelection: boolean
+  selectionBounds: { x: number; y: number; width: number; height: number } | null
+  
+  // Actions
+  setMode: (mode: SelectionMode) => void
+  setFeather: (feather: number) => void
+  setAntiAlias: (antiAlias: boolean) => void
+  updateSelectionState: (hasSelection: boolean, bounds?: { x: number; y: number; width: number; height: number } | null) => void
 }
 
-export const useSelectionStore = create<SelectionStore>((set, get) => ({
-  activeSelection: null,
-  selectionMode: 'new',
-  
-  setActiveSelection: (selection) => set({ activeSelection: selection }),
-  
-  setSelectionMode: (mode) => set({ selectionMode: mode }),
-  
-  clearSelection: (canvas) => {
-    const { activeSelection } = get()
-    if (activeSelection) {
-      canvas.remove(activeSelection)
-      set({ activeSelection: null })
-    }
-  },
-  
-  applySelection: (canvas, newSelection) => {
-    const { activeSelection, selectionMode } = get()
-    
-    // For now, just handle 'new' mode
-    // TODO: Implement add, subtract, intersect operations
-    if (selectionMode === 'new') {
-      // Remove existing selection
-      if (activeSelection) {
-        canvas.remove(activeSelection)
-      }
+export const useSelectionStore = create<SelectionState>()(
+  devtools(
+    (set) => ({
+      // Initial state
+      mode: 'replace',
+      feather: 0,
+      antiAlias: true,
+      hasSelection: false,
+      selectionBounds: null,
       
-      // Add new selection
-      canvas.add(newSelection)
-      set({ activeSelection: newSelection })
+      // Actions
+      setMode: (mode) => set({ mode }),
+      setFeather: (feather) => set({ feather: Math.max(0, Math.min(100, feather)) }),
+      setAntiAlias: (antiAlias) => set({ antiAlias }),
+      updateSelectionState: (hasSelection, bounds) => set({ 
+        hasSelection, 
+        selectionBounds: bounds || null 
+      }),
+    }),
+    {
+      name: 'selection-store'
     }
-    
-    canvas.renderAll()
-  }
-})) 
+  )
+) 

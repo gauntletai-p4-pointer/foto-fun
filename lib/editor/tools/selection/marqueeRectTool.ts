@@ -3,7 +3,9 @@ import { TOOL_IDS } from '@/constants'
 import type { Canvas } from 'fabric'
 import { Rect } from 'fabric'
 import { SelectionTool } from '../base/SelectionTool'
-import { selectionStyle, startMarchingAnts, stopMarchingAnts, type SelectionShape } from '../utils/selectionRenderer'
+import { selectionStyle } from '../utils/selectionRenderer'
+import { useCanvasStore } from '@/store/canvasStore'
+import { useSelectionStore } from '@/store/selectionStore'
 
 /**
  * Rectangular Marquee Tool - Creates rectangular selections
@@ -73,20 +75,49 @@ class MarqueeRectTool extends SelectionTool {
       // Too small, remove it
       this.canvas.remove(this.feedbackRect)
     } else {
-      // Start marching ants animation
-      startMarchingAnts(this.feedbackRect as SelectionShape, this.canvas)
+      // Get selection manager and mode
+      const canvasStore = useCanvasStore.getState()
+      const selectionStore = useSelectionStore.getState()
       
-      // Apply selection based on current mode
-      this.selectionStore.applySelection(this.canvas, this.feedbackRect)
+      if (!canvasStore.selectionManager || !canvasStore.selectionRenderer) {
+        console.error('Selection system not initialized')
+        this.canvas.remove(this.feedbackRect)
+        return
+      }
       
-      // TODO: Create SelectionCommand when command system is implemented
+      // Create pixel selection
+      const bounds = this.feedbackRect.getBoundingRect()
+      canvasStore.selectionManager.createRectangle(
+        bounds.left,
+        bounds.top,
+        bounds.width,
+        bounds.height,
+        selectionStore.mode
+      )
+      
+      // Update selection state
+      selectionStore.updateSelectionState(true, {
+        x: bounds.left,
+        y: bounds.top,
+        width: bounds.width,
+        height: bounds.height
+      })
+      
+      // Start rendering the selection
+      canvasStore.selectionRenderer.startRendering()
+      
+      // Remove the temporary feedback rectangle
+      this.canvas.remove(this.feedbackRect)
+      
+      // Record command for undo/redo
+      // Note: We'd need to enhance CreateSelectionCommand to work with rectangles
       console.log('Rectangle selection created:', {
-        mode: this.selectionMode,
+        mode: selectionStore.mode,
         bounds: {
-          left: this.feedbackRect.left,
-          top: this.feedbackRect.top,
-          width: this.feedbackRect.width,
-          height: this.feedbackRect.height
+          left: bounds.left,
+          top: bounds.top,
+          width: bounds.width,
+          height: bounds.height
         }
       })
     }
@@ -98,15 +129,6 @@ class MarqueeRectTool extends SelectionTool {
    * Override cleanup to handle marching ants
    */
   protected cleanup(canvas: Canvas): void {
-    // Clean up any existing selections
-    const objects = canvas.getObjects()
-    objects.forEach(obj => {
-      if (obj instanceof Rect && !obj.selectable) {
-        stopMarchingAnts(obj as SelectionShape)
-        canvas.remove(obj)
-      }
-    })
-    
     // Clean up feedback rect if exists
     if (this.feedbackRect && canvas.contains(this.feedbackRect)) {
       canvas.remove(this.feedbackRect)

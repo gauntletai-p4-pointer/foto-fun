@@ -25,7 +25,17 @@ export function AIChat() {
   } = useChat({
     transport: new DefaultChatTransport({
       api: '/api/ai/chat',
+      body: {
+        canvasContext: fabricCanvas ? {
+          dimensions: {
+            width: fabricCanvas.getWidth(),
+            height: fabricCanvas.getHeight()
+          },
+          hasContent: fabricCanvas.getObjects().length > 0
+        } : undefined
+      }
     }),
+    maxSteps: 5, // Enable multi-step tool calls
     onError: (error: Error) => {
       console.error('Chat error:', error)
     },
@@ -111,45 +121,85 @@ export function AIChat() {
                 )}
               >
                 {/* Render message parts */}
-                {message.parts.map((part, index) => {
+                {message.parts?.map((part, index) => {
+                  // Debug log to see the actual part structure
+                  console.log('Message part:', part)
+                  
                   if (part.type === 'text') {
                     return <p key={index} className="text-sm whitespace-pre-wrap">{part.text}</p>
                   }
                   
-                  // Check if it's a tool part (e.g., tool-adjustBrightness)
-                  if (part.type.startsWith('tool-')) {
-                    const toolName = part.type.replace('tool-', '')
-                    const toolPart = part as {
-                      state: 'input-streaming' | 'input-available' | 'output-available' | 'output-error'
-                      errorText?: string
+                  // Check if it's a tool invocation part
+                  if (part.type === 'tool-invocation' || (part as unknown as { toolInvocation?: unknown }).toolInvocation) {
+                    const toolPart = part as unknown as {
+                      toolInvocation: {
+                        toolCallId: string
+                        toolName: string
+                        state: 'input-streaming' | 'input-available' | 'output-available' | 'output-error'
+                        input?: unknown
+                        output?: unknown
+                        errorText?: string
+                      }
                     }
                     
                     return (
                       <div
-                        key={index}
-                        className="mt-2 p-2 bg-background/50 rounded text-xs text-foreground"
+                        key={toolPart.toolInvocation.toolCallId || index}
+                        className="mt-2 p-3 bg-background/50 rounded border border-border/50"
                       >
-                        {toolPart.state === 'input-streaming' && (
-                          <div className="flex items-center gap-2">
-                            <Loader2 className="w-3 h-3 animate-spin" />
-                            <span>Preparing {toolName}...</span>
+                        <div className="font-medium text-xs mb-1">{toolPart.toolInvocation.toolName}</div>
+                        
+                        {toolPart.toolInvocation.state === 'input-streaming' && (
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2 text-muted-foreground">
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                              <span className="text-xs">Preparing parameters...</span>
+                            </div>
+                            {toolPart.toolInvocation.input ? (
+                              <pre className="text-xs bg-muted/50 p-2 rounded overflow-auto">
+                                {JSON.stringify(toolPart.toolInvocation.input, null, 2)}
+                              </pre>
+                            ) : null}
                           </div>
                         )}
-                        {toolPart.state === 'input-available' && (
-                          <div className="flex items-center gap-2">
-                            <Loader2 className="w-3 h-3 animate-spin" />
-                            <span>Using {toolName}...</span>
+                        
+                        {toolPart.toolInvocation.state === 'input-available' && (
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2 text-muted-foreground">
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                              <span className="text-xs">Executing {toolPart.toolInvocation.toolName}...</span>
+                            </div>
+                            {toolPart.toolInvocation.input ? (
+                              <pre className="text-xs bg-muted/50 p-2 rounded overflow-auto">
+                                {JSON.stringify(toolPart.toolInvocation.input, null, 2)}
+                              </pre>
+                            ) : null}
                           </div>
                         )}
-                        {toolPart.state === 'output-available' && (
-                          <div className="text-muted-foreground">
-                            ✓ {toolName} completed
+                        
+                        {toolPart.toolInvocation.state === 'output-available' && (
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2 text-green-600 dark:text-green-400">
+                              <span className="text-xs">✓</span>
+                              <span className="text-xs">{toolPart.toolInvocation.toolName} completed</span>
+                            </div>
+                            {toolPart.toolInvocation.output ? (
+                              <pre className="text-xs bg-muted/50 p-2 rounded overflow-auto">
+                                {JSON.stringify(toolPart.toolInvocation.output, null, 2)}
+                              </pre>
+                            ) : null}
                           </div>
                         )}
-                        {toolPart.state === 'output-error' && (
-                          <div className="flex items-center gap-2 text-destructive">
-                            <AlertCircle className="w-3 h-3" />
-                            <span>Error: {toolPart.errorText}</span>
+                        
+                        {toolPart.toolInvocation.state === 'output-error' && (
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2 text-destructive">
+                              <AlertCircle className="w-3 h-3" />
+                              <span className="text-xs">Error in {toolPart.toolInvocation.toolName}</span>
+                            </div>
+                            <div className="text-xs text-destructive/90">
+                              {toolPart.toolInvocation.errorText || 'Unknown error occurred'}
+                            </div>
                           </div>
                         )}
                       </div>

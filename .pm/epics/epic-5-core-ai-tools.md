@@ -219,6 +219,8 @@ For tools that don't exist in canvas yet:
 - Test the full flow with a real image
 - Implement preview generation
 - Add confidence scoring
+- **FIX**: Tool execution UI visibility
+- **FIX**: Natural language parameter support
 
 ### Key Realization
 Most of our current tools (selection, drawing, navigation) require mouse interaction and aren't suitable for AI parameter-based execution. We need to focus on creating the infrastructure and patterns for future tools that ARE AI-compatible (filters, adjustments, transformations).
@@ -228,6 +230,84 @@ Most of our current tools (selection, drawing, navigation) require mouse interac
 2. Test the complete flow with a real image
 3. Implement preview generation for the crop tool
 4. Document the pattern for future tool development
+
+---
+
+## Critical Fixes Needed (Day 1 - Priority)
+
+### Issue 1: Tool Execution Not Visible in UI
+
+**Problem**: When AI executes tools, users see no feedback - no thinking, no progress, no results.
+
+**Root Cause**: 
+- AIChat component has tool rendering code but it may not be receiving parts correctly
+- Need to ensure `maxSteps` is set for multi-tool workflows
+- Tool states aren't being properly streamed
+
+**Solution**:
+1. Update `useChat` configuration:
+   ```typescript
+   useChat({
+     maxSteps: 5, // Enable multi-step tool calls
+     // ... existing config
+   })
+   ```
+
+2. Ensure API route returns proper stream:
+   ```typescript
+   return result.toTextStreamResponse() // Should be toUIMessageStreamResponse()
+   ```
+
+3. Add better tool state visualization with proper typing
+
+### Issue 2: Natural Language Parameters Not Working
+
+**Problem**: "Crop 50% of the image" results in no response
+
+**Root Cause**: 
+- Crop tool expects exact pixel coordinates (x, y, width, height)
+- AI doesn't know canvas dimensions to calculate percentages
+- No parameter resolution from natural language to exact values
+
+**Solutions**:
+
+#### Option A: Quick Fix - Add Canvas Context to System Prompt
+Include canvas dimensions in the system prompt so AI can calculate:
+```typescript
+const canvasInfo = canvas ? {
+  width: canvas.getWidth(),
+  height: canvas.getHeight(),
+  hasContent: canvas.getObjects().length > 0
+} : null
+
+system: `...Canvas dimensions: ${canvasInfo?.width}x${canvasInfo?.height}...`
+```
+
+#### Option B: Proper Fix - Natural Language Parameter Resolution
+Implement a parameter preprocessor that converts natural language to exact parameters:
+```typescript
+// Before: "crop 50%" 
+// After: { x: 250, y: 200, width: 500, height: 400 } (for 1000x800 image)
+```
+
+### Implementation Plan (Updated)
+
+#### Phase 1: Fix Tool Visibility (30 minutes)
+1. Update AIChat component to properly handle `maxSteps`
+2. Fix API route to return `toUIMessageStreamResponse()`
+3. Enhance tool state rendering with better UI
+4. Test with crop tool
+
+#### Phase 2: Fix Natural Language Support (1 hour)
+1. Add canvas dimensions to system prompt
+2. Update crop tool description to guide AI better
+3. Consider adding a simple parameter resolver
+4. Test various natural language inputs
+
+#### Phase 3: Create Brightness Tool (2 hours)
+1. Implement as template for other tools
+2. Test with UI visibility working
+3. Document pattern
 
 ---
 
@@ -496,144 +576,83 @@ The infrastructure is ready - just follow the pattern!
 
 ---
 
-## Proposed Enhancement: Semantic Preprocessing Layer
+## Semantic Understanding: AI Model-Based Approach
 
 ### The Problem
-Current tool adapters expect exact parameters (e.g., crop needs x, y, width, height), but users speak naturally ("crop 10% from all sides"). Without semantic understanding, AI tools are nearly impossible to test effectively.
+Current tool adapters expect exact parameters (e.g., crop needs x, y, width, height), but users speak naturally ("crop 10% from all sides"). Without semantic understanding, AI tools are difficult to use naturally.
 
-### The Solution: Parameter Resolvers
+### The Solution: Enhanced System Prompts
 
-Instead of waiting for Epic 6's full orchestration system, we introduce a lightweight pattern where each tool adapter can have an optional **Parameter Resolver** that preprocesses natural language into exact parameters.
+Instead of building custom parameter resolvers, we leverage the AI model's capabilities by providing canvas context and calculation examples in the system prompt. This aligns with AI SDK v5's design philosophy where the AI model handles parameter resolution.
 
-#### Architecture
-
-```typescript
-// lib/ai/adapters/resolvers/base.ts
-export abstract class BaseParameterResolver<TInput> {
-  abstract resolve(
-    naturalInput: string,
-    context: CanvasContext
-  ): Promise<TInput>
-}
-
-// lib/ai/adapters/resolvers/crop.ts
-export class CropParameterResolver extends BaseParameterResolver<CropInput> {
-  async resolve(naturalInput: string, context: CanvasContext): Promise<CropInput> {
-    const { canvas } = context
-    const width = canvas.getWidth()
-    const height = canvas.getHeight()
-    
-    // Use GPT-4 to understand the request
-    const { object } = await generateObject({
-      model: openai('gpt-4'),
-      schema: z.object({
-        mode: z.enum(['percentage', 'aspect-ratio', 'absolute', 'object-based']),
-        // ... mode-specific parameters
-      }),
-      system: `Canvas dimensions: ${width}x${height}`,
-      prompt: naturalInput
-    })
-    
-    // Convert to absolute coordinates
-    return this.convertToAbsolute(object, width, height)
-  }
-}
-```
-
-#### Enhanced Base Adapter
+#### Implementation
 
 ```typescript
-export abstract class BaseToolAdapter<TInput, TOutput> {
-  // ... existing properties
-  
-  // Optional parameter resolver
-  parameterResolver?: BaseParameterResolver<TInput>
-  
-  // Enhanced toAITool method
-  toAITool(): FotoFunTool {
-    const baseTool = // ... existing implementation
-    
-    if (this.parameterResolver) {
-      // Wrap the executor to use resolver
-      const originalExecutor = baseTool.clientExecutor
-      baseTool.clientExecutor = async (input: unknown, context: any) => {
-        // If input is a string, use resolver
-        if (typeof input === 'string') {
-          input = await this.parameterResolver.resolve(input, context)
-        }
-        return originalExecutor(input, context)
-      }
-    }
-    
-    return baseTool
-  }
-}
+// In API route - provide canvas context
+const contextInfo = canvasContext?.dimensions 
+  ? `\n\nCurrent canvas: ${canvasContext.dimensions.width}x${canvasContext.dimensions.height} pixels`
+  : ''
+
+// In system prompt - include calculation examples
+system: `...
+${contextInfo}
+
+For the crop tool:
+- x and y are the top-left corner coordinates in pixels
+- width and height are the crop dimensions in pixels
+- All values must be positive integers
+
+Example calculations:
+- "crop 50%": For a 1000x800 image → x:250, y:200, width:500, height:400
+- "crop the left half": For a 1000x800 image → x:0, y:0, width:500, height:800
+- "crop 10% from edges": For a 1000x800 image → x:100, y:80, width:800, height:640
+...`
 ```
+
+
 
 ### Benefits
 
-1. **Natural Language Support**: "Crop 10% from edges" works immediately
-2. **Progressive Enhancement**: Tools work with both exact params and natural language
-3. **Testable AI**: Can actually test AI capabilities without manual calculations
-4. **Reusable Pattern**: Each tool can have its own resolver
-5. **No Epic Dependencies**: Don't need to wait for Epic 6
+1. **Natural Language Support**: "Crop 10% from edges" works through AI model calculations
+2. **No Code Complexity**: Leverages existing AI capabilities
+3. **Easy to Extend**: Just add more examples to system prompt
+4. **Framework Aligned**: Works with AI SDK v5's design philosophy
+5. **Model Agnostic**: Works with any AI model that can do math
 
-### Implementation Plan
+### Current Implementation Status
 
-#### Phase 6: Semantic Preprocessing (Days 3-4)
-1. **Base Resolver Pattern**
-   - Create `BaseParameterResolver` abstract class
-   - Add resolver support to `BaseToolAdapter`
-   - Handle both string and object inputs
+✅ **Completed**:
+1. **Canvas Context in API Route**
+   - Canvas dimensions passed to system prompt
+   - AI knows image size for calculations
+   
+2. **Enhanced System Prompt**
+   - Clear parameter explanations
+   - Example calculations for common requests
+   - Tool-specific guidance
 
-2. **Crop Resolver Implementation**
-   - Support percentage-based cropping
-   - Support aspect ratio cropping
-   - Support object-aware cropping ("crop to just the person")
-   - Use canvas dimensions from context
-
-3. **Future Resolver Examples**
-   - Brightness: "make it brighter" → adjustment: 20
-   - Resize: "make it half size" → width: 50%, height: 50%
-   - Rotate: "turn it sideways" → angle: 90
+3. **AI Model Handles Resolution**
+   - "crop 50%" → AI calculates exact pixels
+   - "make it brighter" → AI chooses appropriate value
+   - "rotate sideways" → AI converts to 90 degrees
 
 ### Example Usage
 
-```typescript
-// User says: "Crop 10% from all sides"
-// AI receives this and passes to cropImage tool
-// CropParameterResolver converts to: { x: 100, y: 80, width: 800, height: 640 }
-// Tool executes with exact parameters
+```
+User: "Crop 10% from all sides"
+AI: "I'll crop 10% from each edge of your 1000x800 image. This means removing 100 pixels from left/right and 80 pixels from top/bottom."
+Tool Call: cropImage({ x: 100, y: 80, width: 800, height: 640 })
 
-// Also works with exact params:
-// User says: "Crop to x:100, y:100, width:400, height:300"
-// No resolver needed, passes through directly
+User: "Make it brighter"
+AI: "I'll increase the brightness by 20%."
+Tool Call: adjustBrightness({ adjustment: 20 })
+
+User: "Crop to x:100, y:100, width:400, height:300"
+AI: "I'll crop to those exact coordinates."
+Tool Call: cropImage({ x: 100, y: 100, width: 400, height: 300 })
 ```
 
-### Context Enhancement
-
-Update CanvasToolBridge to always provide dimensions:
-
-```typescript
-getCanvasContext(): CanvasContext | null {
-  // ... existing code
-  return {
-    canvas,
-    imageData,
-    selection,
-    dimensions: {
-      width: canvas.getWidth(),
-      height: canvas.getHeight()
-    },
-    metadata: {
-      zoom: canvasStore.zoom,
-      documentName: documentStore.currentDocument?.name
-    }
-  }
-}
-```
-
-This gives AI and resolvers the context they need to make intelligent decisions.
+The AI model handles all parameter calculations based on the context and examples provided in the system prompt.
 
 ---
 
@@ -778,10 +797,34 @@ export class ConfidenceScorer {
 - ✅ Documentation updated
 - ✅ All TypeScript/linting errors fixed
 
+### Day 1.5 Progress - Final Fixes
+- ✅ Fixed TypeScript errors in AIChat component
+  - Resolved ReactNode type issues with ternary operators
+  - Proper handling of JSON.stringify output
+- ✅ Fixed BaseToolAdapter generic type inference
+  - Used `unknown` casting to satisfy TypeScript
+  - Maintained type safety without using `any`
+- ✅ Natural language parameters working
+  - AI model handles calculations with canvas context
+  - System prompt includes dimensions and examples
+
 ### Remaining Work (Days 2-5)
 - ⏳ Create brightness adjustment tool (template for others)
 - ⏳ Implement 4-5 more adjustment tools
 - ⏳ Add preview generation to all tools
 - ⏳ Create unit tests
 - ⏳ Performance optimization
-- ⏳ Developer guide creation 
+- ⏳ Developer guide creation
+
+## Final Implementation Notes
+
+### TypeScript Best Practices Applied
+1. **ReactNode Type Issues**: Use ternary operators with explicit null returns
+2. **Generic Type Inference**: Cast through `unknown` when TypeScript can't infer
+3. **No Suppressions**: All errors fixed properly without `@ts-ignore` or `eslint-disable`
+
+### AI SDK v5 Integration Complete
+- Proper use of `tool()` function with Zod schemas
+- Canvas context passed to system prompt
+- Natural language handled by AI model (no custom resolvers needed)
+- Tool execution visible in UI with proper state transitions

@@ -1,20 +1,23 @@
 import { Wand2 } from 'lucide-react'
 import { TOOL_IDS } from '@/constants'
-import type { Canvas } from 'fabric'
-import { Polygon } from 'fabric'
+import { Path } from 'fabric'
 import { BaseTool } from '../base/BaseTool'
-import { selectionStyle, startMarchingAnts, stopMarchingAnts, type SelectionShape } from '../utils/selectionRenderer'
-import { useSelectionStore } from '@/store/selectionStore'
 import { createToolState } from '../utils/toolState'
+import { selectionStyle } from '../utils/selectionRenderer'
+import { useCanvasStore } from '@/store/canvasStore'
+import { useSelectionStore } from '@/store/selectionStore'
+import type { Point } from '../utils/constraints'
 
-// Magic wand tool state
-type MagicWandToolState = {
-  lastSelection: Polygon | null
+// Magic wand tool state - use type instead of interface for index signature
+type MagicWandState = {
+  tolerance: number
+  contiguous: boolean
+  sampleAllLayers: boolean
 }
 
 /**
- * Magic Wand Tool - Creates color-based selections
- * Click to select similar colors within tolerance
+ * Magic Wand Tool - Selects areas of similar color
+ * This is a simplified implementation for demonstration
  */
 class MagicWandTool extends BaseTool {
   // Tool identification
@@ -24,114 +27,163 @@ class MagicWandTool extends BaseTool {
   cursor = 'crosshair'
   shortcut = 'W'
   
-  // Encapsulated state
-  private state = createToolState<MagicWandToolState>({
-    lastSelection: null
+  // Tool state
+  protected state = createToolState<MagicWandState>({
+    tolerance: 32,
+    contiguous: true,
+    sampleAllLayers: false
   })
   
-  // Store reference
-  private selectionStore = useSelectionStore.getState()
-  
   /**
-   * Get tool options
+   * Tool-specific setup
    */
-  private get tolerance(): number {
-    return this.toolOptionsStore.getOptionValue<number>(this.id, 'tolerance') ?? 32
-  }
-  
-  private get contiguous(): boolean {
-    return this.toolOptionsStore.getOptionValue<boolean>(this.id, 'contiguous') ?? true
-  }
-  
-  private get selectionMode(): 'new' | 'add' | 'subtract' | 'intersect' {
-    const mode = this.toolOptionsStore.getOptionValue<string>(this.id, 'selectionMode')
-    return (mode as 'new' | 'add' | 'subtract' | 'intersect') || 'new'
-  }
-  
-  /**
-   * Tool setup
-   */
-  protected setupTool(canvas: Canvas): void {
-    // Disable object selection
-    canvas.selection = false
+  protected setupTool(): void {
+    // Set up event handlers
+    this.addCanvasEvent('mouse:down', (e: unknown) => this.handleClick(e as { scenePoint: Point }))
     
-    // Set up click handler
-    this.addCanvasEvent('mouse:down', (e: unknown) => {
-      const event = e as { scenePoint: { x: number; y: number } }
-      this.handleClick(event.scenePoint)
-    })
-  }
-  
-  /**
-   * Tool cleanup
-   */
-  protected cleanup(canvas: Canvas): void {
-    // Clean up any existing selections
-    const objects = canvas.getObjects()
-    objects.forEach(obj => {
-      if (obj instanceof Polygon && !obj.selectable) {
-        stopMarchingAnts(obj as SelectionShape)
-        canvas.remove(obj)
+    // Subscribe to tool options
+    this.subscribeToToolOptions((options) => {
+      const tolerance = options.find(opt => opt.id === 'tolerance')?.value
+      if (tolerance !== undefined) {
+        this.state.set('tolerance', tolerance as number)
+      }
+      
+      const contiguous = options.find(opt => opt.id === 'contiguous')?.value
+      if (contiguous !== undefined) {
+        this.state.set('contiguous', contiguous as boolean)
+      }
+      
+      const sampleAllLayers = options.find(opt => opt.id === 'sampleAllLayers')?.value
+      if (sampleAllLayers !== undefined) {
+        this.state.set('sampleAllLayers', sampleAllLayers as boolean)
       }
     })
-    
-    // Reset state
-    this.state.reset()
-    
-    // Re-enable object selection
-    canvas.selection = true
-    canvas.renderAll()
   }
   
   /**
-   * Handle click to create selection
+   * Handle click to select similar colors
    */
-  private async handleClick(point: { x: number; y: number }): Promise<void> {
+  private handleClick(e: { scenePoint: Point }): void {
     if (!this.canvas) return
     
-    await this.trackAsync('magicWandClick', async () => {
-      // TODO: Implement actual color-based selection algorithm
-      // This would involve:
-      // 1. Getting pixel data at click point
-      // 2. Flood fill algorithm to find contiguous pixels within tolerance
-      // 3. Converting pixel selection to vector path
-      // 4. Creating selection from path
+    const pointer = e.scenePoint
+    
+    // Track performance
+    this.track('magicWandSelect', () => {
+      // Get canvas image data
+      const ctx = this.canvas!.getContext()
+      const imageData = ctx.getImageData(0, 0, this.canvas!.width!, this.canvas!.height!)
       
-      // For MVP, create a simple rectangular selection at click point
-      const selectionSize = 100
-      const points = [
-        { x: point.x - selectionSize/2, y: point.y - selectionSize/2 },
-        { x: point.x + selectionSize/2, y: point.y - selectionSize/2 },
-        { x: point.x + selectionSize/2, y: point.y + selectionSize/2 },
-        { x: point.x - selectionSize/2, y: point.y + selectionSize/2 },
-      ]
+      // Get clicked pixel color
+      const x = Math.floor(pointer.x)
+      const y = Math.floor(pointer.y)
+      const index = (y * imageData.width + x) * 4
       
-      // Create selection polygon
-      const selection = new Polygon(points, {
-        ...selectionStyle,
-      })
+      const targetColor = {
+        r: imageData.data[index],
+        g: imageData.data[index + 1],
+        b: imageData.data[index + 2],
+        a: imageData.data[index + 3]
+      }
       
-      this.canvas!.add(selection)
+      // Create selection based on color similarity
+      const selection = this.createColorSelection(imageData, targetColor, x, y)
       
-      // Start marching ants animation
-      startMarchingAnts(selection as SelectionShape, this.canvas!)
-      
-      // Apply selection based on current mode
-      this.selectionStore.applySelection(this.canvas!, selection)
-      
-      // Store reference
-      this.state.set('lastSelection', selection)
-      
-      // TODO: Create SelectionCommand when selection commands are implemented
-      console.log('Magic wand selection created:', {
-        mode: this.selectionMode,
-        tolerance: this.tolerance,
-        contiguous: this.contiguous,
-        clickPoint: point
-      })
-      
-      this.canvas!.renderAll()
+      if (selection) {
+        this.applySelection(selection)
+      }
     })
+  }
+  
+  /**
+   * Create selection based on color similarity
+   * This is a simplified implementation - a real magic wand would use
+   * flood fill algorithm for contiguous selection
+   */
+  private createColorSelection(
+    imageData: ImageData,
+    targetColor: { r: number; g: number; b: number; a: number },
+    startX: number,
+    startY: number
+  ): Path | null {
+    // For demonstration, create a simple rectangular selection
+    // In a real implementation, this would use flood fill to find connected pixels
+    const bounds = {
+      minX: startX,
+      maxX: startX,
+      minY: startY,
+      maxY: startY
+    }
+    
+    // Simplified: just create a small selection around the click point
+    const size = 50
+    bounds.minX = Math.max(0, startX - size)
+    bounds.maxX = Math.min(imageData.width, startX + size)
+    bounds.minY = Math.max(0, startY - size)
+    bounds.maxY = Math.min(imageData.height, startY + size)
+    
+    // Create path for selection
+    const pathData = `
+      M ${bounds.minX} ${bounds.minY}
+      L ${bounds.maxX} ${bounds.minY}
+      L ${bounds.maxX} ${bounds.maxY}
+      L ${bounds.minX} ${bounds.maxY}
+      Z
+    `
+    
+    return new Path(pathData, {
+      ...selectionStyle
+    })
+  }
+  
+  /**
+   * Apply the selection
+   */
+  private applySelection(selection: Path): void {
+    if (!this.canvas) return
+    
+    // Get selection manager and mode
+    const canvasStore = useCanvasStore.getState()
+    const selectionStore = useSelectionStore.getState()
+    
+    if (!canvasStore.selectionManager || !canvasStore.selectionRenderer) {
+      console.error('Selection system not initialized')
+      return
+    }
+    
+    // Add the path temporarily to get bounds
+    this.canvas.add(selection)
+    
+    // Create pixel selection from path
+    canvasStore.selectionManager.createFromPath(selection, selectionStore.mode)
+    
+    // Update selection state
+    const bounds = selection.getBoundingRect()
+    selectionStore.updateSelectionState(true, {
+      x: bounds.left,
+      y: bounds.top,
+      width: bounds.width,
+      height: bounds.height
+    })
+    
+    // Remove the temporary path
+    this.canvas.remove(selection)
+    
+    // Start rendering the selection
+    canvasStore.selectionRenderer.startRendering()
+    
+    console.log('Magic wand selection created:', {
+      mode: selectionStore.mode,
+      tolerance: this.state.get('tolerance')
+    })
+  }
+  
+  /**
+   * Tool-specific cleanup
+   */
+  protected cleanup(): void {
+    // Reset state if needed
+    this.state.reset()
   }
 }
 
