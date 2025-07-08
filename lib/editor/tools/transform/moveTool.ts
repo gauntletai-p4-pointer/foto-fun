@@ -1,9 +1,9 @@
 import { Move } from 'lucide-react'
 import { TOOL_IDS } from '@/constants'
 import type { Canvas, FabricObject } from 'fabric'
-import { BaseTool } from './base/BaseTool'
-import { createToolState } from './utils/toolState'
-import { TransformCommand } from '@/lib/commands/canvas'
+import { BaseTool } from '../base/BaseTool'
+import { createToolState } from '../utils/toolState'
+import { TransformCommand } from '@/lib/editor/commands/canvas'
 
 // Move tool state
 type MoveToolState = {

@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
-import type { ICommand } from '@/lib/commands/base'
+import type { ICommand } from '@/lib/editor/commands/base'
 
 export interface HistoryEntry {
   command: ICommand

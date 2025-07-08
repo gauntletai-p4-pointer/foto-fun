@@ -2,10 +2,10 @@ import { Wand2 } from 'lucide-react'
 import { TOOL_IDS } from '@/constants'
 import type { Canvas } from 'fabric'
 import { Polygon } from 'fabric'
-import { BaseTool } from './base/BaseTool'
-import { selectionStyle, startMarchingAnts, stopMarchingAnts, type SelectionShape } from './utils/selectionRenderer'
+import { BaseTool } from '../base/BaseTool'
+import { selectionStyle, startMarchingAnts, stopMarchingAnts, type SelectionShape } from '../utils/selectionRenderer'
 import { useSelectionStore } from '@/store/selectionStore'
-import { createToolState } from './utils/toolState'
+import { createToolState } from '../utils/toolState'
 
 // Magic wand tool state
 type MagicWandToolState = {

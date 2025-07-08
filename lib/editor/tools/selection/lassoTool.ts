@@ -2,8 +2,8 @@ import { Lasso } from 'lucide-react'
 import { TOOL_IDS } from '@/constants'
 import type { Canvas } from 'fabric'
 import { Polygon } from 'fabric'
-import { SelectionTool } from './base/SelectionTool'
-import { selectionStyle, startMarchingAnts, stopMarchingAnts, type SelectionShape } from './utils/selectionRenderer'
+import { SelectionTool } from '../base/SelectionTool'
+import { selectionStyle, startMarchingAnts, stopMarchingAnts, type SelectionShape } from '../utils/selectionRenderer'
 
 /**
  * Lasso Tool - Creates freehand selections

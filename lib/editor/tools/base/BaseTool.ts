@@ -5,7 +5,7 @@ import { useCanvasStore } from '@/store/canvasStore'
 import { useToolOptionsStore } from '@/store/toolOptionsStore'
 import type { ToolOption } from '@/store/toolOptionsStore'
 import { usePerformanceStore } from '@/store/performanceStore'
-import type { ICommand } from '@/lib/commands/base'
+import type { ICommand } from '@/lib/editor/commands/base'
 import { useHistoryStore } from '@/store/historyStore'
 // TODO: Uncomment when stores are implemented
 // import { useLayerStore } from '@/store/layerStore'

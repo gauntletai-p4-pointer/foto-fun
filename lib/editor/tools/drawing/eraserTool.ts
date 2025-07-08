@@ -2,7 +2,7 @@ import { Eraser } from 'lucide-react'
 import { TOOL_IDS } from '@/constants'
 import type { Canvas, TSimplePathData } from 'fabric'
 import { PencilBrush } from 'fabric'
-import { DrawingTool } from './base/DrawingTool'
+import { DrawingTool } from '../base/DrawingTool'
 import type { ToolOption } from '@/store/toolOptionsStore'
 
 /**

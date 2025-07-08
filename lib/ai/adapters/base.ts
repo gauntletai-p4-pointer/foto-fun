@@ -80,4 +80,4 @@ export abstract class BaseToolAdapter<
 /**
  * Type alias for tool adapters
  */
-export type ToolAdapter = BaseToolAdapter<any, any> 
+export type ToolAdapter = BaseToolAdapter<unknown, unknown> 

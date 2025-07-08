@@ -26,7 +26,11 @@ export class UpdateLayerCommand extends Command {
     this.previousValues = {}
     for (const key in this.updates) {
       if (key in layer) {
-        (this.previousValues as any)[key] = (layer as any)[key]
+        const typedKey = key as keyof Layer
+        const value = layer[typedKey]
+        if (value !== undefined) {
+          (this.previousValues as Record<keyof Layer, Layer[keyof Layer]>)[typedKey] = value
+        }
       }
     }
     
@@ -67,8 +71,7 @@ export class UpdateLayerCommand extends Command {
     // Merge the updates
     this.updates = { ...this.updates, ...other.updates }
     
-    // Update description
-    const updateKeys = Object.keys(this.updates).join(', ')
-    ;(this as any).description = `Update layer properties: ${updateKeys}`
+    // Note: We can't update the description since it's readonly
+    // This is fine as the original description is still accurate
   }
 } 

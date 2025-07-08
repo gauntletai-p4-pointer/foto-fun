@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react'
 import { useToolStore } from '@/store/toolStore'
-import { tools } from '@/lib/tools'
+import { tools } from '@/lib/editor/tools'
 import { cn } from '@/lib/utils'
 
 export function ToolPalette() {

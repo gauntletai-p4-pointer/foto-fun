@@ -1,8 +1,8 @@
 import { Hand } from 'lucide-react'
 import { TOOL_IDS } from '@/constants'
 import type { Canvas } from 'fabric'
-import { BaseTool } from './base/BaseTool'
-import { createToolState } from './utils/toolState'
+import { BaseTool } from '../base/BaseTool'
+import { createToolState } from '../utils/toolState'
 
 // Hand tool state
 type HandToolState = {

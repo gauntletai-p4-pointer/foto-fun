@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { BaseToolAdapter } from '../base'
-import { cropTool } from '@/lib/tools/cropTool'
+import { cropTool } from '@/lib/editor/tools/transform/cropTool'
 import { Rect, type FabricObject } from 'fabric'
 
 // Input schema following AI SDK v5 patterns

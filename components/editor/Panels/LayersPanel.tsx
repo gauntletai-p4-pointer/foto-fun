@@ -41,7 +41,7 @@ import {
   RemoveLayerCommand,
   UpdateLayerCommand,
   ReorderLayersCommand
-} from '@/lib/commands/layer'
+} from '@/lib/editor/commands/layer'
 
 // Icons for different layer types
 const layerTypeIcons: Record<LayerType, React.ComponentType<{ className?: string }>> = {

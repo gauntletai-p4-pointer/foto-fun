@@ -389,13 +389,23 @@ export abstract class BaseToolAdapter<TInput, TOutput> {
 
 ### Tool Categories
 
-#### Basic Tools (Epic 5)
+#### Parameter-Based Tools (AI Compatible)
+Tools that accept discrete parameters and can be controlled by AI:
 - **Adjustments**: brightness, contrast, saturation, exposure, highlights/shadows
 - **Filters**: blur, sharpen, noise reduction, black & white, vintage
 - **Transforms**: crop, resize, rotate, flip
-- **Target Areas**: whole-image, selection, layer
+- **Colors**: hue/saturation/lightness, color balance, vibrance
+- **Text**: add text with position and style
+- **Shapes**: rectangles, circles, polygons with dimensions
 
-#### Semantic Tools (Epic 9)
+#### Interactive Tools (Not AI Compatible)
+Tools requiring mouse/touch interaction:
+- **Selection**: marquee, lasso, magic wand (require drawing paths)
+- **Drawing**: brush, pencil, eraser (require freehand input)
+- **Navigation**: hand, zoom (viewport control only)
+- **Vector**: pen tool, bezier curves (require path creation)
+
+#### Future Semantic Tools (Epic 9)
 - **semanticErase**: Erase objects by description ("remove the hat")
 - **semanticText**: Add text with intelligent placement ("add 'SALE' on his shirt")
 - **semanticTransform**: Transform specific objects ("make the car bigger")
@@ -404,12 +414,53 @@ export abstract class BaseToolAdapter<TInput, TOutput> {
 ### Tool Execution Flow
 
 ```
-User Request → Intent Recognition → Tool Selection → Parameter Extraction
-     ↓                                                      ↓
-Preview Generation ← Confidence Check ← Tool Execution ← Validation
+User Request → AI Chat → Tool Selection → Parameter Validation
+     ↓                                            ↓
+Canvas Bridge ← Tool Adapter ← AI SDK v5 Tool ← Zod Schema
      ↓
-User Approval → Canvas Update → State Update
+Canvas Update → Result → AI Response → User
 ```
+
+### Creating AI-Compatible Tools (Epic 5 Pattern)
+
+1. **Create Canvas Tool** (if not exists)
+   ```typescript
+   // lib/tools/brightnessTool.ts
+   export const brightnessTool: Tool = {
+     id: 'brightness',
+     name: 'Brightness',
+     // ... standard tool implementation
+   }
+   ```
+
+2. **Create Tool Adapter**
+   ```typescript
+   // lib/ai/adapters/tools/brightness.ts
+   export class BrightnessToolAdapter extends BaseToolAdapter<Input, Output> {
+     tool = brightnessTool
+     aiName = 'adjustBrightness'
+     description = 'Adjust brightness from -100 (darkest) to 100 (brightest)'
+     parameters = z.object({
+       adjustment: z.number().min(-100).max(100)
+         .describe('Brightness adjustment value')
+     })
+     
+     async execute(params, context) {
+       // Implementation using canvas
+     }
+   }
+   ```
+
+3. **Register Adapter**
+   ```typescript
+   // In autoDiscoverAdapters()
+   adapterRegistry.register(new BrightnessToolAdapter())
+   ```
+
+4. **Tool Available in AI Chat**
+   - AI automatically knows about the tool
+   - Descriptions included in system prompt
+   - Type-safe parameter validation
 
 ## Object & Region Detection
 

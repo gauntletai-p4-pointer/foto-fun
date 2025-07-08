@@ -2,9 +2,9 @@ import { Crop } from 'lucide-react'
 import { TOOL_IDS, ASPECT_RATIOS } from '@/constants'
 import type { Canvas, FabricObject } from 'fabric'
 import { Rect } from 'fabric'
-import { BaseTool } from './base/BaseTool'
-import { createToolState } from './utils/toolState'
-import type { Point } from './utils/constraints'
+import { BaseTool } from '../base/BaseTool'
+import { createToolState } from '../utils/toolState'
+import type { Point } from '../utils/constraints'
 
 // Crop tool state
 type CropToolState = {
