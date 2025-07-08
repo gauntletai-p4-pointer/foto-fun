@@ -74,19 +74,27 @@ export const adapterRegistry = new AdapterRegistry()
 
 // Auto-discovery function for adapters
 export async function autoDiscoverAdapters(): Promise<void> {
+  console.log('[AdapterRegistry] Starting auto-discovery of tool adapters')
+  
   try {
-    // In a real implementation, this would scan the adapters directory
-    // For now, we'll manually import known adapters
+    // Import all tool adapters
     const { CropToolAdapter } = await import('./tools/crop')
+    const { default: BrightnessAdapter } = await import('./tools/brightness')
+    const { default: ContrastAdapter } = await import('./tools/contrast')
+    const { default: SaturationAdapter } = await import('./tools/saturation')
+    const { default: HueAdapter } = await import('./tools/hue')
+    const { default: ExposureAdapter } = await import('./tools/exposure')
     
+    // Register all adapters
     adapterRegistry.register(new CropToolAdapter())
+    adapterRegistry.register(new BrightnessAdapter())
+    adapterRegistry.register(new ContrastAdapter())
+    adapterRegistry.register(new SaturationAdapter())
+    adapterRegistry.register(new HueAdapter())
+    adapterRegistry.register(ExposureAdapter)
     
-    // Future adapters would be imported here:
-    // const { BrightnessAdapter } = await import('./tools/brightness')
-    // const { ContrastAdapter } = await import('./tools/contrast')
-    // etc.
-    
+    console.log('[AdapterRegistry] Registered 6 tool adapters')
   } catch (error) {
-    console.error('Error auto-discovering adapters:', error)
+    console.error('[AdapterRegistry] Error during auto-discovery:', error)
   }
 } 

@@ -83,6 +83,550 @@ Before implementing text tools:
 
 ---
 
+## Comprehensive Implementation Plan
+
+### Key Findings from Analysis
+
+1. **Tool Architecture (Epic 1)**:
+   - All tools extend `BaseTool` with proper lifecycle management
+   - State management uses `createToolState` for encapsulation
+   - Command pattern for all undoable actions
+   - Layer integration via `LayerAwareMixin`
+   - Event handling through `addCanvasEvent` helpers
+
+2. **AI Integration (Epic 5)**:
+   - Adapter pattern for AI-compatible tools
+   - Only parameter-based tools work with AI
+   - Canvas bridge for context management
+   - Tool registry with auto-discovery
+
+3. **Current State**:
+   - Text tool placeholder exists but not implemented
+   - No font management system
+   - No text-specific commands
+   - Fabric.js has `IText` and `Textbox` classes ready
+
+### Phase 1: Foundation & Architecture (Day 1)
+
+#### 1.1 Create Base Text Tool Class
+```typescript
+// lib/editor/tools/base/BaseTextTool.ts
+export abstract class BaseTextTool extends BaseTool {
+  protected state = createToolState<TextToolState>({
+    currentText: null as IText | null,
+    isEditing: false,
+    originalText: '',
+    lastClickTime: 0,
+    lastClickPosition: { x: 0, y: 0 }
+  })
+  
+  // Common text tool behavior
+  protected abstract createTextObject(x: number, y: number): IText | Textbox
+  protected commitText(): void
+  protected handleTextChanged(): void
+  protected updateTextStyle(options: ToolOption[]): void
+}
+```
+
+#### 1.2 Font Management System
+```typescript
+// lib/editor/fonts/FontManager.ts
+export class FontManager {
+  private static instance: FontManager
+  private loadedFonts = new Set<string>()
+  private fontCache = new Map<string, FontFace>()
+  private systemFonts: string[] = []
+  
+  async loadFont(fontFamily: string, url?: string): Promise<void>
+  async loadGoogleFont(fontFamily: string): Promise<void>
+  getAvailableFonts(): FontInfo[]
+  preloadCommonFonts(): void
+  detectSystemFonts(): Promise<string[]>
+}
+
+// lib/editor/fonts/FontDatabase.ts
+export const FONT_DATABASE = {
+  system: ['Arial', 'Helvetica', 'Times New Roman', ...],
+  google: ['Roboto', 'Open Sans', 'Lato', ...],
+  adobe: ['Adobe Garamond', 'Myriad Pro', ...]
+}
+```
+
+#### 1.3 Text-Specific Types
+```typescript
+// types/text.ts
+export interface TextStyle {
+  fontFamily: string
+  fontSize: number
+  fontWeight: number | string
+  fontStyle: 'normal' | 'italic' | 'oblique'
+  textAlign: 'left' | 'center' | 'right' | 'justify'
+  lineHeight: number
+  letterSpacing: number
+  color: string
+  backgroundColor?: string
+  underline: boolean
+  overline: boolean
+  linethrough: boolean
+  textDecoration: string
+}
+
+export interface CharacterStyle extends TextStyle {
+  baseline: number
+  superscript: boolean
+  subscript: boolean
+  allCaps: boolean
+  smallCaps: boolean
+}
+
+export interface ParagraphStyle {
+  align: 'left' | 'center' | 'right' | 'justify'
+  indentLeft: number
+  indentRight: number
+  indentFirst: number
+  spaceBefore: number
+  spaceAfter: number
+  lineHeight: number
+}
+```
+
+### Phase 2: Core Text Tools Implementation (Days 2-3)
+
+#### 2.1 Horizontal Type Tool
+```typescript
+// lib/editor/tools/text/HorizontalTypeTool.ts
+class HorizontalTypeTool extends BaseTextTool {
+  id = TOOL_IDS.TYPE_HORIZONTAL
+  name = 'Horizontal Type Tool'
+  icon = Type
+  shortcut = 'T'
+  cursor = 'text'
+  
+  protected setupTool(canvas: Canvas): void {
+    canvas.selection = false
+    this.addCanvasEvent('mouse:down', this.handleMouseDown)
+    this.addCanvasEvent('text:changed', this.handleTextChanged)
+    this.subscribeToToolOptions(this.updateTextStyle)
+  }
+  
+  protected createTextObject(x: number, y: number): IText {
+    const options = this.toolOptionsStore.getToolOptions(this.id)
+    return new IText('', {
+      left: x,
+      top: y,
+      fontFamily: this.getOptionValue('fontFamily') || 'Arial',
+      fontSize: this.getOptionValue('fontSize') || 24,
+      fill: this.getOptionValue('color') || '#000000',
+      editable: true,
+      cursorColor: '#000000',
+      cursorWidth: 2
+    })
+  }
+}
+```
+
+#### 2.2 Text Commands
+```typescript
+// lib/editor/commands/text/AddTextCommand.ts
+export class AddTextCommand extends Command {
+  constructor(
+    private canvas: Canvas,
+    private textObject: IText,
+    private layerId?: string
+  ) {
+    super(`Add text`)
+  }
+  
+  async execute(): Promise<void> {
+    this.canvas.add(this.textObject)
+    if (this.layerId) {
+      LayerAwareMixin.addObjectToLayer.call(
+        { canvas: this.canvas }, 
+        this.textObject
+      )
+    }
+  }
+}
+
+// lib/editor/commands/text/EditTextCommand.ts
+export class EditTextCommand extends Command {
+  constructor(
+    private textObject: IText,
+    private oldText: string,
+    private newText: string
+  ) {
+    super(`Edit text`)
+  }
+  
+  async execute(): Promise<void> {
+    this.textObject.set('text', this.newText)
+    this.textObject.canvas?.renderAll()
+  }
+  
+  canMergeWith(other: Command): boolean {
+    return other instanceof EditTextCommand && 
+           other.textObject === this.textObject &&
+           Math.abs(other.timestamp - this.timestamp) < 1000
+  }
+}
+```
+
+#### 2.3 Tool Options Configuration
+```typescript
+// In store/toolOptionsStore.ts - add to defaultToolOptions
+[TOOL_IDS.TYPE_HORIZONTAL]: {
+  toolId: TOOL_IDS.TYPE_HORIZONTAL,
+  options: [
+    {
+      id: 'fontFamily',
+      type: 'dropdown',
+      label: 'Font',
+      value: 'Arial',
+      props: {
+        options: [], // Populated by FontManager
+        searchable: true,
+        showPreview: true,
+        async: true // Load fonts on demand
+      }
+    },
+    {
+      id: 'fontSize',
+      type: 'number',
+      label: 'Size',
+      value: 24,
+      props: { min: 8, max: 144, step: 1, unit: 'pt' }
+    },
+    {
+      id: 'color',
+      type: 'color',
+      label: 'Color',
+      value: '#000000'
+    },
+    {
+      id: 'alignment',
+      type: 'button-group',
+      label: 'Alignment',
+      value: 'left',
+      props: {
+        options: [
+          { value: 'left', icon: 'AlignLeft' },
+          { value: 'center', icon: 'AlignCenter' },
+          { value: 'right', icon: 'AlignRight' },
+          { value: 'justify', icon: 'AlignJustify' }
+        ]
+      }
+    }
+  ]
+}
+```
+
+### Phase 3: Typography Panels (Days 3-4)
+
+#### 3.1 Character Panel
+```typescript
+// components/editor/Panels/CharacterPanel/index.tsx
+export function CharacterPanel() {
+  const { fabricCanvas } = useCanvasStore()
+  const activeObject = fabricCanvas?.getActiveObject()
+  const isText = activeObject instanceof IText
+  
+  if (!isText) return null
+  
+  return (
+    <div className="p-4 space-y-4">
+      <FontSelector 
+        value={activeObject.fontFamily} 
+        onChange={(font) => updateTextProperty('fontFamily', font)}
+      />
+      <FontSizeInput value={activeObject.fontSize} />
+      <FontStyleButtons object={activeObject} />
+      <TextColorPicker value={activeObject.fill} />
+      <LetterSpacingControl value={activeObject.charSpacing} />
+      <LineHeightControl value={activeObject.lineHeight} />
+    </div>
+  )
+}
+```
+
+#### 3.2 Font Selector Component
+```typescript
+// components/editor/Panels/CharacterPanel/FontSelector.tsx
+export function FontSelector({ value, onChange }: FontSelectorProps) {
+  const [fonts, setFonts] = useState<FontInfo[]>([])
+  const [loading, setLoading] = useState(false)
+  const fontManager = FontManager.getInstance()
+  
+  useEffect(() => {
+    loadAvailableFonts()
+  }, [])
+  
+  const handleFontChange = async (fontFamily: string) => {
+    setLoading(true)
+    await fontManager.loadFont(fontFamily)
+    onChange(fontFamily)
+    setLoading(false)
+  }
+  
+  return (
+    <Select value={value} onValueChange={handleFontChange}>
+      <SelectTrigger>
+        <span style={{ fontFamily: value }}>{value}</span>
+      </SelectTrigger>
+      <SelectContent>
+        {fonts.map(font => (
+          <SelectItem 
+            key={font.family} 
+            value={font.family}
+            style={{ fontFamily: font.family }}
+          >
+            {font.name}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  )
+}
+```
+
+### Phase 4: Advanced Features (Days 4-5)
+
+#### 4.1 Text on Path Tool
+```typescript
+// lib/editor/tools/text/TypeOnPathTool.ts
+class TypeOnPathTool extends BaseTextTool {
+  id = TOOL_IDS.TYPE_ON_PATH
+  name = 'Type on a Path Tool'
+  
+  private selectedPath: Path | null = null
+  
+  protected setupTool(canvas: Canvas): void {
+    super.setupTool(canvas)
+    this.addCanvasEvent('mouse:over', this.handleMouseOver)
+  }
+  
+  private handleMouseOver(e: { target: FabricObject }): void {
+    if (e.target instanceof Path) {
+      this.canvas!.defaultCursor = 'text'
+      this.selectedPath = e.target
+    }
+  }
+  
+  protected createTextObject(x: number, y: number): IText {
+    if (!this.selectedPath) {
+      return super.createTextObject(x, y)
+    }
+    
+    // Create text that follows the path
+    const textPath = new TextOnPath(this.selectedPath, {
+      text: '',
+      ...this.getTextOptions()
+    })
+    
+    return textPath
+  }
+}
+```
+
+#### 4.2 Text Effects System
+```typescript
+// lib/editor/text/effects/TextWarp.ts
+export class TextWarp {
+  static warpStyles = {
+    arc: (text: IText, amount: number) => { /* ... */ },
+    bulge: (text: IText, amount: number) => { /* ... */ },
+    wave: (text: IText, amount: number) => { /* ... */ },
+    flag: (text: IText, amount: number) => { /* ... */ },
+    fish: (text: IText, amount: number) => { /* ... */ }
+  }
+  
+  static applyWarp(text: IText, style: keyof typeof TextWarp.warpStyles, amount: number): void {
+    const warpFunction = this.warpStyles[style]
+    if (warpFunction) {
+      warpFunction(text, amount)
+    }
+  }
+}
+```
+
+### Phase 5: AI Integration (Day 5)
+
+#### 5.1 Text Tool AI Adapter
+```typescript
+// lib/ai/adapters/tools/addText.ts
+export class AddTextToolAdapter extends BaseToolAdapter<AddTextInput, AddTextOutput> {
+  tool = horizontalTypeTool
+  aiName = 'addText'
+  description = 'Add text to the image at specified position with styling'
+  
+  parameters = z.object({
+    text: z.string().describe('The text content to add'),
+    x: z.number().optional().describe('X position in pixels (default: center)'),
+    y: z.number().optional().describe('Y position in pixels (default: center)'),
+    fontSize: z.number().min(8).max(144).optional().describe('Font size in points'),
+    fontFamily: z.string().optional().describe('Font family name'),
+    color: z.string().optional().describe('Text color in hex format'),
+    alignment: z.enum(['left', 'center', 'right']).optional()
+  })
+  
+  async execute(params: AddTextInput, context: { canvas: Canvas }): Promise<AddTextOutput> {
+    const { canvas } = context
+    
+    // Calculate position if not provided
+    const x = params.x ?? canvas.getWidth() / 2
+    const y = params.y ?? canvas.getHeight() / 2
+    
+    // Create text object
+    const text = new IText(params.text, {
+      left: x,
+      top: y,
+      fontSize: params.fontSize || 24,
+      fontFamily: params.fontFamily || 'Arial',
+      fill: params.color || '#000000',
+      textAlign: params.alignment || 'center',
+      originX: 'center',
+      originY: 'center'
+    })
+    
+    // Add to canvas with command
+    const command = new AddTextCommand(canvas, text)
+    await useHistoryStore.getState().executeCommand(command)
+    
+    return {
+      success: true,
+      objectId: text.get('id' as any) as string
+    }
+  }
+}
+```
+
+### Phase 6: Testing & Performance (Day 6)
+
+#### 6.1 Unit Tests
+```typescript
+// __tests__/tools/text/HorizontalTypeTool.test.ts
+describe('HorizontalTypeTool', () => {
+  let canvas: Canvas
+  let tool: HorizontalTypeTool
+  
+  beforeEach(() => {
+    canvas = new Canvas('test-canvas')
+    tool = new HorizontalTypeTool()
+    tool.onActivate(canvas)
+  })
+  
+  it('should create text on click', () => {
+    const event = createMouseEvent(100, 100)
+    tool.handleMouseDown(event)
+    
+    const objects = canvas.getObjects()
+    expect(objects).toHaveLength(1)
+    expect(objects[0]).toBeInstanceOf(IText)
+  })
+  
+  it('should apply font options', () => {
+    useToolOptionsStore.getState().updateOption(
+      TOOL_IDS.TYPE_HORIZONTAL,
+      'fontFamily',
+      'Georgia'
+    )
+    
+    const event = createMouseEvent(100, 100)
+    tool.handleMouseDown(event)
+    
+    const text = canvas.getObjects()[0] as IText
+    expect(text.fontFamily).toBe('Georgia')
+  })
+})
+```
+
+#### 6.2 Performance Optimizations
+```typescript
+// lib/editor/text/TextRenderCache.ts
+export class TextRenderCache {
+  private cache = new Map<string, ImageData>()
+  
+  getCacheKey(text: IText): string {
+    return `${text.text}_${text.fontFamily}_${text.fontSize}_${text.fill}`
+  }
+  
+  get(text: IText): ImageData | null {
+    return this.cache.get(this.getCacheKey(text)) || null
+  }
+  
+  set(text: IText, imageData: ImageData): void {
+    const key = this.getCacheKey(text)
+    this.cache.set(key, imageData)
+    
+    // Limit cache size
+    if (this.cache.size > 100) {
+      const firstKey = this.cache.keys().next().value
+      this.cache.delete(firstKey)
+    }
+  }
+}
+```
+
+### Implementation Timeline
+
+**Day 1**: Foundation
+- BaseTextTool class
+- Font management system
+- Text-specific types and constants
+
+**Day 2**: Core Tools
+- HorizontalTypeTool implementation
+- VerticalTypeTool implementation
+- Text commands (Add, Edit, Style)
+
+**Day 3**: UI Components
+- Character Panel
+- Paragraph Panel
+- Font selector with preview
+
+**Day 4**: Advanced Features
+- Type on Path tool
+- Type Mask tool
+- Text warping effects
+
+**Day 5**: Integration
+- AI adapter for text tools
+- Text styles/presets system
+- Performance optimizations
+
+**Day 6**: Testing & Polish
+- Unit tests
+- Integration tests
+- Performance benchmarks
+- Documentation
+
+### Key Technical Decisions
+
+1. **Font Loading Strategy**
+   - Lazy load fonts on demand
+   - Cache loaded fonts
+   - Preload common fonts
+   - Use font-display: swap for performance
+
+2. **Text State Management**
+   - Encapsulated in tool state
+   - Commands for all text changes
+   - Merge similar edits within 1 second
+
+3. **AI Integration**
+   - Only addText is AI-compatible
+   - Natural language for positioning ("top-left", "center")
+   - Style presets ("heading", "caption", "watermark")
+
+4. **Performance Considerations**
+   - Text render caching for repeated text
+   - Debounce text property updates
+   - Virtual scrolling for font lists
+   - Web workers for text effects
+
+This plan follows all established patterns from Epic 1 and Epic 5, ensuring consistency and maintainability while delivering a comprehensive text editing system.
+
+---
+
 ## Overview
 This epic covers implementation of all text-related tools in FotoFun, from basic text placement to advanced typography features. These tools are essential for creating text overlays, titles, and typographic designs.
 
@@ -966,14 +1510,14 @@ __tests__/
 
 ## Deliverables Checklist
 
-- [ ] Horizontal Type Tool (MVP)
-- [ ] Vertical Type Tool (MVP)
-- [ ] Type Mask Tool (MVP)
-- [ ] Character Panel UI
+- [x] Horizontal Type Tool (MVP)
+- [x] Vertical Type Tool (MVP)
+- [x] Type Mask Tool (MVP)
+- [x] Character Panel UI
 - [ ] Paragraph Panel UI
-- [ ] Font Manager service
-- [ ] Text commands for undo/redo
-- [ ] Tool options configuration
+- [x] Font Manager service
+- [x] Text commands for undo/redo
+- [x] Tool options configuration
 - [ ] Unit tests (80% coverage)
 - [ ] Manual test documentation
 - [ ] Performance benchmarks
@@ -985,41 +1529,86 @@ __tests__/
 - [ ] OpenType features panel
 - [ ] Text styles/presets system
 
+## Progress Summary
+
+### Phase 1: Foundation & Architecture ✅
+- Created BaseTextTool class with encapsulated state
+- Implemented FontManager singleton for font loading
+- Created FontDatabase with system and Google fonts
+- Defined comprehensive text types (TextStyle, CharacterStyle, ParagraphStyle)
+- Established text command structure (AddTextCommand, EditTextCommand)
+
+### Phase 2: Core Text Tools ✅
+- **HorizontalTypeTool**: Complete with all basic features
+  - Click to place text cursor
+  - Type to add/edit text
+  - Font, size, color, alignment controls
+  - Bold, italic, underline support
+  - Layer integration
+- **VerticalTypeTool**: Complete with vertical text support
+  - 90-degree rotation for vertical orientation
+  - Asian typography considerations
+  - Same formatting options as horizontal
+- **TypeMaskTool**: Complete with selection creation
+  - Creates text-shaped selections
+  - Visual indicator (dashed outline)
+  - Integrates with SelectionManager
+  - Works with all selection modes
+
+### Phase 3: Typography Panels (Partial) ⏳
+- **Character Panel**: Complete ✅
+  - FontSelector with system/Google fonts
+  - FontSizeInput with increment/decrement
+  - FontStyleButtons (bold, italic, underline)
+  - TextColorPicker with presets
+  - LetterSpacingControl with slider
+  - LineHeightControl with percentage display
+- **Paragraph Panel**: Not started ❌
+- **Glyphs Panel**: Not started ❌
+
+### Phase 4: Advanced Features (Not Started) ❌
+- Type on Path Tool
+- Text warping effects
+- OpenType features
+- Text styles/presets
+
+### Phase 5: AI Integration (Not Started) ❌
+- AddText AI adapter
+- Natural language text placement
+- Style presets for AI
+
+### Phase 6: Testing & Performance (Not Started) ❌
+- Unit tests
+- Integration tests
+- Performance optimization
+- Documentation
+
+## Next Steps
+
+1. **Complete Phase 3**:
+   - Create Paragraph Panel for alignment and spacing
+   - Create Glyphs Panel for special characters
+
+2. **Begin Phase 4**:
+   - Implement Type on Path Tool
+   - Add text warping effects
+
+3. **Testing**:
+   - Test all text tools with various fonts
+   - Test text editing and selection
+   - Test with different zoom levels
+   - Verify undo/redo functionality
+
+## Technical Notes
+
+- All text tools properly extend BaseTextTool
+- State management uses createToolState for encapsulation
+- Commands integrate with history system
+- Layer awareness implemented
+- Selection system integration complete for TypeMaskTool
+- Font loading infrastructure ready (needs Google Fonts API integration)
+
 ## File Organization
 
 ### New Files to Create
 ```
-/lib/tools/
-  baseTypeTool.ts          # Base class for all type tools
-  horizontalTypeTool.ts    # Standard text tool
-  verticalTypeTool.ts      # Vertical text variant
-  typeMaskTool.ts          # Text selection tool
-  typeOnPathTool.ts        # Text on curves
-  historyBrushTool.ts      # Paint from history states
-  artHistoryBrushTool.ts   # Stylized history painting
-  noteTool.ts              # Document annotations
-
-/lib/text/
-  textEngine.ts            # Core text rendering
-  fontManager.ts           # Font loading and management
-  textMeasurement.ts       # Text metrics calculations
-  pathText.ts              # Text on path algorithms
-  textEffects.ts           # Text layer effects
-
-/components/panels/
-  CharacterPanel.tsx       # Font, size, style controls
-  ParagraphPanel.tsx       # Alignment, spacing controls
-  GlyphsPanel.tsx          # Special character picker
-  NotesPanel.tsx           # View/manage annotations
-
-/components/text/
-  TextEditor.tsx           # In-canvas text editing
-  FontPicker.tsx           # Font selection dropdown
-  TextStylePresets.tsx     # Quick style buttons
-
-/lib/history/
-  historyBrush.ts          # History brush engine
-  artHistoryStyles.ts      # Art history brush styles
-```
-
-### Updates to Existing Files 

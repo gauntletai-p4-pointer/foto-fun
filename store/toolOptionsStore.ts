@@ -426,5 +426,342 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         value: true
       }
     ]
-  }
+  },
+  
+  // Adjustment tools
+  [TOOL_IDS.BRIGHTNESS]: {
+    toolId: TOOL_IDS.BRIGHTNESS,
+    options: [
+      {
+        id: 'adjustment',
+        type: 'slider',
+        label: 'Brightness',
+        value: 0,
+        props: {
+          min: -100,
+          max: 100,
+          step: 1,
+          unit: '%'
+        }
+      }
+    ]
+  },
+  
+  [TOOL_IDS.CONTRAST]: {
+    toolId: TOOL_IDS.CONTRAST,
+    options: [
+      {
+        id: 'adjustment',
+        type: 'slider',
+        label: 'Contrast',
+        value: 0,
+        props: {
+          min: -100,
+          max: 100,
+          step: 1,
+          unit: '%'
+        }
+      }
+    ]
+  },
+  
+  [TOOL_IDS.SATURATION]: {
+    toolId: TOOL_IDS.SATURATION,
+    options: [
+      {
+        id: 'adjustment',
+        type: 'slider',
+        label: 'Saturation',
+        value: 0,
+        props: {
+          min: -100,
+          max: 100,
+          step: 1,
+          unit: '%'
+        }
+      }
+    ]
+  },
+  
+  [TOOL_IDS.HUE]: {
+    toolId: TOOL_IDS.HUE,
+    options: [
+      {
+        id: 'hue',
+        type: 'slider',
+        label: 'Hue Rotation',
+        value: 0,
+        props: { min: -180, max: 180, step: 1, unit: '°' }
+      }
+    ]
+  },
+  
+  [TOOL_IDS.EXPOSURE]: {
+    toolId: TOOL_IDS.EXPOSURE,
+    options: [
+      {
+        id: 'exposure',
+        type: 'slider',
+        label: 'Exposure',
+        value: 0,
+        props: { min: -100, max: 100, step: 1, unit: '%' }
+      }
+    ]
+  },
+  
+  // Text tools
+  [TOOL_IDS.TYPE_HORIZONTAL]: {
+    toolId: TOOL_IDS.TYPE_HORIZONTAL,
+    options: [
+      {
+        id: 'fontFamily',
+        type: 'dropdown',
+        label: 'Font',
+        value: 'Arial',
+        props: {
+          options: [
+            { value: 'Arial', label: 'Arial' },
+            { value: 'Helvetica', label: 'Helvetica' },
+            { value: 'Times New Roman', label: 'Times New Roman' },
+            { value: 'Georgia', label: 'Georgia' },
+            { value: 'Courier New', label: 'Courier New' },
+            { value: 'Verdana', label: 'Verdana' },
+            { value: 'Trebuchet MS', label: 'Trebuchet MS' },
+            { value: 'Comic Sans MS', label: 'Comic Sans MS' },
+            { value: 'Impact', label: 'Impact' },
+            { value: 'Palatino', label: 'Palatino' },
+          ],
+          searchable: true,
+          showPreview: true
+        }
+      },
+      {
+        id: 'fontSize',
+        type: 'number',
+        label: 'Size',
+        value: 24,
+        props: {
+          min: 8,
+          max: 144,
+          step: 1,
+          unit: 'pt'
+        }
+      },
+      {
+        id: 'color',
+        type: 'color',
+        label: 'Color',
+        value: '#000000'
+      },
+      {
+        id: 'alignment',
+        type: 'button-group',
+        label: 'Alignment',
+        value: 'left',
+        props: {
+          options: [
+            { value: 'left', icon: 'AlignLeft' },
+            { value: 'center', icon: 'AlignCenter' },
+            { value: 'right', icon: 'AlignRight' },
+            { value: 'justify', icon: 'AlignJustify' }
+          ]
+        }
+      },
+      {
+        id: 'bold',
+        type: 'checkbox',
+        label: 'Bold',
+        value: false,
+        props: {
+          icon: 'Bold'
+        }
+      },
+      {
+        id: 'italic',
+        type: 'checkbox',
+        label: 'Italic',
+        value: false,
+        props: {
+          icon: 'Italic'
+        }
+      },
+      {
+        id: 'underline',
+        type: 'checkbox',
+        label: 'Underline',
+        value: false,
+        props: {
+          icon: 'Underline'
+        }
+      }
+    ]
+  },
+  
+  [TOOL_IDS.TYPE_VERTICAL]: {
+    toolId: TOOL_IDS.TYPE_VERTICAL,
+    options: [
+      {
+        id: 'fontFamily',
+        type: 'dropdown',
+        label: 'Font',
+        value: 'Arial',
+        props: {
+          options: [
+            { value: 'Arial', label: 'Arial' },
+            { value: 'Helvetica', label: 'Helvetica' },
+            { value: 'Times New Roman', label: 'Times New Roman' },
+            { value: 'Georgia', label: 'Georgia' },
+            { value: 'Courier New', label: 'Courier New' },
+            { value: 'Verdana', label: 'Verdana' },
+            { value: 'Trebuchet MS', label: 'Trebuchet MS' },
+            { value: 'Comic Sans MS', label: 'Comic Sans MS' },
+            { value: 'Impact', label: 'Impact' },
+            { value: 'Palatino', label: 'Palatino' },
+          ],
+          searchable: true,
+          showPreview: true
+        }
+      },
+      {
+        id: 'fontSize',
+        type: 'number',
+        label: 'Size',
+        value: 24,
+        props: {
+          min: 8,
+          max: 144,
+          step: 1,
+          unit: 'pt'
+        }
+      },
+      {
+        id: 'color',
+        type: 'color',
+        label: 'Color',
+        value: '#000000'
+      },
+      {
+        id: 'alignment',
+        type: 'button-group',
+        label: 'Alignment',
+        value: 'left',
+        props: {
+          options: [
+            { value: 'left', icon: 'AlignLeft' },
+            { value: 'center', icon: 'AlignCenter' },
+            { value: 'right', icon: 'AlignRight' },
+            { value: 'justify', icon: 'AlignJustify' }
+          ]
+        }
+      },
+      {
+        id: 'bold',
+        type: 'checkbox',
+        label: 'Bold',
+        value: false,
+        props: {
+          icon: 'Bold'
+        }
+      },
+      {
+        id: 'italic',
+        type: 'checkbox',
+        label: 'Italic',
+        value: false,
+        props: {
+          icon: 'Italic'
+        }
+      },
+      {
+        id: 'underline',
+        type: 'checkbox',
+        label: 'Underline',
+        value: false,
+        props: {
+          icon: 'Underline'
+        }
+      }
+    ]
+  },
+  
+  [TOOL_IDS.TYPE_MASK]: {
+    toolId: TOOL_IDS.TYPE_MASK,
+    options: [
+      {
+        id: 'fontFamily',
+        type: 'dropdown',
+        label: 'Font',
+        value: 'Arial',
+        props: {
+          options: [
+            { value: 'Arial', label: 'Arial' },
+            { value: 'Helvetica', label: 'Helvetica' },
+            { value: 'Times New Roman', label: 'Times New Roman' },
+            { value: 'Georgia', label: 'Georgia' },
+            { value: 'Courier New', label: 'Courier New' },
+            { value: 'Verdana', label: 'Verdana' },
+            { value: 'Trebuchet MS', label: 'Trebuchet MS' },
+            { value: 'Comic Sans MS', label: 'Comic Sans MS' },
+            { value: 'Impact', label: 'Impact' },
+            { value: 'Palatino', label: 'Palatino' },
+          ],
+          searchable: true,
+          showPreview: true
+        }
+      },
+      {
+        id: 'fontSize',
+        type: 'number',
+        label: 'Size',
+        value: 24,
+        props: {
+          min: 8,
+          max: 144,
+          step: 1,
+          unit: 'pt'
+        }
+      },
+      {
+        id: 'alignment',
+        type: 'button-group',
+        label: 'Alignment',
+        value: 'left',
+        props: {
+          options: [
+            { value: 'left', icon: 'AlignLeft' },
+            { value: 'center', icon: 'AlignCenter' },
+            { value: 'right', icon: 'AlignRight' },
+            { value: 'justify', icon: 'AlignJustify' }
+          ]
+        }
+      },
+      {
+        id: 'bold',
+        type: 'checkbox',
+        label: 'Bold',
+        value: false,
+        props: {
+          icon: 'Bold'
+        }
+      },
+      {
+        id: 'italic',
+        type: 'checkbox',
+        label: 'Italic',
+        value: false,
+        props: {
+          icon: 'Italic'
+        }
+      },
+      {
+        id: 'underline',
+        type: 'checkbox',
+        label: 'Underline',
+        value: false,
+        props: {
+          icon: 'Underline'
+        }
+      }
+    ]
+  },
 } 

@@ -116,18 +116,28 @@ Before implementing AI tools:
    - Tool state management patterns
    - Selection system with visual feedback
 
+5. **AI Tool Infrastructure** ✅
+   - Canvas Bridge with context extraction
+   - Tool Adapter pattern (BaseToolAdapter)
+   - Adapter Registry with auto-discovery
+   - Client Tool Executor
+   - Server/client execution separation
+
+6. **Crop Tool** ✅
+   - Full AI integration working
+   - Natural language support
+   - Proper error messages
+
 ### What's Missing ❌
 
 1. **AI Tool Implementations**
-   - Zero AI-callable tools created
-   - No canvas-to-AI bridge
-   - No tool execution handling in chat
+   - Zero adjustment tools (brightness, contrast, saturation)
+   - Zero filter tools (blur, sharpen, grayscale, sepia)
+   - Missing transform tools (rotate, flip, resize)
 
 2. **Core Systems**
    - Confidence scoring system
    - Preview generation system
-   - Tool-canvas bridge
-   - Client-side tool executor
 
 3. **AI-Specific Features**
    - Parameter adjustment UI
@@ -135,933 +145,275 @@ Before implementing AI tools:
    - Multi-step orchestration
    - Progress tracking
 
-### Implementation Plan
-
-#### NEW APPROACH: AI Uses Existing Tools
-Rather than creating separate AI-specific tools, we're building infrastructure for AI to use the same tools that users interact with. This ensures DRY, maintainable code.
-
-#### Phase 1: Foundation Infrastructure ✅ (Day 1)
-1. **Canvas Bridge** ✅
-   - `lib/ai/tools/canvas-bridge.ts`
-   - Canvas context extraction
-   - Image data handling
-   - Snapshot/restore functionality
-2. **Tool Adapter Pattern** ✅ (REFACTORED)
-   - `lib/ai/adapters/base.ts` - Base adapter interface
-   - `lib/ai/adapters/registry.ts` - Auto-registration system
-   - `lib/ai/adapters/tools/crop.ts` - Example implementation
-   - Each tool gets its own adapter file (scalable pattern)
-3. **Client Tool Executor** ✅
-   - `lib/ai/client/tool-executor.ts`
-   - Simplified to use tool registry
-   - Handles both AI tools and adapted tools
-
-#### Phase 2: Tool Integration ✅ (Day 1)
-1. **Crop Tool Adapter** ✅
-   - First working example
-   - Full implementation with preview
-   - Integrated with AI chat
-2. **API Route Integration** ✅
-   - Auto-discovery of adapters
-   - Dynamic system prompt
-   - Tool execution wired up
-
-#### Senior-Level Architecture Decisions ✅
-1. **Scalable Adapter Pattern**
-   - Each tool has its own adapter file
-   - Base class provides common functionality
-   - Type-safe with generics
-2. **Auto-Registration System**
-   - Adapters automatically register with tool registry
-   - System prompt dynamically generated
-   - No manual tool list maintenance
-3. **Unified Tool Registry**
-   - Single source of truth for all tools
-   - Both AI tools and adapted canvas tools
-   - Consistent execution interface
-
-#### Phase 3: Additional Tool Adapters (Days 2-3)
-When new tools that are AI-compatible are created:
-1. Create adapter in `lib/ai/adapters/tools/[toolname].ts`
-2. Extend `BaseToolAdapter`
-3. Define input/output schemas
-4. Implement execute method
-5. Add to auto-discovery in registry
-
-#### Phase 4: AI-Native Tools (Days 3-4)
-For tools that don't exist in canvas yet:
-1. **Brightness/Contrast** - When filter system exists
-2. **Saturation/Exposure** - When filter system exists
-3. **Blur/Sharpen** - When filter system exists
-
-#### Phase 5: Testing & Integration (Days 6-7)
-1. **Test Infrastructure**
-   - Tool discovery
-   - Execution flow
-   - Error handling
-2. **Create Demo Tools**
-   - One or two simple adjustment tools
-   - Show the pattern for future development
-
-### Current Progress
-
-✅ **Completed Today:**
-- Canvas bridge for AI-canvas interaction
-- Tool adapter pattern for using existing tools
-- Client tool executor
-- Identified that most current tools aren't AI-compatible (they're interactive drawing tools)
-- **MAJOR REFACTOR**: Implemented proper AI SDK v5 patterns
-- Fixed all TypeScript/linting errors
-- Updated all documentation
-
-❌ **Still Needed:**
-- Create at least one example of an AI-compatible adjustment tool
-- Test the full flow with a real image
-- Implement preview generation
-- Add confidence scoring
-- **FIX**: Tool execution UI visibility
-- **FIX**: Natural language parameter support
-
-### Key Realization
-Most of our current tools (selection, drawing, navigation) require mouse interaction and aren't suitable for AI parameter-based execution. We need to focus on creating the infrastructure and patterns for future tools that ARE AI-compatible (filters, adjustments, transformations).
-
-### Next Steps
-1. Create one example adjustment tool (e.g., brightness) that works for both UI and AI
-2. Test the complete flow with a real image
-3. Implement preview generation for the crop tool
-4. Document the pattern for future tool development
-
 ---
 
-## Critical Fixes Needed (Day 1 - Priority)
+## Comprehensive Implementation Plan
 
-### Issue 1: Tool Execution Not Visible in UI
+### Tool Categories & Priority
 
-**Problem**: When AI executes tools, users see no feedback - no thinking, no progress, no results.
+#### High Priority - Image Adjustment Tools (Most Demo-able)
+1. **Brightness** - Adjust image lightness/darkness (-100 to +100)
+2. **Contrast** - Adjust difference between light and dark (-100 to +100)
+3. **Saturation** - Adjust color intensity (-100 to +100)
+4. **Hue** - Shift colors around the color wheel (0 to 360 degrees)
+5. **Exposure** - Simulate camera exposure adjustment (-100 to +100)
+6. **Color Temperature** - Make image warmer (orange) or cooler (blue) (-100 to +100)
 
-**Root Cause**: 
-- AIChat component has tool rendering code but it may not be receiving parts correctly
-- Need to ensure `maxSteps` is set for multi-tool workflows
-- Tool states aren't being properly streamed
+#### High Priority - Transform Tools (Very Visual)
+7. **Rotate** - Rotate image by degrees (-360 to +360)
+8. **Flip** - Flip horizontally/vertically
+9. **Resize** - Change image dimensions (percentage or pixels)
 
-**Solution**:
-1. Update `useChat` configuration:
+#### Medium Priority - Filter Tools (Great for Demos)
+10. **Blur** - Gaussian blur effect (0 to 100)
+11. **Sharpen** - Enhance edge definition (0 to 100)
+12. **Grayscale** - Convert to black and white
+13. **Sepia** - Vintage brown tone effect (0 to 100)
+14. **Invert** - Invert colors
+
+### Implementation Phases
+
+#### Phase 1: Create Base Adjustment Tool Pattern (Day 1)
+
+1. **Add Tool IDs to Constants**
    ```typescript
-   useChat({
-     maxSteps: 5, // Enable multi-step tool calls
-     // ... existing config
-   })
+   // constants/index.ts
+   export const TOOL_IDS = {
+     // ... existing
+     BRIGHTNESS: 'brightness',
+     CONTRAST: 'contrast',
+     SATURATION: 'saturation',
+     HUE: 'hue',
+     EXPOSURE: 'exposure',
+     COLOR_TEMPERATURE: 'color-temperature',
+     ROTATE: 'rotate',
+     FLIP: 'flip',
+     RESIZE: 'resize',
+     BLUR: 'blur',
+     SHARPEN: 'sharpen',
+     GRAYSCALE: 'grayscale',
+     SEPIA: 'sepia',
+     INVERT: 'invert',
+   }
    ```
 
-2. Ensure API route returns proper stream:
-   ```typescript
-   return result.toTextStreamResponse() // Should be toUIMessageStreamResponse()
-   ```
+2. **Create Brightness Tool (Template for Others)**
+   - `lib/editor/tools/adjustments/brightnessTool.ts`
+   - Implements BaseTool pattern
+   - Uses Fabric.js filters
+   - Integrates with tool options store
 
-3. Add better tool state visualization with proper typing
+3. **Create Brightness Adapter**
+   - `lib/ai/adapters/tools/brightness.ts`
+   - Natural language descriptions
+   - Clear parameter schemas
+   - Proper error handling
 
-### Issue 2: Natural Language Parameters Not Working
+4. **Add Tool Options**
+   - Update `toolOptionsStore.ts`
+   - Slider for adjustment value
+   - Real-time preview updates
 
-**Problem**: "Crop 50% of the image" results in no response
+#### Phase 2: Implement Remaining Adjustment Tools (Day 2)
 
-**Root Cause**: 
-- Crop tool expects exact pixel coordinates (x, y, width, height)
-- AI doesn't know canvas dimensions to calculate percentages
-- No parameter resolution from natural language to exact values
+Following the brightness pattern:
+- **Contrast Tool** - Similar to brightness
+- **Saturation Tool** - Color intensity adjustment
+- **Hue Tool** - Color shifting
+- **Exposure Tool** - Brightness with different algorithm
+- **Color Temperature Tool** - Warm/cool color adjustment
 
-**Solutions**:
+#### Phase 3: Implement Transform Tools (Day 3)
 
-#### Option A: Quick Fix - Add Canvas Context to System Prompt
-Include canvas dimensions in the system prompt so AI can calculate:
-```typescript
-const canvasInfo = canvas ? {
-  width: canvas.getWidth(),
-  height: canvas.getHeight(),
-  hasContent: canvas.getObjects().length > 0
-} : null
+1. **Rotate Tool**
+   - Rotation by degrees
+   - Support for "rotate left/right" → ±90°
+   - "Flip upside down" → 180°
 
-system: `...Canvas dimensions: ${canvasInfo?.width}x${canvasInfo?.height}...`
-```
+2. **Flip Tool**
+   - Horizontal flip (mirror)
+   - Vertical flip
+   - Support "flip horizontally/vertically"
 
-#### Option B: Proper Fix - Natural Language Parameter Resolution
-Implement a parameter preprocessor that converts natural language to exact parameters:
-```typescript
-// Before: "crop 50%" 
-// After: { x: 250, y: 200, width: 500, height: 400 } (for 1000x800 image)
-```
+3. **Resize Tool**
+   - Percentage-based ("resize to 50%")
+   - Pixel-based ("resize to 800x600")
+   - Maintain aspect ratio option
 
-### Implementation Plan (Updated)
+#### Phase 4: Implement Filter Tools (Day 4)
 
-#### Phase 1: Fix Tool Visibility (30 minutes)
-1. Update AIChat component to properly handle `maxSteps`
-2. Fix API route to return `toUIMessageStreamResponse()`
-3. Enhance tool state rendering with better UI
-4. Test with crop tool
+1. **Blur Tool**
+   - Gaussian blur with radius
+   - "Slight blur" → radius 2-3
+   - "Heavy blur" → radius 8-10
 
-#### Phase 2: Fix Natural Language Support (1 hour)
-1. Add canvas dimensions to system prompt
-2. Update crop tool description to guide AI better
-3. Consider adding a simple parameter resolver
-4. Test various natural language inputs
+2. **Sharpen Tool**
+   - Convolute filter for sharpening
+   - Intensity control
 
-#### Phase 3: Create Brightness Tool (2 hours)
-1. Implement as template for other tools
-2. Test with UI visibility working
-3. Document pattern
+3. **Effect Filters**
+   - Grayscale (RemoveColor filter)
+   - Sepia (with intensity)
+   - Invert (simple filter)
 
----
+#### Phase 5: Testing & Polish (Day 5)
 
-## Architecture: Scalable Tool Adapter Pattern
-
-### Overview
-We've implemented a scalable, maintainable pattern for making canvas tools AI-compatible. Instead of a monolithic adapter file, each tool gets its own adapter that follows a consistent interface.
-
-### Key Components
-
-#### 1. Base Adapter (`lib/ai/adapters/base.ts`)
-```typescript
-export abstract class BaseToolAdapter<TInput, TOutput> {
-  abstract tool: Tool                          // The canvas tool being adapted
-  abstract aiName: string                      // AI-friendly name
-  abstract description: string                 // Description for AI (AI SDK v5 style)
-  abstract parameters: z.ZodType<TInput>       // Input validation (AI SDK v5 naming)
-  
-  abstract execute(params: TInput, context: { canvas: Canvas }): Promise<TOutput>
-  
-  // Optional overrides
-  canExecute?(canvas: Canvas): boolean
-  generatePreview?(params: TInput, canvas: Canvas): Promise<{ before: string; after: string }>
-  
-  // Converts to AI SDK format automatically
-  toAITool() {
-    return tool({
-      description: this.description,
-      parameters: this.parameters,
-      execute: async (params) => {
-        // Bridge to canvas context
-        const context = CanvasToolBridge.getCanvasContext()
-        if (!context?.canvas) throw new Error('Canvas not available')
-        return this.execute(params, { canvas: context.canvas })
-      }
-    })
-  }
-}
-```
-
-#### 2. Adapter Registry (`lib/ai/adapters/registry.ts`)
-- **Auto-registration**: When an adapter is registered, it automatically creates an AI tool
-- **Dynamic discovery**: System prompt is generated from registered adapters
-- **Single source of truth**: All tools (AI-native and adapted) go through the same registry
-
-#### 3. Individual Adapters (`lib/ai/adapters/tools/*.ts`)
-Each tool adapter:
-- Extends `BaseToolAdapter`
-- Defines clear input/output schemas with Zod
-- Implements the actual tool logic
-- Can provide preview generation
-- Self-contained and maintainable
-
-### Example: Crop Tool Adapter
-
-```typescript
-export class CropToolAdapter extends BaseToolAdapter<CropInput, CropOutput> {
-  tool = cropTool
-  aiName = 'cropImage'
-  description = 'Crop the image to specified pixel coordinates. The x,y coordinates specify the top-left corner of the crop area.'
-  
-  parameters = z.object({
-    x: z.number().min(0).describe('X coordinate of crop area in pixels'),
-    y: z.number().min(0).describe('Y coordinate of crop area in pixels'),
-    width: z.number().min(1).describe('Width of crop area in pixels (must be at least 1)'),
-    height: z.number().min(1).describe('Height of crop area in pixels (must be at least 1)')
-  })
-  
-  async execute(params: CropInput, context: { canvas: Canvas }): Promise<CropOutput> {
-    // Implementation that mirrors the actual crop tool logic
-  }
-}
-```
-
-### Adding New Tool Adapters
-
-1. **Create adapter file**: `lib/ai/adapters/tools/[toolname].ts`
-2. **Extend BaseToolAdapter**: Define input/output types
-3. **Implement execute**: Core tool logic
-4. **Register in auto-discovery**: Add to `autoDiscoverAdapters()` in registry
-5. **Test**: The tool is automatically available to AI
-
-### Benefits of This Architecture
-
-1. **Scalability**: Each tool is independent, no giant files
-2. **Type Safety**: Full TypeScript support with generics
-3. **Maintainability**: Changes to one tool don't affect others
-4. **DRY Principle**: Tools work for both UI and AI
-5. **Auto-discovery**: No manual tool list maintenance
-6. **Consistent Interface**: All tools follow the same pattern
-
-### Current Status
-
-✅ **Working Example**: Crop tool fully integrated
-✅ **Infrastructure Complete**: All patterns established
-✅ **AI Integration**: Tools automatically available in chat
-✅ **AI SDK v5 Compliance**: Proper use of `tool()` function and patterns
-✅ **Documentation Updated**: All reference docs reflect new patterns
-
----
-
-## Implementation Details: AI SDK v5 Integration
-
-### Key Changes from Initial Approach
-
-1. **Direct AI SDK v5 Usage**
-   - Use `tool()` function directly from AI SDK
-   - Follow `parameters` naming convention (not `inputSchema`)
-   - Simpler execution model
-
-2. **Type-Safe Patterns**
-   ```typescript
-   // Define parameters with clear descriptions
-   const parameters = z.object({
-     value: z.number()
-       .min(-100)
-       .max(100)
-       .describe('Adjustment value from -100 to 100')
-   })
-   
-   // Use type inference
-   type Input = z.infer<typeof parameters>
-   ```
-
-3. **Clear Descriptions**
-   - Always specify units (pixels, percentages, degrees)
-   - Explain what the tool does and parameter meanings
-   - Help AI understand when to use the tool
-
-### Testing Checklist
-
-- [ ] Canvas with image loaded
-- [ ] AI chat recognizes available tools
-- [ ] Tool execution updates canvas
-- [ ] Error messages are helpful
-- [ ] Parameters validate correctly
-- [ ] Preview generation works (when implemented)
-
----
-
-## Next Steps & Recommendations
-
-### Immediate Next Steps (Priority Order)
-
-1. **Create Brightness Adjustment Tool** (2-3 hours)
-   - Create `lib/tools/brightnessTool.ts` as a parameter-based tool
-   - Create `lib/ai/adapters/tools/brightness.ts` adapter
-   - Test with real images
-   - This will serve as the template for other adjustment tools
-
-2. **Test End-to-End Flow** (1 hour)
-   - Load an image in the canvas
-   - Use AI chat to crop and adjust brightness
-   - Verify canvas updates correctly
-   - Document any issues
-
-3. **Implement Preview Generation** (2-3 hours)
-   - Add preview generation to CropToolAdapter
-   - Create temporary canvas for preview
-   - Return before/after base64 images
-   - Test performance (<500ms target)
-
-4. **Add More Adjustment Tools** (4-6 hours)
-   - Contrast adjustment
-   - Saturation adjustment
-   - Basic blur/sharpen (if Fabric.js supports)
-   - Follow the brightness tool pattern
-
-5. **Create Developer Guide** (1-2 hours)
-   - Step-by-step guide for adding AI-compatible tools
-   - Code templates
-   - Common pitfalls to avoid
-   - Testing procedures
-
-### Medium-term Recommendations
-
-1. **Tool Compatibility Matrix**
-   - Document which tools can be made AI-compatible
-   - Plan for future tool development
-   - Identify tools that need redesign for AI
+1. **Integration Testing**
+   - All tools work with real images
+   - Natural language commands
+   - Specific value commands
+   - Edge cases handled
 
 2. **Performance Optimization**
-   - Implement canvas operation batching
-   - Add progress indicators for long operations
-   - Consider web workers for heavy processing
+   - Filter caching
+   - Batch operations
+   - Preview generation
 
-3. **Error Recovery**
-   - Add undo/redo support
-   - Implement canvas state snapshots
-   - Better error messages for users
+3. **Documentation**
+   - Update this epic doc
+   - Create usage examples
+   - Document patterns
 
-### Long-term Architecture Considerations
+### Key Implementation Patterns
 
-1. **Semantic Understanding** (Epic 9)
-   - Plan for natural language parameters
-   - Consider parameter resolvers pattern
-   - Design for "crop to the person" type requests
-
-2. **Multi-step Operations** (Epic 6)
-   - Design for operation chaining
-   - Consider transaction-like behavior
-   - Plan for partial rollback
-
-3. **Quality Evaluation** (Epic 8)
-   - Design hooks for quality assessment
-   - Plan for A/B testing different parameters
-   - Consider user preference learning
-
----
-
-## Summary of Implementation
-
-### What We Built
-
-1. **Scalable Architecture**
-   - Each tool adapter is independent
-   - No monolithic files that grow unbounded
-   - Clear separation of concerns
-
-2. **Type-Safe System**
-   - Full TypeScript support
-   - Zod schemas for validation
-   - Generic base class for flexibility
-
-3. **Auto-Registration**
-   - Tools automatically available to AI
-   - Dynamic system prompt generation
-   - Single source of truth
-
-4. **DRY Principle**
-   - Canvas tools work for both UI and AI
-   - No duplicate implementations
-   - Consistent behavior
-
-5. **AI SDK v5 Compliance**
-   - Proper use of `tool()` function
-   - Correct parameter naming
-   - Clean integration patterns
-
-### Key Files Created/Modified
-
-- `lib/ai/adapters/base.ts` - Base adapter interface (AI SDK v5 compliant)
-- `lib/ai/adapters/registry.ts` - Auto-registration system
-- `lib/ai/adapters/tools/crop.ts` - Example implementation
-- `app/api/ai/chat/route.ts` - Updated to use new system
-- `lib/ai/client/tool-executor.ts` - Simplified execution
-
-### Lessons Learned
-
-1. **Start with scalable patterns** - Avoid monolithic approaches
-2. **Follow SDK conventions** - Use `parameters` not `inputSchema`
-3. **Be explicit about units** - Always specify pixels/percentages/degrees
-4. **Auto-discovery is key** - Manual registration doesn't scale
-5. **Type safety throughout** - Catch errors at compile time
-
-### For Future Developers
-
-When adding AI capabilities to a tool:
-1. Check if it's parameter-based (not mouse-path based)
-2. Create adapter in `lib/ai/adapters/tools/`
-3. Follow the CropToolAdapter example
-4. Add to auto-discovery
-5. Test with AI chat
-
-The infrastructure is ready - just follow the pattern!
-
----
-
-## Semantic Understanding: AI Model-Based Approach
-
-### The Problem
-Current tool adapters expect exact parameters (e.g., crop needs x, y, width, height), but users speak naturally ("crop 10% from all sides"). Without semantic understanding, AI tools are difficult to use naturally.
-
-### The Solution: Enhanced System Prompts
-
-Instead of building custom parameter resolvers, we leverage the AI model's capabilities by providing canvas context and calculation examples in the system prompt. This aligns with AI SDK v5's design philosophy where the AI model handles parameter resolution.
-
-#### Implementation
-
+#### 1. Tool Structure Pattern
 ```typescript
-// In API route - provide canvas context
-const contextInfo = canvasContext?.dimensions 
-  ? `\n\nCurrent canvas: ${canvasContext.dimensions.width}x${canvasContext.dimensions.height} pixels`
-  : ''
-
-// In system prompt - include calculation examples
-system: `...
-${contextInfo}
-
-For the crop tool:
-- x and y are the top-left corner coordinates in pixels
-- width and height are the crop dimensions in pixels
-- All values must be positive integers
-
-Example calculations:
-- "crop 50%": For a 1000x800 image → x:250, y:200, width:500, height:400
-- "crop the left half": For a 1000x800 image → x:0, y:0, width:500, height:800
-- "crop 10% from edges": For a 1000x800 image → x:100, y:80, width:800, height:640
-...`
-```
-
-
-
-### Benefits
-
-1. **Natural Language Support**: "Crop 10% from edges" works through AI model calculations
-2. **No Code Complexity**: Leverages existing AI capabilities
-3. **Easy to Extend**: Just add more examples to system prompt
-4. **Framework Aligned**: Works with AI SDK v5's design philosophy
-5. **Model Agnostic**: Works with any AI model that can do math
-
-### Current Implementation Status
-
-✅ **Completed**:
-1. **Canvas Context in API Route**
-   - Canvas dimensions passed to system prompt
-   - AI knows image size for calculations
-   
-2. **Enhanced System Prompt**
-   - Clear parameter explanations
-   - Example calculations for common requests
-   - Tool-specific guidance
-
-3. **AI Model Handles Resolution**
-   - "crop 50%" → AI calculates exact pixels
-   - "make it brighter" → AI chooses appropriate value
-   - "rotate sideways" → AI converts to 90 degrees
-
-### Example Usage
-
-```
-User: "Crop 10% from all sides"
-AI: "I'll crop 10% from each edge of your 1000x800 image. This means removing 100 pixels from left/right and 80 pixels from top/bottom."
-Tool Call: cropImage({ x: 100, y: 80, width: 800, height: 640 })
-
-User: "Make it brighter"
-AI: "I'll increase the brightness by 20%."
-Tool Call: adjustBrightness({ adjustment: 20 })
-
-User: "Crop to x:100, y:100, width:400, height:300"
-AI: "I'll crop to those exact coordinates."
-Tool Call: cropImage({ x: 100, y: 100, width: 400, height: 300 })
-```
-
-The AI model handles all parameter calculations based on the context and examples provided in the system prompt.
-
----
-
-## Overview
-This epic focuses on creating 10-15 essential photo editing tools that integrate with the canvas and AI chat interface. We'll fix AI SDK v5 type issues, implement real image manipulation, and add confidence scoring and preview generation.
-
-## References
-- [AI SDK v5 Tools Documentation](https://v5.ai-sdk.dev/docs/ai-sdk-core/tools-and-tool-calling)
-- [Tool Calling](https://v5.ai-sdk.dev/docs/foundations/tools)
-- [Streaming Tool Results](https://v5.ai-sdk.dev/docs/ai-sdk-core/streaming)
-
-## Key Implementation Details
-
-### 1. Fix Tool Factory for AI SDK v5 Beta ✅
-
-**Status**: COMPLETE - We now use AI SDK v5's native `tool()` function directly
-
-### 2. Core Image Adjustment Tools
-
-**Files to Create**:
-- `lib/tools/brightness.ts` - Canvas tool implementation
-- `lib/ai/adapters/tools/brightness.ts` - AI adapter
-- Similar pattern for: contrast, saturation, exposure, highlights-shadows
-
-**Example Structure** (brightness adapter):
-```typescript
-import { z } from 'zod'
-import { BaseToolAdapter } from '../base'
-import { brightnessTool } from '@/lib/tools/brightness'
-
-const brightnessParameters = z.object({
-  adjustment: z.number()
-    .min(-100)
-    .max(100)
-    .describe('Brightness adjustment from -100 to 100')
-})
-
-type BrightnessInput = z.infer<typeof brightnessParameters>
-
-export class BrightnessToolAdapter extends BaseToolAdapter<BrightnessInput, BrightnessOutput> {
-  tool = brightnessTool
-  aiName = 'adjustBrightness'
-  description = 'Adjust image brightness from -100 (darkest) to 100 (brightest)'
-  parameters = brightnessParameters
+// lib/editor/tools/adjustments/[toolname]Tool.ts
+class AdjustmentTool extends BaseTool {
+  id = TOOL_IDS.TOOL_NAME
+  name = 'Tool Display Name'
+  icon = IconComponent
+  cursor = 'default'
   
-  async execute(params: BrightnessInput, context: { canvas: Canvas }): Promise<BrightnessOutput> {
-    // Implementation using Fabric.js filters
+  protected setupTool(canvas: Canvas): void {
+    this.subscribeToToolOptions((options) => {
+      // Apply adjustment when options change
+    })
   }
   
-  async generatePreview(params: BrightnessInput, canvas: Canvas) {
-    // Generate before/after previews
+  private applyAdjustment(value: number): void {
+    // Get images and apply Fabric.js filter
   }
 }
 ```
 
-### 3. Filter Effect Tools
-
-**Files to Create**:
-- Canvas tools in `lib/tools/filters/`
-- AI adapters in `lib/ai/adapters/tools/filters/`
-- Tools: blur, sharpen, noise-reduction, black-white, vintage
-
-### 4. Transform Tools
-
-**Status**: Crop tool ✅ COMPLETE
-**Still Needed**:
-- `lib/tools/transform/resize.ts` + adapter
-- `lib/tools/transform/rotate.ts` + adapter
-- `lib/tools/transform/flip.ts` + adapter
-
-### 5. Tool-Canvas Bridge ✅
-
-**Status**: COMPLETE - `lib/ai/tools/canvas-bridge.ts`
-
-### 6. Confidence Scoring System
-
-**File to Create**: `lib/ai/confidence/scorer.ts`
+#### 2. Adapter Pattern
 ```typescript
-export class ConfidenceScorer {
-  static calculateConfidence(
-    userIntent: string,
-    toolName: string,
-    params: unknown
-  ): number {
-    // Implement confidence calculation
+// lib/ai/adapters/tools/[toolname].ts
+export class ToolAdapter extends BaseToolAdapter<Input, Output> {
+  tool = toolInstance
+  aiName = 'aiToolName'
+  description = 'Natural language description with examples'
+  inputSchema = z.object({
+    // Parameter schema with descriptions
+  })
+  
+  async execute(params: Input, context: { canvas: Canvas }): Promise<Output> {
+    // Apply tool logic
   }
 }
 ```
 
-### 7. Preview Generation System
+#### 3. Fabric.js Filter Usage
+```typescript
+// Available filters
+new fabric.Image.filters.Brightness({ brightness: value })
+new fabric.Image.filters.Contrast({ contrast: value })
+new fabric.Image.filters.Saturation({ saturation: value })
+new fabric.Image.filters.HueRotation({ rotation: value })
+new fabric.Image.filters.Blur({ blur: value })
+new fabric.Image.filters.Convolute({ matrix: sharpenMatrix })
+new fabric.Image.filters.RemoveColor({ threshold: 0 }) // Grayscale
+new fabric.Image.filters.Sepia()
+new fabric.Image.filters.Invert()
+```
 
-**Status**: Pattern established in BaseToolAdapter
-**Enhancement Needed**: Implement for each tool adapter
+#### 4. Natural Language Patterns
+```typescript
+description = `Adjust brightness. Common patterns:
+- "brighter" → +20 to +30
+- "much brighter" → +40 to +60
+- "slightly darker" → -10 to -15
+NEVER ask for exact values.`
+```
 
-### 8. Update Tool Registry ✅
-
-**Status**: COMPLETE - Registry pattern working with auto-discovery
-
-### 9. Wire Tools to API Route ✅
-
-**Status**: COMPLETE - API route uses adapter registry
-
-### 10. Client-Side Tool Execution ✅
-
-**Status**: COMPLETE - Simplified tool executor using registry
-
-## Testing Requirements
-
-**Files to Create**:
-- `__tests__/ai/tools/brightness.test.ts`
-- `__tests__/ai/tools/crop.test.ts`
-- `__tests__/ai/adapters/registry.test.ts`
-
-## Success Criteria
+### Success Criteria
 1. ✅ Crop tool working with AI
-2. ⏳ At least 5 adjustment tools implemented
+2. ⏳ At least 10-14 adjustment/filter tools implemented
+   - ✅ Brightness
+   - ✅ Contrast  
+   - ✅ Saturation
+   - ✅ Hue
+   - ✅ Exposure
+   - ⏳ Color Temperature
+   - ⏳ Rotate
+   - ⏳ Flip
+   - ⏳ Resize
+   - ⏳ Blur
+   - ⏳ Sharpen
+   - ⏳ Grayscale
+   - ⏳ Sepia
+   - ⏳ Invert
 3. ⏳ Preview generation completes in <500ms
 4. ✅ Tools properly integrated with AI chat
 5. ✅ No TypeScript errors or suppressions
-6. ⏳ All tools have unit tests
+6. ⏳ All tools manually tested
 
-## Dependencies
-- Fabric.js filters API
-- Canvas API for image manipulation
-- AI SDK v5 beta (currently installed)
-
-## Estimated Effort
-- 1 developer × 5-7 days
-- Requires deep knowledge of:
-  - Fabric.js filter system
-  - Canvas API
-  - AI SDK v5 tool patterns
-  - Image processing algorithms
+---
 
 ## Completion Status
 
-### Day 1 Progress
+### Days 1-2 Progress ✅
 - ✅ Foundation infrastructure complete
 - ✅ AI SDK v5 integration working
 - ✅ Scalable adapter pattern implemented
 - ✅ Crop tool fully integrated
+- ✅ All critical issues fixed:
+  - Canvas synchronization (stale closure)
+  - Client-side tool registration
+  - Server-side execution handling
+  - Natural language parameter support
 - ✅ Documentation updated
-- ✅ All TypeScript/linting errors fixed
 
-### Day 1.5 Progress - Final Fixes
-- ✅ Fixed TypeScript errors in AIChat component
-  - Resolved ReactNode type issues with ternary operators
-  - Proper handling of JSON.stringify output
-- ✅ Fixed BaseToolAdapter generic type inference
-  - Used `unknown` casting to satisfy TypeScript
-  - Maintained type safety without using `any`
-- ✅ Natural language parameters working
-  - AI model handles calculations with canvas context
-  - System prompt includes dimensions and examples
+### Day 3 Progress ✅
+- ✅ Brightness adjustment tool (template for others)
+- ✅ Contrast adjustment tool
+- ✅ Saturation adjustment tool
+- ✅ Hue adjustment tool
+- ✅ Exposure adjustment tool
+- ✅ All tools have AI adapters
+- ✅ No lint or type errors in Epic 5 files
 
-### Remaining Work (Days 2-5)
-- ⏳ Create brightness adjustment tool (template for others)
-- ⏳ Implement 4-5 more adjustment tools
+### Remaining Work (Days 4-5)
+- ⏳ Create exposure adjustment tool
+- ⏳ Implement transform tools (rotate, flip, resize)
+- ⏳ Implement filter tools (blur, sharpen, grayscale, sepia, invert)
 - ⏳ Add preview generation to all tools
-- ⏳ Create unit tests
+- ⏳ Create confidence scoring system
 - ⏳ Performance optimization
-- ⏳ Developer guide creation
+- ⏳ Comprehensive testing
 
-## Final Implementation Notes
+---
 
-### TypeScript Best Practices Applied
-1. **ReactNode Type Issues**: Use ternary operators with explicit null returns
-2. **Generic Type Inference**: Cast through `unknown` when TypeScript can't infer
-3. **No Suppressions**: All errors fixed properly without `@ts-ignore` or `eslint-disable`
+## Next Immediate Steps
 
-### AI SDK v5 Integration Complete
-- Proper use of `tool()` function with Zod schemas
-- Canvas context passed to system prompt
-- Natural language handled by AI model (no custom resolvers needed)
-- Tool execution visible in UI with proper state transitions
+1. **Create Brightness Tool** (2-3 hours)
+   - Create `lib/editor/tools/adjustments/brightnessTool.ts`
+   - Create `lib/ai/adapters/tools/brightness.ts`
+   - Add to constants and tool options
+   - Test with real images
 
-## Lessons Learned & Implementation Gotchas
+2. **Use as Template** (4-6 hours)
+   - Quickly implement contrast, saturation, hue
+   - Each follows same pattern
+   - Bulk of work is in first tool
 
-### 1. AI SDK v5 Beta Specifics
+3. **Transform Tools** (3-4 hours)
+   - Rotate, flip, resize
+   - Different pattern but simpler
 
-#### Tool Function Overloads
-The AI SDK v5's `tool()` function has complex TypeScript overloads that can cause type inference issues:
-```typescript
-// ❌ BAD - TypeScript can't infer the return type
-toAITool() {
-  return tool({
-    description: this.description,
-    parameters: this.parameters,
-    execute: async (params) => { ... }
-  })
-}
+4. **Filter Tools** (3-4 hours)
+   - Blur, sharpen, effects
+   - Mostly Fabric.js filter application
 
-// ✅ GOOD - Cast through unknown to help TypeScript
-toAITool() {
-  return tool({
-    description: this.description,
-    parameters: this.parameters,
-    execute: async (params) => { ... }
-  }) as unknown as Tool<unknown, unknown>
-}
-```
-
-#### Parameter Naming
-AI SDK v5 uses `parameters` not `inputSchema`:
-```typescript
-// ❌ OLD (AI SDK v3/v4)
-inputSchema: z.object({ ... })
-
-// ✅ NEW (AI SDK v5)
-parameters: z.object({ ... })
-```
-
-#### Message Handling
-```typescript
-// Tool invocation parts in messages can have various formats:
-// - part.type === 'tool-invocation'
-// - part.type?.startsWith('tool-')
-// - part.toolInvocation (nested structure)
-```
-
-### 2. Canvas Context Management
-
-#### The Race Condition Problem
-We discovered a critical race condition between canvas initialization and AI tool execution:
-- Canvas initialization is asynchronous with multiple state updates
-- Components may see intermediate states where `isReady: true` but `fabricCanvas: null`
-- Promises can capture stale closures
-
-#### Passing Canvas Context
-Canvas dimensions must be passed with EVERY message to the AI:
-```typescript
-const canvasContext = fabricCanvas ? {
-  dimensions: {
-    width: fabricCanvas.getWidth(),
-    height: fabricCanvas.getHeight()
-  },
-  hasContent: fabricCanvas.getObjects().length > 0
-} : undefined
-
-sendMessage(
-  { text: input },
-  { body: { canvasContext } }  // Include with every message
-)
-```
-
-### 3. Natural Language Parameter Resolution
-
-#### AI Model-Based Approach (What Works)
-Instead of building custom parameter resolvers, we let the AI model handle natural language:
-```typescript
-// In system prompt:
-`Current canvas: ${width}x${height} pixels
-
-For the crop tool:
-- "crop 50%": For a 1000x800 image → x:250, y:200, width:500, height:400
-- "crop the left half": For a 1000x800 image → x:0, y:0, width:500, height:800`
-```
-
-#### Why Custom Resolvers Failed
-- Added complexity without clear benefit
-- AI models are already good at math/calculations
-- Maintenance burden for each tool
-- Better to provide examples in system prompt
-
-### 4. Tool Adapter Architecture Insights
-
-#### Singleton Pattern
-Tools should be singleton instances:
-```typescript
-// ✅ GOOD
-export const cropTool = new CropTool()
-
-// ❌ BAD
-export class CropTool { ... }  // Don't export class directly
-```
-
-#### Adapter Registration
-Auto-discovery pattern works well but needs careful import management:
-```typescript
-// Dynamic imports prevent circular dependencies
-const { CropToolAdapter } = await import('./tools/crop')
-adapterRegistry.register(new CropToolAdapter())
-```
-
-### 5. Error Handling Best Practices
-
-#### User-Friendly Messages
-```typescript
-// ❌ BAD
-throw new Error('Canvas not available')
-
-// ✅ GOOD
-throw new Error('No image loaded. Please upload an image first before using AI tools.')
-```
-
-#### Detailed Logging
-Always log state when debugging canvas issues:
-```typescript
-console.log('[Component] Canvas state:', {
-  isReady: state.isReady,
-  hasCanvas: !!state.fabricCanvas,
-  initError: state.initializationError,
-  objects: state.fabricCanvas?.getObjects().length
-})
-```
-
-### 6. UI/UX Considerations
-
-#### Tool Execution Visibility
-Users need to see:
-- Tool being executed
-- Parameters being used
-- Progress indication
-- Success/failure state
-
-#### Confidence Communication
-Even though we haven't implemented confidence scoring yet, the UI structure should support it:
-```typescript
-{state === 'input-available' && (
-  <div>
-    <span>Executing {toolName}...</span>
-    {/* Future: Add confidence indicator here */}
-  </div>
-)}
-```
-
-### 7. Performance Considerations
-
-#### Canvas Operations
-- Always check if canvas has objects before operating
-- Batch multiple canvas operations before `renderAll()`
-- Use `requestAnimationFrame` for visual updates
-
-#### Tool Execution
-- Tools should complete in <500ms for good UX
-- Long operations need progress indicators
-- Consider web workers for heavy processing
-
-### 8. Testing Insights
-
-#### Manual Testing Checklist
-Before considering a tool "working":
-1. Load an image
-2. Try natural language ("make it brighter")
-3. Try specific values ("increase brightness by 20")
-4. Try edge cases ("brightness 200" - out of range)
-5. Check undo/redo works
-6. Verify canvas updates properly
-
-#### Common Failure Modes
-1. Canvas not initialized when tool executes
-2. Natural language not resolved to parameters
-3. Tool found but adapter not registered
-4. Canvas context lost between messages
-
-### 9. Future Epic Considerations
-
-#### For Epic 6 (Orchestration)
-- Current single-tool execution works well
-- Multi-step will need transaction-like behavior
-- Consider command pattern for rollback
-
-#### For Epic 7 (Visual Feedback)
-- Preview generation infrastructure exists in BaseToolAdapter
-- Need temporary canvas for non-destructive preview
-- Consider performance impact of live preview
-
-#### For Epic 8 (Quality Evaluation)
-- Confidence scoring hooks exist but not implemented
-- Need to define what "confidence" means per tool
-- Consider user preference learning
-
-#### For Epic 9 (Semantic Understanding)
-- Current exact-parameter approach is limiting
-- "Crop to the person" needs object detection
-- Consider progressive enhancement approach
-
-### 10. Architecture Recommendations
-
-#### State Management
-The current Zustand store pattern has issues with async initialization:
-- Consider state machines for initialization flow
-- Avoid mixing promises with declarative state
-- Single source of truth for "ready" state
-
-#### Tool Discovery
-Current pattern works but could be improved:
-- Consider build-time tool registration
-- Type-safe tool names (const enum)
-- Better error messages for missing tools
-
-#### Canvas Bridge
-Works well but needs defensive programming:
-- Always verify canvas operations work
-- Handle disposal/cleanup properly
-- Consider WeakMap for canvas metadata
-
-### Summary for Future Developers
-
-1. **Start Simple**: Get one tool working end-to-end before adding more
-2. **Trust the AI Model**: Let it handle natural language, don't over-engineer
-3. **Log Everything**: Debugging async issues requires extensive logging
-4. **Test With Real Images**: Many issues only appear with actual canvas content
-5. **Handle Edge Cases**: No image, disposed canvas, initialization races
-6. **Keep UI Responsive**: Show progress, handle errors gracefully
-7. **Document Patterns**: This epic establishes patterns for all future tools
-
-The foundation is solid, but watch out for:
-- Canvas initialization race conditions
-- TypeScript complexity with AI SDK v5
-- Natural language parameter expectations
-- User feedback for AI operations
+This plan provides clear, demo-able tools that show obvious visual changes when AI commands are used, following all established patterns in the codebase.

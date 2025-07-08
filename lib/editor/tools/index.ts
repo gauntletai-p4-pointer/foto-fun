@@ -10,6 +10,12 @@ import { handTool } from './transform/handTool'
 import { zoomTool } from './transform/zoomTool'
 import { brushTool } from './drawing/brushTool'
 import { eraserTool } from './drawing/eraserTool'
+import { horizontalTypeTool, verticalTypeTool, typeMaskTool } from './text'
+import { brightnessTool } from './adjustments/brightnessTool'
+import { contrastTool } from './adjustments/contrastTool'
+import { saturationTool } from './adjustments/saturationTool'
+import { hueTool } from './adjustments/hueTool'
+import { exposureTool } from './adjustments/exposureTool'
 import { TOOL_IDS } from '@/constants'
 import type { Tool } from '@/types'
 import { Type } from 'lucide-react'
@@ -38,6 +44,14 @@ export const tools: Tool[] = [
   zoomTool,
   brushTool,
   eraserTool,
+  horizontalTypeTool,
+  verticalTypeTool,
+  typeMaskTool,
+  brightnessTool,
+  contrastTool,
+  saturationTool,
+  hueTool,
+  exposureTool,
   textTool,
 ]
 
@@ -55,5 +69,13 @@ export {
   zoomTool,
   brushTool,
   eraserTool,
+  horizontalTypeTool,
+  verticalTypeTool,
+  typeMaskTool,
+  brightnessTool,
+  contrastTool,
+  saturationTool,
+  hueTool,
+  exposureTool,
   textTool,
 } 

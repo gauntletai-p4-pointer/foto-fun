@@ -11,14 +11,14 @@ import { BaseToolAdapter } from '../base'
 import { brightnessTool } from '@/lib/tools/brightnessTool'
 
 // 1. Define clear parameter schema with units
-const brightnessParameters = z.object({
+const brightnessInputSchema = z.object({
   adjustment: z.number()
     .min(-100)
     .max(100)
     .describe('Brightness adjustment from -100 to 100')
 })
 
-type BrightnessInput = z.infer<typeof brightnessParameters>
+type BrightnessInput = z.infer<typeof brightnessInputSchema>
 
 // 2. Define output type
 interface BrightnessOutput {
@@ -34,77 +34,71 @@ export class BrightnessToolAdapter extends BaseToolAdapter<
 > {
   tool = brightnessTool
   aiName = 'adjustBrightness'
-  description = 'Adjust image brightness by a percentage value from -100 (darkest) to 100 (brightest), where 0 is no change.'
+  description = `Adjust image brightness. You MUST calculate the adjustment value based on user intent.
+Common patterns: 'brighter' → +20%, 'much brighter' → +40%, 'slightly darker' → -10%
+NEVER ask for exact values - interpret the user's intent.`
   
-  parameters = brightnessParameters
+  inputSchema = brightnessInputSchema // AI SDK v5 uses 'inputSchema'
   
   async execute(params: BrightnessInput, context: { canvas: Canvas }): Promise<BrightnessOutput> {
-    const canvas = context.canvas
-    
-    // Validate canvas has content
-    if (canvas.getObjects().length === 0) {
-      throw new Error('No image to adjust brightness')
-    }
-    
-    // Apply brightness adjustment
-    const filter = new fabric.Image.filters.Brightness({
-      brightness: params.adjustment / 100 // Convert to 0-1 range
-    })
-    
-    canvas.getObjects().forEach(obj => {
-      if (obj.type === 'image') {
-        obj.filters = obj.filters || []
-        obj.filters.push(filter)
-        obj.applyFilters()
-      }
-    })
-    
-    canvas.renderAll()
+    // Implementation
+    const previousValue = context.canvas.getBrightness()
+    await this.tool.execute(params.adjustment)
     
     return {
       success: true,
-      previousValue: 0,
-      newValue: params.adjustment
+      previousValue,
+      newValue: previousValue + params.adjustment
     }
-  }
-  
-  // Optional: Validate tool can execute
-  canExecute(canvas: Canvas): boolean {
-    return canvas.getObjects().some(obj => obj.type === 'image')
-  }
-  
-  // Optional: Generate preview
-  async generatePreview(params: BrightnessInput, canvas: Canvas) {
-    const before = canvas.toDataURL()
-    
-    // Clone canvas for preview
-    const tempCanvas = new fabric.Canvas(null, {
-      width: canvas.getWidth(),
-      height: canvas.getHeight()
-    })
-    
-    // Apply changes to temp canvas
-    // ... apply brightness to tempCanvas
-    
-    const after = tempCanvas.toDataURL()
-    tempCanvas.dispose()
-    
-    return { before, after }
   }
 }
 ```
 
-### Registering the Adapter
+## AI SDK v5 Key Patterns
 
+### 1. Tool Definition
 ```typescript
-// In lib/ai/adapters/registry.ts autoDiscoverAdapters()
-const { BrightnessToolAdapter } = await import('./tools/brightness')
-adapterRegistry.register(new BrightnessToolAdapter())
+// ✅ CORRECT - AI SDK v5
+import { tool } from 'ai'
+
+const myTool = tool({
+  description: 'Tool description',
+  inputSchema: z.object({  // NOT 'parameters'
+    field: z.string()
+  }),
+  execute: async (params) => {
+    // Implementation
+  }
+})
 ```
 
-## Key Principles for AI Tools
+### 2. BaseToolAdapter Implementation
+Our adapter pattern correctly implements AI SDK v5:
+```typescript
+export abstract class BaseToolAdapter<TInput, TOutput> {
+  abstract tool: Tool
+  abstract aiName: string
+  abstract description: string
+  abstract inputSchema: z.ZodType<TInput>  // Correct for AI SDK v5
+  
+  abstract execute(params: TInput, context: { canvas: Canvas }): Promise<TOutput>
+  
+  toAITool() {
+    return tool({
+      description: this.description,
+      inputSchema: this.inputSchema,  // Passed correctly to AI SDK
+      execute: async (args) => {
+        // Server-side placeholder
+        return { success: true, clientExecutionRequired: true, params: args }
+      }
+    })
+  }
+}
+```
 
-### 1. Clear Parameter Schemas
+## Schema Best Practices
+
+### 1. Clear Types
 ```typescript
 // ❌ BAD - Ambiguous
 z.number().describe('Width')
@@ -132,8 +126,12 @@ rotation: z.number()
 // ❌ BAD - Too brief
 description = 'Crop image'
 
-// ✅ GOOD - Comprehensive
-description = 'Crop the image to specified pixel coordinates. The x,y coordinates specify the top-left corner of the crop area, and width/height define the crop size in pixels.'
+// ✅ GOOD - Comprehensive with calculation guidance
+description = `Crop the image to a specific area. You MUST calculate exact pixel coordinates based on user intent.
+Common patterns:
+- "crop left/right half" → calculate x:0 or x:width/2
+- "crop 50%" → keep center 50% (trim 25% from each edge)
+NEVER ask for pixel values - calculate them from canvas dimensions.`
 ```
 
 ## AI Tool Categories
@@ -161,12 +159,19 @@ These require mouse/touch interaction:
 ### Basic Adjustment Tool
 ```typescript
 export class AdjustmentToolAdapter extends BaseToolAdapter<Input, Output> {
-  parameters = z.object({
+  inputSchema = z.object({
     amount: z.number()
       .min(-100)
       .max(100)
       .describe('Adjustment amount from -100 to 100')
   })
+  
+  description = `Adjust the setting. Calculate values based on:
+    - "more/increase" → positive values
+    - "less/decrease" → negative values
+    - "slightly" → ±10-20
+    - "moderately" → ±30-50
+    - "significantly" → ±60-100`
   
   async execute(params, context) {
     // 1. Validate canvas state
@@ -179,19 +184,79 @@ export class AdjustmentToolAdapter extends BaseToolAdapter<Input, Output> {
 ### Transform Tool
 ```typescript
 export class TransformToolAdapter extends BaseToolAdapter<Input, Output> {
-  parameters = z.object({
-    width: z.number().min(1).describe('Width in pixels'),
-    height: z.number().min(1).describe('Height in pixels'),
-    maintainAspectRatio: z.boolean().optional()
+  inputSchema = z.object({
+    width: z.number().min(1).describe('Target width in pixels'),
+    height: z.number().min(1).describe('Target height in pixels'),
+    maintainAspectRatio: z.boolean().describe('Whether to maintain aspect ratio')
   })
   
+  description = `Resize the image. Calculate dimensions from:
+    - Percentages: "50% smaller" → multiply current by 0.5
+    - Aspect ratios: "16:9" → calculate from current dimension
+    - Fixed sizes: "1920x1080" → use exact values`
+  
   async execute(params, context) {
-    // 1. Calculate transform
-    // 2. Apply to canvas
-    // 3. Handle constraints
+    // Transform implementation
   }
 }
 ```
+
+## Common Gotchas & Solutions
+
+### 1. Canvas Not Available Error
+**Problem**: "Canvas is not available after initialization"
+**Cause**: Race condition or stale closure
+**Solution**: 
+```typescript
+// Always get fresh state from store
+const currentState = useCanvasStore.getState()
+if (!currentState.fabricCanvas) throw new Error('Canvas not ready')
+```
+
+### 2. Tool Not Found
+**Problem**: "Tool not found: X"
+**Cause**: Tool not registered on client side
+**Solution**:
+```typescript
+// Ensure client-side registration
+await autoDiscoverAdapters()
+```
+
+### 3. Natural Language Not Working
+**Problem**: AI asks for exact parameters
+**Solution**: Include calculation examples in description:
+```typescript
+description = `Crop image. Calculate coordinates from:
+  - "left half" → x:0, width:canvas.width/2
+  - "center square" → calculate largest centered square`
+```
+
+## Client-Server Architecture
+
+### Server-Side (Planning)
+- AI decides which tool to use
+- Validates parameters against inputSchema
+- Returns placeholder result
+
+### Client-Side (Execution)
+- Receives tool selection from server
+- Executes actual canvas manipulation
+- Has access to DOM and Fabric.js
+
+## Migration Notes from AI SDK v4
+
+### Key Changes in v5:
+- `parameters` → `inputSchema`
+- `maxTokens` → `maxOutputTokens`
+- `providerMetadata` → `providerOptions` (input)
+- `experimental_activeTools` → `activeTools`
+- `StreamData` class removed
+
+### Our Implementation Status:
+- ✅ Using `inputSchema` correctly
+- ✅ Client-server separation working
+- ✅ Tool registration automated
+- ✅ Natural language support via descriptions
 
 ## Canvas Bridge Usage
 
@@ -295,100 +360,6 @@ console.log(cropTool.parameters.shape)
 2. **Preview Generation**: Use lower resolution for previews
 3. **Validation**: Do cheap checks before expensive operations
 4. **Memory**: Dispose temporary canvases after use
-
-## Common Gotchas & Solutions
-
-### 1. Canvas Not Available Error
-**Problem**: "Canvas is not available after initialization"
-**Cause**: Race condition between canvas init and tool execution
-**Solution**: 
-```typescript
-// Always wait for canvas and verify it exists
-await useCanvasStore.getState().waitForReady()
-const canvas = useCanvasStore.getState().fabricCanvas
-if (!canvas) throw new Error('Canvas not ready')
-```
-
-### 2. Tool Not Found
-**Problem**: "No AI adapter found for tool: X"
-**Cause**: Tool not registered or wrong name used
-**Solution**:
-```typescript
-// Check available tools
-console.log(adapterRegistry.getAll().map(t => t.aiName))
-// Ensure adapter is registered in autoDiscoverAdapters()
-```
-
-### 3. Natural Language Not Working
-**Problem**: AI asks for exact parameters instead of calculating
-**Cause**: Canvas context not passed or system prompt incomplete
-**Solution**:
-```typescript
-// Pass canvas context with EVERY message
-const canvasContext = {
-  dimensions: { width: canvas.getWidth(), height: canvas.getHeight() },
-  hasContent: canvas.getObjects().length > 0
-}
-sendMessage({ text }, { body: { canvasContext } })
-```
-
-### 4. TypeScript Errors with AI SDK v5
-**Problem**: Type inference fails with `tool()` function
-**Solution**:
-```typescript
-// Cast through unknown for complex types
-return tool({...}) as unknown as Tool<unknown, unknown>
-```
-
-### 5. Tool Parameters Not Validating
-**Problem**: Zod validation fails unexpectedly
-**Solution**:
-```typescript
-// Be explicit with descriptions and constraints
-z.number()
-  .min(0)
-  .max(100)
-  .describe('Value from 0 to 100') // Clear description
-```
-
-## Debugging Checklist
-
-When a tool isn't working:
-
-1. **Check Canvas State**
-   ```typescript
-   const state = useCanvasStore.getState()
-   console.log({
-     isReady: state.isReady,
-     hasCanvas: !!state.fabricCanvas,
-     objects: state.fabricCanvas?.getObjects().length
-   })
-   ```
-
-2. **Verify Tool Registration**
-   ```typescript
-   console.log('Registered tools:', adapterRegistry.getAll().map(t => t.aiName))
-   ```
-
-3. **Test Tool Directly**
-   ```typescript
-   const adapter = adapterRegistry.get('cropImage')
-   const result = await adapter.execute(
-     { x: 0, y: 0, width: 100, height: 100 },
-     { canvas: fabricCanvas }
-   )
-   ```
-
-4. **Check AI Messages**
-   - Look for tool invocation parts in the message
-   - Verify parameters are being passed correctly
-   - Check for error messages in tool state
-
-5. **Verify Canvas Context**
-   ```typescript
-   const context = CanvasToolBridge.getCanvasContext()
-   console.log('Canvas context:', context)
-   ```
 
 ## Best Practices Summary
 

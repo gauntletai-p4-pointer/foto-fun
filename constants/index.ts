@@ -48,6 +48,26 @@ export const TOOL_IDS = {
   BRUSH: 'brush',
   ERASER: 'eraser',
   TEXT: 'text',
+  TYPE_HORIZONTAL: 'type-horizontal',
+  TYPE_VERTICAL: 'type-vertical',
+  TYPE_MASK: 'type-mask',
+  TYPE_ON_PATH: 'type-on-path',
+  // Adjustment tools
+  BRIGHTNESS: 'brightness',
+  CONTRAST: 'contrast',
+  SATURATION: 'saturation',
+  HUE: 'hue',
+  EXPOSURE: 'exposure',
+  // Transform tools
+  ROTATE: 'rotate',
+  FLIP: 'flip',
+  RESIZE: 'resize',
+  // Filter tools
+  BLUR: 'blur',
+  SHARPEN: 'sharpen',
+  GRAYSCALE: 'grayscale',
+  SEPIA: 'sepia',
+  INVERT: 'invert',
 } as const
 
 // Tool Groups

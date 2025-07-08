@@ -282,7 +282,7 @@ export class MyToolAdapter extends BaseToolAdapter<InputType, OutputType> {
   aiName = 'myAIToolName'       // Name AI will use
   aiDescription = '...'         // Help AI understand when to use it
   
-  inputSchema = z.object({...}) // Zod schema for validation
+  inputSchema = z.object({...}) // Zod schema for validation (AI SDK v5)
   outputSchema = z.object({...}) // Expected output structure
   
   async execute(params: InputType, canvas: Canvas): Promise<OutputType> {
@@ -355,7 +355,7 @@ import { tool } from 'ai'
 
 const aiTool = tool({
   description: 'Clear description for AI',
-  parameters: z.object({
+  inputSchema: z.object({  // AI SDK v5 uses 'inputSchema'
     // Zod schema with explicit units
     value: z.number().min(0).max(100).describe('Value in percentage')
   }),
@@ -368,14 +368,14 @@ const aiTool = tool({
 
 // Our adapter pattern wraps this for consistency
 export abstract class BaseToolAdapter<TInput, TOutput> {
-  abstract parameters: z.ZodType<TInput>  // AI SDK v5 uses 'parameters'
-  abstract description: string            // Clear, helpful description
+  abstract inputSchema: z.ZodType<TInput>  // AI SDK v5 uses 'inputSchema'
+  abstract description: string              // Clear, helpful description
   abstract execute(params: TInput, context: { canvas: Canvas }): Promise<TOutput>
   
   toAITool() {
     return tool({
       description: this.description,
-      parameters: this.parameters,
+      inputSchema: this.inputSchema,  // AI SDK v5 naming
       execute: async (params) => {
         // Bridge to canvas context
         const context = CanvasToolBridge.getCanvasContext()
@@ -389,7 +389,7 @@ export abstract class BaseToolAdapter<TInput, TOutput> {
 
 #### Key Learnings from Implementation
 
-1. **Parameter Naming**: AI SDK v5 uses `parameters` not `inputSchema`
+1. **Parameter Naming**: AI SDK v5 uses `inputSchema` not `parameters`
 2. **TypeScript Challenges**: The `tool()` function has complex overloads requiring type casting
 3. **Canvas Context**: Must be passed with every message, not just once
 4. **Natural Language**: Let the AI model handle calculations, don't build resolvers
@@ -604,10 +604,10 @@ Canvas Update → Result → AI Response → User
      tool = brightnessTool
      aiName = 'adjustBrightness'
      description = 'Adjust brightness from -100 (darkest) to 100 (brightest)'
-     parameters = z.object({
-       adjustment: z.number().min(-100).max(100)
-         .describe('Brightness adjustment value')
-     })
+           inputSchema = z.object({
+        adjustment: z.number().min(-100).max(100)
+          .describe('Brightness adjustment value')
+      })
      
      async execute(params, context) {
        // Implementation using canvas
@@ -1200,4 +1200,50 @@ Our FotoFun AI system fully implements Andrej Karpathy's agent design framework:
 - **Emergency stop** for user control
 - **Batch vs. single operation** different rules
 
-The system goes beyond basic requirements by adding semantic understanding, quality evaluation, and production-ready features while maintaining the human-in-the-loop philosophy central to Karpathy's vision. 
+The system goes beyond basic requirements by adding semantic understanding, quality evaluation, and production-ready features while maintaining the human-in-the-loop philosophy central to Karpathy's vision.
+
+### Client-Server Tool Execution Architecture
+
+#### The Dual Execution Pattern
+
+The AI SDK v5 executes tools in two phases:
+
+1. **Server-Side (Planning Phase)**:
+   - AI decides which tool to use
+   - Validates parameters against schema
+   - Returns tool selection to client
+   - Does NOT perform actual canvas operations
+
+2. **Client-Side (Execution Phase)**:
+   - Receives tool selection from server
+   - Executes actual canvas manipulation
+   - Has access to DOM and Fabric.js
+   - Returns results to user
+
+#### Implementation Pattern
+
+```typescript
+// Server-side adapter registration (for AI understanding)
+// app/api/ai/chat/route.ts
+await autoDiscoverAdapters()
+const tools = adapterRegistry.getAITools()
+
+// Client-side adapter registration (for execution)
+// lib/ai/client/tool-executor.ts
+await autoDiscoverAdapters()
+const tool = adapterRegistry.get(toolName)
+```
+
+#### Why This Architecture?
+
+1. **Canvas requires DOM**: Fabric.js needs browser environment
+2. **AI needs tool schemas**: Server must know available tools
+3. **Separation of concerns**: AI decides, client executes
+4. **Type safety**: Both sides use same adapter definitions
+
+#### Common Pitfalls
+
+1. **Don't execute canvas operations on server** - Return placeholder
+2. **Register adapters on both sides** - Same registry, different instances
+3. **Pass canvas context with messages** - AI needs dimensions
+4. **Use fresh state in callbacks** - Avoid React stale closures 

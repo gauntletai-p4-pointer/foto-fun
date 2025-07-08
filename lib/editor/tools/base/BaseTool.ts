@@ -7,9 +7,10 @@ import type { ToolOption } from '@/store/toolOptionsStore'
 import { usePerformanceStore } from '@/store/performanceStore'
 import type { ICommand } from '@/lib/editor/commands/base'
 import { useHistoryStore } from '@/store/historyStore'
-// TODO: Uncomment when stores are implemented
-// import { useLayerStore } from '@/store/layerStore'
+import { useLayerStore } from '@/store/layerStore'
 import type { StoreApi } from 'zustand'
+import type { CustomFabricObjectProps } from '@/types'
+import type { FabricObject } from 'fabric'
 
 // Type for event cleanup functions
 type CleanupFunction = () => void
@@ -58,8 +59,7 @@ export abstract class BaseTool implements Tool {
   protected toolOptionsStore = useToolOptionsStore.getState()
   protected performanceMonitor = usePerformanceStore.getState()
   protected historyStore = useHistoryStore.getState()
-  // TODO: Uncomment when stores are implemented
-  // protected layerStore = useLayerStore.getState()
+  protected layerStore = useLayerStore.getState()
   
   /**
    * Called when tool is activated
@@ -95,6 +95,9 @@ export abstract class BaseTool implements Tool {
       // Always clean up events and subscriptions
       this.cleanupAllEvents()
       this.unsubscribeAll()
+      
+      // Restore object selectability (in case tool disabled it)
+      this.restoreObjectSelectability(canvas)
       
       // Reset cursor
       canvas.defaultCursor = 'default'
@@ -260,4 +263,31 @@ export abstract class BaseTool implements Tool {
   onMouseWheel?(e: ToolEvent): void
   onKeyDown?(e: KeyboardEvent): void
   onKeyUp?(e: KeyboardEvent): void
+  
+  /**
+   * Restore object selectability after tool deactivation
+   * Some tools (like Hand, Zoom) disable selection, so we restore it
+   */
+  protected restoreObjectSelectability(canvas: Canvas): void {
+    canvas.forEachObject((obj) => {
+      // Don't make background objects selectable
+      if (obj.excludeFromExport) return
+      
+      // Restore selectability based on layer lock status
+      const objWithProps = obj as FabricObject & CustomFabricObjectProps
+      const layerId = objWithProps.layerId
+      if (layerId) {
+        // Check if layer is locked
+        const layer = this.layerStore.getLayerById(layerId)
+        if (layer && !layer.locked) {
+          obj.selectable = true
+          obj.evented = true
+        }
+      } else {
+        // No layer association, make selectable
+        obj.selectable = true
+        obj.evented = true
+      }
+    })
+  }
 } 

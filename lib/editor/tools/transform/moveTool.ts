@@ -39,6 +39,13 @@ class MoveTool extends BaseTool {
   }
   
   /**
+   * Get show transform controls option value
+   */
+  private get showTransform(): boolean {
+    return this.toolOptionsStore.getOptionValue<boolean>(this.id, 'showTransform') ?? true
+  }
+  
+  /**
    * Tool setup - enable selection and configure objects
    */
   protected setupTool(canvas: Canvas): void {
@@ -66,7 +73,11 @@ class MoveTool extends BaseTool {
     // Subscribe to option changes
     this.subscribeToToolOptions(() => {
       this.updateObjectSelectability(canvas)
+      this.updateTransformControls(canvas)
     })
+    
+    // Update transform controls visibility
+    this.updateTransformControls(canvas)
     
     canvas.renderAll()
   }
@@ -88,12 +99,41 @@ class MoveTool extends BaseTool {
    * Update object selectability based on auto-select option
    */
   private updateObjectSelectability(canvas: Canvas): void {
-    const autoSelect = this.autoSelect
+    canvas.forEachObject((obj) => {
+      // Always make objects selectable when Move tool is active
+      obj.selectable = true
+      obj.evented = true
+      
+      // The auto-select option just controls whether clicking automatically selects
+      // It doesn't affect whether objects CAN be selected
+    })
+  }
+  
+  /**
+   * Update transform controls visibility
+   */
+  private updateTransformControls(canvas: Canvas): void {
+    const showTransform = this.showTransform
     
     canvas.forEachObject((obj) => {
-      obj.selectable = autoSelect
-      obj.evented = autoSelect
+      // Control visibility of transform handles
+      obj.hasControls = showTransform
+      obj.hasBorders = showTransform
+      
+      // Ensure rotation is not locked when transform controls are shown
+      if (showTransform) {
+        obj.lockRotation = false
+      }
     })
+    
+    // Update active object if any
+    const activeObject = canvas.getActiveObject()
+    if (activeObject) {
+      activeObject.hasControls = showTransform
+      activeObject.hasBorders = showTransform
+      activeObject.lockRotation = false
+      canvas.renderAll()
+    }
   }
   
   /**
@@ -107,6 +147,13 @@ class MoveTool extends BaseTool {
         // Auto-select the clicked object
         this.canvas.setActiveObject(e.target)
         this.state.set('lastActiveObject', e.target)
+        
+        // Ensure transform controls are visible on the selected object
+        const showTransform = this.showTransform
+        e.target.hasControls = showTransform
+        e.target.hasBorders = showTransform
+        e.target.lockRotation = false
+        
         this.canvas.renderAll()
       }
     })

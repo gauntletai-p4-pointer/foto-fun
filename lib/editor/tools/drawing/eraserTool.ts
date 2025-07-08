@@ -1,6 +1,6 @@
 import { Eraser } from 'lucide-react'
 import { TOOL_IDS } from '@/constants'
-import type { Canvas, FabricObject, Path } from 'fabric'
+import type { Canvas, FabricObject, Path, Point, TEvent, TPointerEvent } from 'fabric'
 import { PencilBrush } from 'fabric'
 import { DrawingTool } from '../base/DrawingTool'
 import type { ToolOption } from '@/store/toolOptionsStore'
@@ -9,21 +9,92 @@ import { LayerAwareMixin } from '../utils/layerAware'
 import { useHistoryStore } from '@/store/historyStore'
 import { AddObjectCommand } from '@/lib/editor/commands/canvas'
 
+// Type augmentation for Path with eraser properties
+type PathWithEraserProps = Path & {
+  globalCompositeOperation?: GlobalCompositeOperation
+}
+
 /**
- * Custom Eraser Brush that uses destination-out composite operation
+ * Custom Eraser Brush that properly handles destination-out composite operation
+ * 
+ * The key to avoiding the "shooting from side" issue is to ensure the brush
+ * is properly initialized and the composite operation is set at the right time.
  */
 class EraserBrush extends PencilBrush {
   constructor(canvas: Canvas) {
     super(canvas)
+    
+    // Set default properties
+    this.width = 20
+    this.color = 'rgba(0,0,0,1)' // Color doesn't matter for eraser
+    
+    // Reset any internal state that might cause position issues
+    this.resetBrushState()
   }
   
   /**
-   * Override to use destination-out for erasing
+   * Reset internal brush state to prevent position carryover
    */
-  _render(ctx: CanvasRenderingContext2D): void {
+  private resetBrushState(): void {
+    // Access internal properties using type assertion to PencilBrush internals
+    interface PencilBrushInternal {
+      _points?: unknown[]
+      _mouseDownPoint?: unknown
+      _currentMouseCoords?: unknown
+    }
+    
+    const brush = this as unknown as PencilBrushInternal
+    
+    // Reset the points array that tracks the stroke path
+    if (brush._points) {
+      brush._points = []
+    }
+    
+    // Reset any cached mouse positions
+    if (brush._mouseDownPoint) {
+      brush._mouseDownPoint = null
+    }
+    
+    // Clear any other internal state that might affect positioning
+    if (brush._currentMouseCoords) {
+      brush._currentMouseCoords = null
+    }
+  }
+  
+  /**
+   * Override onMouseDown to ensure clean state for each stroke
+   */
+  onMouseDown(pointer: Point, options: TEvent<TPointerEvent>): boolean | void {
+    // Reset state before starting new stroke
+    this.resetBrushState()
+    
+    // Call parent implementation
+    return super.onMouseDown(pointer, options)
+  }
+  
+  /**
+   * Override to handle the drawing context properly
+   * This is called during the drawing operation
+   */
+  _render(ctx?: CanvasRenderingContext2D): void {
+    if (!ctx) {
+      console.warn('EraserBrush: No rendering context available')
+      return
+    }
+    
+    // Store the original composite operation
+    const originalComposite = ctx.globalCompositeOperation
+    
+    // Temporarily set to destination-out for erasing
     ctx.globalCompositeOperation = 'destination-out'
-    super._render(ctx)
-    ctx.globalCompositeOperation = 'source-over'
+    
+    try {
+      // Call the parent render method
+      super._render(ctx)
+    } finally {
+      // Always restore the original composite operation
+      ctx.globalCompositeOperation = originalComposite
+    }
   }
 }
 
@@ -55,6 +126,11 @@ class EraserTool extends DrawingTool {
     if (!LayerAwareMixin.canDrawOnActiveLayer()) {
       console.warn('Cannot erase on locked or hidden layer')
       return
+    }
+    
+    // Clear any existing brush state from previous tools
+    if (canvas.freeDrawingBrush) {
+      canvas.freeDrawingBrush = undefined
     }
     
     // Enable drawing mode
@@ -119,7 +195,9 @@ class EraserTool extends DrawingTool {
         this.canvas!.remove(path)
         
         // Set the composite operation for erasing
-        path.set('globalCompositeOperation', 'destination-out')
+        // Use proper type assertion
+        const eraserPath = path as PathWithEraserProps
+        eraserPath.globalCompositeOperation = 'destination-out'
         
         // Add the path using LayerAwareMixin to properly associate with layer
         const context = { canvas: this.canvas! }
@@ -133,7 +211,8 @@ class EraserTool extends DrawingTool {
         
         console.log('Eraser stroke created:', {
           width: this.strokeWidth,
-          layerId: layerId
+          layerId: layerId,
+          compositeOperation: eraserPath.globalCompositeOperation
         })
       } catch (error) {
         console.error('Error creating eraser stroke:', error)
