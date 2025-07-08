@@ -98,6 +98,202 @@ Before starting these tools, ensure:
 - [ ] Tool Options Store is understood
 - [ ] Basic understanding of pixel manipulation
 
+## Required Patterns from Epic 1
+
+### MUST Follow These Standards
+All paint and clone tools MUST adhere to the patterns established in Epic 1:
+
+1. **Tool Architecture**
+   - Extend from `BaseTool` or create specialized base classes
+   - NO module-level state - use encapsulated class properties
+   - Use `ToolStateManager` for complex state
+   - Implement proper lifecycle methods
+
+2. **State Management**
+   ```typescript
+   // ❌ WRONG - Module-level state
+   let sourcePoint: Point | null = null
+   let isCloning = false
+   let brushData: ImageData | null = null
+   
+   // ✅ CORRECT - Encapsulated state
+   class CloneTool extends BaseTool {
+     private state = {
+       sourcePoint: null as Point | null,
+       isCloning: false,
+       isSourceSet: false,
+       offset: { x: 0, y: 0 },
+       lastPoint: null as Point | null,
+       brushData: null as ImageData | null
+     }
+   }
+   ```
+
+3. **Event Management**
+   - Use `addCanvasEvent` for canvas events
+   - Use `addEventListener` for keyboard events
+   - All events auto-cleanup on deactivate
+   - Group related event handlers
+
+4. **Command Pattern**
+   - Every paint stroke is a command
+   - Clone operations are commands
+   - Gradient fills are commands
+   ```typescript
+   // Paint stroke
+   const command = new PaintStrokeCommand(canvas, strokeData, layer)
+   this.executeCommand(command)
+   
+   // Clone operation
+   const command = new CloneCommand(sourceRegion, destRegion, blendMode)
+   this.executeCommand(command)
+   ```
+
+5. **Performance Requirements**
+   - Brush operations < 16ms per frame
+   - Use `requestAnimationFrame` for continuous painting
+   - Implement brush caching for large brushes
+   - Track with `performanceMonitor`
+
+6. **Memory Management**
+   - Dispose of ImageData when done
+   - Clear brush caches on deactivate
+   - Limit undo history for large operations
+
+### Example: Proper Clone Tool Structure
+```typescript
+export class CloneStampTool extends BaseTool {
+  // Encapsulated state
+  private state = {
+    sourcePoint: null as Point | null,
+    isSourceSet: false,
+    isCloning: false,
+    aligned: true,
+    offset: { x: 0, y: 0 },
+    lastPoint: null as Point | null,
+    strokeData: [] as ClonePoint[]
+  }
+  
+  protected setupTool(canvas: Canvas): void {
+    // Use event helpers
+    this.addCanvasEvent('mouse:down', this.handleMouseDown)
+    this.addCanvasEvent('mouse:move', this.handleMouseMove)
+    this.addCanvasEvent('mouse:up', this.handleMouseUp)
+    
+    // Keyboard events for Alt key
+    this.addEventListener(window, 'keydown', this.handleKeyDown)
+    this.addEventListener(window, 'keyup', this.handleKeyUp)
+    
+    // Subscribe to options
+    this.subscribeToToolOptions((options) => {
+      this.state.aligned = options.aligned ?? true
+    })
+  }
+  
+  protected cleanup(canvas: Canvas): void {
+    // Commit any pending stroke
+    if (this.state.strokeData.length > 0) {
+      this.commitCloneStroke()
+    }
+    
+    // Clear source indicator
+    this.clearSourceIndicator()
+    
+    // Reset state
+    this.state = {
+      sourcePoint: null,
+      isSourceSet: false,
+      isCloning: false,
+      aligned: true,
+      offset: { x: 0, y: 0 },
+      lastPoint: null,
+      strokeData: []
+    }
+  }
+  
+  private handleMouseDown = (e: FabricEvent): void => {
+    this.performanceMonitor.track('clone-mouse-down', () => {
+      const pointer = this.canvas!.getPointer(e.e)
+      
+      if (e.e.altKey) {
+        // Set source point
+        this.state.sourcePoint = { ...pointer }
+        this.state.isSourceSet = true
+        this.showSourceIndicator(pointer)
+      } else if (this.state.isSourceSet) {
+        // Start cloning
+        this.state.isCloning = true
+        this.state.lastPoint = pointer
+        this.state.strokeData = []
+        
+        if (!this.state.aligned) {
+          this.state.offset = {
+            x: pointer.x - this.state.sourcePoint!.x,
+            y: pointer.y - this.state.sourcePoint!.y
+          }
+        }
+      }
+    })
+  }
+  
+  private handleMouseUp = (): void => {
+    if (this.state.isCloning && this.state.strokeData.length > 0) {
+      this.performanceMonitor.track('clone-commit', () => {
+        this.commitCloneStroke()
+      })
+    }
+    
+    this.state.isCloning = false
+  }
+  
+  private commitCloneStroke(): void {
+    const command = new CloneStrokeCommand(
+      this.canvas!,
+      this.state.strokeData,
+      this.layerStore.activeLayer
+    )
+    
+    this.executeCommand(command)
+    this.state.strokeData = []
+  }
+}
+```
+
+### Paint Tool Specific Requirements
+Paint tools need special attention to performance:
+
+```typescript
+class BrushEngine {
+  // Cache brush stamps for performance
+  private brushCache = new Map<string, ImageData>()
+  
+  // Use RAF for smooth painting
+  private paintFrame = 0
+  private paintQueue: PaintPoint[] = []
+  
+  startPainting(): void {
+    this.paintFrame = requestAnimationFrame(this.processPaintQueue)
+  }
+  
+  stopPainting(): void {
+    cancelAnimationFrame(this.paintFrame)
+    this.flushPaintQueue()
+  }
+  
+  private processPaintQueue = (): void => {
+    this.performanceMonitor.track('paint-frame', () => {
+      // Process points in batches for performance
+      const batch = this.paintQueue.splice(0, 10)
+      batch.forEach(point => this.paintPoint(point))
+    })
+    
+    if (this.paintQueue.length > 0) {
+      this.paintFrame = requestAnimationFrame(this.processPaintQueue)
+    }
+  }
+}
+```
+
 ## Tools to Implement
 
 ### Clone & Healing Tools
@@ -250,41 +446,92 @@ Before starting these tools, ensure:
 ### Base Clone/Heal Tool Class
 ```typescript
 abstract class BaseCloneTool extends BaseTool {
-  protected sourcePoint: Point | null = null
-  protected isSourceSet = false
-  protected offset: Point = { x: 0, y: 0 }
-  protected aligned = true
+  // Properly encapsulated state
+  protected state = {
+    sourcePoint: null as Point | null,
+    isSourceSet: false,
+    offset: { x: 0, y: 0 },
+    aligned: true,
+    isAltPressed: false
+  }
   
   protected setupTool(canvas: Canvas): void {
     canvas.selection = false
     
-    // Listen for Alt+click to set source
-    canvas.on('mouse:down', this.handleMouseDown)
-    canvas.on('mouse:move', this.handleMouseMove)
-    canvas.on('mouse:up', this.handleMouseUp)
+    // Use BaseTool's event management
+    this.addCanvasEvent('mouse:down', this.handleMouseDown)
+    this.addCanvasEvent('mouse:move', this.handleMouseMove)
+    this.addCanvasEvent('mouse:up', this.handleMouseUp)
     
-    window.addEventListener('keydown', this.handleKeyDown)
-    window.addEventListener('keyup', this.handleKeyUp)
+    // Keyboard events for Alt key
+    this.addEventListener(window, 'keydown', this.handleKeyDown)
+    this.addEventListener(window, 'keyup', this.handleKeyUp)
+    
+    // Subscribe to options
+    this.subscribeToToolOptions((options) => {
+      this.state.aligned = options.aligned ?? true
+    })
+  }
+  
+  protected cleanup(canvas: Canvas): void {
+    canvas.selection = true
+    
+    // Clear any visual indicators
+    this.clearSourceIndicator()
+    
+    // Reset state
+    this.state = {
+      sourcePoint: null,
+      isSourceSet: false,
+      offset: { x: 0, y: 0 },
+      aligned: true,
+      isAltPressed: false
+    }
+    
+    // BaseTool handles event cleanup automatically
   }
   
   protected handleKeyDown = (e: KeyboardEvent): void => {
-    if (e.altKey) {
-      this.canvas!.defaultCursor = 'copy'
+    if (e.altKey && !this.state.isAltPressed) {
+      this.state.isAltPressed = true
+      if (this.canvas) {
+        this.canvas.defaultCursor = 'copy'
+      }
+    }
+  }
+  
+  protected handleKeyUp = (e: KeyboardEvent): void => {
+    if (!e.altKey && this.state.isAltPressed) {
+      this.state.isAltPressed = false
+      if (this.canvas) {
+        this.canvas.defaultCursor = 'crosshair'
+      }
     }
   }
   
   protected handleMouseDown = (e: any): void => {
-    const pointer = this.canvas!.getPointer(e.e)
-    
-    if (e.e.altKey) {
-      // Set source point
-      this.sourcePoint = { ...pointer }
-      this.isSourceSet = true
-      this.showSourceIndicator(pointer)
-    } else if (this.isSourceSet) {
-      // Start cloning
-      this.startCloning(pointer)
-    }
+    this.performanceMonitor.track('clone-mouse-down', () => {
+      const pointer = this.canvas!.getPointer(e.e)
+      
+      if (e.e.altKey) {
+        // Set source point
+        this.state.sourcePoint = { ...pointer }
+        this.state.isSourceSet = true
+        this.showSourceIndicator(pointer)
+      } else if (this.state.isSourceSet) {
+        // Start cloning
+        this.startCloning(pointer)
+      }
+    })
+  }
+  
+  protected showSourceIndicator(point: Point): void {
+    // Visual feedback for source point
+    // Implementation depends on UI requirements
+  }
+  
+  protected clearSourceIndicator(): void {
+    // Clear visual feedback
   }
   
   protected abstract startCloning(point: Point): void

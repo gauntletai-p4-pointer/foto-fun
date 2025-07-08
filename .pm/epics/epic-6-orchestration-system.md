@@ -113,11 +113,14 @@ const IntentSchema = z.object({
     'enhance-quality',
     'creative-edit',
     'batch-process',
-    'complex-workflow'
+    'complex-workflow',
+    'semantic-edit' // Added for spatial/object-aware edits
   ]),
   confidence: z.number().min(0).max(1),
   entities: z.object({
-    targets: z.array(z.enum(['whole-image', 'selection', 'layer', 'specific-area'])),
+    targets: z.array(z.enum(['whole-image', 'selection', 'layer', 'specific-area', 'specific-object'])),
+    objects: z.array(z.string()).optional(), // e.g., ["hat", "person's shirt"]
+    spatialReferences: z.array(z.string()).optional(), // e.g., ["on the left", "below the logo"]
     adjustments: z.array(z.string()),
     parameters: z.record(z.any())
   }),
@@ -130,7 +133,14 @@ export class IntentRecognizer {
     const { object: intent } = await generateObject({
       model: openai('gpt-4o'),
       schema: IntentSchema,
-      system: 'You are an expert at understanding photo editing requests...',
+      system: `You are an expert at understanding photo editing requests.
+        Pay special attention to:
+        - Object references (e.g., "the hat", "his shirt", "the car")
+        - Spatial references (e.g., "on the left", "below", "next to")
+        - Possessive references (e.g., "his", "her", "the person's")
+        - Relative positions (e.g., "between X and Y", "above the text")
+        
+        When detecting semantic edits, extract specific objects and their spatial context.`,
       prompt: userRequest
     })
     return intent

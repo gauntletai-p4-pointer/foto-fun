@@ -93,6 +93,119 @@ Before starting these tools, ensure:
 - [ ] Basic layer system is functional
 - [ ] Tool Options Store is understood
 
+## Required Patterns from Epic 1
+
+### MUST Follow These Standards
+All text tools MUST adhere to the patterns established in Epic 1:
+
+1. **Tool Architecture**
+   - Extend from `BaseTool` or `BaseTypeTool` class
+   - NO module-level state - use encapsulated class properties
+   - Use `ToolStateManager` for complex state
+   - Implement proper lifecycle methods
+
+2. **Event Management**
+   - Use `addEventListener` helper from `BaseTool`
+   - Use `addCanvasEvent` for Fabric.js events
+   - NEVER manually track event listeners
+   - All events auto-cleanup on deactivate
+
+3. **Command Pattern**
+   - Every text modification creates a command
+   - Use `executeCommand()` not direct canvas manipulation
+   - Commands must be reversible for undo/redo
+
+4. **State Management**
+   ```typescript
+   // ❌ WRONG - Module-level state
+   let currentText: IText | null = null
+   
+   // ✅ CORRECT - Encapsulated state
+   class TypeTool extends BaseTool {
+     private state = {
+       currentText: null as IText | null,
+       isEditing: false,
+       lastPosition: { x: 0, y: 0 }
+     }
+   }
+   ```
+
+5. **Resource Cleanup**
+   - Override `cleanup()` to handle tool-specific cleanup
+   - Remove any temporary objects from canvas
+   - Clear any tool-specific state
+
+6. **Performance Requirements**
+   - Text rendering must complete in < 16ms
+   - Use `performanceMonitor.track()` for operations
+   - Debounce rapid text updates
+
+### Example: Proper Text Tool Structure
+```typescript
+export class HorizontalTypeTool extends BaseTool {
+  id = TOOL_IDS.TYPE_HORIZONTAL
+  name = 'Horizontal Type Tool'
+  icon = Type
+  shortcut = 'T'
+  
+  // Encapsulated state
+  private state = {
+    currentText: null as IText | null,
+    isEditing: false,
+    originalText: ''
+  }
+  
+  protected setupTool(canvas: Canvas): void {
+    // Use helper methods for event management
+    this.addCanvasEvent('mouse:down', this.handleMouseDown)
+    this.addCanvasEvent('text:changed', this.handleTextChanged)
+    
+    // Subscribe to options changes
+    this.subscribeToToolOptions((options) => {
+      this.updateTextStyle(options)
+    })
+  }
+  
+  protected cleanup(canvas: Canvas): void {
+    // Commit any pending text
+    if (this.state.isEditing) {
+      this.commitText()
+    }
+    
+    // Base class handles event cleanup automatically
+  }
+  
+  private handleMouseDown = (e: FabricEvent): void => {
+    this.performanceMonitor.track('text-creation', () => {
+      // Text creation logic
+      const text = this.createTextObject(e.pointer)
+      
+      // Use command pattern
+      const command = new AddTextCommand(this.canvas!, text)
+      this.executeCommand(command)
+    })
+  }
+  
+  private commitText(): void {
+    if (!this.state.currentText) return
+    
+    // Create command for the text change
+    const command = new ModifyTextCommand(
+      this.canvas!,
+      this.state.currentText,
+      this.state.originalText,
+      this.state.currentText.text!
+    )
+    
+    this.executeCommand(command)
+    
+    // Clear state
+    this.state.currentText = null
+    this.state.isEditing = false
+  }
+}
+```
+
 ## Tools to Implement
 
 ### Core Type Tools
@@ -185,8 +298,13 @@ import { Type } from 'lucide-react'
 import { IText, Canvas } from 'fabric'
 
 abstract class BaseTypeTool extends BaseTool {
-  protected currentText: IText | null = null
-  protected isEditing: boolean = false
+  // Properly encapsulated state
+  protected state = {
+    currentText: null as IText | null,
+    isEditing: false,
+    originalText: '',
+    lastClickTime: 0
+  }
   
   cursor = 'text'
   
@@ -197,57 +315,78 @@ abstract class BaseTypeTool extends BaseTool {
     // Set up text defaults from options
     this.updateTextDefaults()
     
-    // Listen for clicks to place text
-    canvas.on('mouse:down', this.handleMouseDown)
+    // Use BaseTool's event management
+    this.addCanvasEvent('mouse:down', this.handleMouseDown)
+    this.addCanvasEvent('selection:created', this.handleSelectionCreated)
+    
+    // Subscribe to option changes
+    this.subscribeToToolOptions((options) => {
+      this.updateTextDefaults()
+    })
   }
   
   protected cleanup(canvas: Canvas): void {
     // Commit any active text
-    if (this.currentText && this.isEditing) {
+    if (this.state.currentText && this.state.isEditing) {
       this.commitText()
     }
     
     // Re-enable selection
     canvas.selection = true
     
-    // Remove event listeners
-    canvas.off('mouse:down', this.handleMouseDown)
+    // BaseTool handles event cleanup automatically
   }
   
   protected handleMouseDown = (e: any): void => {
-    if (this.isEditing) {
-      // Click outside text commits it
-      this.commitText()
-      return
-    }
-    
-    // Create new text at click position
-    const pointer = this.canvas!.getPointer(e.e)
-    this.createText(pointer.x, pointer.y)
+    // Track performance
+    this.performanceMonitor.track('text-mouse-down', () => {
+      if (this.state.isEditing) {
+        // Click outside text commits it
+        this.commitText()
+        return
+      }
+      
+      // Create new text at click position
+      const pointer = this.canvas!.getPointer(e.e)
+      this.createText(pointer.x, pointer.y)
+    })
   }
   
   protected abstract createText(x: number, y: number): void
   
   protected commitText(): void {
-    if (!this.currentText || !this.canvas) return
+    if (!this.state.currentText || !this.canvas) return
     
-    // Record command for undo/redo
-    const command = new AddTextCommand(
-      this.canvas,
-      this.currentText,
-      this.currentText.text || ''
-    )
-    
-    this.recordCommand(command)
+    // Only create command if text actually changed
+    if (this.state.currentText.text !== this.state.originalText) {
+      // Record command for undo/redo
+      const command = new ModifyTextCommand(
+        this.canvas,
+        this.state.currentText,
+        this.state.originalText,
+        this.state.currentText.text || ''
+      )
+      
+      this.executeCommand(command)
+    }
     
     // Reset state
-    this.currentText = null
-    this.isEditing = false
+    this.state.currentText = null
+    this.state.isEditing = false
+    this.state.originalText = ''
   }
   
   protected updateTextDefaults(): void {
-    const options = this.options.getToolOptions(this.id)
+    const options = this.toolOptionsStore.getToolOptions(this.id)
     // Apply font, size, color, etc. to new text
+  }
+  
+  protected handleSelectionCreated = (e: any): void => {
+    // Handle when user selects existing text
+    if (e.selected[0] instanceof IText) {
+      this.state.currentText = e.selected[0]
+      this.state.originalText = e.selected[0].text || ''
+    }
   }
 }
 ```
@@ -263,7 +402,7 @@ export class HorizontalTypeTool extends BaseTypeTool {
   protected createText(x: number, y: number): void {
     const options = this.options.getToolOptions(this.id)
     
-    this.currentText = new IText('', {
+    this.state.currentText = new IText('', {
       left: x,
       top: y,
       fontFamily: options?.fontFamily || 'Arial',
@@ -275,17 +414,17 @@ export class HorizontalTypeTool extends BaseTypeTool {
       cursorWidth: 2,
     })
     
-    this.canvas!.add(this.currentText)
-    this.canvas!.setActiveObject(this.currentText)
+    this.canvas!.add(this.state.currentText)
+    this.canvas!.setActiveObject(this.state.currentText)
     
     // Enter edit mode
-    this.currentText.enterEditing()
-    this.currentText.selectAll()
-    this.isEditing = true
+    this.state.currentText.enterEditing()
+    this.state.currentText.selectAll()
+    this.state.isEditing = true
     
     // Listen for text changes
-    this.currentText.on('changed', this.handleTextChanged)
-    this.currentText.on('editing:exited', this.handleEditingExited)
+    this.state.currentText.on('changed', this.handleTextChanged)
+    this.state.currentText.on('editing:exited', this.handleEditingExited)
   }
   
   private handleTextChanged = (): void => {

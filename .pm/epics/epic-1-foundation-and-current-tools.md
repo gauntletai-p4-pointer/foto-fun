@@ -335,28 +335,244 @@ class PerformanceMonitor {
 }
 ```
 
+## Code Quality Issues to Fix 🔴 CRITICAL
+
+### Current Problems
+1. **Module-level state in tools**
+   - Variables like `let cropRect`, `let isDrawing`, `let activeCanvas` at module level
+   - Makes tools untestable and prone to state bugs
+   - Memory leak potential with lingering references
+
+2. **Inconsistent event handling**
+   - Some tools clean up listeners, others don't
+   - Mix of canvas events and window events without clear patterns
+   - Event handler references stored in different ways
+
+3. **No command recording**
+   - Tools directly modify canvas without recording actions
+   - Impossible to implement undo/redo without refactoring
+
+4. **Repetitive patterns**
+   - Each tool reimplements common functionality
+   - No shared abstractions for selection tools, drawing tools, etc.
+
+5. **Memory leak risks**
+   - Event listeners not always removed
+   - Subscriptions to stores not cleaned up
+   - Canvas references kept after deactivation
+
+### Required Patterns & Standards
+
+#### 1. Tool State Encapsulation
+```typescript
+// ❌ BAD - Current pattern with module-level state
+let cropRect: Rect | null = null
+let isDrawing = false
+
+// ✅ GOOD - Encapsulated state
+class CropTool extends BaseTool {
+  private state = {
+    cropRect: null as Rect | null,
+    isDrawing: false,
+    startPoint: null as Point | null
+  }
+  
+  protected cleanup() {
+    // State automatically cleared by BaseTool
+    if (this.state.cropRect) {
+      this.canvas?.remove(this.state.cropRect)
+    }
+  }
+}
+```
+
+#### 2. Consistent Event Management
+```typescript
+abstract class BaseTool {
+  private eventCleanups: (() => void)[] = []
+  
+  protected addEventListener(
+    target: EventTarget,
+    event: string,
+    handler: EventListener,
+    options?: AddEventListenerOptions
+  ): void {
+    target.addEventListener(event, handler, options)
+    this.eventCleanups.push(() => 
+      target.removeEventListener(event, handler, options)
+    )
+  }
+  
+  protected addCanvasEvent<K extends keyof CanvasEvents>(
+    event: K,
+    handler: (e: CanvasEvents[K]) => void
+  ): void {
+    this.canvas?.on(event, handler)
+    this.eventCleanups.push(() => this.canvas?.off(event, handler))
+  }
+  
+  onDeactivate() {
+    // Automatically clean up ALL event listeners
+    this.eventCleanups.forEach(cleanup => cleanup())
+    this.eventCleanups = []
+  }
+}
+```
+
+#### 3. Command Recording Pattern
+```typescript
+// Every tool action must create a command
+class BrushTool extends DrawingTool {
+  private currentPath: fabric.Path | null = null
+  
+  protected handleMouseUp(e: ToolEvent) {
+    if (this.currentPath) {
+      // Create command instead of direct manipulation
+      const command = new AddPathCommand(
+        this.canvas,
+        this.currentPath,
+        this.getActiveLayer()
+      )
+      
+      this.executeCommand(command) // Records in history
+      this.currentPath = null
+    }
+  }
+}
+```
+
+#### 4. Store Subscription Management
+```typescript
+abstract class BaseTool {
+  private unsubscribers: (() => void)[] = []
+  
+  protected subscribeToStore<T>(
+    store: StoreApi<T>,
+    selector: (state: T) => any,
+    handler: (value: any) => void
+  ): void {
+    const unsubscribe = store.subscribe(
+      (state) => handler(selector(state))
+    )
+    this.unsubscribers.push(unsubscribe)
+  }
+  
+  onDeactivate() {
+    // Auto cleanup all subscriptions
+    this.unsubscribers.forEach(unsub => unsub())
+    this.unsubscribers = []
+  }
+}
+```
+
+#### 5. Lifecycle Guarantees
+```typescript
+interface ToolLifecycle {
+  // Called once when tool is activated
+  onActivate(canvas: Canvas): void
+  
+  // Called once when tool is deactivated
+  onDeactivate(canvas: Canvas): void
+  
+  // Optional event handlers - only called while active
+  onMouseDown?(e: ToolEvent): void
+  onMouseMove?(e: ToolEvent): void
+  onMouseUp?(e: ToolEvent): void
+  onKeyDown?(e: KeyboardEvent): void
+  onKeyUp?(e: KeyboardEvent): void
+}
+
+// BaseTool ensures cleanup happens even if tool crashes
+abstract class BaseTool implements ToolLifecycle {
+  onActivate(canvas: Canvas) {
+    try {
+      this.setupTool(canvas)
+    } catch (error) {
+      console.error(`Tool ${this.id} activation failed:`, error)
+      this.emergencyCleanup()
+    }
+  }
+}
+```
+
+### Implementation Standards for All Epics
+
+1. **No Module-Level State**
+   - All state must be encapsulated in classes or stores
+   - Use WeakMaps for external object associations if needed
+
+2. **Explicit Resource Management**
+   - Every resource allocation must have corresponding cleanup
+   - Use try/finally or RAII patterns for critical resources
+
+3. **Command Pattern for All Mutations**
+   - No direct canvas/layer modifications
+   - All changes go through commands for undo/redo
+
+4. **Type Safety**
+   - No `any` types except in generic constraints
+   - No `@ts-ignore` or `@ts-expect-error`
+   - Strict null checks enabled
+
+5. **Performance Budget**
+   - Tool operations must complete in < 16ms
+   - Use requestAnimationFrame for animations
+   - Debounce rapid updates (min 16ms)
+
+6. **Testing Requirements**
+   - Each tool must have unit tests
+   - Test state management and cleanup
+   - Test command creation and execution
+
 ## Implementation Order
 
-1. **Phase 1: Critical Infrastructure** (1-2 weeks)
-   - [ ] Implement Command Pattern and History Store
-   - [ ] Add Undo/Redo UI and shortcuts
-   - [ ] Create Base Tool Class
-   - [ ] Migrate existing tools to new pattern
+1. **Phase 0: Code Quality Foundation** (2-3 days) 🔴 NEW PRIORITY
+   - [ ] Create BaseTool abstract class with proper lifecycle
+   - [ ] Implement ToolStateManager for encapsulated state
+   - [ ] Create EventManager mixin for consistent event handling
+   - [ ] Set up performance monitoring infrastructure
+   - [ ] Document patterns and create examples
 
-2. **Phase 2: Layer System** (1 week)
-   - [ ] Implement Layer Store
-   - [ ] Add Layers Panel functionality
-   - [ ] Update tools to work with layers
+2. **Phase 1: Command Pattern & History** (3-4 days)
+   - [ ] Implement Command interface and base classes
+   - [ ] Create HistoryStore with undo/redo
+   - [ ] Add command implementations for existing operations
+   - [ ] Enable Edit menu with Undo/Redo UI
+   - [ ] Add keyboard shortcuts (Cmd/Ctrl+Z, Cmd/Ctrl+Shift+Z)
 
-3. **Phase 3: Selection Enhancement** (3-4 days)
-   - [ ] Implement selection boolean operations
-   - [ ] Update all selection tools
-   - [ ] Add selection transformation
+3. **Phase 2: Tool Migration** (4-5 days)
+   - [ ] Migrate Move Tool as reference implementation
+   - [ ] Create SelectionTool base class
+   - [ ] Migrate all selection tools (with proper cleanup)
+   - [ ] Create DrawingTool base class
+   - [ ] Migrate Brush/Eraser tools (with command recording)
+   - [ ] Migrate remaining tools (Hand, Zoom, Crop)
+   - [ ] Fix all memory leaks and module-level state
 
-4. **Phase 4: Tool State & Performance** (3-4 days)
-   - [ ] Implement Tool State Manager
-   - [ ] Add performance monitoring
-   - [ ] Optimize existing tools
+4. **Phase 3: Layer System** (3-4 days)
+   - [ ] Implement Layer types and interfaces
+   - [ ] Create LayerStore with proper state management
+   - [ ] Build Layers Panel UI
+   - [ ] Update all tools to work with layers
+   - [ ] Add layer commands for history
+
+5. **Phase 4: Selection Enhancement** (2-3 days)
+   - [ ] Implement SelectionManager with boolean operations
+   - [ ] Add add/subtract/intersect modes to all selection tools
+   - [ ] Implement selection transformation
+   - [ ] Add selection commands for history
+
+6. **Phase 5: Missing Tools** (2-3 days)
+   - [ ] Implement Quick Selection Tool (W)
+   - [ ] Implement Eyedropper Tool (I)
+   - [ ] Ensure both follow new patterns
+
+7. **Phase 6: Testing & Documentation** (2-3 days)
+   - [ ] Write unit tests for BaseTool and utilities
+   - [ ] Write integration tests for each tool
+   - [ ] Test memory leaks and performance
+   - [ ] Document architecture for future epics
+   - [ ] Create tool implementation guide
 
 ## Testing Guidelines
 
@@ -641,45 +857,54 @@ components/
    - One dev on infrastructure
    - Others can start tool research/planning 
 
-5. **Magic Wand (W)** ✅
-   - Status: MVP Complete
-   - Current: Basic color-based selection
-   - Full: Tolerance adjustment, contiguous/non-contiguous, sample all layers
+## Epic 1 Completion Criteria
 
-6. **Quick Selection Tool (W)** 🚧
-   - Status: To Implement in This Epic
-   - MVP: Brush-based smart selection with basic edge detection
-   - Full: Auto-enhance edges, subtract mode, adjustable brush size
+### Code Quality Standards Met
+- [ ] **Zero module-level state** - All tools use encapsulated state
+- [ ] **Consistent event handling** - All events properly cleaned up
+- [ ] **Command pattern implemented** - All mutations go through commands
+- [ ] **No memory leaks** - Verified with Chrome DevTools
+- [ ] **Type safety** - Zero `any` types, no suppressions
+- [ ] **Performance budget met** - All operations < 16ms
 
-### Navigation Tools
-7. **Hand Tool (H)** ✅
-   - Status: MVP Complete
-   - Current: Pan functionality
-   - Full: Flick panning, overscroll
+### Infrastructure Complete
+- [ ] **BaseTool class** - All tools inherit from it
+- [ ] **HistoryStore** - Full undo/redo working
+- [ ] **LayerStore** - Basic layer management
+- [ ] **SelectionManager** - Boolean operations working
+- [ ] **ToolStateManager** - Encapsulated state management
+- [ ] **EventManager** - Consistent event handling
+- [ ] **PerformanceMonitor** - Tracking all operations
 
-8. **Zoom Tool (Z)** ✅
-   - Status: MVP Complete
-   - Current: Click to zoom in/out
-   - Full: Scrubby zoom, animated zoom
+### Tools Migrated & Working
+- [ ] **10 existing tools** - All migrated to new architecture
+- [ ] **2 new tools** - Quick Selection & Eyedropper implemented
+- [ ] **All tools support**:
+  - [ ] Undo/redo for all operations
+  - [ ] Proper state encapsulation
+  - [ ] Clean event management
+  - [ ] Layer awareness
+  - [ ] Performance tracking
 
-### Drawing Tools  
-9. **Brush Tool (B)** ✅
-   - Status: MVP Complete
-   - Current: Basic painting with size/opacity
-   - Full: Pressure sensitivity, brush dynamics, custom brushes
+### UI Complete
+- [ ] **Edit menu** - Undo/Redo items working
+- [ ] **History panel** - Shows operation history
+- [ ] **Layers panel** - Basic layer management UI
+- [ ] **Selection modes** - UI for add/subtract/intersect
 
-10. **Eraser Tool (E)** ✅
-    - Status: MVP Complete
-    - Current: Basic erasing
-    - Full: Background eraser, magic eraser modes
+### Documentation & Testing
+- [ ] **Architecture guide** - Patterns documented for future epics
+- [ ] **Tool implementation guide** - Step-by-step for new tools
+- [ ] **Unit tests** - BaseTool and core utilities tested
+- [ ] **Integration tests** - Each tool has basic tests
+- [ ] **Performance benchmarks** - Baseline established
 
-### Sampling Tools
-11. **Eyedropper Tool (I)** 🚧
-    - Status: To Implement in This Epic
-    - MVP: Sample color from canvas, update foreground color
-    - Full: Sample size options, sample all layers, show color info
-
-12. **Crop Tool (C)** ✅
-    - Status: MVP Complete (Recently finished with clipPath approach)
-    - Current: Basic crop with aspect ratios
-    - Full: Perspective crop, content-aware crop, straighten
+### Definition of Done
+Epic 1 is complete when:
+1. All code quality issues are resolved
+2. New architecture patterns are established and documented
+3. All existing tools work with the new patterns
+4. Undo/redo works for all operations
+5. Basic layer system is functional
+6. No regressions in existing functionality
+7. Future epics can build on these patterns without refactoring

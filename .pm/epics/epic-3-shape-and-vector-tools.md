@@ -99,6 +99,178 @@ Before starting these tools, ensure:
 - [ ] Tool Options Store is understood
 - [ ] Basic understanding of Fabric.js shape objects
 
+## Required Patterns from Epic 1
+
+### MUST Follow These Standards
+All shape and vector tools MUST adhere to the patterns established in Epic 1:
+
+1. **Tool Architecture**
+   - Extend from `BaseTool` or create `BaseShapeTool`/`BaseVectorTool`
+   - NO module-level state - use encapsulated class properties
+   - Use `ToolStateManager` for complex state (especially Pen tool)
+   - Implement proper lifecycle methods
+
+2. **State Management**
+   ```typescript
+   // ❌ WRONG - Module-level state
+   let isDrawing = false
+   let currentShape: FabricObject | null = null
+   let anchorPoints: Point[] = []
+   
+   // ✅ CORRECT - Encapsulated state
+   class ShapeTool extends BaseTool {
+     private state = {
+       isDrawing: false,
+       currentShape: null as FabricObject | null,
+       startPoint: { x: 0, y: 0 },
+       previewShape: null as FabricObject | null
+     }
+   }
+   ```
+
+3. **Event Management**
+   - Use `addCanvasEvent` for all Fabric.js events
+   - Use `addEventListener` for DOM events
+   - NEVER manually remove listeners - BaseTool handles it
+   - Group related event handlers
+
+4. **Command Pattern**
+   - Every shape creation is a command
+   - Path modifications are commands
+   - Support multi-step undo for complex operations
+   ```typescript
+   // Shape creation
+   const command = new AddShapeCommand(canvas, shape, layer)
+   this.executeCommand(command)
+   
+   // Path point addition
+   const command = new AddAnchorPointCommand(path, point, index)
+   this.executeCommand(command)
+   ```
+
+5. **Performance Requirements**
+   - Shape preview updates < 16ms
+   - Use `requestAnimationFrame` for smooth previews
+   - Debounce rapid path updates
+   - Track performance with `performanceMonitor`
+
+6. **Resource Management**
+   - Clean up preview shapes in `cleanup()`
+   - Remove temporary guides/helpers
+   - Clear complex state properly (especially Pen tool)
+
+### Example: Proper Shape Tool Structure
+```typescript
+export class RectangleTool extends BaseTool {
+  // Encapsulated state
+  private state = {
+    isDrawing: false,
+    startPoint: null as Point | null,
+    currentShape: null as Rect | null,
+    previewMode: false
+  }
+  
+  protected setupTool(canvas: Canvas): void {
+    // Use event helpers
+    this.addCanvasEvent('mouse:down', this.handleMouseDown)
+    this.addCanvasEvent('mouse:move', this.handleMouseMove)
+    this.addCanvasEvent('mouse:up', this.handleMouseUp)
+    
+    // Subscribe to options
+    this.subscribeToToolOptions((options) => {
+      this.updateShapeStyle(options)
+    })
+    
+    // Set cursor
+    canvas.defaultCursor = 'crosshair'
+  }
+  
+  protected cleanup(canvas: Canvas): void {
+    // Clean up any preview shape
+    if (this.state.currentShape && this.state.isDrawing) {
+      canvas.remove(this.state.currentShape)
+    }
+    
+    // Reset state
+    this.state = {
+      isDrawing: false,
+      startPoint: null,
+      currentShape: null,
+      previewMode: false
+    }
+    
+    // Restore cursor
+    canvas.defaultCursor = 'default'
+  }
+  
+  private handleMouseDown = (e: FabricEvent): void => {
+    this.performanceMonitor.track('shape-start', () => {
+      const pointer = this.canvas!.getPointer(e.e)
+      this.state.startPoint = pointer
+      this.state.isDrawing = true
+      
+      // Create preview shape
+      this.state.currentShape = this.createPreviewShape(pointer)
+      this.canvas!.add(this.state.currentShape)
+    })
+  }
+  
+  private handleMouseUp = (): void => {
+    if (!this.state.currentShape || !this.state.isDrawing) return
+    
+    this.performanceMonitor.track('shape-complete', () => {
+      // Create command
+      const command = new AddShapeCommand(
+        this.canvas!,
+        this.state.currentShape!,
+        this.layerStore.activeLayer
+      )
+      
+      this.executeCommand(command)
+      
+      // Reset state
+      this.state.isDrawing = false
+      this.state.currentShape = null
+    })
+  }
+}
+```
+
+### Pen Tool Specific Requirements
+The Pen tool is complex and needs special attention:
+
+```typescript
+class PenTool extends BaseTool {
+  // Use ToolStateManager for complex state
+  private penState = new ToolStateManager<PenToolState>({
+    anchorPoints: [],
+    currentPath: null,
+    isDrawingPath: false,
+    selectedPoints: [],
+    handleMode: 'symmetric',
+    magneticMode: false
+  })
+  
+  // Group related operations
+  private pathOperations = {
+    addPoint: (point: AnchorPoint) => {
+      const command = new AddAnchorPointCommand(/*...*/)
+      this.executeCommand(command)
+    },
+    
+    removePoint: (index: number) => {
+      const command = new RemoveAnchorPointCommand(/*...*/)
+      this.executeCommand(command)
+    },
+    
+    modifyHandles: (point: AnchorPoint, handles: Handles) => {
+      const command = new ModifyHandlesCommand(/*...*/)
+      this.executeCommand(command)
+    }
+  }
+}
+```
+
 ## Tools to Implement
 
 ### Shape Tools
@@ -245,10 +417,13 @@ import { BaseTool } from './base/BaseTool'
 import { Canvas, FabricObject } from 'fabric'
 
 abstract class BaseShapeTool extends BaseTool {
-  protected isDrawing = false
-  protected startPoint: { x: number; y: number } | null = null
-  protected currentShape: FabricObject | null = null
-  protected shapeOptions: any = {}
+  // Properly encapsulated state
+  protected state = {
+    isDrawing: false,
+    startPoint: null as { x: number; y: number } | null,
+    currentShape: null as FabricObject | null,
+    shapeOptions: {} as any
+  }
   
   protected setupTool(canvas: Canvas): void {
     canvas.selection = false
@@ -257,75 +432,94 @@ abstract class BaseShapeTool extends BaseTool {
     // Get shape options from store
     this.updateShapeOptions()
     
-    // Set up event listeners
-    canvas.on('mouse:down', this.handleMouseDown)
-    canvas.on('mouse:move', this.handleMouseMove)
-    canvas.on('mouse:up', this.handleMouseUp)
+    // Use BaseTool's event management
+    this.addCanvasEvent('mouse:down', this.handleMouseDown)
+    this.addCanvasEvent('mouse:move', this.handleMouseMove)
+    this.addCanvasEvent('mouse:up', this.handleMouseUp)
+    
+    // Subscribe to option changes
+    this.subscribeToToolOptions(() => {
+      this.updateShapeOptions()
+    })
   }
   
   protected cleanup(canvas: Canvas): void {
     canvas.selection = true
     canvas.defaultCursor = 'default'
     
-    // Remove event listeners
-    canvas.off('mouse:down', this.handleMouseDown)
-    canvas.off('mouse:move', this.handleMouseMove)
-    canvas.off('mouse:up', this.handleMouseUp)
-    
     // Clean up any incomplete shapes
-    if (this.currentShape && this.isDrawing) {
-      canvas.remove(this.currentShape)
+    if (this.state.currentShape && this.state.isDrawing) {
+      canvas.remove(this.state.currentShape)
     }
     
-    this.isDrawing = false
-    this.startPoint = null
-    this.currentShape = null
+    // Reset state
+    this.state = {
+      isDrawing: false,
+      startPoint: null,
+      currentShape: null,
+      shapeOptions: {}
+    }
+    
+    // BaseTool handles event cleanup automatically
   }
   
   protected handleMouseDown = (e: any): void => {
     if (!this.canvas) return
     
-    const pointer = this.canvas.getPointer(e.e)
-    this.startPoint = { x: pointer.x, y: pointer.y }
-    this.isDrawing = true
-    
-    // Create initial shape
-    this.currentShape = this.createShape(pointer.x, pointer.y, 0, 0)
-    this.canvas.add(this.currentShape)
+    this.performanceMonitor.track('shape-mouse-down', () => {
+      const pointer = this.canvas!.getPointer(e.e)
+      this.state.startPoint = { x: pointer.x, y: pointer.y }
+      this.state.isDrawing = true
+      
+      // Create initial shape
+      this.state.currentShape = this.createShape(pointer.x, pointer.y, 0, 0)
+      this.canvas!.add(this.state.currentShape)
+    })
   }
   
   protected handleMouseMove = (e: any): void => {
-    if (!this.isDrawing || !this.currentShape || !this.startPoint || !this.canvas) return
+    if (!this.state.isDrawing || !this.state.currentShape || !this.state.startPoint || !this.canvas) return
     
-    const pointer = this.canvas.getPointer(e.e)
-    const width = pointer.x - this.startPoint.x
-    const height = pointer.y - this.startPoint.y
-    
-    // Handle constraints
-    const constrainedDimensions = this.applyConstraints(width, height, e.e)
-    
-    // Update shape
-    this.updateShape(this.currentShape, constrainedDimensions)
-    this.canvas.renderAll()
+    // Use RAF for smooth updates
+    requestAnimationFrame(() => {
+      this.performanceMonitor.track('shape-update', () => {
+        const pointer = this.canvas!.getPointer(e.e)
+        const width = pointer.x - this.state.startPoint!.x
+        const height = pointer.y - this.state.startPoint!.y
+        
+        // Handle constraints
+        const constrainedDimensions = this.applyConstraints(width, height, e.e)
+        
+        // Update shape
+        this.updateShape(this.state.currentShape!, constrainedDimensions)
+        this.canvas!.renderAll()
+      })
+    })
   }
   
   protected handleMouseUp = (): void => {
-    if (!this.currentShape || !this.canvas) return
+    if (!this.state.currentShape || !this.canvas) return
     
-    this.isDrawing = false
-    
-    // Check if shape is too small
-    const minSize = 2
-    if (this.currentShape.width! < minSize || this.currentShape.height! < minSize) {
-      this.canvas.remove(this.currentShape)
-    } else {
-      // Record command for undo/redo
-      const command = new AddShapeCommand(this.canvas, this.currentShape)
-      this.recordCommand(command)
-    }
-    
-    this.currentShape = null
-    this.startPoint = null
+    this.performanceMonitor.track('shape-complete', () => {
+      this.state.isDrawing = false
+      
+      // Check if shape is too small
+      const minSize = 2
+      if (this.state.currentShape!.width! < minSize || this.state.currentShape!.height! < minSize) {
+        this.canvas!.remove(this.state.currentShape!)
+      } else {
+        // Record command for undo/redo
+        const command = new AddShapeCommand(
+          this.canvas!,
+          this.state.currentShape!,
+          this.layerStore.activeLayer
+        )
+        this.executeCommand(command)
+      }
+      
+      this.state.currentShape = null
+      this.state.startPoint = null
+    })
   }
   
   protected applyConstraints(width: number, height: number, event: any): { width: number; height: number } {
@@ -340,10 +534,10 @@ abstract class BaseShapeTool extends BaseTool {
     }
     
     // Alt key draws from center
-    if (event.altKey && this.startPoint) {
-      this.currentShape!.set({
-        left: this.startPoint.x - Math.abs(constrainedWidth),
-        top: this.startPoint.y - Math.abs(constrainedHeight)
+    if (event.altKey && this.state.startPoint) {
+      this.state.currentShape!.set({
+        left: this.state.startPoint.x - Math.abs(constrainedWidth),
+        top: this.state.startPoint.y - Math.abs(constrainedHeight)
       })
       constrainedWidth = Math.abs(constrainedWidth) * 2
       constrainedHeight = Math.abs(constrainedHeight) * 2
@@ -353,8 +547,8 @@ abstract class BaseShapeTool extends BaseTool {
   }
   
   protected updateShapeOptions(): void {
-    const options = this.options.getToolOptions(this.id)
-    this.shapeOptions = {
+    const options = this.toolOptionsStore.getToolOptions(this.id)
+    this.state.shapeOptions = {
       fill: options?.fillColor || '#000000',
       stroke: options?.strokeColor || null,
       strokeWidth: options?.strokeWidth || 1,
@@ -388,7 +582,7 @@ export class RectangleTool extends BaseShapeTool {
       height: height,
       rx: cornerRadius,
       ry: cornerRadius,
-      ...this.shapeOptions
+      ...this.state.shapeOptions
     })
   }
   
@@ -399,7 +593,7 @@ export class RectangleTool extends BaseShapeTool {
     })
     
     // Update position if drawing from center
-    if (this.startPoint && shape.left !== this.startPoint.x) {
+    if (this.state.startPoint && shape.left !== this.state.startPoint.x) {
       shape.set({
         width: dimensions.width,
         height: dimensions.height
@@ -557,8 +751,8 @@ export class PenTool extends BaseTool {
     // Create new path
     this.currentPath = new Path(pathData, {
       fill: null,
-      stroke: this.shapeOptions.stroke || '#000000',
-      strokeWidth: this.shapeOptions.strokeWidth || 1,
+      stroke: this.state.shapeOptions.stroke || '#000000',
+      strokeWidth: this.state.shapeOptions.strokeWidth || 1,
       selectable: false
     })
     
@@ -596,7 +790,7 @@ export class PenTool extends BaseTool {
   private closePath(): void {
     if (!this.currentPath || !this.canvas) return
     
-    this.currentPath.set({ fill: this.shapeOptions.fill })
+    this.currentPath.set({ fill: this.state.shapeOptions.fill })
     this.completePath()
   }
   
