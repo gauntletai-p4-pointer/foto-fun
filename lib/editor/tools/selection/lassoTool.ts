@@ -1,6 +1,6 @@
 import { Lasso } from 'lucide-react'
 import { TOOL_IDS } from '@/constants'
-import type { Canvas } from 'fabric'
+import type { Canvas, TPointerEventInfo } from 'fabric'
 import { Path } from 'fabric'
 import { SelectionTool } from '../base/SelectionTool'
 import { selectionStyle } from '../utils/selectionRenderer'
@@ -8,7 +8,6 @@ import { useCanvasStore } from '@/store/canvasStore'
 import { useSelectionStore } from '@/store/selectionStore'
 import { useHistoryStore } from '@/store/historyStore'
 import { CreateSelectionCommand } from '@/lib/editor/commands/selection'
-import type { Point } from '../utils/constraints'
 
 /**
  * Lasso Tool - Creates freehand selections
@@ -30,11 +29,14 @@ class LassoTool extends SelectionTool {
   /**
    * Override handleMouseDown to initialize points
    */
-  protected handleMouseDown(e: { scenePoint: Point }): void {
+  protected handleMouseDown(e: TPointerEventInfo<MouseEvent>): void {
     super.handleMouseDown(e)
     
+    // Use Fabric's getPointer method to get the correct transformed coordinates
+    const pointer = this.canvas!.getPointer(e.e)
+    
     // Initialize points array with the start point
-    this.points = [{ x: e.scenePoint.x, y: e.scenePoint.y }]
+    this.points = [{ x: pointer.x, y: pointer.y }]
   }
   
   /**

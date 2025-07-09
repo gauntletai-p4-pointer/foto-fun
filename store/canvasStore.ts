@@ -41,6 +41,9 @@ interface CanvasStore {
   resize: (width: number, height: number) => void
   centerContent: () => void
   
+  // Selection control
+  setObjectSelection: (enabled: boolean) => void
+  
   // Selection management
   selectionManager: SelectionManager | null
   selectionRenderer: SelectionRenderer | null
@@ -318,6 +321,24 @@ export const useCanvasStore = create<CanvasStore>()(
         
         const center = fabricCanvas.getCenter()
         fabricCanvas.absolutePan(new Point(center.left, center.top))
+      },
+      
+      // Selection control
+      setObjectSelection: (enabled) => {
+        const { fabricCanvas } = get()
+        if (!fabricCanvas) return
+        
+        fabricCanvas.selection = enabled
+        fabricCanvas.forEachObject((obj) => {
+          obj.selectable = enabled
+        })
+        
+        // Clear any existing selection when disabling
+        if (!enabled) {
+          fabricCanvas.discardActiveObject()
+        }
+        
+        fabricCanvas.renderAll()
       },
       
       // Selection management actions

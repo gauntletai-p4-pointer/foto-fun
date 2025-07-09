@@ -1,6 +1,7 @@
 import { Wand2 } from 'lucide-react'
 import { TOOL_IDS } from '@/constants'
 import { Path } from 'fabric'
+import type { TPointerEventInfo } from 'fabric'
 import { BaseTool } from '../base/BaseTool'
 import { createToolState } from '../utils/toolState'
 import { selectionStyle } from '../utils/selectionRenderer'
@@ -8,7 +9,6 @@ import { useCanvasStore } from '@/store/canvasStore'
 import { useSelectionStore } from '@/store/selectionStore'
 import { useHistoryStore } from '@/store/historyStore'
 import { CreateSelectionCommand } from '@/lib/editor/commands/selection'
-import type { Point } from '../utils/constraints'
 
 // Magic wand tool state - use type instead of interface for index signature
 type MagicWandState = {
@@ -41,7 +41,7 @@ class MagicWandTool extends BaseTool {
    */
   protected setupTool(): void {
     // Set up event handlers
-    this.addCanvasEvent('mouse:down', (e: unknown) => this.handleClick(e as { scenePoint: Point }))
+    this.addCanvasEvent('mouse:down', (e: unknown) => this.handleClick(e as TPointerEventInfo<MouseEvent>))
     
     // Subscribe to tool options
     this.subscribeToToolOptions((options) => {
@@ -65,10 +65,11 @@ class MagicWandTool extends BaseTool {
   /**
    * Handle click to select similar colors
    */
-  private handleClick(e: { scenePoint: Point }): void {
+  private handleClick(e: TPointerEventInfo<MouseEvent>): void {
     if (!this.canvas) return
     
-    const pointer = e.scenePoint
+    // Use Fabric's getPointer method to get the correct transformed coordinates
+    const pointer = this.canvas.getPointer(e.e)
     
     // Track performance
     this.track('magicWandSelect', () => {

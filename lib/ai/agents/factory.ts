@@ -4,7 +4,7 @@ import type { AgentContext, UserPreferences } from './types'
 import { WorkflowMemory } from './WorkflowMemory'
 import { SequentialEditingAgent } from './SequentialEditingAgent'
 import { MasterRoutingAgent } from './MasterRoutingAgent'
-import { BaseAgent } from './BaseAgent'
+import { BaseExecutionAgent } from './BaseExecutionAgent'
 
 // Default user preferences
 const DEFAULT_PREFERENCES: UserPreferences = {
@@ -31,7 +31,7 @@ export class AgentFactory {
   /**
    * Create an agent with the specified type and context
    */
-  static createAgent(options: CreateAgentOptions): BaseAgent {
+  static createAgent(options: CreateAgentOptions): BaseExecutionAgent | MasterRoutingAgent {
     const { type, canvas, conversation, preferences = {}, maxSteps = 10 } = options
     
     // Create workflow memory
@@ -74,7 +74,7 @@ export class AgentFactory {
         return new SequentialEditingAgent(context, maxSteps)
         
       case 'routing':
-        return new MasterRoutingAgent(context, maxSteps)
+        return new MasterRoutingAgent(context)
         
       default:
         throw new Error(`Unknown agent type: ${type}`)

@@ -1,5 +1,5 @@
 import { BaseTool } from './BaseTool'
-import type { Canvas } from 'fabric'
+import type { Canvas, TPointerEventInfo } from 'fabric'
 import { Path } from 'fabric'
 import { createToolState } from '../utils/toolState'
 import type { Point } from '../utils/constraints'
@@ -40,8 +40,8 @@ export abstract class DrawingTool extends BaseTool {
     canvas.isDrawingMode = false // We handle drawing manually
     
     // Set up event handlers
-    this.addCanvasEvent('mouse:down', (e: unknown) => this.handleMouseDown(e as { scenePoint: Point; e: MouseEvent }))
-    this.addCanvasEvent('mouse:move', (e: unknown) => this.handleMouseMove(e as { scenePoint: Point; e: MouseEvent }))
+    this.addCanvasEvent('mouse:down', (e: unknown) => this.handleMouseDown(e as TPointerEventInfo<MouseEvent>))
+    this.addCanvasEvent('mouse:move', (e: unknown) => this.handleMouseMove(e as TPointerEventInfo<MouseEvent>))
     this.addCanvasEvent('mouse:up', () => this.handleMouseUp())
     
     // Subscribe to tool options for real-time updates
@@ -71,11 +71,13 @@ export abstract class DrawingTool extends BaseTool {
   /**
    * Handle mouse down - start drawing
    */
-  protected handleMouseDown(e: { scenePoint: Point; e: MouseEvent }): void {
+  protected handleMouseDown(e: TPointerEventInfo<MouseEvent>): void {
     if (!this.canvas) return
     
     this.track('startStroke', () => {
-      const point = { x: e.scenePoint.x, y: e.scenePoint.y }
+      // Use Fabric's getPointer method to get the correct transformed coordinates
+      const pointer = this.canvas!.getPointer(e.e)
+      const point = { x: pointer.x, y: pointer.y }
       
       // Update state
       this.state.setState({
@@ -93,11 +95,13 @@ export abstract class DrawingTool extends BaseTool {
   /**
    * Handle mouse move - continue drawing
    */
-  protected handleMouseMove(e: { scenePoint: Point; e: MouseEvent }): void {
+  protected handleMouseMove(e: TPointerEventInfo<MouseEvent>): void {
     if (!this.canvas || !this.state.get('isDrawing')) return
     
     this.track('continueStroke', () => {
-      const point = { x: e.scenePoint.x, y: e.scenePoint.y }
+      // Use Fabric's getPointer method to get the correct transformed coordinates
+      const pointer = this.canvas!.getPointer(e.e)
+      const point = { x: pointer.x, y: pointer.y }
       const lastPoint = this.state.get('lastPoint')
       
       if (lastPoint && this.shouldDrawSegment(lastPoint, point)) {

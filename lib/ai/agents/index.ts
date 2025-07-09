@@ -2,7 +2,7 @@
 export * from './types'
 
 // Base classes
-export { BaseAgent } from './BaseAgent'
+export { BaseExecutionAgent } from './BaseExecutionAgent'
 
 // Agent implementations
 export { SequentialEditingAgent } from './SequentialEditingAgent'

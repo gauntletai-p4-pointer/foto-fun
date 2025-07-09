@@ -105,9 +105,11 @@ class QuickSelectionTool extends BaseTool {
    * Handle mouse down - start selection
    */
   private handleMouseDown(e: TPointerEventInfo<MouseEvent>): void {
-    if (!this.canvas || !e.scenePoint) return
+    if (!this.canvas) return
     
-    const point = { x: e.scenePoint.x, y: e.scenePoint.y }
+    // Use Fabric's getPointer method to get the correct transformed coordinates
+    const pointer = this.canvas.getPointer(e.e)
+    const point = { x: pointer.x, y: pointer.y }
     
     this.track('startQuickSelection', () => {
       // Cache canvas image data
@@ -132,9 +134,11 @@ class QuickSelectionTool extends BaseTool {
    * Handle mouse move - expand selection
    */
   private handleMouseMove(e: TPointerEventInfo<MouseEvent>): void {
-    if (!this.canvas || !this.state.get('isSelecting') || !e.scenePoint) return
+    if (!this.canvas || !this.state.get('isSelecting')) return
     
-    const point = { x: e.scenePoint.x, y: e.scenePoint.y }
+    // Use Fabric's getPointer method to get the correct transformed coordinates
+    const pointer = this.canvas.getPointer(e.e)
+    const point = { x: pointer.x, y: pointer.y }
     this.state.set('currentPoint', point)
     
     this.track('expandQuickSelection', () => {

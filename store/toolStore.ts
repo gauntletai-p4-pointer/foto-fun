@@ -37,17 +37,30 @@ export const useToolStore = create<ToolStore>((set, get) => ({
     
     if (!newTool || toolId === activeTool) return
     
+    const canvasStore = useCanvasStore.getState()
+    
     // Deactivate old tool
     if (oldTool?.onDeactivate) {
-      const canvasStore = useCanvasStore.getState()
       if (canvasStore.fabricCanvas) {
         oldTool.onDeactivate(canvasStore.fabricCanvas)
       }
     }
     
+    // Control object selection based on tool type
+    // Pixel-based selection tools should disable Fabric.js object selection
+    const pixelSelectionTools = [
+      TOOL_IDS.MARQUEE_RECT,
+      TOOL_IDS.MARQUEE_ELLIPSE,
+      TOOL_IDS.LASSO,
+      TOOL_IDS.MAGIC_WAND,
+      TOOL_IDS.QUICK_SELECTION
+    ] as const
+    
+    const shouldDisableObjectSelection = (pixelSelectionTools as readonly string[]).includes(toolId)
+    canvasStore.setObjectSelection(!shouldDisableObjectSelection)
+    
     // Activate new tool
     if (newTool.onActivate) {
-      const canvasStore = useCanvasStore.getState()
       if (canvasStore.fabricCanvas) {
         newTool.onActivate(canvasStore.fabricCanvas)
       }

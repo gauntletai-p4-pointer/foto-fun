@@ -2,11 +2,10 @@
 
 import { useEffect, useRef } from 'react'
 import { useCanvasStore } from '@/store/canvasStore'
-import { useToolStore } from '@/store/toolStore'
+
 import { useFileHandler } from '@/hooks/useFileHandler'
 import { useHistoryStore } from '@/store/historyStore'
-import type { TPointerEventInfo, TPointerEvent } from 'fabric'
-import type { ToolEvent } from '@/types'
+
 import { CopyCommand, CutCommand, PasteCommand } from '@/lib/editor/commands/clipboard'
 import { ClearSelectionCommand } from '@/lib/editor/commands/selection'
 import { useSelectionStore } from '@/store/selectionStore'
@@ -33,7 +32,7 @@ export function Canvas() {
     clipboardManager
   } = useCanvasStore()
   
-  const { getActiveTool } = useToolStore()
+
   const { handleDrop, handleDragOver } = useFileHandler()
   const { executeCommand } = useHistoryStore()
   
@@ -155,13 +154,11 @@ export function Canvas() {
     }
   }, [fabricCanvas, clipboardManager, selectionManager, zoomIn, zoomOut, zoomToFit, zoomToActual, endPanning, executeCommand])
   
-  // Handle tool events
+  // Handle space-bar panning (independent of tool system)
   useEffect(() => {
     if (!fabricCanvas) return
     
     const handleMouseDown = (options: unknown) => {
-      const activeTool = getActiveTool()
-      
       // Check if space is pressed for temporary hand tool
       const spacePressed = (window as { spacePressed?: boolean }).spacePressed
       if (spacePressed) {
@@ -171,47 +168,22 @@ export function Canvas() {
           return
         }
       }
-      
-      // Otherwise use active tool
-      if (activeTool?.onMouseDown) {
-        // Pass the event with canvas reference
-        const toolEvent = { ...(options as TPointerEventInfo<TPointerEvent>), target: fabricCanvas }
-        activeTool.onMouseDown(toolEvent as ToolEvent)
-      }
     }
     
     const handleMouseMove = (options: unknown) => {
-      const activeTool = getActiveTool()
-      
       // Check if we're panning with space
       const spacePressed = (window as { spacePressed?: boolean }).spacePressed
       if (spacePressed && useCanvasStore.getState().isPanning) {
         pan(options as Parameters<typeof pan>[0])
         return
       }
-      
-      // Otherwise use active tool
-      if (activeTool?.onMouseMove) {
-        // Pass the event with canvas reference
-        const toolEvent = { ...(options as TPointerEventInfo<TPointerEvent>), target: fabricCanvas }
-        activeTool.onMouseMove(toolEvent as ToolEvent)
-      }
     }
     
-    const handleMouseUp = (options: unknown) => {
-      const activeTool = getActiveTool()
-      
+    const handleMouseUp = () => {
       // End panning if we were panning
       if (useCanvasStore.getState().isPanning) {
         endPanning()
         return
-      }
-      
-      // Otherwise use active tool
-      if (activeTool?.onMouseUp) {
-        // Pass the event with canvas reference
-        const toolEvent = { ...(options as TPointerEventInfo<TPointerEvent>), target: fabricCanvas }
-        activeTool.onMouseUp(toolEvent as ToolEvent)
       }
     }
     
@@ -235,7 +207,7 @@ export function Canvas() {
       window.removeEventListener('keydown', trackSpace)
       window.removeEventListener('keyup', trackSpace)
     }
-  }, [fabricCanvas, getActiveTool, startPanning, pan, endPanning])
+  }, [fabricCanvas, startPanning, pan, endPanning])
   
   // Handle window resize
   useEffect(() => {

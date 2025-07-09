@@ -1,6 +1,6 @@
 import { ZoomIn } from 'lucide-react'
 import { TOOL_IDS } from '@/constants'
-import type { Canvas } from 'fabric'
+import type { Canvas, TPointerEventInfo } from 'fabric'
 import { Point } from 'fabric'
 import { BaseTool } from '../base/BaseTool'
 import { createToolState } from '../utils/toolState'
@@ -52,7 +52,7 @@ class ZoomTool extends BaseTool {
     
     // Set up event handlers
     this.addCanvasEvent('mouse:down', (e: unknown) => {
-      const event = e as { e: MouseEvent; scenePoint: { x: number; y: number } }
+      const event = e as TPointerEventInfo<MouseEvent>
       this.handleClick(event)
     })
     
@@ -80,11 +80,13 @@ class ZoomTool extends BaseTool {
   /**
    * Handle click to zoom
    */
-  private handleClick(e: { e: MouseEvent; scenePoint: { x: number; y: number } }): void {
+  private handleClick(e: TPointerEventInfo<MouseEvent>): void {
     if (!this.canvas) return
     
     this.track('zoom', () => {
-      const point = new Point(e.scenePoint.x, e.scenePoint.y)
+      // Use Fabric's getPointer method to get the correct transformed coordinates
+      const pointer = this.canvas!.getPointer(e.e)
+      const point = new Point(pointer.x, pointer.y)
       
       // Check if Alt is pressed for zoom out
       const isZoomOut = e.e.altKey || this.state.get('isAltPressed')
