@@ -31,7 +31,10 @@ export class ClientToolExecutor {
     toolName: string,
     params: unknown
   ): Promise<unknown> {
-    console.log('[ClientToolExecutor] Executing tool:', toolName, 'with params:', params)
+    console.log('[ClientToolExecutor] === EXECUTE TOOL ===')
+    console.log('[ClientToolExecutor] Tool name:', toolName)
+    console.log('[ClientToolExecutor] Params:', params)
+    console.log('[ClientToolExecutor] Params type:', typeof params)
     
     // Initialize adapters if not already done
     await this.initialize()

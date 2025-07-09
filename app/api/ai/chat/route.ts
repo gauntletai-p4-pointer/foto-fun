@@ -254,14 +254,24 @@ Respond naturally and helpfully.`
 export async function POST(req: Request) {
   const { messages, canvasContext, agentMode = false, aiSettings } = await req.json()
   
+  console.log('=== AI CHAT POST REQUEST ===')
+  console.log('Messages count:', messages.length)
+  console.log('Last message:', messages[messages.length - 1]?.content || 'No content')
+  console.log('Agent mode:', agentMode)
+  console.log('Canvas context hasContent:', canvasContext?.hasContent)
+  console.log('Canvas dimensions:', canvasContext?.dimensions)
+  
   // Initialize adapters and agents
   await initialize()
   
   // Get AI tools from adapter registry
   const aiTools = adapterRegistry.getAITools()
+  console.log('Available AI tools:', Object.keys(aiTools))
+  console.log('Has adjustExposure:', 'adjustExposure' in aiTools)
   
   // Use agent mode if enabled - NOW WITH AI SDK v5 PATTERNS
   if (agentMode) {
+    console.log('[AI Chat] Using AGENT MODE');
     // Create mock canvas for server-side operations
     const mockCanvas = {
       getWidth: () => canvasContext?.dimensions?.width || 0,
@@ -307,7 +317,9 @@ export async function POST(req: Request) {
           }),
           execute: async ({ request }) => {
             try {
-              console.log('[Agent v5] Executing workflow for:', request)
+              console.log('[Agent v5] === EXECUTING AGENT WORKFLOW ===')
+              console.log('[Agent v5] Request:', request)
+              console.log('[Agent v5] Request type:', typeof request)
               
               // Execute with the AI SDK v5 compliant master agent
               const agentResult = await masterAgent.execute(request)
@@ -462,6 +474,8 @@ Available tools: executeAgentWorkflow, ${adapterRegistry.getAll().map(a => a.aiN
   }
   
   // Non-agent mode (original behavior preserved)
+  console.log('[AI Chat] Using NON-AGENT MODE');
+  console.log('[AI Chat] System prompt tools:', Object.keys(aiTools));
   const result = streamText({
     model: openai('gpt-4o'),
     messages: convertToModelMessages(messages),

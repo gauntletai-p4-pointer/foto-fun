@@ -175,6 +175,7 @@ export function AIChat() {
       try {
         console.log('[AIChat] ===== onToolCall TRIGGERED =====')
         console.log('[AIChat] onToolCall triggered with:', toolCall)
+        console.log('[AIChat] toolCall structure:', JSON.stringify(toolCall, null, 2))
         console.log('[AIChat] toolCall type:', typeof toolCall)
         console.log('[AIChat] toolCall keys:', Object.keys(toolCall))
         
@@ -204,7 +205,9 @@ export function AIChat() {
         
         // SPECIAL HANDLING: If this is the agent workflow tool, execute the planned tools directly
         if (toolName === 'executeAgentWorkflow') {
+          console.log('[AIChat] === AGENT WORKFLOW TOOL DETECTED ===')
           const agentResult = args as { toolExecutions?: Array<{ toolName: string; params: unknown }> }
+          console.log('[AIChat] Agent result:', agentResult)
           
           if (agentResult.toolExecutions && agentResult.toolExecutions.length > 0) {
             console.log('[AIChat] Agent workflow - executing planned tools:', agentResult.toolExecutions)
@@ -242,6 +245,10 @@ export function AIChat() {
           // If no tool executions, just return the agent result
           return args
         }
+        
+        console.log('[AIChat] === EXECUTING INDIVIDUAL TOOL ===')
+        console.log('[AIChat] Final tool name:', toolName)
+        console.log('[AIChat] Final args:', args)
         
         // Get fresh state from store instead of using stale closure values
         const currentState = useCanvasStore.getState()

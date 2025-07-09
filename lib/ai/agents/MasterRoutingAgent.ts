@@ -139,10 +139,15 @@ export class MasterRoutingAgent {
 
   // Analyze request using AI SDK v5 generateObject
   private async analyzeRequest(request: string): Promise<z.infer<typeof routeAnalysisSchema>> {
+    console.log('[MasterRoutingAgent] === ANALYZING REQUEST ===')
+    console.log('[MasterRoutingAgent] Request:', request)
+    
     // Update canvas analysis
     await this.analyzeCanvas()
     
     const availableTools = Array.from(adapterRegistry.getAll()).map(a => a.aiName)
+    console.log('[MasterRoutingAgent] Available tools:', availableTools)
+    console.log('[MasterRoutingAgent] Canvas has content:', this.context.canvasAnalysis.hasContent)
     
     const { object: analysis } = await generateObject({
       model: openai('gpt-4o'),
@@ -165,6 +170,7 @@ ROUTING RULES:
 
 2. **simple-tool**: Single, straightforward tool operations
    - Examples: "make it brighter", "crop to square", "rotate 90 degrees"
+   - Also includes percentage adjustments: "turn exposure down by 10%", "increase brightness by 20%"
    - Should be high confidence (>0.8) for auto-approval
    - Suggest the specific tool to use
 
@@ -188,7 +194,12 @@ Analyze the request and provide:
 - For workflows: estimate number of steps`
     })
     
-    console.log('[MasterRoutingAgent] Route analysis:', analysis)
+    console.log('[MasterRoutingAgent] === ROUTE ANALYSIS RESULT ===')
+    console.log('[MasterRoutingAgent] Route type:', analysis.requestType)
+    console.log('[MasterRoutingAgent] Confidence:', analysis.confidence)
+    console.log('[MasterRoutingAgent] Suggested tool:', analysis.suggestedTool)
+    console.log('[MasterRoutingAgent] Reasoning:', analysis.reasoning)
+    console.log('[MasterRoutingAgent] Full analysis:', analysis)
     return analysis
   }
 
