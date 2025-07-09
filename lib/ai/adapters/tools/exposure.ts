@@ -61,21 +61,30 @@ NEVER ask for exact values - always interpret the user's intent and choose an ap
     const images = objects.filter(obj => obj.type === 'image') as FabricImage[]
     
     console.log('[ExposureToolAdapter] Found images:', images.length)
+    console.log('[ExposureToolAdapter] All objects:', objects.map(obj => obj.type))
     
     if (images.length === 0) {
       throw new Error('No images found on canvas. Please load an image first before adjusting exposure.')
     }
     
     // Apply exposure to all images
-    images.forEach(img => {
+    images.forEach((img, index) => {
+      console.log(`[ExposureToolAdapter] Processing image ${index + 1}:`)
+      console.log(`  - Before filters:`, img.filters?.length || 0, 'filters')
+      
       // Remove existing exposure filters
       if (!img.filters) {
         img.filters = []
       } else {
+        const beforeCount = img.filters.length
         img.filters = img.filters.filter((f) => {
           const filter = f as unknown as ImageFilter
-          return !(f instanceof filters.Brightness && filter.isExposure)
+          const isExposureFilter = f instanceof filters.Brightness && filter.isExposure
+          console.log(`    - Checking filter, isExposure: ${isExposureFilter}`)
+          return !isExposureFilter
         })
+        const afterCount = img.filters.length
+        console.log(`    - Removed ${beforeCount - afterCount} existing exposure filters`)
       }
       
       // Add new exposure filter if adjustment is not 0
@@ -86,6 +95,8 @@ NEVER ask for exact values - always interpret the user's intent and choose an ap
           ? params.adjustment * 0.015  // Positive exposure brightens more dramatically
           : params.adjustment * 0.01   // Negative exposure darkens less dramatically
         
+        console.log(`    - Converting ${params.adjustment}% to ${exposureValue} brightness value`)
+        
         const exposureFilter = new filters.Brightness({
           brightness: exposureValue
         })
@@ -93,17 +104,31 @@ NEVER ask for exact values - always interpret the user's intent and choose an ap
         // Mark as exposure filter for identification
         ;(exposureFilter as unknown as ImageFilter).isExposure = true
         
+        console.log(`    - Created exposure filter:`, exposureFilter)
+        console.log(`    - Filter marked as exposure: ${(exposureFilter as unknown as ImageFilter).isExposure}`)
+        
         img.filters.push(exposureFilter)
+        console.log(`    - Added filter, total filters now: ${img.filters.length}`)
       }
       
       // Apply filters
+      console.log(`    - Applying filters to image ${index + 1}`)
       img.applyFilters()
+      console.log(`    - Filters applied successfully`)
+      
+      // Log all filters for debugging
+      img.filters.forEach((filter, i) => {
+        const filterType = filter.constructor.name
+        const isExposure = (filter as unknown as ImageFilter).isExposure
+        console.log(`      Filter ${i}: ${filterType} (isExposure: ${isExposure})`)
+      })
     })
     
     // Render the canvas to show changes
     canvas.renderAll()
     
     console.log('[ExposureToolAdapter] Exposure adjustment applied successfully')
+    console.log('[ExposureToolAdapter] Final result: adjustment =', params.adjustment, '%')
     
     return {
       success: true,
