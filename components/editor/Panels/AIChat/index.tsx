@@ -14,6 +14,7 @@ import { ClientToolExecutor } from '@/lib/ai/client/tool-executor'
 import { useCanvasStore } from '@/store/canvasStore'
 import { adapterRegistry } from '@/lib/ai/adapters/registry'
 import { AgentStatusPart } from './AgentStatusPart'
+import { AgentWorkflowDisplay } from './AgentWorkflowDisplay'
 import { useAISettings } from '@/hooks/useAISettings'
 
 // Get all AI tool names for highlighting
@@ -319,8 +320,8 @@ export function AIChat() {
   return (
     <div className="flex flex-col h-full bg-background">
       {/* Messages */}
-      <ScrollArea className="flex-1 p-3" ref={scrollAreaRef}>
-        <div className="space-y-3">
+      <ScrollArea className="flex-1 p-4" ref={scrollAreaRef}>
+        <div className="space-y-4">
           {initializationError && (
             <div className="text-center text-destructive text-sm p-3 bg-destructive/10 rounded-lg border border-destructive/20">
               <AlertCircle className="w-4 h-4 inline-block mr-2" />
@@ -343,38 +344,41 @@ export function AIChat() {
           )}
           
           {messages.length === 0 && (
-            <div className="flex gap-2">
-              {/* Bot avatar - same as actual messages */}
-              <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
-                <Bot className="w-3 h-3 text-primary" />
+            <div className="space-y-1">
+              {/* Welcome message header */}
+              <div className="flex items-center gap-2 px-1">
+                <div className="w-4 h-4 rounded-full bg-primary/10 flex items-center justify-center">
+                  <Bot className="w-2.5 h-2.5 text-primary" />
+                </div>
+                <span className="text-xs text-muted-foreground font-medium">AI Assistant</span>
               </div>
               
-              {/* Welcome message styled like assistant message */}
-              <div className="flex-1 space-y-3">
-                <div className="bg-foreground/5 text-foreground rounded-lg px-3 py-2 max-w-[85%]">
-                  <p className="text-sm">Welcome! I&apos;m ready to help edit your photo. What would you like to do?</p>
-                </div>
-                
-                {/* Quick start suggestions */}
-                <div className="space-y-2">
-                  <p className="text-xs text-foreground/60 ml-1">Try asking me to...</p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {[
-                      "Enhance the colors",
-                      "Make it brighter",
-                      "Add blur effect",
-                      "Convert to black & white"
-                    ].map((suggestion) => (
-                      <button
-                        key={suggestion}
-                        type="button"
-                        onClick={() => handleQuickAction(suggestion)}
-                        className="text-xs px-2 py-1 rounded-md bg-foreground/10 hover:bg-foreground/10/80 text-foreground transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                        disabled={!isCanvasReady || !hasContent()}
-                      >
-                        {suggestion}
-                      </button>
-                    ))}
+              {/* Welcome message content */}
+              <div className="flex justify-start">
+                <div className="max-w-[95%] bg-foreground/5 text-foreground rounded-lg rounded-tl-sm px-3 py-2">
+                  <p className="text-sm mb-3">Welcome! I&apos;m ready to help edit your photo. What would you like to do?</p>
+                  
+                  {/* Quick start suggestions */}
+                  <div className="space-y-2">
+                    <p className="text-xs text-foreground/60">Try asking me to...</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {[
+                        "Enhance the colors",
+                        "Make it brighter",
+                        "Add blur effect",
+                        "Convert to black & white"
+                      ].map((suggestion) => (
+                        <button
+                          key={suggestion}
+                          type="button"
+                          onClick={() => handleQuickAction(suggestion)}
+                          className="text-xs px-2 py-1 rounded-md bg-foreground/10 hover:bg-foreground/20 text-foreground transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          disabled={!isCanvasReady || !hasContent()}
+                        >
+                          {suggestion}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -382,26 +386,43 @@ export function AIChat() {
           )}
           
           {messages.map((message: UIMessage) => (
-            <div key={message.id}>
+            <div key={message.id} className="space-y-1">
               
+              {/* Message header with icon and timestamp */}
+              <div className={cn(
+                "flex items-center gap-2 px-1",
+                message.role === 'user' ? 'justify-end' : 'justify-start'
+              )}>
+                {message.role === 'assistant' ? (
+                  <>
+                    <div className="w-4 h-4 rounded-full bg-primary/10 flex items-center justify-center">
+                      <Bot className="w-2.5 h-2.5 text-primary" />
+                    </div>
+                    <span className="text-xs text-muted-foreground font-medium">AI Assistant</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="text-xs text-muted-foreground font-medium">You</span>
+                    <div className="w-4 h-4 rounded-full bg-foreground/10 flex items-center justify-center">
+                      <User className="w-2.5 h-2.5 text-foreground" />
+                    </div>
+                  </>
+                )}
+              </div>
+              
+              {/* Message content */}
               <div
                 className={cn(
-                  "flex gap-2",
+                  "flex",
                   message.role === 'user' ? 'justify-end' : 'justify-start'
                 )}
               >
-                {message.role === 'assistant' && (
-                  <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <Bot className="w-3 h-3 text-primary" />
-                  </div>
-                )}
-                
                 <div
                   className={cn(
-                    "max-w-[85%] rounded-lg px-3 py-2",
+                    "max-w-[95%] rounded-lg px-3 py-2",
                     message.role === 'user'
-                      ? 'bg-primary text-primary-foreground'
-                      : 'bg-foreground/5 text-foreground'
+                      ? 'bg-primary text-primary-foreground rounded-tr-sm'
+                      : 'bg-foreground/5 text-foreground rounded-tl-sm'
                   )}
                 >
                   {/* Render message parts */}
@@ -448,15 +469,49 @@ export function AIChat() {
                           details?: string
                           timestamp: string
                         }>
+                        workflow?: {
+                          description: string
+                          steps: Array<{
+                            toolName: string
+                            params: unknown
+                            description: string
+                            confidence: number
+                          }>
+                          agentType: string
+                          totalSteps: number
+                          reasoning: string
+                        }
                       } | undefined : undefined
                       
                       const agentStatus = toolOutput?.agentStatus
                       const statusUpdates = toolOutput?.statusUpdates
+                      const workflow = toolOutput?.workflow
                       
                       return (
                         <div key={`${message.id}-${index}`} className="space-y-2">
-                          {/* Show agent status updates if available and settings allow */}
-                          {isAgentExecution && statusUpdates && aiSettings.showConfidenceScores && (
+                          {/* Show agent workflow display if available */}
+                          {isAgentExecution && workflow && agentStatus && 
+                           agentStatus.confidence !== undefined && 
+                           agentStatus.approvalRequired !== undefined && 
+                           agentStatus.threshold !== undefined && (
+                            <AgentWorkflowDisplay
+                              workflow={workflow}
+                              agentStatus={{
+                                confidence: agentStatus.confidence,
+                                approvalRequired: agentStatus.approvalRequired,
+                                threshold: agentStatus.threshold
+                              }}
+                              statusUpdates={statusUpdates || []}
+                              showSettings={{
+                                showConfidenceScores: aiSettings.showConfidenceScores,
+                                showApprovalDecisions: aiSettings.showApprovalDecisions,
+                                showEducationalContent: aiSettings.showEducationalContent
+                              }}
+                            />
+                          )}
+                          
+                          {/* Show agent status updates if available and settings allow (fallback for non-workflow) */}
+                          {isAgentExecution && statusUpdates && !workflow && aiSettings.showConfidenceScores && (
                             <div className="space-y-1">
                               {statusUpdates.map((status, idx) => (
                                 <AgentStatusPart 
@@ -476,32 +531,32 @@ export function AIChat() {
                             </div>
                           )}
                           
-                          {/* Tool invocation display - clean badge/chip style */}
+                          {/* Tool invocation display - primary blue chip with status after */}
                           <div className="flex items-center gap-2 text-sm">
-                            <Badge variant="secondary" className="flex items-center gap-1.5 px-2 py-1">
-                              {toolPart.state === 'input-streaming' && (
-                                <Loader2 className="w-3 h-3 animate-spin" />
-                              )}
-                              {toolPart.state === 'output-available' && !toolPart.errorText && (
-                                <Check className="w-3 h-3 text-green-600" />
-                              )}
-                              {toolPart.state === 'output-error' && (
-                                <X className="w-3 h-3 text-red-600" />
-                              )}
+                            <Badge variant="default" className="bg-primary text-primary-foreground px-2 py-1">
                               <span className="font-medium">
                                 {toolName}
                               </span>
                             </Badge>
+                            {toolPart.state === 'input-streaming' && (
+                              <Loader2 className="w-3 h-3 animate-spin text-muted-foreground" />
+                            )}
+                            {toolPart.state === 'output-available' && !toolPart.errorText && (
+                              <Check className="w-3 h-3 text-green-600" />
+                            )}
+                            {toolPart.state === 'output-error' && (
+                              <X className="w-3 h-3 text-red-600" />
+                            )}
                           </div>
                           
                           {/* Additional info in a compact way */}
-                          <div className="space-y-1">
+                          <div className="space-y-2">
                               
                               {/* Show confidence and approval info if settings allow */}
                               {(() => {
                                 if (toolOutput && aiSettings.showApprovalDecisions && agentStatus) {
                                   return (
-                                    <div className="text-xs text-muted-foreground">
+                                    <div className="text-xs text-muted-foreground mb-3">
                                       {agentStatus.approvalRequired ? (
                                         <span className="text-amber-600">
                                           Manual approval required (confidence: {Math.round((agentStatus.confidence || 0) * 100)}%)
@@ -519,7 +574,7 @@ export function AIChat() {
                               
                               {/* Show input for non-agent tools when available */}
                               {!isAgentExecution && (toolPart.state === 'input-available' || toolPart.state === 'output-available') && toolPart.input && (
-                                <div className="text-xs text-muted-foreground">
+                                <div className="text-xs text-muted-foreground mb-3">
                                   <details>
                                     <summary className="cursor-pointer">Parameters</summary>
                                     <pre className="mt-1 overflow-auto">
@@ -531,14 +586,14 @@ export function AIChat() {
                               
                               {/* Show errors */}
                               {toolPart.state === 'output-error' && toolPart.errorText && (
-                                <div className="text-xs text-red-600">
+                                <div className="text-xs text-red-600 mb-3">
                                   Error: {toolPart.errorText}
                                 </div>
                               )}
                               
                               {/* Show output for non-agent tools */}
                               {toolPart.output && toolPart.state === 'output-available' && !isAgentExecution && (
-                                <div className="text-xs text-muted-foreground">
+                                <div className="text-xs text-muted-foreground mb-3">
                                   <details>
                                     <summary className="cursor-pointer">Result</summary>
                                     <pre className="mt-1 overflow-auto">{String(JSON.stringify(toolPart.output, null, 2))}</pre>
@@ -559,12 +614,6 @@ export function AIChat() {
                     return null
                   })}
                 </div>
-                
-                {message.role === 'user' && (
-                  <div className="w-6 h-6 rounded-full bg-foreground/5 flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <User className="w-3 h-3 text-foreground" />
-                  </div>
-                )}
               </div>
             </div>
           ))}
@@ -577,12 +626,23 @@ export function AIChat() {
           )}
           
           {isLoading && (
-            <div className="flex gap-2">
-              <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center mt-0.5">
-                <Bot className="w-3 h-3 text-primary" />
+            <div className="space-y-1">
+              {/* Loading message header */}
+              <div className="flex items-center gap-2 px-1">
+                <div className="w-4 h-4 rounded-full bg-primary/10 flex items-center justify-center">
+                  <Bot className="w-2.5 h-2.5 text-primary" />
+                </div>
+                <span className="text-xs text-muted-foreground font-medium">AI Assistant</span>
               </div>
-              <div className="bg-foreground/5 text-foreground rounded-lg px-3 py-2">
-                <Loader2 className="w-4 h-4 animate-spin" />
+              
+              {/* Loading message content */}
+              <div className="flex justify-start">
+                <div className="bg-foreground/5 text-foreground rounded-lg rounded-tl-sm px-3 py-2">
+                  <div className="flex items-center gap-2">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span className="text-sm">Thinking...</span>
+                  </div>
+                </div>
               </div>
             </div>
           )}
@@ -597,19 +657,20 @@ export function AIChat() {
       </ScrollArea>
       
       {/* Input */}
-      <form onSubmit={handleSubmit} className="border-t border-foreground/10 p-3">
-        <div className="flex gap-2">
+      <form onSubmit={handleSubmit} className="border-t border-foreground/10 p-4">
+        <div className="flex gap-3">
           <Input
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder={isCanvasReady ? "Ask me anything about editing your photo..." : "Waiting for canvas to load..."}
             disabled={isLoading || !isCanvasReady}
-            className="flex-1 text-foreground bg-background"
+            className="flex-1 text-foreground bg-background border-foreground/20 focus:border-primary"
           />
           <Button
             type="submit"
             size="icon"
             disabled={!input.trim() || isLoading || !isCanvasReady}
+            className="shrink-0"
           >
             {isLoading ? (
               <Loader2 className="w-4 h-4 animate-spin" />
@@ -620,13 +681,13 @@ export function AIChat() {
         </div>
         
         {/* Quick actions */}
-        <div className="mt-2 flex flex-wrap gap-1.5">
+        <div className="mt-3 flex flex-wrap gap-1.5">
           {quickActions.map((suggestion) => (
             <button
               key={suggestion}
               type="button"
               onClick={() => handleQuickAction(suggestion)}
-              className="text-xs px-2 py-1 rounded-md bg-foreground/10 hover:bg-foreground/10/80 text-foreground transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="text-xs px-3 py-1.5 rounded-full bg-foreground/10 hover:bg-foreground/20 text-foreground transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               disabled={isLoading || !isCanvasReady || !hasContent()}
             >
               {suggestion}

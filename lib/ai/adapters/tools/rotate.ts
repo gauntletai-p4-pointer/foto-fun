@@ -54,6 +54,12 @@ NEVER ask for exact values - always interpret the user's intent and choose an ap
       // Small delay to ensure tool is activated and subscribed
       await new Promise(resolve => setTimeout(resolve, 50))
       
+      // For AI calls, we want each rotation to be additive, not absolute
+      // Reset the tool's lastAngle to 0 so the new angle is applied as a relative rotation
+      if ('resetForAICall' in this.tool && typeof this.tool.resetForAICall === 'function') {
+        this.tool.resetForAICall()
+      }
+      
       // Get the rotate tool options and update them
       const { useToolOptionsStore } = await import('@/store/toolOptionsStore')
       useToolOptionsStore.getState().updateOption(this.tool.id, 'angle', params.angle)

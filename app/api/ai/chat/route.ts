@@ -94,20 +94,35 @@ export async function POST(req: Request) {
               
               console.log('[Agent] Planned tool executions:', toolExecutions)
               
-              // Return the structured workflow result
+              // Extract status updates from the first result (contains routing info)
+              const statusUpdates = agentResult.results.length > 0 ? 
+                (agentResult.results[0].data as { statusUpdates?: Array<{
+                  type: string
+                  message: string
+                  details?: string
+                  timestamp: string
+                }> })?.statusUpdates || [] : []
+              
+              // Calculate overall confidence and approval requirements
+              const overallConfidence = agentResult.results.reduce((sum, r) => sum + r.confidence, 0) / agentResult.results.length
+              const requiresApproval = agentResult.results.some((r: { confidence: number }) => r.confidence < agentContext.userPreferences.autoApprovalThreshold)
+              
+              // Return the structured workflow result with full agent data
               return {
                 success: agentResult.completed,
                 workflow: {
                   description: `Multi-step workflow: ${request}`,
                   steps: toolExecutions,
                   agentType: 'sequential', // Default agent type
-                  totalSteps: toolExecutions.length
+                  totalSteps: toolExecutions.length,
+                  reasoning: statusUpdates.find(s => s.type === 'routing-decision')?.details || `Planned ${toolExecutions.length} steps for: ${request}`
                 },
                 agentStatus: {
-                  confidence: agentResult.results[0]?.confidence || 0.8,
-                  approvalRequired: agentResult.results.some((r: { confidence: number }) => r.confidence < agentContext.userPreferences.autoApprovalThreshold),
+                  confidence: overallConfidence,
+                  approvalRequired: requiresApproval,
                   threshold: agentContext.userPreferences.autoApprovalThreshold
                 },
+                statusUpdates,
                 // THIS IS THE KEY: Return the tool executions for the AI to call
                 toolExecutions,
                 message: `Planned ${toolExecutions.length} steps. Now executing each tool...`

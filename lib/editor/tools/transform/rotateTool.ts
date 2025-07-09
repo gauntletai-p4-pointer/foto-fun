@@ -137,6 +137,14 @@ class RotateTool extends BaseTool {
     const option = toolOptions?.find(opt => opt.id === optionId)
     return option?.value
   }
+  
+  /**
+   * Reset the tool's state for AI calls to ensure additive rotation
+   * This allows each AI rotation command to be applied relative to current state
+   */
+  public resetForAICall(): void {
+    this.state.set('lastAngle', 0)
+  }
 }
 
 // Export singleton

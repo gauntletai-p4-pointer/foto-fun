@@ -71,7 +71,7 @@ export function Panels() {
   const ActivePanelComponent = panels.find(p => p.id === activePanel)?.component || LayersPanel
   
   return (
-    <div className="w-64 bg-background border-l border-foreground/10 flex flex-col h-full">
+    <div className="w-80 bg-background border-l border-foreground/10 flex flex-col h-full">
       <div className="p-2 border-b border-foreground/10">
         <div className="flex gap-1">
           {panels.map((panel) => {
