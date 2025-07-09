@@ -16,7 +16,7 @@ export interface AgentStep {
   description: string
   execute: (context: AgentContext) => Promise<StepResult>
   canRevert?: boolean
-  requiresApproval?: (result: StepResult) => boolean
+  requiresApproval?: (result: StepResult, context?: AgentContext) => boolean
 }
 
 export interface StepResult {
@@ -136,4 +136,26 @@ export interface ApprovalDecision {
   alternativeIndex?: number
   feedback?: string
   rememberDecision?: boolean
+}
+
+export class ApprovalRequiredError extends Error {
+  constructor(
+    public step: AgentStep,
+    public result: StepResult,
+    public approvalInfo: {
+      confidence: number
+      threshold: number
+      alternatives: Alternative[]
+    },
+    public workflowContext?: {
+      allSteps: AgentStep[]
+      currentStepIndex: number
+      statusUpdates: AgentStatus[]
+      reasoning: string
+      agentType: string
+    }
+  ) {
+    super(`Approval required for step: ${step.description} (confidence: ${approvalInfo.confidence}, threshold: ${approvalInfo.threshold})`)
+    this.name = 'ApprovalRequiredError'
+  }
 } 

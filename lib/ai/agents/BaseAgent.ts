@@ -1,4 +1,5 @@
 import type { AgentContext, AgentStep, StepResult, AgentResult, Alternative } from './types'
+import { ApprovalRequiredError } from './types'
 
 export abstract class BaseAgent {
   protected context: AgentContext
@@ -30,25 +31,39 @@ export abstract class BaseAgent {
       this.context.workflowMemory.recordStep(step, result)
       
       // Check if approval is needed
-      if (step.requiresApproval && step.requiresApproval(result)) {
-        const approval = await this.requestApproval(step, result)
-        if (approval.action === 'reject') {
-          // Revert if possible
-          if (step.canRevert) {
-            this.context.workflowMemory.revertToCheckpoint(`step-${step.id}`)
+      if (step.requiresApproval && step.requiresApproval(result, this.context)) {
+        try {
+          const approval = await this.requestApproval(step, result)
+          if (approval.action === 'reject') {
+            // Revert if possible
+            if (step.canRevert) {
+              this.context.workflowMemory.revertToCheckpoint(`step-${step.id}`)
+            }
+            return { ...result, success: false }
+          } else if (approval.action === 'modify' && approval.alternativeIndex !== undefined) {
+            // Execute alternative
+            const alternative = result.alternatives?.[approval.alternativeIndex]
+            if (alternative) {
+              return await this.executeAlternative(step, alternative)
+            }
           }
-          return { ...result, success: false }
-        } else if (approval.action === 'modify' && approval.alternativeIndex !== undefined) {
-          // Execute alternative
-          const alternative = result.alternatives?.[approval.alternativeIndex]
-          if (alternative) {
-            return await this.executeAlternative(step, alternative)
+        } catch (error) {
+          if (error instanceof ApprovalRequiredError) {
+            // Re-throw approval required errors to be handled by the caller
+            throw error
           }
+          // Handle other errors normally
+          throw error
         }
       }
       
       return result
     } catch (error) {
+      // Re-throw ApprovalRequiredError so it can be handled by the calling agent
+      if (error instanceof ApprovalRequiredError) {
+        throw error
+      }
+      
       console.error(`Error executing step ${step.id}:`, error)
       return {
         success: false,
@@ -63,17 +78,21 @@ export abstract class BaseAgent {
     action: 'approve' | 'reject' | 'modify'
     alternativeIndex?: number
   }> {
-    // This will be implemented to show the approval dialog
-    // For now, auto-approve based on confidence threshold
     const threshold = this.context.userPreferences.autoApprovalThreshold
     
+    // Auto-approve if confidence is above threshold
     if (result.confidence >= threshold) {
       return { action: 'approve' }
     }
     
-    // In real implementation, this would show the approval dialog
-    // For now, we'll auto-approve with lower confidence
-    return { action: 'approve' }
+    // For operations below threshold, we need to signal that approval is required
+    // This will be handled by the client-side approval dialog
+    // For now, we'll throw a special error that indicates approval is needed
+    throw new ApprovalRequiredError(step, result, {
+      confidence: result.confidence,
+      threshold,
+      alternatives: result.alternatives || []
+    })
   }
   
   protected async executeAlternative(originalStep: AgentStep, alternative: Alternative): Promise<StepResult> {

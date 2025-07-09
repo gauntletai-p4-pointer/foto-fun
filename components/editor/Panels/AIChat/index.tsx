@@ -41,21 +41,26 @@ const parseMessageWithTools = (text: string, toolNames: string[]) => {
   // Split text by tool names while keeping the matched parts
   const parts = text.split(toolPattern)
   
-  return parts.map((part, index) => {
-    // Check if this part is a tool name
-    if (toolNames.some(tool => tool.toLowerCase() === part.toLowerCase())) {
-      return (
-        <span
-          key={index}
-          className="inline-flex items-center gap-1 px-2 py-0.5 mx-0.5 bg-primary text-primary-foreground rounded-md text-xs font-medium"
-        >
-          <Wrench className="w-3 h-3" />
-          {part}
-        </span>
-      )
-    }
-    return part
-  })
+  return (
+    <span>
+      {parts.map((part, index) => {
+        // Check if this part is a tool name
+        if (toolNames.some(tool => tool.toLowerCase() === part.toLowerCase())) {
+          return (
+            <span
+              key={index}
+              className="inline-flex items-center gap-1 px-2 py-0.5 mx-0.5 bg-primary text-primary-foreground rounded-md text-xs font-medium"
+              style={{ userSelect: 'text' }}
+            >
+              <Wrench className="w-3 h-3" style={{ userSelect: 'none' }} />
+              {part}
+            </span>
+          )
+        }
+        return <span key={index}>{part}</span>
+      })}
+    </span>
+  )
 }
 
 export function AIChat() {
@@ -457,7 +462,8 @@ export function AIChat() {
                       const isAgentExecution = toolName === 'executeAgentWorkflow'
                       
                       // Extract agent status from tool output if available
-                      const toolOutput = toolPart.state === 'output-available' ? toolPart.output as { 
+                      // Handle both successful outputs and approval-required responses
+                      const toolOutput = (toolPart.state === 'output-available' || toolPart.state === 'output-error') ? toolPart.output as { 
                         agentStatus?: {
                           confidence?: number
                           approvalRequired?: boolean
@@ -481,25 +487,55 @@ export function AIChat() {
                           totalSteps: number
                           reasoning: string
                         }
+                        // Approval-specific fields
+                        success?: boolean
+                        approvalRequired?: boolean
+                        step?: {
+                          id: string
+                          description: string
+                          confidence: number
+                          threshold: number
+                        }
                       } | undefined : undefined
                       
-                      const agentStatus = toolOutput?.agentStatus
+                      // Debug logging to see what we're actually getting
+                      if (isAgentExecution) {
+                        console.log('[UI Debug] Tool part for', toolName, ':', {
+                          state: toolPart.state,
+                          output: toolPart.output,
+                          errorText: toolPart.errorText,
+                          hasOutput: !!toolOutput
+                        })
+                        if (toolOutput) {
+                          console.log('[UI Debug] Tool output structure:', Object.keys(toolOutput))
+                        }
+                      }
+                      
+                      // Extract data, handling both normal responses and approval-required responses
+                      let agentStatus = toolOutput?.agentStatus
                       const statusUpdates = toolOutput?.statusUpdates
                       const workflow = toolOutput?.workflow
+                      
+                      // If this is an approval-required response, extract confidence from step
+                      if (toolOutput?.approvalRequired && toolOutput?.step) {
+                        agentStatus = {
+                          confidence: toolOutput.step.confidence,
+                          approvalRequired: true,
+                          threshold: toolOutput.step.threshold
+                        }
+                        console.log('[UI Debug] Extracted agentStatus from approval step:', agentStatus)
+                      }
                       
                       return (
                         <div key={`${message.id}-${index}`} className="space-y-2">
                           {/* Show agent workflow display if available */}
-                          {isAgentExecution && workflow && agentStatus && 
-                           agentStatus.confidence !== undefined && 
-                           agentStatus.approvalRequired !== undefined && 
-                           agentStatus.threshold !== undefined && (
+                          {isAgentExecution && workflow && agentStatus && (
                             <AgentWorkflowDisplay
                               workflow={workflow}
                               agentStatus={{
-                                confidence: agentStatus.confidence,
-                                approvalRequired: agentStatus.approvalRequired,
-                                threshold: agentStatus.threshold
+                                confidence: agentStatus.confidence || 0,
+                                approvalRequired: agentStatus.approvalRequired || false,
+                                threshold: agentStatus.threshold || 0.8
                               }}
                               statusUpdates={statusUpdates || []}
                               showSettings={{

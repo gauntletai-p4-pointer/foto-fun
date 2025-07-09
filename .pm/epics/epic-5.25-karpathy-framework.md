@@ -125,13 +125,25 @@ Using Karpathy's insights, your agent should:
 - ✅ Canvas context passing with messages
 - ✅ Tool execution visualization in chat
 
-### ❌ **Critical Issues to Fix**
+### ✅ **Recently Fixed**
 
-**Threshold System (🚨 BROKEN)**
-- ❌ Hard-coded threshold (0.7) in `ToolStep.requiresApproval()` ignores user settings
-- ❌ `BaseAgent.requestApproval()` auto-approves everything regardless of confidence
-- ❌ No actual approval dialog flow when confidence is below threshold
-- ❌ UI settings exist but don't control actual behavior
+**AI-Driven Confidence System (✅ IMPLEMENTED)**
+- ✅ Confidence now calculated by AI based on context, not hard-coded
+- ✅ Planning phase estimates confidence for each step using 4 factors:
+  - Parameter appropriateness (are values reasonable?)
+  - Canvas context suitability (does canvas state support this?)
+  - Tool suitability (is this the right tool?)
+  - Risk level (how likely to succeed?)
+- ✅ Execution phase recalculates confidence with actual parameters
+- ✅ Dual-layer confidence: planning estimates + execution validation
+
+**Threshold System (✅ FIXED)**
+- ✅ Fixed threshold system to use user settings instead of hard-coded 0.7
+- ✅ `BaseAgent.requestApproval()` now throws `ApprovalRequiredError` when needed
+- ✅ Approval dialog flow triggers when confidence below threshold
+- ✅ UI settings control actual agent behavior
+
+### ❌ **Remaining Issues**
 
 **Missing Agent Types**
 - ❌ EvaluatorOptimizerAgent not implemented

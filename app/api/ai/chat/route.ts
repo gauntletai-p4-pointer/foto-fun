@@ -4,8 +4,10 @@ import { openai } from '@/lib/ai/providers'
 import { adapterRegistry, autoDiscoverAdapters } from '@/lib/ai/adapters/registry'
 import { WorkflowMemory } from '@/lib/ai/agents/WorkflowMemory'
 import type { AgentContext } from '@/lib/ai/agents/types'
+import { ApprovalRequiredError } from '@/lib/ai/agents/types'
 import type { Canvas } from 'fabric'
 import { MasterRoutingAgent } from '@/lib/ai/agents/MasterRoutingAgent'
+import { ToolStep } from '@/lib/ai/agents/steps/ToolStep'
 
 // Initialize on first request
 let adaptersInitialized = false
@@ -128,6 +130,51 @@ export async function POST(req: Request) {
                 message: `Planned ${toolExecutions.length} steps. Now executing each tool...`
               }
             } catch (error) {
+              // Handle approval required errors specially
+              if (error instanceof ApprovalRequiredError) {
+                console.log('[Agent] Approval required:', error.message)
+                
+                // Extract workflow information from the enhanced error
+                const workflowContext = error.workflowContext
+                
+                return {
+                  success: false,
+                  approvalRequired: true,
+                  step: {
+                    id: error.step.id,
+                    description: error.step.description,
+                    confidence: error.approvalInfo.confidence,
+                    threshold: error.approvalInfo.threshold
+                  },
+                  // Include full workflow context for UI display
+                  workflow: workflowContext ? {
+                    description: `${workflowContext.agentType} workflow`,
+                    steps: workflowContext.allSteps.map((step, index) => ({
+                      id: step.id,
+                      description: step.description,
+                                             toolName: (step as ToolStep).tool || 'unknown',
+                       params: {},
+                                             confidence: index === workflowContext.currentStepIndex ? 
+                                  error.approvalInfo.confidence : 0.8,
+                      isCurrentStep: index === workflowContext.currentStepIndex,
+                      status: index < workflowContext.currentStepIndex ? 'completed' : 
+                             index === workflowContext.currentStepIndex ? 'pending-approval' : 'planned'
+                    })),
+                    agentType: workflowContext.agentType,
+                    totalSteps: workflowContext.allSteps.length,
+                    reasoning: workflowContext.reasoning,
+                    currentStepIndex: workflowContext.currentStepIndex
+                  } : undefined,
+                  agentStatus: {
+                    confidence: error.approvalInfo.confidence,
+                    approvalRequired: true,
+                    threshold: error.approvalInfo.threshold
+                  },
+                  statusUpdates: workflowContext?.statusUpdates || [],
+                  message: `Approval required: ${error.step.description} (confidence: ${Math.round(error.approvalInfo.confidence * 100)}%, threshold: ${Math.round(error.approvalInfo.threshold * 100)}%)`
+                }
+              }
+              
               console.error('Agent execution error:', error)
               return {
                 success: false,
@@ -147,16 +194,24 @@ export async function POST(req: Request) {
 
 WORKFLOW:
 1. For multi-step requests, call executeAgentWorkflow({ request: "user request" })
-2. You'll get back a toolExecutions array with the planned steps
-3. Execute EACH tool in the toolExecutions array in sequence
-4. The agents handle routing, orchestration, and evaluation server-side
+2. Check the response:
+   - If success=true and toolExecutions exists: Execute EACH tool in the toolExecutions array
+   - If success=false and approvalRequired=true: STOP and explain that approval is needed
+   - If success=false and error exists: Explain the error
+3. The agents handle routing, orchestration, and evaluation server-side
 
-EXAMPLE:
+EXAMPLE - Success:
 User: "increase saturation and apply sepia"
 Step 1: executeAgentWorkflow({ request: "increase saturation and apply sepia" })
-Response: { toolExecutions: [{ toolName: "adjustSaturation", params: {...} }, { toolName: "applySepia", params: {...} }] }
+Response: { success: true, toolExecutions: [{ toolName: "adjustSaturation", params: {...} }, { toolName: "applySepia", params: {...} }] }
 Step 2: adjustSaturation(params from step 1)
 Step 3: applySepia(params from step 1)
+
+EXAMPLE - Approval Required:
+User: "increase brightness a lot"
+Step 1: executeAgentWorkflow({ request: "increase brightness a lot" })
+Response: { success: false, approvalRequired: true, message: "Approval required..." }
+Step 2: STOP - Explain that approval is needed and ask user to adjust settings or approve manually
 
 This gives you the full agent system: routing, orchestration, evaluation, AND reliable execution.
 
