@@ -2,6 +2,73 @@
 
 > **We're building the future of photo editing - and it's completely free and open source.**
 
+## 🚀 Getting Started
+
+### Prerequisites
+- **[Bun](https://bun.sh/)** - Fast JavaScript runtime & package manager
+- **Git** - Version control
+
+### Setup
+
+1. **Clone the repository**
+```bash
+git clone https://github.com/yourusername/foto-fun
+cd foto-fun
+```
+
+2. **Install dependencies**
+```bash
+bun install
+```
+
+3. **Set up environment variables**
+```bash
+# Copy the example file
+cp .env.example .env.local
+
+# Then edit .env.local with your actual values
+```
+
+4. **Run development commands**
+```bash
+bun lint          # Check code quality
+bun typecheck     # Check types
+bun run build     # Build for production
+bun dev           # Start dev server
+```
+
+### Contributing
+
+**Start a New Task:** Get the latest project updates and create your own branch to work on.
+```bash
+git checkout main
+git pull
+git checkout -b your-branch-name
+```
+
+**Develop and Commit:** Write your code and save your progress in small, logical chunks.
+```bash
+# After making changes...
+git add .
+git commit -m "A short description of what you did"
+```
+
+**Push and Create a Pull Request:** Upload your branch and ask teammates to review it.
+```bash
+git push origin your-branch-name
+# Now, go to GitHub/GitLab to open a Pull Request
+```
+
+**Merge and Clean Up:** Once your Pull Request is approved, merge it into main and delete your old branch.
+```bash
+# Merge the pull request on the website, then...
+git checkout main
+git pull
+git branch -d your-branch-name
+```
+
+---
+
 ## 🚀 The Problem: Photo Editing is Broken
 
 ### The Status Quo is Failing Creators
