@@ -49,6 +49,15 @@ Epic 5.33 has been successfully implemented with **server-side API key security*
 - ✅ Grid-based fallback search for complex layouts
 - ✅ Maintains 20px spacing between images
 
+### 8. Layer Integration
+- ✅ Each generated image creates a new layer automatically
+- ✅ Descriptive layer names based on prompt content
+- ✅ Proper layer management with unique IDs
+- ✅ Generated images appear in the Layers panel
+- ✅ Full layer functionality (visibility, opacity, reordering)
+- ✅ **FIXED**: Images no longer replace existing content
+- ✅ **FIXED**: Drag & drop images now properly create layers
+
 ## How to Test
 
 ### Prerequisites
@@ -89,6 +98,19 @@ REPLICATE_API_KEY=r8_your_api_key_here
    - **Multiple Images**: Generate third image → should find best empty space
    - **Complex Layout**: Add images manually, then generate → should avoid overlapping
 
+7. **Test Layer Integration**:
+   - **Generate Image**: Each generation should create a new layer
+   - **Layer Names**: Check that layers have descriptive names (e.g., "Mountain Sunset" for "mountain landscape at sunset")
+   - **Layer Panel**: Verify generated images appear in the Layers panel
+   - **Layer Controls**: Test visibility toggle, opacity, and reordering on generated image layers
+   - **Multiple Generations**: Each should create separate layers with unique names
+   - **No Replacement**: Verify existing images are preserved when generating new ones
+
+8. **Test Drag & Drop Integration**:
+   - **Single Image**: Drag an image file to empty canvas → should create "Background" layer
+   - **Multiple Images**: Drag additional images → should create new layers with file names
+   - **Preservation**: Existing images should remain visible when dragging new ones
+
 ### Expected Behavior
 
 1. **AI Chat Recognition**: The AI should recognize the request as an image generation task
@@ -100,6 +122,7 @@ REPLICATE_API_KEY=r8_your_api_key_here
    - Empty canvas: Image is centered
    - With existing content: Image is placed in nearby empty area (right, left, below, above)
    - Multiple images: Each new image finds the best non-overlapping position
+   - **New Layer**: Each generated image automatically creates a new layer
 7. **Success Message**: The AI confirms the generation was successful
 
 ### Debugging
@@ -171,7 +194,7 @@ Each new tool follows the same pattern:
 ✅ **Server Integration**: Next.js API route handles Replicate calls
 ✅ **Unified Registry**: Single adapter registry for all tools
 ✅ **AI Chat Compatible**: Users can request image generation naturally (works with empty canvas)
-✅ **Canvas Integration**: Generated images appear on canvas automatically with smart positioning
+✅ **Canvas Integration**: Generated images appear on canvas automatically with smart positioning and layer creation
 ✅ **Error Handling**: Proper validation and error responses
 
 ## 🔒 **Security Benefits Achieved**

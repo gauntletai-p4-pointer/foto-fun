@@ -2,6 +2,8 @@ import { z } from 'zod'
 import { BaseToolAdapter } from '../base'
 import { exposureTool } from '@/lib/editor/tools/adjustments/exposureTool'
 import type { Canvas } from 'fabric'
+import type { Image as FabricImage } from 'fabric'
+import { filters } from 'fabric'
 
 // Define parameter schema
 const exposureParameters = z.object({
@@ -17,7 +19,15 @@ type ExposureInput = z.infer<typeof exposureParameters>
 interface ExposureOutput {
   success: boolean
   adjustment: number
+  affectedImages: number
   message: string
+}
+
+// Define filter type
+interface ImageFilter {
+  type?: string
+  isExposure?: boolean
+  [key: string]: unknown
 }
 
 // Create adapter class
@@ -39,31 +49,77 @@ NEVER ask for exact values - always interpret the user's intent and choose an ap
   inputSchema = exposureParameters
   
   async execute(params: ExposureInput, context: { canvas: Canvas }): Promise<ExposureOutput> {
-    try {
-      // Verify canvas has content
-      const objects = context.canvas.getObjects()
-      const hasImages = objects.some(obj => obj.type === 'image')
-      
-      if (!hasImages) {
-        throw new Error('No image found on canvas. Please load an image first.')
-      }
-      
-      // Get the exposure tool options and update them
-      const { useToolOptionsStore } = await import('@/store/toolOptionsStore')
-      useToolOptionsStore.getState().updateOption(this.tool.id, 'exposure', params.adjustment)
-      
-      return {
-        success: true,
-        adjustment: params.adjustment,
-        message: `Adjusted exposure by ${params.adjustment > 0 ? '+' : ''}${params.adjustment}%`
-      }
-    } catch (error) {
-      return {
-        success: false,
-        adjustment: 0,
-        message: error instanceof Error ? error.message : 'Failed to adjust exposure'
-      }
+    console.log('[ExposureToolAdapter] Execute called with params:', params)
+    const canvas = context.canvas
+    
+    if (!canvas) {
+      throw new Error('Canvas is required but not provided in context')
     }
+    
+    // Get all image objects
+    const objects = canvas.getObjects()
+    const images = objects.filter(obj => obj.type === 'image') as FabricImage[]
+    
+    console.log('[ExposureToolAdapter] Found images:', images.length)
+    
+    if (images.length === 0) {
+      throw new Error('No images found on canvas. Please load an image first before adjusting exposure.')
+    }
+    
+    // Apply exposure to all images
+    images.forEach(img => {
+      // Remove existing exposure filters
+      if (!img.filters) {
+        img.filters = []
+      } else {
+        img.filters = img.filters.filter((f) => {
+          const filter = f as unknown as ImageFilter
+          return !(f instanceof filters.Brightness && filter.isExposure)
+        })
+      }
+      
+      // Add new exposure filter if adjustment is not 0
+      if (params.adjustment !== 0) {
+        // Exposure typically has a more dramatic effect than brightness
+        // Convert -100 to +100 range to a more exponential curve
+        const exposureValue = params.adjustment > 0 
+          ? params.adjustment * 0.015  // Positive exposure brightens more dramatically
+          : params.adjustment * 0.01   // Negative exposure darkens less dramatically
+        
+        const exposureFilter = new filters.Brightness({
+          brightness: exposureValue
+        })
+        
+        // Mark as exposure filter for identification
+        ;(exposureFilter as unknown as ImageFilter).isExposure = true
+        
+        img.filters.push(exposureFilter)
+      }
+      
+      // Apply filters
+      img.applyFilters()
+    })
+    
+    // Render the canvas to show changes
+    canvas.renderAll()
+    
+    console.log('[ExposureToolAdapter] Exposure adjustment applied successfully')
+    
+    return {
+      success: true,
+      adjustment: params.adjustment,
+      affectedImages: images.length,
+      message: `Adjusted exposure by ${params.adjustment > 0 ? '+' : ''}${params.adjustment}%`
+    }
+  }
+  
+  canExecute(canvas: Canvas): boolean {
+    // Can only adjust exposure if there are images on the canvas
+    const hasImages = canvas.getObjects().some(obj => obj.type === 'image')
+    if (!hasImages) {
+      console.warn('Exposure tool: No images on canvas')
+    }
+    return hasImages
   }
 }
 

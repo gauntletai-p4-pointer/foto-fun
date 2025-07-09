@@ -101,7 +101,7 @@ export async function autoDiscoverAdapters(): Promise<void> {
     adapterRegistry.register(new BrightnessAdapter())
     adapterRegistry.register(new ContrastAdapter())
     adapterRegistry.register(new SaturationAdapter())
-    adapterRegistry.register(new HueAdapter())
+    adapterRegistry.register(HueAdapter)
     adapterRegistry.register(ExposureAdapter)
     adapterRegistry.register(ColorTemperatureAdapter)
     adapterRegistry.register(RotateAdapter)

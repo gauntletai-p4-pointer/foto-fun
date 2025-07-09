@@ -6,7 +6,6 @@ import type { UIMessage } from 'ai'
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { Send, Bot, User, Loader2, AlertCircle, Wrench, Check, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
@@ -59,11 +58,38 @@ const parseMessageWithTools = (text: string, toolNames: string[]) => {
 
 export function AIChat() {
   const scrollAreaRef = useRef<HTMLDivElement>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
   const [input, setInput] = useState('')
   const [toolNames, setToolNames] = useState<string[]>([])
   const [quickActions, setQuickActions] = useState<string[]>([])
   const { isReady: isCanvasReady, initializationError, waitForReady, hasContent } = useCanvasStore()
   const { settings: aiSettings } = useAISettings()
+  
+  // Auto-resize textarea with max height
+  const adjustTextareaHeight = useCallback(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto'
+      const scrollHeight = textareaRef.current.scrollHeight
+      const maxHeight = 8 * 24 // 8 lines * 24px line height
+      textareaRef.current.style.height = `${Math.min(scrollHeight, maxHeight)}px`
+    }
+  }, [])
+  
+  useEffect(() => {
+    adjustTextareaHeight()
+  }, [input, adjustTextareaHeight])
+  
+  // Handle Enter key to send message
+  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      // Trigger form submission
+      const form = e.currentTarget.form
+      if (form) {
+        form.requestSubmit()
+      }
+    }
+  }, [])
   
   // Initialize adapter registry and get tool names
   useEffect(() => {
@@ -606,17 +632,27 @@ export function AIChat() {
       {/* Input */}
       <form onSubmit={handleSubmit} className="border-t border-foreground/10 p-3">
         <div className="flex gap-2">
-          <Input
+          <textarea
+            ref={textareaRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
+            onKeyDown={handleKeyDown}
             placeholder={isCanvasReady ? (hasContent() ? "Ask me anything about editing your photo..." : "Ask me to generate or edit photos...") : "Waiting for canvas to load..."}
             disabled={isLoading || !isCanvasReady}
-            className="flex-1 text-foreground bg-background"
+            rows={1}
+            className={cn(
+              "flex-1 min-h-[2.5rem] w-full resize-none rounded-md border border-foreground/10 bg-transparent px-3 py-2 text-sm shadow-sm transition-colors outline-none overflow-y-auto",
+              "placeholder:text-foreground/40",
+              "hover:border-foreground/20",
+              "focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/20",
+              "disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50"
+            )}
           />
           <Button
             type="submit"
             size="icon"
             disabled={!input.trim() || isLoading || !isCanvasReady}
+            className="self-end"
           >
             {isLoading ? (
               <Loader2 className="w-4 h-4 animate-spin" />

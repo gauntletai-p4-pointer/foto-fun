@@ -2,6 +2,8 @@ import { z } from 'zod'
 import { BaseToolAdapter } from '../base'
 import { hueTool } from '@/lib/editor/tools/adjustments/hueTool'
 import type { Canvas } from 'fabric'
+import type { Image as FabricImage } from 'fabric'
+import { filters } from 'fabric'
 
 // Input schema following AI SDK v5 patterns
 const hueParameters = z.object({
@@ -21,6 +23,12 @@ interface HueOutput {
   affectedImages: number
 }
 
+// Define filter type
+interface ImageFilter {
+  type?: string
+  [key: string]: unknown
+}
+
 /**
  * Adapter for the hue tool to make it AI-compatible
  * Following AI SDK v5 patterns
@@ -29,52 +37,175 @@ export class HueToolAdapter extends BaseToolAdapter<HueInput, HueOutput> {
   tool = hueTool
   aiName = 'adjustHue'
   description = `Adjust image hue (color rotation on the color wheel). You MUST calculate the rotation value based on user intent.
-Common patterns you should use:
+
+IMPORTANT: When user specifies exact degrees, ALWAYS use that value directly:
+- "shift hue by 70 degrees" → use 70
+- "rotate hue by -45 degrees" → use -45
+- "warmer tones by 60 degrees" → use 60 (ignore the "warmer" part, use the explicit degrees)
+
+If NO explicit degrees are given, use these patterns:
 - "shift colors" or "rotate hue" → +45 to +90
 - "complementary colors" → +180 or -180
-- "rotate hue by X degrees" → use X directly
 - Color shifts (rotates ALL colors by same amount):
-  - "make it more red/orange" → +10 to +30
-  - "make it more yellow" → +50 to +70
-  - "make it more green" → +90 to +120
-  - "make it more cyan" → +150 to +170
+  - "make it more red/orange" → +15 to +30
+  - "make it more yellow" → +60 to +80
+  - "make it more green" → +120 to +140
+  - "make it more cyan" → +180 to +200 (or -180 to -160)
   - "make it more blue" → -120 to -90
   - "make it more purple/magenta" → -60 to -30
-NOTE: This rotates ALL colors on the color wheel by the same amount. For warming/cooling effects, use a color temperature or tint adjustment tool instead.
+- "warmer tones" (no degrees specified) → +20 to +40 (toward red/orange)
+- "cooler tones" (no degrees specified) → -20 to -40 (toward blue/cyan)
+
+NOTE: This rotates ALL colors on the color wheel by the same amount.
 NEVER ask for exact values - always interpret the user's intent and choose an appropriate value.`
   
   inputSchema = hueParameters
   
   async execute(params: HueInput, context: { canvas: Canvas }): Promise<HueOutput> {
     console.log('[HueToolAdapter] Execute called with params:', params)
+    const canvas = context.canvas
     
-    try {
-      // Verify canvas has content
-      const objects = context.canvas.getObjects()
-      const hasImages = objects.some(obj => obj.type === 'image')
+    if (!canvas) {
+      throw new Error('Canvas is required but not provided in context')
+    }
+    
+    // Get all image objects
+    const objects = canvas.getObjects()
+    const images = objects.filter(obj => obj.type === 'image') as FabricImage[]
+    
+    console.log('[HueToolAdapter] Found images:', images.length)
+    console.log('[HueToolAdapter] All objects:', objects.map(obj => obj.type))
+    
+    if (images.length === 0) {
+      throw new Error('No images found on canvas. Please load an image first before adjusting hue.')
+    }
+    
+    // Apply hue to all images
+    images.forEach((img, index) => {
+      console.log(`[HueToolAdapter] Processing image ${index + 1}:`)
+      console.log(`  - Before filters:`, img.filters?.length || 0, 'filters')
       
-      if (!hasImages) {
-        throw new Error('No image found on canvas. Please load an image first.')
+      // Remove existing hue rotation filters
+      if (!img.filters) {
+        img.filters = []
+      } else {
+        const beforeCount = img.filters.length
+        img.filters = img.filters.filter((f) => {
+          const filterType = (f as any)?.type || f.constructor.name
+          console.log(`    - Checking filter type: ${filterType}`)
+          // Remove ColorMatrix filters that were used for hue rotation
+          // We identify them by checking if they have the hue rotation marker
+          if (filterType === 'ColorMatrix' && (f as any)._isHueRotation) {
+            return false
+          }
+          // Remove test brightness filters from debugging
+          if (filterType === 'Brightness' && (f as any)._isHueTest) {
+            return false
+          }
+          return filterType !== 'HueRotation'
+        })
+        const afterCount = img.filters.length
+        console.log(`    - Removed ${beforeCount - afterCount} existing hue filters`)
       }
       
-      // Get the hue tool options and update them
-      const { useToolOptionsStore } = await import('@/store/toolOptionsStore')
-      useToolOptionsStore.getState().updateOption(this.tool.id, 'hue', params.rotation)
+      // Add new hue rotation filter if rotation is not 0
+      if (params.rotation !== 0) {
+        // Convert degrees to radians for calculation
+        const rotationRadians = (params.rotation * Math.PI) / 180
+        console.log(`    - Converting ${params.rotation}° to ${rotationRadians} radians`)
+        
+        // Try both approaches - first HueRotation (simpler)
+        try {
+          const hueFilter = new filters.HueRotation({
+            rotation: rotationRadians
+          })
+          
+          console.log(`    - Created HueRotation filter:`, hueFilter)
+          console.log(`    - Filter type:`, (hueFilter as any)?.type || hueFilter.constructor.name)
+          
+          img.filters.push(hueFilter)
+          console.log(`    - Added HueRotation filter, total filters now: ${img.filters.length}`)
+        } catch (error) {
+          console.log(`    - HueRotation failed, trying ColorMatrix approach:`, error)
+          
+          // Fallback to ColorMatrix approach
+          const cos = Math.cos(rotationRadians)
+          const sin = Math.sin(rotationRadians)
+          
+          // Standard hue rotation matrix
+          const matrix = [
+            0.213 + cos * 0.787 - sin * 0.213,
+            0.715 - cos * 0.715 - sin * 0.715,
+            0.072 - cos * 0.072 + sin * 0.928,
+            0,
+            0,
+            0.213 - cos * 0.213 + sin * 0.143,
+            0.715 + cos * 0.285 + sin * 0.140,
+            0.072 - cos * 0.072 - sin * 0.283,
+            0,
+            0,
+            0.213 - cos * 0.213 - sin * 0.787,
+            0.715 - cos * 0.715 + sin * 0.715,
+            0.072 + cos * 0.928 + sin * 0.072,
+            0,
+            0,
+            0,
+            0,
+            0,
+            1,
+            0
+          ]
+          
+          const colorMatrixFilter = new filters.ColorMatrix({
+            matrix: matrix
+          })
+          
+          // Mark this filter as a hue rotation filter for identification
+          ;(colorMatrixFilter as any)._isHueRotation = true
+          
+          console.log(`    - Created ColorMatrix filter for hue rotation`)
+          console.log(`    - Filter type:`, (colorMatrixFilter as any)?.type || colorMatrixFilter.constructor.name)
+          
+          img.filters.push(colorMatrixFilter)
+          console.log(`    - Added ColorMatrix filter, total filters now: ${img.filters.length}`)
+        }
+      }
       
-      return {
-        success: true,
-        previousValue: 0, // In a real implementation, we'd track the current value
-        newValue: params.rotation,
-        affectedImages: objects.filter(obj => obj.type === 'image').length
+      // Apply filters
+      console.log(`    - Applying filters to image ${index + 1}`)
+      
+      // DEBUGGING: Add a test brightness filter to verify filters work
+      if (params.rotation !== 0) {
+        const testBrightness = new filters.Brightness({
+          brightness: 0.1 // Slight brightness increase to test if filters work
+        })
+        ;(testBrightness as any)._isHueTest = true
+        img.filters.push(testBrightness)
+        console.log(`    - Added test brightness filter for debugging`)
       }
-    } catch (error) {
-      console.error('[HueToolAdapter] Error:', error)
-      return {
-        success: false,
-        previousValue: 0,
-        newValue: 0,
-        affectedImages: 0
-      }
+      
+      img.applyFilters()
+      console.log(`    - Filters applied successfully`)
+      console.log(`    - Final filter count: ${img.filters.length}`)
+      
+      // Log all filters for debugging
+      img.filters.forEach((filter, i) => {
+        const filterType = (filter as any)?.type || filter.constructor.name
+        console.log(`      Filter ${i}: ${filterType}`)
+      })
+    })
+    
+    // Render the canvas to show changes
+    canvas.renderAll()
+    
+    console.log('[HueToolAdapter] Hue adjustment applied successfully')
+    console.log('[HueToolAdapter] Final result: rotation =', params.rotation, 'degrees')
+    
+    return {
+      success: true,
+      previousValue: 0, // In a real implementation, we'd track the current value
+      newValue: params.rotation,
+      affectedImages: images.length
     }
   }
   
@@ -88,5 +219,6 @@ NEVER ask for exact values - always interpret the user's intent and choose an ap
   }
 }
 
-// Export default instance for auto-discovery
-export default HueToolAdapter 
+// Export singleton instance
+const hueAdapter = new HueToolAdapter()
+export default hueAdapter 
