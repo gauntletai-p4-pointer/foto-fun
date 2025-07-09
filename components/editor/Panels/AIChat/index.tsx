@@ -76,8 +76,9 @@ export function AIChat() {
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto'
       const scrollHeight = textareaRef.current.scrollHeight
+      const minHeight = 2 * 24 // 2 lines * 24px line height
       const maxHeight = 8 * 24 // 8 lines * 24px line height
-      textareaRef.current.style.height = `${Math.min(scrollHeight, maxHeight)}px`
+      textareaRef.current.style.height = `${Math.max(minHeight, Math.min(scrollHeight, maxHeight))}px`
     }
   }, [])
   
@@ -737,7 +738,7 @@ export function AIChat() {
             disabled={isLoading || !isCanvasReady}
             rows={1}
             className={cn(
-              "flex-1 min-h-[2.5rem] w-full resize-none rounded-md border border-foreground/10 bg-transparent px-3 py-2 text-sm shadow-sm transition-colors outline-none overflow-y-auto",
+              "flex-1 min-h-[3rem] w-full resize-none rounded-md border border-foreground/10 bg-transparent px-3 py-2 text-sm shadow-sm transition-colors outline-none overflow-y-auto",
               "placeholder:text-foreground/40",
               "hover:border-foreground/20",
               "focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/20",
