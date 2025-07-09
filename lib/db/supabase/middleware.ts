@@ -39,8 +39,8 @@ export async function updateSession(request: NextRequest) {
   const isProtectedRoute = request.nextUrl.pathname.startsWith('/editor')
   
   if (!user && isProtectedRoute) {
-    // no user, redirect to home page
-    return NextResponse.redirect(new URL('/', request.url))
+    // no user, redirect to sign-in page
+    return NextResponse.redirect(new URL('/auth/signin', request.url))
   }
 
   // IMPORTANT: You *must* return the supabaseResponse object as it is. If you're

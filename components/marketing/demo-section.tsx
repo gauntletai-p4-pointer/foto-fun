@@ -3,6 +3,9 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Sparkles, ArrowRight } from 'lucide-react'
+import Link from 'next/link'
+import { useAuth } from '@/hooks/useAuth'
+import { signInWithOAuth } from '@/lib/auth/actions'
 
 const sampleCommands = [
   'Make it more professional',
@@ -14,6 +17,13 @@ const sampleCommands = [
 
 export function DemoSection() {
   const [selectedCommand, setSelectedCommand] = useState(0)
+  const { user, loading } = useAuth()
+
+  const handleLaunchEditor = async () => {
+    if (!user) {
+      await signInWithOAuth('google')
+    }
+  }
 
   return (
     <section className="py-24 bg-foreground/5/30 relative overflow-hidden">
@@ -71,10 +81,23 @@ export function DemoSection() {
                 <p className="text-foreground/60 mb-4">
                   Selected command: <span className="font-medium text-foreground">{sampleCommands[selectedCommand]}</span>
                 </p>
-                <Button className="group">
-                  <span>Launch Full Editor</span>
-                  <ArrowRight className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform" />
-                </Button>
+                {loading ? (
+                  <div className="h-10 w-40 bg-foreground/10 rounded-md animate-pulse" />
+                ) : user ? (
+                  <Button className="group" asChild>
+                    <Link href="/editor">
+                      <span>Launch Full Editor</span>
+                      <ArrowRight className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform" />
+                    </Link>
+                  </Button>
+                ) : (
+                  <form action={handleLaunchEditor}>
+                    <Button className="group" type="submit">
+                      <span>Launch Full Editor</span>
+                      <ArrowRight className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform" />
+                    </Button>
+                  </form>
+                )}
               </div>
 
               {/* Decorative elements */}

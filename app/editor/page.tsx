@@ -18,6 +18,7 @@ export default function EditorPage() {
   const { saveDocument, currentDocument, createNewDocument } = useDocumentStore()
   const router = useRouter()
   const [showNewDocumentDialog, setShowNewDocumentDialog] = useState(false)
+  const [authChecked, setAuthChecked] = useState(false)
   
   useEffect(() => {
     // Check authentication on mount
@@ -26,8 +27,11 @@ export default function EditorPage() {
       const { data: { user } } = await supabase.auth.getUser()
       
       if (!user) {
-        // Redirect to home page if not authenticated
-        router.push('/')
+        // Redirect to sign-in page if not authenticated
+        router.push('/auth/signin')
+      } else {
+        // Only set authChecked to true if user is authenticated
+        setAuthChecked(true)
       }
     }
     
@@ -101,6 +105,18 @@ export default function EditorPage() {
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [saveDocument, currentDocument])
+  
+  // Show loading state while checking auth
+  if (!authChecked) {
+    return (
+      <div className="h-screen flex items-center justify-center bg-[#1e1e1e] text-gray-200">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-gray-400 mx-auto mb-4"></div>
+          <p className="text-sm text-gray-400">Loading editor...</p>
+        </div>
+      </div>
+    )
+  }
   
   return (
     <div className="h-screen flex flex-col bg-[#1e1e1e] text-gray-200 overflow-hidden">

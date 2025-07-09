@@ -1,4 +1,8 @@
+'use client'
+
 import { Brain, Palette, Globe, Workflow, Sparkles, Zap } from 'lucide-react'
+import { useAuth } from '@/hooks/useAuth'
+import { signInWithOAuth } from '@/lib/auth/actions'
 
 const features = [
   {
@@ -48,6 +52,14 @@ const features = [
 ]
 
 export function FeaturesSection() {
+  const { user, loading } = useAuth()
+
+  const handleTryNow = async () => {
+    if (!user) {
+      await signInWithOAuth('google')
+    }
+  }
+
   return (
     <section id="features" className="py-24 relative overflow-hidden">
       {/* Background decoration */}
@@ -125,13 +137,27 @@ export function FeaturesSection() {
         {/* Bottom CTA */}
         <div className="text-center mt-16">
           <p className="text-foreground/60 mb-4">Ready to experience the future of photo editing?</p>
-          <a
-            href="/editor"
-            className="inline-flex items-center gap-2 text-primary hover:text-primary/80 font-medium transition-colors"
-          >
-            Try it now
-            <Zap className="h-4 w-4" />
-          </a>
+          {loading ? (
+            <div className="inline-block h-6 w-24 bg-foreground/10 rounded animate-pulse" />
+          ) : user ? (
+            <a
+              href="/editor"
+              className="inline-flex items-center gap-2 text-primary hover:text-primary/80 font-medium transition-colors"
+            >
+              Try it now
+              <Zap className="h-4 w-4" />
+            </a>
+          ) : (
+            <form action={handleTryNow} className="inline">
+              <button
+                type="submit"
+                className="inline-flex items-center gap-2 text-primary hover:text-primary/80 font-medium transition-colors"
+              >
+                Try it now
+                <Zap className="h-4 w-4" />
+              </button>
+            </form>
+          )}
         </div>
       </div>
     </section>
