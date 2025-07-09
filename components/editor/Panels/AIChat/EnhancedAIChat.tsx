@@ -53,13 +53,13 @@ export function EnhancedAIChat() {
 
   const handleSubmit = useCallback((e: React.FormEvent) => {
     e.preventDefault()
-    if (input.trim() && !isLoading && fabricCanvas && hasContent()) {
+    if (input.trim() && !isLoading && fabricCanvas && isCanvasReady) {
       const canvasContext = {
         dimensions: {
           width: fabricCanvas.getWidth(),
           height: fabricCanvas.getHeight()
         },
-        hasContent: fabricCanvas.getObjects().length > 0,
+        hasContent: hasContent(),
         objectCount: fabricCanvas.getObjects().length
       }
       
@@ -181,7 +181,7 @@ export function EnhancedAIChat() {
             placeholder={agentMode ? "Describe what you'd like to do..." : "Ask about editing..."}
             disabled={isLoading || !isCanvasReady}
           />
-          <Button type="submit" disabled={isLoading || !fabricCanvas || !hasContent()}>
+          <Button type="submit" disabled={isLoading || !fabricCanvas || !isCanvasReady}>
             <Send className="h-4 w-4" />
           </Button>
         </div>

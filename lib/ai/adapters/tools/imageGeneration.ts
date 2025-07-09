@@ -125,24 +125,147 @@ Be specific in your descriptions for better results.`
       
       img.scale(scale)
       
-      // Center the image on the canvas
+      // Find the best position for the new image
+      const position = this.findBestPosition(canvas, img, scale)
+      
       img.set({
-        left: (canvasWidth - (img.width || 0) * scale) / 2,
-        top: (canvasHeight - (img.height || 0) * scale) / 2,
+        left: position.left,
+        top: position.top,
         selectable: true,
         evented: true
       })
       
-      // Clear canvas and add the new image
-      canvas.clear()
+      // Add the new image without clearing existing content
       canvas.add(img)
       canvas.setActiveObject(img)
       canvas.renderAll()
       
-      console.log('[ImageGenerationAdapter] Image added to canvas')
+      console.log('[ImageGenerationAdapter] Image added to canvas at position:', position)
     } catch (error) {
       console.error('[ImageGenerationAdapter] Error applying image to canvas:', error)
       throw new Error('Failed to apply generated image to canvas')
+    }
+  }
+  
+  /**
+   * Find the best position to place a new image without overlapping existing content
+   */
+  private findBestPosition(canvas: Canvas, img: fabric.Image, scale: number): { left: number; top: number } {
+    const canvasWidth = canvas.getWidth()
+    const canvasHeight = canvas.getHeight()
+    const imgWidth = (img.width || 0) * scale
+    const imgHeight = (img.height || 0) * scale
+    
+    const existingObjects = canvas.getObjects()
+    
+    // If canvas is empty, center the image
+    if (existingObjects.length === 0) {
+      return {
+        left: (canvasWidth - imgWidth) / 2,
+        top: (canvasHeight - imgHeight) / 2
+      }
+    }
+    
+    // Helper function to check if a rectangle overlaps with existing objects
+    const hasOverlap = (left: number, top: number, width: number, height: number): boolean => {
+      for (const obj of existingObjects) {
+        const objLeft = obj.left || 0
+        const objTop = obj.top || 0
+        const objWidth = (obj.width || 0) * (obj.scaleX || 1)
+        const objHeight = (obj.height || 0) * (obj.scaleY || 1)
+        
+        // Check if rectangles overlap
+        if (left < objLeft + objWidth && 
+            left + width > objLeft && 
+            top < objTop + objHeight && 
+            top + height > objTop) {
+          return true
+        }
+      }
+      return false
+    }
+    
+    // Get bounding box of all existing objects
+    const bounds = this.getObjectsBounds(existingObjects)
+    
+    // Try different positions in order of preference
+    const positions = [
+      // Right of existing content
+      { left: bounds.right + 20, top: bounds.top },
+      // Left of existing content
+      { left: bounds.left - imgWidth - 20, top: bounds.top },
+      // Below existing content
+      { left: bounds.left, top: bounds.bottom + 20 },
+      // Above existing content
+      { left: bounds.left, top: bounds.top - imgHeight - 20 },
+      // Bottom right corner
+      { left: bounds.right + 20, top: bounds.bottom + 20 },
+      // Top right corner
+      { left: bounds.right + 20, top: bounds.top - imgHeight - 20 },
+      // Bottom left corner
+      { left: bounds.left - imgWidth - 20, top: bounds.bottom + 20 },
+      // Top left corner
+      { left: bounds.left - imgWidth - 20, top: bounds.top - imgHeight - 20 }
+    ]
+    
+    // Find the first position that fits within canvas bounds and doesn't overlap
+    for (const pos of positions) {
+      if (pos.left >= 0 && 
+          pos.top >= 0 && 
+          pos.left + imgWidth <= canvasWidth && 
+          pos.top + imgHeight <= canvasHeight &&
+          !hasOverlap(pos.left, pos.top, imgWidth, imgHeight)) {
+        return pos
+      }
+    }
+    
+    // If no ideal position found, try a grid-based approach
+    const gridSize = 20
+    for (let y = 0; y <= canvasHeight - imgHeight; y += gridSize) {
+      for (let x = 0; x <= canvasWidth - imgWidth; x += gridSize) {
+        if (!hasOverlap(x, y, imgWidth, imgHeight)) {
+          return { left: x, top: y }
+        }
+      }
+    }
+    
+    // Last resort: center the image (may overlap)
+    return {
+      left: (canvasWidth - imgWidth) / 2,
+      top: (canvasHeight - imgHeight) / 2
+    }
+  }
+  
+  /**
+   * Get the bounding box of all objects on the canvas
+   */
+  private getObjectsBounds(objects: fabric.Object[]): { left: number; top: number; right: number; bottom: number } {
+    if (objects.length === 0) {
+      return { left: 0, top: 0, right: 0, bottom: 0 }
+    }
+    
+    let minLeft = Infinity
+    let minTop = Infinity
+    let maxRight = -Infinity
+    let maxBottom = -Infinity
+    
+    for (const obj of objects) {
+      const left = obj.left || 0
+      const top = obj.top || 0
+      const width = (obj.width || 0) * (obj.scaleX || 1)
+      const height = (obj.height || 0) * (obj.scaleY || 1)
+      
+      minLeft = Math.min(minLeft, left)
+      minTop = Math.min(minTop, top)
+      maxRight = Math.max(maxRight, left + width)
+      maxBottom = Math.max(maxBottom, top + height)
+    }
+    
+    return {
+      left: minLeft,
+      top: minTop,
+      right: maxRight,
+      bottom: maxBottom
     }
   }
   

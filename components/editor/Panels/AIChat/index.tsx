@@ -223,9 +223,11 @@ export function AIChat() {
         const objects = currentState.fabricCanvas.getObjects()
         console.log('[AIChat] Canvas objects:', objects.length)
         
-        // Check if there's actually an image loaded
+        // Check if there's actually an image loaded (some tools like image generation don't need existing content)
         if (objects.length === 0) {
-          throw new Error('No image loaded. Please open an image file before using AI tools.')
+          // Only show this warning for tools that require existing content
+          // Image generation and other AI-native tools can work with empty canvas
+          console.log('[AIChat] Canvas is empty, but some tools (like image generation) can work with empty canvas')
         }
         
         // Execute the tool - canvas context is now handled internally by ClientToolExecutor
@@ -252,14 +254,14 @@ export function AIChat() {
     e.preventDefault()
     // Get fresh state from store
     const currentState = useCanvasStore.getState()
-    if (input.trim() && !isLoading && currentState.hasContent()) {
+    if (input.trim() && !isLoading && currentState.isReady) {
       // Include canvas context and AI settings with each message
       const canvasContext = currentState.fabricCanvas ? {
         dimensions: {
           width: currentState.fabricCanvas.getWidth(),
           height: currentState.fabricCanvas.getHeight()
         },
-        hasContent: true,
+        hasContent: currentState.hasContent(),
         objectCount: currentState.fabricCanvas.getObjects().length
       } : null
       
@@ -286,14 +288,14 @@ export function AIChat() {
   const handleQuickAction = useCallback((suggestion: string) => {
     // Get fresh state from store
     const currentState = useCanvasStore.getState()
-    if (!isLoading && suggestion && currentState.hasContent()) {
+    if (!isLoading && suggestion && currentState.isReady) {
       // Include canvas context with quick actions too
       const canvasContext = currentState.fabricCanvas ? {
         dimensions: {
           width: currentState.fabricCanvas.getWidth(),
           height: currentState.fabricCanvas.getHeight()
         },
-        hasContent: true,
+        hasContent: currentState.hasContent(),
         objectCount: currentState.fabricCanvas.getObjects().length
       } : null
       
@@ -338,7 +340,7 @@ export function AIChat() {
           {isCanvasReady && !hasContent() && (
             <div className="text-center text-foreground/60 text-sm p-3 bg-foreground/10/10 rounded-lg border border-foreground/20">
               <AlertCircle className="w-4 h-4 inline-block mr-2" />
-              Please open an image file to start editing.
+              Canvas is ready! Open an image file to start editing, or ask me to generate one.
             </div>
           )}
           
@@ -352,25 +354,30 @@ export function AIChat() {
               {/* Welcome message styled like assistant message */}
               <div className="flex-1 space-y-3">
                 <div className="bg-foreground/5 text-foreground rounded-lg px-3 py-2 max-w-[85%]">
-                  <p className="text-sm">Welcome! I&apos;m ready to help edit your photo. What would you like to do?</p>
+                  <p className="text-sm">Welcome! I&apos;m ready to help you {hasContent() ? 'edit your photo' : 'generate or edit photos'}. What would you like to do?</p>
                 </div>
                 
                 {/* Quick start suggestions */}
                 <div className="space-y-2">
                   <p className="text-xs text-foreground/60 ml-1">Try asking me to...</p>
                   <div className="flex flex-wrap gap-1.5">
-                    {[
+                    {(hasContent() ? [
                       "Enhance the colors",
                       "Make it brighter",
                       "Add blur effect",
                       "Convert to black & white"
-                    ].map((suggestion) => (
+                    ] : [
+                      "Generate an image of a sunset",
+                      "Create a logo design",
+                      "Generate a landscape photo",
+                      "Create abstract art"
+                    ]).map((suggestion) => (
                       <button
                         key={suggestion}
                         type="button"
                         onClick={() => handleQuickAction(suggestion)}
                         className="text-xs px-2 py-1 rounded-md bg-foreground/10 hover:bg-foreground/10/80 text-foreground transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                        disabled={!isCanvasReady || !hasContent()}
+                        disabled={!isCanvasReady || isLoading}
                       >
                         {suggestion}
                       </button>
@@ -602,7 +609,7 @@ export function AIChat() {
           <Input
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder={isCanvasReady ? "Ask me anything about editing your photo..." : "Waiting for canvas to load..."}
+            placeholder={isCanvasReady ? (hasContent() ? "Ask me anything about editing your photo..." : "Ask me to generate or edit photos...") : "Waiting for canvas to load..."}
             disabled={isLoading || !isCanvasReady}
             className="flex-1 text-foreground bg-background"
           />
@@ -621,13 +628,18 @@ export function AIChat() {
         
         {/* Quick actions */}
         <div className="mt-2 flex flex-wrap gap-1.5">
-          {quickActions.map((suggestion) => (
+          {(hasContent() ? quickActions : [
+            "Generate an image of a sunset",
+            "Create a logo design",
+            "Generate a landscape photo",
+            "Create abstract art"
+          ]).map((suggestion) => (
             <button
               key={suggestion}
               type="button"
               onClick={() => handleQuickAction(suggestion)}
               className="text-xs px-2 py-1 rounded-md bg-foreground/10 hover:bg-foreground/10/80 text-foreground transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              disabled={isLoading || !isCanvasReady || !hasContent()}
+              disabled={isLoading || !isCanvasReady}
             >
               {suggestion}
             </button>

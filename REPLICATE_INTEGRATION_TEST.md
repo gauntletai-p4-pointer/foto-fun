@@ -36,6 +36,19 @@ Epic 5.33 has been successfully implemented with **server-side API key security*
 - ✅ Works on both server and client sides
 - ✅ Registered alongside existing canvas tool adapters
 
+### 6. Empty Canvas Support
+- ✅ AI Chat now works with empty canvases
+- ✅ Users can start projects by generating images
+- ✅ Dynamic quick actions based on canvas content
+- ✅ Context-aware placeholder text and welcome messages
+
+### 7. Smart Positioning System
+- ✅ Generated images no longer replace existing content
+- ✅ Intelligent placement algorithm finds empty areas
+- ✅ Prioritizes right, left, below, above existing content
+- ✅ Grid-based fallback search for complex layouts
+- ✅ Maintains 20px spacing between images
+
 ## How to Test
 
 ### Prerequisites
@@ -57,10 +70,24 @@ REPLICATE_API_KEY=r8_your_api_key_here
 
 3. **Navigate to the editor** (you should see the canvas and AI chat panel)
 
-4. **Test Image Generation** by sending one of these messages to the AI chat:
+   **Note**: You can now start with an empty canvas! No need to upload an image first.
+
+4. **Test Image Generation with Empty Canvas** by sending one of these messages to the AI chat:
    - "Generate an image of a serene mountain landscape at sunset"
    - "Create a futuristic robot in a cyberpunk city"
    - "Generate a photo of a cat wearing a hat"
+
+5. **Test with Existing Content** (multiple images):
+   - Upload an image to the canvas first
+   - Ask the AI to generate additional content (e.g., "generate a sunset landscape")
+   - The new image should appear in an empty area near the existing image
+   - Try generating multiple images to see smart positioning in action
+
+6. **Test Smart Positioning Scenarios**:
+   - **Empty Canvas**: Generate first image → should be centered
+   - **Single Image**: Generate second image → should appear to the right of first
+   - **Multiple Images**: Generate third image → should find best empty space
+   - **Complex Layout**: Add images manually, then generate → should avoid overlapping
 
 ### Expected Behavior
 
@@ -69,7 +96,10 @@ REPLICATE_API_KEY=r8_your_api_key_here
 3. **Server API Call**: Browser makes POST request to `/api/ai/replicate/generate-image`
 4. **Server Processing**: Server calls Replicate API with your server-side API key
 5. **Image Return**: Server returns generated image URL to browser
-6. **Canvas Update**: The generated image appears on the canvas, properly scaled and centered
+6. **Canvas Update**: The generated image appears on the canvas with smart positioning:
+   - Empty canvas: Image is centered
+   - With existing content: Image is placed in nearby empty area (right, left, below, above)
+   - Multiple images: Each new image finds the best non-overlapping position
 7. **Success Message**: The AI confirms the generation was successful
 
 ### Debugging
@@ -140,8 +170,8 @@ Each new tool follows the same pattern:
 ✅ **Security**: API key stays server-side only, never exposed to client
 ✅ **Server Integration**: Next.js API route handles Replicate calls
 ✅ **Unified Registry**: Single adapter registry for all tools
-✅ **AI Chat Compatible**: Users can request image generation naturally
-✅ **Canvas Integration**: Generated images appear on canvas automatically
+✅ **AI Chat Compatible**: Users can request image generation naturally (works with empty canvas)
+✅ **Canvas Integration**: Generated images appear on canvas automatically with smart positioning
 ✅ **Error Handling**: Proper validation and error responses
 
 ## 🔒 **Security Benefits Achieved**
