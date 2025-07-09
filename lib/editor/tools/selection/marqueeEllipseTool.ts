@@ -6,6 +6,8 @@ import { SelectionTool } from '../base/SelectionTool'
 import { selectionStyle } from '../utils/selectionRenderer'
 import { useCanvasStore } from '@/store/canvasStore'
 import { useSelectionStore } from '@/store/selectionStore'
+import { useHistoryStore } from '@/store/historyStore'
+import { CreateSelectionCommand } from '@/lib/editor/commands/selection'
 
 /**
  * Elliptical Marquee Tool - Creates elliptical selections
@@ -76,16 +78,15 @@ class MarqueeEllipseTool extends SelectionTool {
     
     // Only keep the selection if it has a minimum size
     const minSize = 2
-    const rx = this.feedbackEllipse.rx ?? 0
-    const ry = this.feedbackEllipse.ry ?? 0
     
-    if (rx < minSize || ry < minSize) {
+    if ((this.feedbackEllipse.width ?? 0) < minSize || (this.feedbackEllipse.height ?? 0) < minSize) {
       // Too small, remove it
       this.canvas.remove(this.feedbackEllipse)
     } else {
       // Get selection manager and mode
       const canvasStore = useCanvasStore.getState()
       const selectionStore = useSelectionStore.getState()
+      const historyStore = useHistoryStore.getState()
       
       if (!canvasStore.selectionManager || !canvasStore.selectionRenderer) {
         console.error('Selection system not initialized')
@@ -93,24 +94,59 @@ class MarqueeEllipseTool extends SelectionTool {
         return
       }
       
-      // Create pixel selection
-      const cx = this.feedbackEllipse.left ?? 0
-      const cy = this.feedbackEllipse.top ?? 0
+      // Get ellipse parameters
+      const bounds = this.feedbackEllipse.getBoundingRect()
+      const cx = bounds.left + bounds.width / 2
+      const cy = bounds.top + bounds.height / 2
+      const rx = bounds.width / 2
+      const ry = bounds.height / 2
       
-      canvasStore.selectionManager.createEllipse(
-        cx,
-        cy,
-        rx,
-        ry,
+      // Create a temporary canvas to generate the selection mask
+      const tempCanvas = document.createElement('canvas')
+      tempCanvas.width = this.canvas.getWidth()
+      tempCanvas.height = this.canvas.getHeight()
+      const tempCtx = tempCanvas.getContext('2d')!
+      
+      // Create image data for the ellipse
+      const imageData = tempCtx.createImageData(tempCanvas.width, tempCanvas.height)
+      
+      // Fill the ellipse area using the ellipse equation
+      for (let y = 0; y < imageData.height; y++) {
+        for (let x = 0; x < imageData.width; x++) {
+          const dx = (x - cx) / rx
+          const dy = (y - cy) / ry
+          
+          if (dx * dx + dy * dy <= 1) {
+            const index = (y * imageData.width + x) * 4
+            imageData.data[index + 3] = 255 // Set alpha to fully selected
+          }
+        }
+      }
+      
+      // Create the selection command
+      const command = new CreateSelectionCommand(
+        canvasStore.selectionManager,
+        {
+          mask: imageData,
+          bounds: {
+            x: bounds.left,
+            y: bounds.top,
+            width: bounds.width,
+            height: bounds.height
+          }
+        },
         selectionStore.mode
       )
       
+      // Execute the command through history
+      historyStore.executeCommand(command)
+      
       // Update selection state
       selectionStore.updateSelectionState(true, {
-        x: cx - rx,
-        y: cy - ry,
-        width: rx * 2,
-        height: ry * 2
+        x: bounds.left,
+        y: bounds.top,
+        width: bounds.width,
+        height: bounds.height
       })
       
       // Start rendering the selection
@@ -118,12 +154,6 @@ class MarqueeEllipseTool extends SelectionTool {
       
       // Remove the temporary feedback ellipse
       this.canvas.remove(this.feedbackEllipse)
-      
-      console.log('Ellipse selection created:', {
-        mode: selectionStore.mode,
-        center: { x: cx, y: cy },
-        radii: { rx, ry }
-      })
     }
     
     this.feedbackEllipse = null

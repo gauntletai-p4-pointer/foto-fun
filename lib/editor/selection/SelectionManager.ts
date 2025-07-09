@@ -14,6 +14,8 @@ export interface PixelSelection {
 
 export type SelectionMode = 'replace' | 'add' | 'subtract' | 'intersect'
 
+export type SelectionModification = 'expand' | 'contract' | 'feather' | 'invert'
+
 /**
  * SelectionManager - Manages pixel-based selections in the canvas
  * 

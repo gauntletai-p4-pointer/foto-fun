@@ -83,19 +83,23 @@ class RotateTool extends BaseTool {
       const centerX = canvas.getWidth() / 2
       const centerY = canvas.getHeight() / 2
       
+      // Calculate the angle difference from the last rotation
+      const angleDiff = angle - this.state.get('lastAngle')
+      
       // Apply rotation to all objects
       objects.forEach((obj: FabricObject) => {
         // Store the old state for undo
         const oldAngle = obj.angle || 0
+        const oldLeft = obj.left || 0
+        const oldTop = obj.top || 0
         
-        // Calculate the angle difference from the last rotation
-        const angleDiff = angle - this.state.get('lastAngle')
-        
-        // Rotate the object
+        // Calculate new angle
         const newAngle = oldAngle + angleDiff
-        obj.rotate(newAngle)
         
-        // Update object position to maintain rotation around center
+        // Calculate new position after rotation around center
+        let newLeft = oldLeft
+        let newTop = oldTop
+        
         if (angleDiff !== 0) {
           const point = obj.getCenterPoint()
           const radians = (angleDiff * Math.PI) / 180
@@ -104,18 +108,21 @@ class RotateTool extends BaseTool {
           const newX = centerX + (point.x - centerX) * Math.cos(radians) - (point.y - centerY) * Math.sin(radians)
           const newY = centerY + (point.x - centerX) * Math.sin(radians) + (point.y - centerY) * Math.cos(radians)
           
-          obj.setPositionByOrigin(new Point(newX, newY), 'center', 'center')
+          const newPoint = new Point(newX, newY)
+          // Calculate left/top from center point
+          newLeft = newPoint.x - (obj.width || 0) * (obj.scaleX || 1) / 2
+          newTop = newPoint.y - (obj.height || 0) * (obj.scaleY || 1) / 2
         }
         
-        obj.setCoords()
-        
-        // Record command for undo/redo
+        // Create command BEFORE modifying the object
         const command = new ModifyCommand(
           canvas,
           obj,
-          { angle: newAngle, left: obj.left, top: obj.top },
+          { angle: newAngle, left: newLeft, top: newTop },
           `Rotate by ${angleDiff}°`
         )
+        
+        // Execute the command (which will apply the changes)
         this.executeCommand(command)
       })
       

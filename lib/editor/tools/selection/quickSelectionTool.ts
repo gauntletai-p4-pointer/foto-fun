@@ -7,6 +7,8 @@ import { createToolState } from '../utils/toolState'
 import { selectionStyle } from '../utils/selectionRenderer'
 import { useCanvasStore } from '@/store/canvasStore'
 import { useSelectionStore } from '@/store/selectionStore'
+import { useHistoryStore } from '@/store/historyStore'
+import { CreateSelectionCommand } from '@/lib/editor/commands/selection'
 import type { Point } from '../utils/constraints'
 
 // Quick selection tool state
@@ -442,6 +444,7 @@ class QuickSelectionTool extends BaseTool {
     // Get selection manager and mode
     const canvasStore = useCanvasStore.getState()
     const selectionStore = useSelectionStore.getState()
+    const historyStore = useHistoryStore.getState()
     
     if (!canvasStore.selectionManager || !canvasStore.selectionRenderer) {
       console.error('Selection system not initialized')
@@ -479,12 +482,18 @@ class QuickSelectionTool extends BaseTool {
       height: maxY - minY + 1
     }
     
-    // Apply selection
-    if (selectionStore.mode === 'replace') {
-      canvasStore.selectionManager.clear()
-    }
+    // Create the selection command
+    const command = new CreateSelectionCommand(
+      canvasStore.selectionManager,
+      {
+        mask: maskData,
+        bounds
+      },
+      selectionStore.mode
+    )
     
-    canvasStore.selectionManager.restoreSelection(maskData, bounds)
+    // Execute the command through history
+    historyStore.executeCommand(command)
     
     // Update selection state
     selectionStore.updateSelectionState(true, bounds)
@@ -497,12 +506,6 @@ class QuickSelectionTool extends BaseTool {
       this.canvas.remove(this.feedbackPath)
       this.feedbackPath = null
     }
-    
-    console.log('Quick selection created:', {
-      pixelCount: selectedPixels.size,
-      bounds,
-      mode: selectionStore.mode
-    })
   }
   
   /**

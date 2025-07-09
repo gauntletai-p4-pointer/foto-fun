@@ -1,10 +1,11 @@
 import { Crop } from 'lucide-react'
 import { TOOL_IDS, ASPECT_RATIOS } from '@/constants'
-import type { Canvas, FabricObject } from 'fabric'
+import type { Canvas } from 'fabric'
 import { Rect } from 'fabric'
 import { BaseTool } from '../base/BaseTool'
 import { createToolState } from '../utils/toolState'
 import type { Point } from '../utils/constraints'
+import { CropCommand } from '@/lib/editor/commands/canvas'
 
 // Crop tool state
 type CropToolState = {
@@ -238,55 +239,18 @@ class CropTool extends BaseTool {
       const cropWidth = cropRect.width! * cropRect.scaleX!
       const cropHeight = cropRect.height! * cropRect.scaleY!
       
-      // Remove crop rect
+      // Remove crop rect first
       this.canvas!.remove(cropRect)
       
-      // Apply clipPath to each object
-      objects.forEach((obj: FabricObject) => {
-        // Create a clip rectangle
-        const clipRect = new Rect({
-          left: cropLeft,
-          top: cropTop,
-          width: cropWidth,
-          height: cropHeight,
-          absolutePositioned: true
-        })
-        
-        obj.clipPath = clipRect
+      // Create and execute crop command
+      const command = new CropCommand(this.canvas!, {
+        left: cropLeft,
+        top: cropTop,
+        width: cropWidth,
+        height: cropHeight
       })
       
-      // Calculate scale factor to fit canvas
-      const scaleX = this.canvas!.width! / cropWidth
-      const scaleY = this.canvas!.height! / cropHeight
-      const scale = Math.min(scaleX, scaleY)
-      
-      // Apply transformation to fit the cropped area to canvas
-      objects.forEach((obj: FabricObject) => {
-        // Scale the object
-        obj.scale(obj.scaleX! * scale)
-        
-        // Reposition the object
-        obj.set({
-          left: ((obj.left || 0) - cropLeft) * scale,
-          top: ((obj.top || 0) - cropTop) * scale
-        })
-        
-        obj.setCoords()
-      })
-      
-      // Optionally resize canvas to maintain aspect ratio
-      if (scaleX !== scaleY) {
-        this.canvas!.setDimensions({
-          width: cropWidth * scale,
-          height: cropHeight * scale
-        })
-      }
-      
-      // TODO: Create and execute a CropCommand when command system is implemented
-      console.log('Crop applied:', {
-        bounds: { left: cropLeft, top: cropTop, width: cropWidth, height: cropHeight },
-        scale: scale
-      })
+      await this.executeCommand(command)
       
       this.canvas!.renderAll()
       this.state.set('disabled', true)

@@ -1,13 +1,12 @@
 import { Command } from '../base'
-import type { SelectionManager } from '@/lib/editor/selection'
+import type { SelectionManager, PixelSelection } from '@/lib/editor/selection'
 
 /**
  * Command to clear the current selection
  */
 export class ClearSelectionCommand extends Command {
   private selectionManager: SelectionManager
-  private previousSelection: ImageData | null = null
-  private previousBounds: { x: number; y: number; width: number; height: number } | null = null
+  private previousSelection: PixelSelection | null = null
   
   constructor(selectionManager: SelectionManager) {
     super('Clear selection')
@@ -15,14 +14,21 @@ export class ClearSelectionCommand extends Command {
   }
   
   async execute(): Promise<void> {
-    // Save current selection
+    // Save current selection if any
     const current = this.selectionManager.getSelection()
     if (current) {
-      // Clone the selection mask
-      const ctx = document.createElement('canvas').getContext('2d')!
-      this.previousSelection = ctx.createImageData(current.mask.width, current.mask.height)
-      this.previousSelection.data.set(current.mask.data)
-      this.previousBounds = { ...current.bounds }
+      // Clone the current selection
+      const canvas = document.createElement('canvas')
+      const ctx = canvas.getContext('2d')!
+      canvas.width = current.mask.width
+      canvas.height = current.mask.height
+      const clonedMask = ctx.createImageData(current.mask.width, current.mask.height)
+      clonedMask.data.set(current.mask.data)
+      
+      this.previousSelection = {
+        mask: clonedMask,
+        bounds: { ...current.bounds }
+      }
     }
     
     // Clear the selection
@@ -30,15 +36,13 @@ export class ClearSelectionCommand extends Command {
   }
   
   async undo(): Promise<void> {
-    if (this.previousSelection && this.previousBounds) {
-      // We need to add a method to SelectionManager to restore from ImageData
-      // For now, this is a placeholder
-      console.log('Restoring cleared selection')
+    if (this.previousSelection) {
+      this.selectionManager.restoreSelection(this.previousSelection.mask, this.previousSelection.bounds)
     }
   }
   
   async redo(): Promise<void> {
-    this.selectionManager.clear()
+    await this.execute()
   }
   
   canExecute(): boolean {

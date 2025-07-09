@@ -1,4 +1,5 @@
 export { AddObjectCommand } from './AddObjectCommand'
 export { RemoveObjectCommand } from './RemoveObjectCommand'
 export { TransformCommand } from './TransformCommand'
-export { ModifyCommand } from './ModifyCommand' 
+export { ModifyCommand } from './ModifyCommand'
+export { CropCommand } from './CropCommand' 

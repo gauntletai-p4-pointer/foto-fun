@@ -1,7 +1,5 @@
 import { Command } from '../base'
-import type { SelectionManager } from '@/lib/editor/selection'
-
-export type SelectionModification = 'expand' | 'contract' | 'feather' | 'invert'
+import type { SelectionManager, SelectionModification, PixelSelection } from '@/lib/editor/selection'
 
 /**
  * Command to modify an existing selection
@@ -10,7 +8,7 @@ export class ModifySelectionCommand extends Command {
   private selectionManager: SelectionManager
   private modification: SelectionModification
   private amount: number
-  private previousSelection: ImageData | null = null
+  private previousSelection: PixelSelection | null = null
   
   constructor(
     selectionManager: SelectionManager,
@@ -31,9 +29,17 @@ export class ModifySelectionCommand extends Command {
     }
     
     // Clone the current selection mask
-    const ctx = document.createElement('canvas').getContext('2d')!
-    this.previousSelection = ctx.createImageData(current.mask.width, current.mask.height)
-    this.previousSelection.data.set(current.mask.data)
+    const canvas = document.createElement('canvas')
+    const ctx = canvas.getContext('2d')!
+    canvas.width = current.mask.width
+    canvas.height = current.mask.height
+    const clonedMask = ctx.createImageData(current.mask.width, current.mask.height)
+    clonedMask.data.set(current.mask.data)
+    
+    this.previousSelection = {
+      mask: clonedMask,
+      bounds: { ...current.bounds }
+    }
     
     // Apply modification
     switch (this.modification) {
@@ -54,14 +60,31 @@ export class ModifySelectionCommand extends Command {
   
   async undo(): Promise<void> {
     if (this.previousSelection) {
-      // We need to add a method to SelectionManager to restore from ImageData
-      // For now, this is a placeholder
-      console.log('Restoring previous selection state')
+      this.selectionManager.restoreSelection(this.previousSelection.mask, this.previousSelection.bounds)
     }
   }
   
   async redo(): Promise<void> {
-    await this.execute()
+    // We need to re-execute from the saved state
+    if (this.previousSelection) {
+      // First restore the previous state
+      this.selectionManager.restoreSelection(this.previousSelection.mask, this.previousSelection.bounds)
+      // Then apply the modification again
+      switch (this.modification) {
+        case 'expand':
+          this.selectionManager.expand(this.amount)
+          break
+        case 'contract':
+          this.selectionManager.contract(this.amount)
+          break
+        case 'feather':
+          this.selectionManager.feather(this.amount)
+          break
+        case 'invert':
+          this.selectionManager.invert()
+          break
+      }
+    }
   }
   
   canExecute(): boolean {

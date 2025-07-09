@@ -1,9 +1,10 @@
 import { Thermometer } from 'lucide-react'
 import { TOOL_IDS } from '@/constants'
-import type { Canvas, Image } from 'fabric'
+import type { Canvas, Image, FabricObject } from 'fabric'
 import { BaseTool } from '../base/BaseTool'
 import { createToolState } from '../utils/toolState'
 import { useToolOptionsStore } from '@/store/toolOptionsStore'
+import { ModifyCommand } from '@/lib/editor/commands/canvas'
 import * as fabric from 'fabric'
 
 // Define tool state
@@ -71,13 +72,13 @@ class ColorTemperatureTool extends BaseTool {
           img.filters = []
         }
         
-        // Remove existing color temperature filter
-        img.filters = img.filters.filter(f => {
+        // Calculate new filters array
+        const existingFilters = img.filters.filter(f => {
           const filter = f as unknown as { isColorTemp?: boolean }
           return !filter.isColorTemp
         })
         
-        // Apply color temperature adjustment
+        let newFilters: typeof img.filters
         if (value !== 0) {
           // Color temperature is achieved by adjusting the color matrix
           // Positive values = warmer (more orange/red)
@@ -100,10 +101,21 @@ class ColorTemperatureTool extends BaseTool {
             matrix: matrix
           })
           ;(filter as { isColorTemp?: boolean }).isColorTemp = true
-          img.filters.push(filter)
+          newFilters = [...existingFilters, filter] as typeof img.filters
+        } else {
+          newFilters = existingFilters as typeof img.filters
         }
         
-        img.applyFilters()
+        // Create command BEFORE modifying the object
+        const command = new ModifyCommand(
+          canvas,
+          img as FabricObject,
+          { filters: newFilters },
+          `Adjust color temperature to ${value > 0 ? 'warmer' : value < 0 ? 'cooler' : 'neutral'} (${value})`
+        )
+        
+        // Execute the command (which will apply the changes and handle applyFilters)
+        this.executeCommand(command)
       })
       
       canvas.renderAll()

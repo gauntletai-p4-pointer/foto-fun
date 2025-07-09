@@ -1,15 +1,17 @@
 import { Sliders } from 'lucide-react'
 import { TOOL_IDS } from '@/constants'
-import type { Canvas, Image } from 'fabric'
+import type { Canvas, Image, FabricObject } from 'fabric'
 import { BaseTool } from '../base/BaseTool'
 import { createToolState } from '../utils/toolState'
 import { useToolOptionsStore } from '@/store/toolOptionsStore'
+import { ModifyCommand } from '@/lib/editor/commands/canvas'
 import * as fabric from 'fabric'
 
 // Define tool state
 type ExposureToolState = {
   isApplying: boolean
   lastValue: number
+  isAdjusting: boolean
 }
 
 class ExposureTool extends BaseTool {
@@ -23,7 +25,8 @@ class ExposureTool extends BaseTool {
   // Tool state
   private state = createToolState<ExposureToolState>({
     isApplying: false,
-    lastValue: 0
+    lastValue: 0,
+    isAdjusting: false
   })
   
   // Required: Setup
@@ -53,7 +56,8 @@ class ExposureTool extends BaseTool {
     // Reset only the internal state
     this.state.setState({
       isApplying: false,
-      lastValue: this.state.get('lastValue') // Keep the last value
+      lastValue: this.state.get('lastValue'), // Keep the last value
+      isAdjusting: false
     })
   }
   
@@ -73,14 +77,13 @@ class ExposureTool extends BaseTool {
           img.filters = []
         }
         
-        // Remove existing exposure filter
-        img.filters = img.filters.filter(f => {
+        // Calculate new filters array
+        const existingFilters = img.filters.filter(f => {
           const filter = f as unknown as { isExposure?: boolean }
           return !(f instanceof fabric.filters.Brightness && filter.isExposure)
         })
         
-        // Apply new exposure if not zero
-        // Exposure uses brightness but with a different curve
+        let newFilters: typeof img.filters
         if (value !== 0) {
           // Exposure typically has a more dramatic effect than brightness
           // Convert -100 to +100 range to a more exponential curve
@@ -92,10 +95,21 @@ class ExposureTool extends BaseTool {
             brightness: exposureValue 
           })
           ;(filter as { isExposure?: boolean }).isExposure = true // Mark as exposure for identification
-          img.filters.push(filter)
+          newFilters = [...existingFilters, filter] as typeof img.filters
+        } else {
+          newFilters = existingFilters as typeof img.filters
         }
         
-        img.applyFilters()
+        // Create command BEFORE modifying the object
+        const command = new ModifyCommand(
+          canvas,
+          img as FabricObject,
+          { filters: newFilters },
+          `Adjust exposure to ${value}%`
+        )
+        
+        // Execute the command (which will apply the changes and handle applyFilters)
+        this.executeCommand(command)
       })
       
       canvas.renderAll()

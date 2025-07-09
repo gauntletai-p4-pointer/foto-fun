@@ -6,6 +6,8 @@ import { SelectionTool } from '../base/SelectionTool'
 import { selectionStyle } from '../utils/selectionRenderer'
 import { useCanvasStore } from '@/store/canvasStore'
 import { useSelectionStore } from '@/store/selectionStore'
+import { useHistoryStore } from '@/store/historyStore'
+import { CreateSelectionCommand } from '@/lib/editor/commands/selection'
 
 /**
  * Rectangular Marquee Tool - Creates rectangular selections
@@ -78,6 +80,7 @@ class MarqueeRectTool extends SelectionTool {
       // Get selection manager and mode
       const canvasStore = useCanvasStore.getState()
       const selectionStore = useSelectionStore.getState()
+      const historyStore = useHistoryStore.getState()
       
       if (!canvasStore.selectionManager || !canvasStore.selectionRenderer) {
         console.error('Selection system not initialized')
@@ -85,15 +88,45 @@ class MarqueeRectTool extends SelectionTool {
         return
       }
       
-      // Create pixel selection
+      // Get bounds
       const bounds = this.feedbackRect.getBoundingRect()
-      canvasStore.selectionManager.createRectangle(
-        bounds.left,
-        bounds.top,
-        bounds.width,
-        bounds.height,
+      
+      // Create a temporary canvas to generate the selection mask
+      const tempCanvas = document.createElement('canvas')
+      tempCanvas.width = this.canvas.getWidth()
+      tempCanvas.height = this.canvas.getHeight()
+      const tempCtx = tempCanvas.getContext('2d')!
+      
+      // Create image data for the rectangle
+      const imageData = tempCtx.createImageData(tempCanvas.width, tempCanvas.height)
+      
+      // Fill the rectangle area
+      for (let y = Math.floor(bounds.top); y < Math.ceil(bounds.top + bounds.height); y++) {
+        for (let x = Math.floor(bounds.left); x < Math.ceil(bounds.left + bounds.width); x++) {
+          if (x >= 0 && x < imageData.width && y >= 0 && y < imageData.height) {
+            const index = (y * imageData.width + x) * 4
+            imageData.data[index + 3] = 255 // Set alpha to fully selected
+          }
+        }
+      }
+      
+      // Create the selection command
+      const command = new CreateSelectionCommand(
+        canvasStore.selectionManager,
+        {
+          mask: imageData,
+          bounds: {
+            x: bounds.left,
+            y: bounds.top,
+            width: bounds.width,
+            height: bounds.height
+          }
+        },
         selectionStore.mode
       )
+      
+      // Execute the command through history
+      historyStore.executeCommand(command)
       
       // Update selection state
       selectionStore.updateSelectionState(true, {
@@ -108,18 +141,6 @@ class MarqueeRectTool extends SelectionTool {
       
       // Remove the temporary feedback rectangle
       this.canvas.remove(this.feedbackRect)
-      
-      // Record command for undo/redo
-      // Note: We'd need to enhance CreateSelectionCommand to work with rectangles
-      console.log('Rectangle selection created:', {
-        mode: selectionStore.mode,
-        bounds: {
-          left: bounds.left,
-          top: bounds.top,
-          width: bounds.width,
-          height: bounds.height
-        }
-      })
     }
     
     this.feedbackRect = null

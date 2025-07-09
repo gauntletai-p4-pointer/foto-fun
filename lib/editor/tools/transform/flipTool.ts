@@ -71,21 +71,19 @@ class FlipTool extends BaseTool {
         const oldFlipX = obj.flipX || false
         const oldFlipY = obj.flipY || false
         
-        if (direction === 'horizontal') {
-          obj.set('flipX', !oldFlipX)
-        } else {
-          obj.set('flipY', !oldFlipY)
-        }
+        // Calculate new flip values
+        const newFlipX = direction === 'horizontal' ? !oldFlipX : oldFlipX
+        const newFlipY = direction === 'vertical' ? !oldFlipY : oldFlipY
         
-        obj.setCoords()
-        
-        // Record command for undo/redo
+        // Create command BEFORE modifying the object
         const command = new ModifyCommand(
           canvas,
           obj,
-          { flipX: obj.flipX, flipY: obj.flipY },
+          { flipX: newFlipX, flipY: newFlipY },
           `Flip ${direction}`
         )
+        
+        // Execute the command (which will apply the changes and setCoords)
         this.executeCommand(command)
       })
       

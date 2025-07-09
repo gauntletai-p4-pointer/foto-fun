@@ -6,6 +6,8 @@ import { SelectionTool } from '../base/SelectionTool'
 import { selectionStyle } from '../utils/selectionRenderer'
 import { useCanvasStore } from '@/store/canvasStore'
 import { useSelectionStore } from '@/store/selectionStore'
+import { useHistoryStore } from '@/store/historyStore'
+import { CreateSelectionCommand } from '@/lib/editor/commands/selection'
 import type { Point } from '../utils/constraints'
 
 /**
@@ -114,20 +116,65 @@ class LassoTool extends SelectionTool {
     // Get selection manager and mode
     const canvasStore = useCanvasStore.getState()
     const selectionStore = useSelectionStore.getState()
+    const historyStore = useHistoryStore.getState()
     
     if (!canvasStore.selectionManager || !canvasStore.selectionRenderer) {
       console.error('Selection system not initialized')
       return
     }
     
-    // Add the path temporarily to get bounds
+    // Add the path temporarily to get bounds and render it
     this.canvas.add(this.finalPath)
+    const bounds = this.finalPath.getBoundingRect()
     
-    // Create pixel selection from path
-    canvasStore.selectionManager.createFromPath(this.finalPath, selectionStore.mode)
+    // Create a temporary canvas to generate the selection mask
+    const tempCanvas = document.createElement('canvas')
+    tempCanvas.width = this.canvas.getWidth()
+    tempCanvas.height = this.canvas.getHeight()
+    const tempCtx = tempCanvas.getContext('2d')!
+    
+    // Render the path to get its pixels
+    tempCtx.save()
+    tempCtx.translate(this.finalPath.left || 0, this.finalPath.top || 0)
+    if (this.finalPath.angle) {
+      tempCtx.rotate((this.finalPath.angle * Math.PI) / 180)
+    }
+    tempCtx.scale(this.finalPath.scaleX || 1, this.finalPath.scaleY || 1)
+    
+    // Draw the path filled
+    const path2D = new Path2D(closedPathData)
+    tempCtx.fillStyle = 'white'
+    tempCtx.fill(path2D)
+    tempCtx.restore()
+    
+    // Get the pixel data
+    const imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height)
+    
+    // Convert to selection mask (white pixels become selected)
+    for (let i = 0; i < imageData.data.length; i += 4) {
+      // Use the red channel (since we drew in white) as the selection mask
+      imageData.data[i + 3] = imageData.data[i]
+    }
+    
+    // Create the selection command
+    const command = new CreateSelectionCommand(
+      canvasStore.selectionManager,
+      {
+        mask: imageData,
+        bounds: {
+          x: bounds.left,
+          y: bounds.top,
+          width: bounds.width,
+          height: bounds.height
+        }
+      },
+      selectionStore.mode
+    )
+    
+    // Execute the command through history
+    historyStore.executeCommand(command)
     
     // Update selection state
-    const bounds = this.finalPath.getBoundingRect()
     selectionStore.updateSelectionState(true, {
       x: bounds.left,
       y: bounds.top,
@@ -140,11 +187,6 @@ class LassoTool extends SelectionTool {
     
     // Start rendering the selection
     canvasStore.selectionRenderer.startRendering()
-    
-    console.log('Lasso selection created:', {
-      mode: selectionStore.mode,
-      pointCount: this.points.length
-    })
     
     // Reset for next selection
     this.points = []

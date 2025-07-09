@@ -1,7 +1,8 @@
 import { z } from 'zod'
 import { BaseToolAdapter } from '../base'
 import { cropTool } from '@/lib/editor/tools/transform/cropTool'
-import { Rect, type FabricObject } from 'fabric'
+import { CropCommand } from '@/lib/editor/commands/canvas'
+import { useHistoryStore } from '@/store/historyStore'
 
 // Input schema following AI SDK v5 patterns
 const cropParameters = z.object({
@@ -70,49 +71,19 @@ NEVER ask for pixel values - always calculate them from the canvas dimensions.`
       throw new Error('Crop bounds exceed canvas dimensions')
     }
     
-    // Apply clipPath to each object (same logic as the actual crop tool)
-    objects.forEach((obj) => {
-      // Create a clip rectangle
-      const clipRect = new Rect({
-        left: params.x,
-        top: params.y,
-        width: params.width,
-        height: params.height,
-        absolutePositioned: true
-      })
-      
-      // Set clipPath property - direct assignment like in the actual crop tool
-      ;(obj as unknown as FabricObject).clipPath = clipRect
+    // Create and execute crop command
+    const command = new CropCommand(canvas, {
+      left: params.x,
+      top: params.y,
+      width: params.width,
+      height: params.height
     })
     
-    // Calculate scale factor to fit canvas
-    const scaleX = canvasWidth / params.width
-    const scaleY = canvasHeight / params.height
-    const scale = Math.min(scaleX, scaleY)
+    // Execute the command through the history store
+    await useHistoryStore.getState().executeCommand(command)
     
-    // Apply transformation to fit the cropped area to canvas
-    objects.forEach((obj) => {
-      // Scale the object
-      obj.scale((obj.scaleX || 1) * scale)
-      
-      // Reposition the object
-      obj.set({
-        left: ((obj.left || 0) - params.x) * scale,
-        top: ((obj.top || 0) - params.y) * scale
-      })
-      
-      obj.setCoords()
-    })
-    
-    // Optionally resize canvas to maintain aspect ratio
-    if (scaleX !== scaleY) {
-      canvas.setDimensions({
-        width: params.width * scale,
-        height: params.height * scale
-      })
-    }
-    
-    canvas.renderAll()
+    // Calculate scale for return value
+    const scale = Math.min(canvasWidth / params.width, canvasHeight / params.height)
     
     return {
       success: true,
