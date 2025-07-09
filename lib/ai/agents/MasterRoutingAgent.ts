@@ -171,6 +171,7 @@ ROUTING RULES:
 2. **simple-tool**: Single, straightforward tool operations
    - Examples: "make it brighter", "crop to square", "rotate 90 degrees"
    - Also includes percentage adjustments: "turn exposure down by 10%", "increase brightness by 20%"
+   - Color adjustments: "increase saturation by 25%", "make colors more vibrant", "reduce saturation"
    - Should be high confidence (>0.8) for auto-approval
    - Suggest the specific tool to use
 
@@ -231,12 +232,24 @@ Analyze the request and provide:
     request: string, 
     analysis: z.infer<typeof routeAnalysisSchema>
   ): Promise<AgentResult> {
+    console.log('[MasterRoutingAgent] === HANDLING SIMPLE TOOL EXECUTION ===')
+    console.log('[MasterRoutingAgent] Request:', request)
+    console.log('[MasterRoutingAgent] Analysis:', analysis)
+    
     const toolName = analysis.suggestedTool
+    console.log('[MasterRoutingAgent] Suggested tool name:', toolName)
+    
     if (!toolName) {
       throw new Error('No tool suggested for simple tool execution')
     }
     
     const tool = adapterRegistry.get(toolName)
+    console.log('[MasterRoutingAgent] Tool found in registry:', !!tool)
+    console.log('[MasterRoutingAgent] Tool details:', tool ? {
+      aiName: tool.aiName,
+      description: tool.description.substring(0, 100) + '...'
+    } : 'null')
+    
     if (!tool) {
       throw new Error(`Tool ${toolName} not found`)
     }
@@ -251,19 +264,35 @@ Analyze the request and provide:
     const threshold = this.context.userPreferences.autoApprovalThreshold
     const isAutoApproved = analysis.confidence >= threshold
     
+    console.log('[MasterRoutingAgent] === AUTO-APPROVAL CHECK ===')
+    console.log('[MasterRoutingAgent] Confidence:', analysis.confidence)
+    console.log('[MasterRoutingAgent] Threshold:', threshold)
+    console.log('[MasterRoutingAgent] Auto-approved:', isAutoApproved)
+    
     this.addStatusUpdate('executing-tool', 'Executing simple tool', 
       `Tool: ${toolName}, Auto-approved: ${isAutoApproved}, Confidence: ${Math.round(analysis.confidence * 100)}%`)
     
     if (isAutoApproved) {
       // Execute directly using AI SDK v5 generateText
+      console.log('[MasterRoutingAgent] === EXECUTING AUTO-APPROVED TOOL ===')
+      console.log('[MasterRoutingAgent] Tool name:', toolName)
+      console.log('[MasterRoutingAgent] Parameters:', params)
+      
+      const aiTools = adapterRegistry.getAITools()
+      console.log('[MasterRoutingAgent] Tool available in AI tools:', toolName in aiTools)
+      
       const result = await generateText({
         model: openai('gpt-4o'),
         tools: {
-          [toolName]: adapterRegistry.getAITools()[toolName]
+          [toolName]: aiTools[toolName]
         },
         system: `Execute the ${toolName} tool with these parameters: ${JSON.stringify(params)}`,
         prompt: `Execute ${toolName} to fulfill: "${request}"`
       })
+      
+      console.log('[MasterRoutingAgent] === TOOL EXECUTION RESULT ===')
+      console.log('[MasterRoutingAgent] Result:', result)
+      console.log('[MasterRoutingAgent] Result type:', typeof result)
       
       return {
         completed: true,
@@ -350,6 +379,11 @@ Analyze the request and provide:
     tool: BaseToolAdapter<unknown, unknown>, 
     request: string
   ): Promise<Record<string, unknown>> {
+    console.log('[MasterRoutingAgent] === INFERRING TOOL PARAMETERS ===')
+    console.log('[MasterRoutingAgent] Tool:', tool.aiName)
+    console.log('[MasterRoutingAgent] Request:', request)
+    console.log('[MasterRoutingAgent] Tool description:', tool.description.substring(0, 200) + '...')
+    
     const { object: params } = await generateObject({
       model: openai('gpt-4o'),
       schema: z.record(z.unknown()),
@@ -363,6 +397,11 @@ Canvas context:
 
 Provide appropriate parameters for this tool. Be conservative with values.`
     })
+    
+    console.log('[MasterRoutingAgent] === INFERRED PARAMETERS ===')
+    console.log('[MasterRoutingAgent] Generated params:', params)
+    console.log('[MasterRoutingAgent] Params type:', typeof params)
+    console.log('[MasterRoutingAgent] Params keys:', Object.keys(params))
     
     return params
   }

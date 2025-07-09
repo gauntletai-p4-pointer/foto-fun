@@ -45,14 +45,27 @@ Common patterns you should use:
 - "much less saturated" or "very muted" → -40 to -60
 - "desaturate" or "grayscale" → -100
 - "black and white" → -100
+- "increase saturation by X%" → use +X directly (e.g., "by 25%" → +25)
+- "increase the saturation by X%" → use +X directly (e.g., "by 25%" → +25)
+- "decrease saturation by X%" → use -X directly (e.g., "by 20%" → -20)
+- "reduce saturation by X%" → use -X directly (e.g., "by 30%" → -30)
 - "saturation by X%" → use X directly
-- "reduce saturation by X%" → use -X
+- "boost saturation X%" → use +X directly
+- "lower saturation X%" → use -X directly
+- "make colors more vibrant" → +25 to +35
+- "to make colors more vibrant" → +25 to +35
+- "more colorful" → +20 to +30
+- "less colorful" → -20 to -30
 NEVER ask for exact values - always interpret the user's intent and choose an appropriate value.`
   
   inputSchema = saturationParameters
   
   async execute(params: SaturationInput, context: { canvas: Canvas }): Promise<SaturationOutput> {
+    console.log('[SaturationToolAdapter] ===== EXECUTE CALLED =====')
     console.log('[SaturationToolAdapter] Execute called with params:', params)
+    console.log('[SaturationToolAdapter] Params type:', typeof params)
+    console.log('[SaturationToolAdapter] Params keys:', Object.keys(params))
+    console.log('[SaturationToolAdapter] Adjustment value:', params.adjustment)
     const canvas = context.canvas
     
     if (!canvas) {

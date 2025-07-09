@@ -268,6 +268,15 @@ export async function POST(req: Request) {
   const aiTools = adapterRegistry.getAITools()
   console.log('Available AI tools:', Object.keys(aiTools))
   console.log('Has adjustExposure:', 'adjustExposure' in aiTools)
+  console.log('Has adjustSaturation:', 'adjustSaturation' in aiTools)
+  console.log('Has adjustBrightness:', 'adjustBrightness' in aiTools)
+  
+  // Check saturation adapter specifically
+  const saturationAdapter = adapterRegistry.get('adjustSaturation')
+  console.log('Saturation adapter from registry:', !!saturationAdapter)
+  if (saturationAdapter) {
+    console.log('Saturation adapter description:', saturationAdapter.description.substring(0, 100) + '...')
+  }
   
   // Use agent mode if enabled - NOW WITH AI SDK v5 PATTERNS
   if (agentMode) {
@@ -320,6 +329,10 @@ export async function POST(req: Request) {
               console.log('[Agent v5] === EXECUTING AGENT WORKFLOW ===')
               console.log('[Agent v5] Request:', request)
               console.log('[Agent v5] Request type:', typeof request)
+              console.log('[Agent v5] Looking for saturation/vibrant keywords in request:', 
+                request.toLowerCase().includes('saturation') || 
+                request.toLowerCase().includes('vibrant') || 
+                request.toLowerCase().includes('colorful'))
               
               // Execute with the AI SDK v5 compliant master agent
               const agentResult = await masterAgent.execute(request)
@@ -476,6 +489,11 @@ Available tools: executeAgentWorkflow, ${adapterRegistry.getAll().map(a => a.aiN
   // Non-agent mode (original behavior preserved)
   console.log('[AI Chat] Using NON-AGENT MODE');
   console.log('[AI Chat] System prompt tools:', Object.keys(aiTools));
+  
+  const toolDescriptions = adapterRegistry.getToolDescriptions()
+  console.log('[AI Chat] Tool descriptions count:', toolDescriptions.length)
+  console.log('[AI Chat] Saturation in descriptions:', toolDescriptions.some(desc => desc.includes('adjustSaturation')))
+  
   const result = streamText({
     model: openai('gpt-4o'),
     messages: convertToModelMessages(messages),
@@ -483,7 +501,7 @@ Available tools: executeAgentWorkflow, ${adapterRegistry.getAll().map(a => a.aiN
     system: `You are FotoFun's AI assistant. You help users edit photos using the available tools.
 
 Available tools:
-${adapterRegistry.getToolDescriptions().join('\n')}
+${toolDescriptions.join('\n')}
 
 Current canvas: ${canvasContext?.dimensions ? `${canvasContext.dimensions.width}x${canvasContext.dimensions.height} pixels` : 'No canvas'}${canvasContext?.hasContent ? ' (image loaded)' : ''}
 

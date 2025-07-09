@@ -1,7 +1,8 @@
-# Exposure Command Debug Guide
+# AI Tool Command Debug Guide
 
-## Issue
-When user says "Turn the exposure down by 10%" nothing happens.
+## Issues Fixed
+1. ✅ "Turn the exposure down by 10%" - FIXED
+2. 🔧 "Increase the saturation by 25% to make colors more vibrant" - IN PROGRESS
 
 ## Debug Points Added
 
@@ -40,10 +41,28 @@ I've added comprehensive debug logging throughout the entire flow. Here's what t
 
 ## Testing Steps
 
-### Step 1: Basic Test
-Visit `/api/test-exposure` (POST request) to test the exposure adapter directly:
+### Step 1: Basic Tests
+Test individual adapters directly:
+
+**Exposure:**
 ```bash
 curl -X POST http://localhost:3000/api/test-exposure
+```
+
+**Saturation:**
+```bash
+curl -X POST http://localhost:3000/api/test-saturation
+```
+
+**Comprehensive Saturation Debug:**
+```bash
+# Simple GET request (uses default test message)
+curl http://localhost:3000/api/debug-saturation
+
+# POST request with custom message
+curl -X POST http://localhost:3000/api/debug-saturation \
+  -H "Content-Type: application/json" \
+  -d '{"request": "Increase the saturation by 25% to make colors more vibrant"}'
 ```
 
 ### Step 2: Live Debug
