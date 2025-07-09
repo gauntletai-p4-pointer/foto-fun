@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { BaseToolAdapter } from '../base'
 import type { Canvas } from 'fabric'
 import * as fabric from 'fabric'
+import { useLayerStore } from '@/store/layerStore'
 
 // Input schema for AI SDK v5
 const imageGenerationInputSchema = z.object({
@@ -83,7 +84,7 @@ Be specific in your descriptions for better results.`
       }
       
       // Convert the generated image URL to a Fabric.js image and add to canvas
-      await this.applyToCanvas(result.imageUrl, context.canvas)
+      await this.applyToCanvas(result.imageUrl, context.canvas, params.prompt)
       
       return {
         success: true,
@@ -107,7 +108,7 @@ Be specific in your descriptions for better results.`
   /**
    * Apply the generated image to the canvas
    */
-  private async applyToCanvas(imageUrl: string, canvas: Canvas): Promise<void> {
+  private async applyToCanvas(imageUrl: string, canvas: Canvas, prompt: string): Promise<void> {
     try {
       const img = await fabric.Image.fromURL(imageUrl, { crossOrigin: 'anonymous' })
       
@@ -128,19 +129,55 @@ Be specific in your descriptions for better results.`
       // Find the best position for the new image
       const position = this.findBestPosition(canvas, img, scale)
       
+      // Create a new layer for the generated image
+      const layerStore = useLayerStore.getState()
+      const layerName = this.generateLayerName(prompt)
+      
+      console.log('[ImageGenerationAdapter] Creating new layer:', layerName)
+      console.log('[ImageGenerationAdapter] Canvas objects before:', canvas.getObjects().length)
+      
+      const newLayer = layerStore.addLayer({
+        name: layerName,
+        type: 'image'
+      })
+      
+      console.log('[ImageGenerationAdapter] Layer created, canvas objects after:', canvas.getObjects().length)
+      
+      // Generate unique ID for the image object
+      const imageId = `generated_image_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+      
+      console.log('[ImageGenerationAdapter] Generated image ID:', imageId)
+      console.log('[ImageGenerationAdapter] Canvas objects before adding:', canvas.getObjects().length)
+      
+      // Set image properties including the correct layerId
       img.set({
         left: position.left,
         top: position.top,
         selectable: true,
-        evented: true
+        evented: true,
+        id: imageId,
+        layerId: newLayer.id
       })
       
-      // Add the new image without clearing existing content
+      // Add the image to canvas
+      console.log('[ImageGenerationAdapter] Adding image to canvas at position:', position)
       canvas.add(img)
       canvas.setActiveObject(img)
+      
+      console.log('[ImageGenerationAdapter] Canvas objects after adding image:', canvas.getObjects().length)
+      
+      // Now update the layer with the object ID
+      layerStore.updateLayer(newLayer.id, {
+        objectIds: [imageId]
+      })
+      
+      console.log('[ImageGenerationAdapter] Updated layer with object ID:', imageId)
+      console.log('[ImageGenerationAdapter] Final canvas objects:', canvas.getObjects().length)
+      
       canvas.renderAll()
       
       console.log('[ImageGenerationAdapter] Image added to canvas at position:', position)
+      console.log('[ImageGenerationAdapter] Created new layer:', newLayer.name, 'with ID:', newLayer.id)
     } catch (error) {
       console.error('[ImageGenerationAdapter] Error applying image to canvas:', error)
       throw new Error('Failed to apply generated image to canvas')
@@ -158,12 +195,19 @@ Be specific in your descriptions for better results.`
     
     const existingObjects = canvas.getObjects()
     
+    console.log('[ImageGenerationAdapter] findBestPosition called with:')
+    console.log('  - Canvas size:', canvasWidth, 'x', canvasHeight)
+    console.log('  - Image size:', imgWidth, 'x', imgHeight)
+    console.log('  - Existing objects:', existingObjects.length)
+    
     // If canvas is empty, center the image
     if (existingObjects.length === 0) {
-      return {
+      const centerPosition = {
         left: (canvasWidth - imgWidth) / 2,
         top: (canvasHeight - imgHeight) / 2
       }
+      console.log('  - Empty canvas, centering at:', centerPosition)
+      return centerPosition
     }
     
     // Helper function to check if a rectangle overlaps with existing objects
@@ -175,10 +219,13 @@ Be specific in your descriptions for better results.`
         const objHeight = (obj.height || 0) * (obj.scaleY || 1)
         
         // Check if rectangles overlap
-        if (left < objLeft + objWidth && 
-            left + width > objLeft && 
-            top < objTop + objHeight && 
-            top + height > objTop) {
+        const overlaps = left < objLeft + objWidth && 
+                        left + width > objLeft && 
+                        top < objTop + objHeight && 
+                        top + height > objTop
+        
+        if (overlaps) {
+          console.log(`    - Overlap detected with object at (${objLeft}, ${objTop}) size (${objWidth}, ${objHeight})`)
           return true
         }
       }
@@ -187,53 +234,66 @@ Be specific in your descriptions for better results.`
     
     // Get bounding box of all existing objects
     const bounds = this.getObjectsBounds(existingObjects)
+    console.log('  - Existing objects bounds:', bounds)
     
     // Try different positions in order of preference
     const positions = [
       // Right of existing content
-      { left: bounds.right + 20, top: bounds.top },
+      { left: bounds.right + 20, top: bounds.top, label: 'right' },
       // Left of existing content
-      { left: bounds.left - imgWidth - 20, top: bounds.top },
+      { left: bounds.left - imgWidth - 20, top: bounds.top, label: 'left' },
       // Below existing content
-      { left: bounds.left, top: bounds.bottom + 20 },
+      { left: bounds.left, top: bounds.bottom + 20, label: 'below' },
       // Above existing content
-      { left: bounds.left, top: bounds.top - imgHeight - 20 },
+      { left: bounds.left, top: bounds.top - imgHeight - 20, label: 'above' },
       // Bottom right corner
-      { left: bounds.right + 20, top: bounds.bottom + 20 },
+      { left: bounds.right + 20, top: bounds.bottom + 20, label: 'bottom-right' },
       // Top right corner
-      { left: bounds.right + 20, top: bounds.top - imgHeight - 20 },
+      { left: bounds.right + 20, top: bounds.top - imgHeight - 20, label: 'top-right' },
       // Bottom left corner
-      { left: bounds.left - imgWidth - 20, top: bounds.bottom + 20 },
+      { left: bounds.left - imgWidth - 20, top: bounds.bottom + 20, label: 'bottom-left' },
       // Top left corner
-      { left: bounds.left - imgWidth - 20, top: bounds.top - imgHeight - 20 }
+      { left: bounds.left - imgWidth - 20, top: bounds.top - imgHeight - 20, label: 'top-left' }
     ]
     
     // Find the first position that fits within canvas bounds and doesn't overlap
     for (const pos of positions) {
-      if (pos.left >= 0 && 
-          pos.top >= 0 && 
-          pos.left + imgWidth <= canvasWidth && 
-          pos.top + imgHeight <= canvasHeight &&
-          !hasOverlap(pos.left, pos.top, imgWidth, imgHeight)) {
-        return pos
+      const withinBounds = pos.left >= 0 && 
+                           pos.top >= 0 && 
+                           pos.left + imgWidth <= canvasWidth && 
+                           pos.top + imgHeight <= canvasHeight
+      
+      const noOverlap = !hasOverlap(pos.left, pos.top, imgWidth, imgHeight)
+      
+      console.log(`  - Testing position ${pos.label}: (${pos.left}, ${pos.top}) - bounds: ${withinBounds}, overlap: ${!noOverlap}`)
+      
+      if (withinBounds && noOverlap) {
+        console.log(`  - Found position: ${pos.label} at (${pos.left}, ${pos.top})`)
+        return { left: pos.left, top: pos.top }
       }
     }
+    
+    console.log('  - No ideal position found, trying grid search...')
     
     // If no ideal position found, try a grid-based approach
     const gridSize = 20
     for (let y = 0; y <= canvasHeight - imgHeight; y += gridSize) {
       for (let x = 0; x <= canvasWidth - imgWidth; x += gridSize) {
         if (!hasOverlap(x, y, imgWidth, imgHeight)) {
+          console.log(`  - Grid search found position at (${x}, ${y})`)
           return { left: x, top: y }
         }
       }
     }
     
     // Last resort: center the image (may overlap)
-    return {
+    console.log('  - WARNING: Falling back to center position (may overlap)')
+    const fallbackPosition = {
       left: (canvasWidth - imgWidth) / 2,
       top: (canvasHeight - imgHeight) / 2
     }
+    console.log('  - Fallback position:', fallbackPosition)
+    return fallbackPosition
   }
   
   /**
@@ -267,6 +327,30 @@ Be specific in your descriptions for better results.`
       right: maxRight,
       bottom: maxBottom
     }
+  }
+  
+  /**
+   * Generate a descriptive layer name based on the prompt
+   */
+  private generateLayerName(prompt: string): string {
+    // Extract key words from the prompt to create a meaningful layer name
+    const words = prompt
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, '') // Remove special characters
+      .split(' ')
+      .filter(word => word.length > 2) // Filter out short words
+      .slice(0, 3) // Take first 3 meaningful words
+    
+    if (words.length === 0) {
+      return 'Generated Image'
+    }
+    
+    // Capitalize first letter of each word
+    const capitalizedWords = words.map(word => 
+      word.charAt(0).toUpperCase() + word.slice(1)
+    )
+    
+    return capitalizedWords.join(' ')
   }
   
   /**

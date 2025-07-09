@@ -34,7 +34,7 @@ export function Canvas() {
   } = useCanvasStore()
   
   const { getActiveTool } = useToolStore()
-  const { handleDrop, handleDragOver } = useFileHandler()
+  const { handleDrop, handleDragOver } = useFileHandler('insert')
   const { executeCommand } = useHistoryStore()
   
   // Initialize canvas
