@@ -54,12 +54,12 @@ class CropTool extends BaseTool {
     
     // Set up event handlers
     this.addCanvasEvent('mouse:down', (e: unknown) => {
-      const event = e as { e: MouseEvent; scenePoint: Point }
+      const event = e as { e: MouseEvent }
       this.handleMouseDown(event)
     })
     
     this.addCanvasEvent('mouse:move', (e: unknown) => {
-      const event = e as { e: MouseEvent; scenePoint: Point }
+      const event = e as { e: MouseEvent }
       this.handleMouseMove(event)
     })
     
@@ -90,7 +90,7 @@ class CropTool extends BaseTool {
   /**
    * Handle mouse down - start crop
    */
-  private handleMouseDown(e: { e: MouseEvent; scenePoint: Point }): void {
+  private handleMouseDown(e: { e: MouseEvent }): void {
     if (!this.canvas || this.state.get('disabled')) return
     
     this.track('startCrop', () => {
@@ -118,13 +118,17 @@ class CropTool extends BaseTool {
           lockScalingX: true,
           lockScalingY: true,
           strokeUniform: true,
-          objectCaching: false
+          objectCaching: false,
+          // Exclude from export
+          excludeFromExport: true
         })
         this.canvas!.add(cropRect)
         this.state.set('cropRect', cropRect)
       }
       
-      const point = { x: e.scenePoint.x, y: e.scenePoint.y }
+      // Use Fabric's getPointer method to get the correct coordinates
+      const pointer = this.canvas!.getPointer(e.e)
+      const point = { x: pointer.x, y: pointer.y }
       
       // Set initial position and size
       cropRect.set({
@@ -150,7 +154,7 @@ class CropTool extends BaseTool {
   /**
    * Handle mouse move - update crop
    */
-  private handleMouseMove(e: { e: MouseEvent; scenePoint: Point }): void {
+  private handleMouseMove(e: { e: MouseEvent }): void {
     if (!this.canvas || !this.state.get('isDrawing')) return
     
     const cropRect = this.state.get('cropRect')
@@ -159,7 +163,9 @@ class CropTool extends BaseTool {
     if (!cropRect || !startPoint || this.state.get('disabled')) return
     
     this.track('updateCrop', () => {
-      const point = { x: e.scenePoint.x, y: e.scenePoint.y }
+      // Use Fabric's getPointer method to get the correct coordinates
+      const pointer = this.canvas!.getPointer(e.e)
+      const point = { x: pointer.x, y: pointer.y }
       
       // Calculate bounds ensuring positive width/height
       const left = Math.min(startPoint.x, point.x)
@@ -207,8 +213,7 @@ class CropTool extends BaseTool {
           width: finalWidth,
           height: finalHeight,
           scaleX: cropRect.scaleX,
-          scaleY: cropRect.scaleY,
-          boundingRect: cropRect.getBoundingRect()
+          scaleY: cropRect.scaleY
         })
       }
       
@@ -257,55 +262,44 @@ class CropTool extends BaseTool {
       // Get all objects on canvas except the crop rect
       const objects = this.canvas!.getObjects().filter(obj => obj !== cropRect)
       
-      if (objects.length === 0) return
+      if (objects.length === 0) {
+        console.warn('[CropTool] No objects to crop')
+        return
+      }
       
-      // Get the actual bounding rect which accounts for all transforms
-      const boundingRect = cropRect.getBoundingRect()
-      
-      // Use the rectangle's actual properties since getBoundingRect seems to be returning incorrect values
+      // Get the crop bounds - these are already in canvas coordinates
       const cropLeft = cropRect.left!
       const cropTop = cropRect.top!
       const cropWidth = cropRect.width!
       const cropHeight = cropRect.height!
       
-      console.log('[CropTool] Crop rectangle properties:', {
-        left: cropRect.left,
-        top: cropRect.top,
-        width: cropRect.width,
-        height: cropRect.height,
-        originX: cropRect.originX,
-        originY: cropRect.originY,
-        scaleX: cropRect.scaleX,
-        scaleY: cropRect.scaleY
-      })
-      
-      console.log('[CropTool] Crop rectangle bounding rect (for debugging):', boundingRect)
-      
-      // Calculate actual dimensions considering scale
-      const actualWidth = cropRect.width! * cropRect.scaleX!
-      const actualHeight = cropRect.height! * cropRect.scaleY!
-      
-      console.log('[CropTool] Actual dimensions (width * scaleX, height * scaleY):', {
-        actualWidth,
-        actualHeight
-      })
-      
-      console.log('[CropTool] Using rectangle properties for crop:', {
+      console.log('[CropTool] Final crop bounds:', {
         left: cropLeft,
         top: cropTop,
         width: cropWidth,
         height: cropHeight
       })
+      
+      // Validate crop bounds
+      const canvasWidth = this.canvas!.getWidth()
+      const canvasHeight = this.canvas!.getHeight()
+      
+      if (cropLeft < 0 || cropTop < 0 || 
+          cropLeft + cropWidth > canvasWidth || 
+          cropTop + cropHeight > canvasHeight) {
+        console.warn('[CropTool] Crop bounds exceed canvas dimensions')
+      }
       
       // Remove crop rect first
       this.canvas!.remove(cropRect)
+      this.state.set('cropRect', null)
       
       // Create and execute crop command
       const command = new CropCommand(this.canvas!, {
-        left: cropLeft,
-        top: cropTop,
-        width: cropWidth,
-        height: cropHeight
+        left: Math.max(0, cropLeft),
+        top: Math.max(0, cropTop),
+        width: Math.min(cropWidth, canvasWidth - Math.max(0, cropLeft)),
+        height: Math.min(cropHeight, canvasHeight - Math.max(0, cropTop))
       })
       
       await this.executeCommand(command)
