@@ -8,6 +8,7 @@ import { Send, Bot, User, Loader2, AlertCircle, Wrench, Check, X } from 'lucide-
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
 import { ClientToolExecutor } from '@/lib/ai/client/tool-executor'
 import { useCanvasStore } from '@/store/canvasStore'
@@ -132,10 +133,17 @@ export function AIChat() {
     onError: (error: Error) => {
       console.error('Chat error:', error)
     },
+    onFinish: ({ message }) => {
+      console.log('[AIChat] onFinish called with message:', message)
+      console.log('[AIChat] Message parts:', message.parts)
+    },
     onToolCall: async ({ toolCall }) => {
       // Execute tool on client side
       try {
+        console.log('[AIChat] ===== onToolCall TRIGGERED =====')
         console.log('[AIChat] onToolCall triggered with:', toolCall)
+        console.log('[AIChat] toolCall type:', typeof toolCall)
+        console.log('[AIChat] toolCall keys:', Object.keys(toolCall))
         
         // Wait for canvas to be ready before executing tools
         try {
@@ -160,6 +168,47 @@ export function AIChat() {
         
         console.log('[AIChat] Extracted toolName:', toolName)
         console.log('[AIChat] Extracted args:', args)
+        
+        // SPECIAL HANDLING: If this is the agent workflow tool, execute the planned tools directly
+        if (toolName === 'executeAgentWorkflow') {
+          const agentResult = args as { toolExecutions?: Array<{ toolName: string; params: unknown }> }
+          
+          if (agentResult.toolExecutions && agentResult.toolExecutions.length > 0) {
+            console.log('[AIChat] Agent workflow - executing planned tools:', agentResult.toolExecutions)
+            
+            // Execute each planned tool in sequence
+            const results = []
+            for (const toolExecution of agentResult.toolExecutions) {
+              try {
+                console.log(`[AIChat] Executing planned tool: ${toolExecution.toolName}`, toolExecution.params)
+                const toolResult = await ClientToolExecutor.execute(toolExecution.toolName, toolExecution.params)
+                results.push({
+                  toolName: toolExecution.toolName,
+                  success: true,
+                  result: toolResult
+                })
+                console.log(`[AIChat] Tool ${toolExecution.toolName} completed successfully`)
+              } catch (error) {
+                console.error(`[AIChat] Tool ${toolExecution.toolName} failed:`, error)
+                results.push({
+                  toolName: toolExecution.toolName,
+                  success: false,
+                  error: error instanceof Error ? error.message : 'Unknown error'
+                })
+              }
+            }
+            
+            return {
+              success: true,
+              message: `Executed ${results.length} tools from agent workflow`,
+              results,
+              agentWorkflow: true
+            }
+          }
+          
+          // If no tool executions, just return the agent result
+          return args
+        }
         
         // Get fresh state from store instead of using stale closure values
         const currentState = useCanvasStore.getState()
@@ -219,7 +268,7 @@ export function AIChat() {
         { 
           body: {
             canvasContext,
-            agentMode: true,
+            agentMode: true, // Simplified agent mode - just enables multi-step reasoning
             aiSettings: {
               autoApproveThreshold: aiSettings.autoApproveThreshold,
               showConfidenceScores: aiSettings.showConfidenceScores,
@@ -383,8 +432,8 @@ export function AIChat() {
                         errorText?: string
                       }
                       
-                      // Check if this is the executeAgentRequest tool with agent status
-                      const isAgentExecution = toolName === 'executeAgentRequest'
+                      // Check if this is the executeAgentWorkflow tool with agent status
+                      const isAgentExecution = toolName === 'executeAgentWorkflow'
                       
                       // Extract agent status from tool output if available
                       const toolOutput = toolPart.state === 'output-available' ? toolPart.output as { 
@@ -427,24 +476,26 @@ export function AIChat() {
                             </div>
                           )}
                           
-                          {/* Tool invocation display */}
-                          <div className="flex items-start gap-2 text-sm">
-                            <Wrench className="w-4 h-4 mt-0.5 text-muted-foreground flex-shrink-0" />
-                            <div className="flex-1 space-y-1">
-                              <div className="flex items-center gap-2">
-                                <span className="font-medium">
-                                  {toolName}
-                                </span>
-                                {toolPart.state === 'input-streaming' && (
-                                  <Loader2 className="w-3 h-3 animate-spin" />
-                                )}
-                                {toolPart.state === 'output-available' && !toolPart.errorText && (
-                                  <Check className="w-3 h-3 text-green-600" />
-                                )}
-                                {toolPart.state === 'output-error' && (
-                                  <X className="w-3 h-3 text-red-600" />
-                                )}
-                              </div>
+                          {/* Tool invocation display - clean badge/chip style */}
+                          <div className="flex items-center gap-2 text-sm">
+                            <Badge variant="secondary" className="flex items-center gap-1.5 px-2 py-1">
+                              {toolPart.state === 'input-streaming' && (
+                                <Loader2 className="w-3 h-3 animate-spin" />
+                              )}
+                              {toolPart.state === 'output-available' && !toolPart.errorText && (
+                                <Check className="w-3 h-3 text-green-600" />
+                              )}
+                              {toolPart.state === 'output-error' && (
+                                <X className="w-3 h-3 text-red-600" />
+                              )}
+                              <span className="font-medium">
+                                {toolName}
+                              </span>
+                            </Badge>
+                          </div>
+                          
+                          {/* Additional info in a compact way */}
+                          <div className="space-y-1">
                               
                               {/* Show confidence and approval info if settings allow */}
                               {(() => {
@@ -494,7 +545,6 @@ export function AIChat() {
                                   </details>
                                 </div>
                               )}
-                            </div>
                           </div>
                         </div>
                       )

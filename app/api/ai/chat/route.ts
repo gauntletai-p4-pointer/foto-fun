@@ -26,7 +26,7 @@ export async function POST(req: Request) {
   // Get AI tools from adapter registry
   const aiTools = adapterRegistry.getAITools()
   
-  // Use agent mode if enabled
+  // Use agent mode if enabled - KEEP THE ADVANCED AGENT PATTERNS
   if (agentMode) {
     // Create mock canvas for server-side operations
     const mockCanvas = {
@@ -57,7 +57,7 @@ export async function POST(req: Request) {
       }
     }
     
-    // Create master routing agent
+    // Create master routing agent - THIS IS WHAT YOU NEED
     const masterAgent = new MasterRoutingAgent(agentContext)
     
     // Stream the response with agent status updates
@@ -65,74 +65,57 @@ export async function POST(req: Request) {
       model: openai('gpt-4o'),
       messages: convertToModelMessages(messages),
       tools: {
-        executeAgentRequest: tool({
-          description: 'Execute photo editing request using intelligent agent routing',
+        // FIXED: Make this tool automatically execute the planned tools
+        executeAgentWorkflow: tool({
+          description: 'Execute photo editing request using intelligent agent routing (MasterRoutingAgent → SequentialEditingAgent → EvaluatorOptimizerAgent → OrchestratorAgent)',
           inputSchema: z.object({
             request: z.string().describe('The user request to execute')
           }),
           execute: async ({ request }) => {
             try {
-              // Create status updates array to track the process
-              const statusUpdates = []
+              console.log('[Agent] Executing workflow for:', request)
               
-              // Add analyzing status
-              statusUpdates.push({
-                type: 'analyzing-prompt',
-                message: 'Understanding your request...',
-                timestamp: new Date().toISOString()
-              })
+              // Execute with the master agent (includes routing, orchestration, evaluation)
+              const agentResult = await masterAgent.execute(request)
               
-              // Execute with the master agent
-              const result = await masterAgent.execute(request)
-              
-              // Add routing status based on results
-              const routeType = result.results.length > 1 ? 'sequential-workflow' : 'simple-tool'
-              statusUpdates.push({
-                type: 'routing-decision',
-                message: `Routing to ${routeType === 'sequential-workflow' ? 'Sequential Workflow Agent' : 'Single Tool Execution'}`,
-                details: `Found ${result.results.length} operations needed`,
-                timestamp: new Date().toISOString()
-              })
-              
-              // Add planning status if multiple steps
-              if (result.results.length > 1) {
-                statusUpdates.push({
-                  type: 'planning-steps',
-                  message: `Planning ${result.results.length} steps to achieve the desired result`,
-                  timestamp: new Date().toISOString()
-                })
-              }
-              
-              // Extract tool calls from the results
-              const toolCalls = result.results.map((stepResult) => {
+              // Extract tool executions for client-side execution
+              const toolExecutions = agentResult.results.map((stepResult: { data: unknown; confidence: number }) => {
                 const data = stepResult.data as { toolName?: string; params?: unknown; description?: string }
                 if (data && data.toolName && data.params) {
                   return {
                     toolName: data.toolName,
                     params: data.params,
-                    confidence: stepResult.confidence,
-                    requiresApproval: stepResult.confidence < agentContext.userPreferences.autoApprovalThreshold
+                    description: data.description,
+                    confidence: stepResult.confidence
                   }
                 }
                 return null
               }).filter(Boolean)
               
-              // Return the tool calls for client execution with status updates
+              console.log('[Agent] Planned tool executions:', toolExecutions)
+              
+              // Return the structured workflow result
               return {
-                ...result,
-                toolCalls,
-                statusUpdates,
+                success: agentResult.completed,
+                workflow: {
+                  description: `Multi-step workflow: ${request}`,
+                  steps: toolExecutions,
+                  agentType: 'sequential', // Default agent type
+                  totalSteps: toolExecutions.length
+                },
                 agentStatus: {
-                  confidence: result.results[0]?.confidence,
-                  approvalRequired: result.results.some(r => r.confidence < agentContext.userPreferences.autoApprovalThreshold),
+                  confidence: agentResult.results[0]?.confidence || 0.8,
+                  approvalRequired: agentResult.results.some((r: { confidence: number }) => r.confidence < agentContext.userPreferences.autoApprovalThreshold),
                   threshold: agentContext.userPreferences.autoApprovalThreshold
                 },
-                message: `I'll help you with that. Let me execute ${toolCalls.length} operations to achieve the desired result.`
+                // THIS IS THE KEY: Return the tool executions for the AI to call
+                toolExecutions,
+                message: `Planned ${toolExecutions.length} steps. Now executing each tool...`
               }
             } catch (error) {
               console.error('Agent execution error:', error)
               return {
-                completed: false,
+                success: false,
                 error: error instanceof Error ? error.message : 'Unknown error'
               }
             }
@@ -140,49 +123,35 @@ export async function POST(req: Request) {
         }),
         ...aiTools
       },
-      system: `You are FotoFun's AI assistant with advanced agent capabilities.
+      system: `You are FotoFun's AI assistant with advanced agent capabilities including:
 
-CRITICAL WORKFLOW: When a user makes a request, you MUST follow this exact pattern:
+- MasterRoutingAgent: Analyzes requests and routes to appropriate execution strategy
+- SequentialEditingAgent: Executes operations in sequence with reasoning
+- EvaluatorOptimizerAgent: Evaluates results and optimizes parameters  
+- OrchestratorAgent: Coordinates parallel operations
 
-1. FIRST: Call executeAgentRequest with the user's request
-2. THEN: For EACH tool in the returned toolCalls array, call that tool with the exact params provided
-3. NEVER skip step 2 - you must execute every tool returned
+WORKFLOW:
+1. For multi-step requests, call executeAgentWorkflow({ request: "user request" })
+2. You'll get back a toolExecutions array with the planned steps
+3. Execute EACH tool in the toolExecutions array in sequence
+4. The agents handle routing, orchestration, and evaluation server-side
 
 EXAMPLE:
 User: "increase saturation and apply sepia"
-Step 1: executeAgentRequest({ request: "increase saturation and apply sepia" })
-Response: { toolCalls: [{ toolName: "adjustSaturation", params: { adjustment: 25 } }, { toolName: "applySepia", params: { intensity: 50 } }] }
-Step 2: adjustSaturation({ adjustment: 25 })
-Step 3: applySepia({ intensity: 50 })
+Step 1: executeAgentWorkflow({ request: "increase saturation and apply sepia" })
+Response: { toolExecutions: [{ toolName: "adjustSaturation", params: {...} }, { toolName: "applySepia", params: {...} }] }
+Step 2: adjustSaturation(params from step 1)
+Step 3: applySepia(params from step 1)
 
-You MUST execute ALL tools in the toolCalls array. Do not describe what you'll do - DO IT.
+This gives you the full agent system: routing, orchestration, evaluation, AND reliable execution.
 
 Current canvas: ${canvasContext.dimensions.width}x${canvasContext.dimensions.height}px
 ${canvasContext.hasContent ? '(image loaded)' : '(no image)'}
 
-User preferences:
-- Auto-approval threshold: ${aiSettings?.autoApproveThreshold ? Math.round(aiSettings.autoApproveThreshold * 100) + '%' : '80%'}
-- Show confidence scores: ${aiSettings?.showConfidenceScores ?? true}
-- Show approval decisions: ${aiSettings?.showApprovalDecisions ?? true}
-
-Available tools: executeAgentRequest, ${adapterRegistry.getAll().map(a => a.aiName).join(', ')}
-
-REMEMBER: executeAgentRequest only plans - you must then execute each tool it returns!`
+Available tools: executeAgentWorkflow, ${adapterRegistry.getAll().map(a => a.aiName).join(', ')}`
     })
     
-    return result.toTextStreamResponse()
-  }
-  
-  // Get tool descriptions for system prompt
-  const toolDescriptions = adapterRegistry.getToolDescriptions()
-  
-  // Build dynamic context based on canvas state
-  let contextInfo = ''
-  if (canvasContext?.dimensions) {
-    contextInfo = `\n\nCurrent canvas: ${canvasContext.dimensions.width}x${canvasContext.dimensions.height} pixels`
-    if (canvasContext.hasContent) {
-      contextInfo += ' (image loaded)'
-    }
+    return result.toUIMessageStreamResponse()
   }
   
   // Non-agent mode (original behavior)
@@ -193,8 +162,9 @@ REMEMBER: executeAgentRequest only plans - you must then execute each tool it re
     system: `You are FotoFun's AI assistant. You help users edit photos using the available tools.
 
 Available tools:
-${toolDescriptions.length > 0 ? toolDescriptions.join('\n') : '- No tools available yet'}
-${contextInfo}
+${adapterRegistry.getToolDescriptions().join('\n')}
+
+Current canvas: ${canvasContext?.dimensions ? `${canvasContext.dimensions.width}x${canvasContext.dimensions.height} pixels` : 'No canvas'}${canvasContext?.hasContent ? ' (image loaded)' : ''}
 
 When using tools:
 1. Be specific with parameters
@@ -204,5 +174,5 @@ When using tools:
 Respond naturally and helpfully.`
   })
   
-  return result.toTextStreamResponse()
+  return result.toUIMessageStreamResponse()
 } 
