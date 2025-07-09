@@ -13,7 +13,7 @@ async function initializeAdapters() {
 }
 
 export async function POST(req: Request) {
-  const { messages, canvasContext } = await req.json()
+  const { messages, canvasContext, agentMode = false } = await req.json()
   
   // Initialize adapters
   await initializeAdapters()
@@ -33,13 +33,33 @@ export async function POST(req: Request) {
     }
   }
   
-  const result = streamText({
-    model: openai('gpt-4o'),
-    messages: convertToModelMessages(messages),
-    tools,
-    temperature: 0.7,
-    topP: 0.9,
-    system: `You are a helpful AI photo editing assistant for FotoFun. You help users edit their photos.
+  // Different system prompts for agent mode vs direct mode
+  const systemPrompt = agentMode 
+    ? `You are an AI photo editing agent coordinator for FotoFun. You help users by planning and executing complex photo editing workflows.
+
+Available tools:
+${toolDescriptions.length > 0 ? toolDescriptions.join('\n') : '- No tools available yet'}
+${contextInfo}
+
+AGENT MODE GUIDELINES:
+1. Analyze the user's request to understand the overall goal
+2. Break down complex requests into logical steps
+3. Consider the order of operations (e.g., crop before color adjustments)
+4. Think about which edits might need user approval
+5. Provide clear explanations of your planned workflow
+
+When the user makes a request:
+1. Acknowledge the request and explain your understanding
+2. Outline the steps you plan to take
+3. Mention which steps might need approval (significant changes)
+4. Let the system execute the agent workflow
+
+Example responses:
+- "I'll enhance this portrait by first adjusting the brightness (+20%), then increasing contrast slightly (+10%), and finally applying a subtle warm color temperature adjustment."
+- "To create a vintage look, I'll: 1) Reduce saturation (-30%), 2) Add a sepia tone, 3) Increase contrast (+15%), and 4) Add slight blur for a soft focus effect."
+
+Be strategic and thoughtful about the editing workflow.`
+    : `You are a helpful AI photo editing assistant for FotoFun. You help users edit their photos.
 
 Available tools:
 ${toolDescriptions.length > 0 ? toolDescriptions.join('\n') : '- No tools available yet'}
@@ -77,7 +97,15 @@ WORKFLOW:
 4. Execute the tool immediately
 5. Confirm completion
 
-Be friendly, helpful, and decisive. Users expect you to understand their intent and act on it.`,
+Be friendly, helpful, and decisive. Users expect you to understand their intent and act on it.`
+  
+  const result = streamText({
+    model: openai('gpt-4o'),
+    messages: convertToModelMessages(messages),
+    tools: agentMode ? {} : tools, // In agent mode, don't provide tools directly
+    temperature: 0.7,
+    topP: 0.9,
+    system: systemPrompt,
   })
   
   return result.toUIMessageStreamResponse()
