@@ -103,8 +103,16 @@ class ResizeTool extends BaseTool {
     this.state.set('isResizing', true)
     
     try {
-      const objects = canvas.getObjects()
-      if (objects.length === 0) return
+      // Check for active selection first
+      const activeObjects = canvas.getActiveObjects()
+      const hasSelection = activeObjects.length > 0
+      
+      // Determine which objects to resize
+      const objectsToResize = hasSelection ? activeObjects : canvas.getObjects()
+      
+      if (objectsToResize.length === 0) return
+      
+      console.log(`[ResizeTool] Resizing ${objectsToResize.length} object(s) - ${hasSelection ? 'selected only' : 'all objects'}`)
       
       // Calculate scale factors
       let scaleX = widthValue / 100
@@ -117,8 +125,8 @@ class ResizeTool extends BaseTool {
         scaleY = scale
       }
       
-      // Apply resize to all objects
-      objects.forEach((obj: FabricObject) => {
+      // Apply resize to target objects
+      objectsToResize.forEach((obj: FabricObject) => {
         const oldScaleX = obj.scaleX || 1
         const oldScaleY = obj.scaleY || 1
         
@@ -152,23 +160,14 @@ class ResizeTool extends BaseTool {
         this.executeCommand(command)
       })
       
-      // Update canvas dimensions if resizing canvas itself
-      if (mode === 'absolute') {
-        const newWidth = (this.state.get('originalWidth') * widthValue) / 100
-        const newHeight = (this.state.get('originalHeight') * heightValue) / 100
-        canvas.setDimensions({ width: newWidth, height: newHeight })
-      }
-      
       canvas.renderAll()
+      
+      // Update state
+      this.state.set('lastWidth', widthValue)
+      this.state.set('lastHeight', heightValue)
     } finally {
       this.state.set('isResizing', false)
     }
-  }
-  
-  private getOptionValue(optionId: string): unknown {
-    const toolOptions = useToolOptionsStore.getState().getToolOptions(this.id)
-    const option = toolOptions?.find(opt => opt.id === optionId)
-    return option?.value
   }
 }
 

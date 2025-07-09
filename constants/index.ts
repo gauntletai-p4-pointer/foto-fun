@@ -68,6 +68,8 @@ export const TOOL_IDS = {
   GRAYSCALE: 'grayscale',
   SEPIA: 'sepia',
   INVERT: 'invert',
+  // AI-Native tools
+  AI_IMAGE_GENERATION: 'ai-image-generation',
 } as const
 
 // Tool Groups

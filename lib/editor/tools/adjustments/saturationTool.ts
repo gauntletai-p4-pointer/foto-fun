@@ -69,67 +69,32 @@ class SaturationTool extends BaseTool {
     
     this.state.set('adjustment', adjustment)
     
-    // Get all objects and filter for images
-    const objects = this.canvas.getObjects()
-    const images = objects.filter(obj => obj.type === 'image') as FabricImage[]
+    // Get target images using selection-aware method
+    const images = this.getTargetImages()
     
     if (images.length === 0) {
-      console.warn('No images found on canvas to adjust saturation')
+      console.warn('No images found to adjust saturation')
       return
     }
     
-    // Apply saturation filter to each image
-    images.forEach(img => {
-      // Store original filters if not already stored
-      const imgId = (img as FabricObject & { id?: string }).id || img.toString()
-      if (!this.state.get('previousFilters').has(imgId)) {
-        this.state.get('previousFilters').set(imgId, img.filters ? [...img.filters] as unknown as ImageFilter[] : [])
-      }
-      
-      // Remove existing saturation filters
-      if (!img.filters) {
-        img.filters = []
-      } else {
-        img.filters = img.filters.filter((f) => (f as unknown as ImageFilter).type !== 'Saturation')
-      }
-      
-      // Add new saturation filter if adjustment is not 0
-      if (adjustment !== 0) {
-        // Fabric.js saturation value is between -1 and 1
-        const saturationValue = adjustment / 100
-        
-        // Create saturation filter
-        const saturationFilter = new filters.Saturation({
-          saturation: saturationValue
-        })
-        
-        img.filters.push(saturationFilter)
-      }
-      
-      // Apply filters
-      img.applyFilters()
+    // Use the base class filter management
+    this.executeWithGuard('isAdjusting', async () => {
+      await this.applyImageFilters(
+        images,
+        'Saturation',
+        () => {
+          if (adjustment !== 0) {
+            // Fabric.js saturation value is between -1 and 1
+            const saturationValue = adjustment / 100
+            return new filters.Saturation({
+              saturation: saturationValue
+            })
+          }
+          return null
+        },
+        `Adjust saturation to ${adjustment}%`
+      )
     })
-    
-    // Render canvas
-    this.canvas.renderAll()
-    
-    // Record command for undo/redo
-    if (!this.state.get('isAdjusting')) {
-      this.state.set('isAdjusting', true)
-      
-      // Create modify command for each image
-      images.forEach(img => {
-        const command = new ModifyCommand(
-          this.canvas!,
-          img as FabricObject,
-          { filters: img.filters },
-          `Adjust saturation to ${adjustment}%`
-        )
-        this.executeCommand(command)
-      })
-      
-      this.state.set('isAdjusting', false)
-    }
   }
   
   /**

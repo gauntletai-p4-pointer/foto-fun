@@ -138,6 +138,11 @@ export interface BaseAITool<TInput = unknown, TOutput = unknown> {
    */
   description: string
   
+  // UI Support (optional) - for tools that can be activated from tool palette
+  supportsUIActivation?: boolean
+  uiActivationType?: 'dialog' | 'panel' | 'immediate'
+  getUIComponent?: () => React.ComponentType<AIToolUIProps>
+  
   /**
    * Execute the AI service call
    * This method calls the external API and returns the result
@@ -154,6 +159,13 @@ export interface BaseAITool<TInput = unknown, TOutput = unknown> {
    * Optional: Get estimated cost for the operation
    */
   estimateCost?(params: TInput): Promise<{ credits?: number; dollars?: number }>
+}
+
+// UI Props interface for AI tools
+export interface AIToolUIProps {
+  tool: BaseAITool
+  onComplete: (result: any) => void
+  onCancel: () => void
 }
 
 /**

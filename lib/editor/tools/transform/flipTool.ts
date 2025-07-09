@@ -63,11 +63,19 @@ class FlipTool extends BaseTool {
     this.state.set('isFlipping', true)
     
     try {
-      const objects = canvas.getObjects()
-      if (objects.length === 0) return
+      // Check for active selection first
+      const activeObjects = canvas.getActiveObjects()
+      const hasSelection = activeObjects.length > 0
       
-      // Apply flip to all objects
-      objects.forEach((obj: FabricObject) => {
+      // Determine which objects to flip
+      const objectsToFlip = hasSelection ? activeObjects : canvas.getObjects()
+      
+      if (objectsToFlip.length === 0) return
+      
+      console.log(`[FlipTool] Flipping ${objectsToFlip.length} object(s) - ${hasSelection ? 'selected only' : 'all objects'}`)
+      
+      // Apply flip to target objects
+      objectsToFlip.forEach((obj: FabricObject) => {
         const oldFlipX = obj.flipX || false
         const oldFlipY = obj.flipY || false
         
@@ -91,12 +99,6 @@ class FlipTool extends BaseTool {
     } finally {
       this.state.set('isFlipping', false)
     }
-  }
-  
-  private getOptionValue(optionId: string): unknown {
-    const toolOptions = useToolOptionsStore.getState().getToolOptions(this.id)
-    const option = toolOptions?.find(opt => opt.id === optionId)
-    return option?.value
   }
 }
 

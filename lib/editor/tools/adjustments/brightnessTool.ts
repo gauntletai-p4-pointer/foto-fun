@@ -86,14 +86,27 @@ class BrightnessTool extends BaseTool {
     
     this.state.set('adjustment', adjustment)
     
-    // Get all objects and filter for images
-    const objects = this.canvas.getObjects()
-    const images = objects.filter(obj => obj.type === 'image') as FabricImage[]
+    // Check for active selection first
+    const activeObjects = this.canvas.getActiveObjects()
+    const hasSelection = activeObjects.length > 0
+    
+    // Get target images
+    let images: FabricImage[]
+    if (hasSelection) {
+      // Filter selected objects for images only
+      images = activeObjects.filter(obj => obj.type === 'image') as FabricImage[]
+    } else {
+      // Get all images on canvas
+      const objects = this.canvas.getObjects()
+      images = objects.filter(obj => obj.type === 'image') as FabricImage[]
+    }
     
     if (images.length === 0) {
-      console.warn('No images found on canvas to adjust brightness')
+      console.warn(`No images found ${hasSelection ? 'in selection' : 'on canvas'} to adjust brightness`)
       return
     }
+    
+    console.log(`[BrightnessTool] Adjusting brightness of ${images.length} image(s) - ${hasSelection ? 'selected only' : 'all images'}`)
     
     // Apply brightness filter to each image
     images.forEach(img => {

@@ -9,6 +9,7 @@ import { Panels } from '@/components/editor/Panels'
 import { OptionsBar } from '@/components/editor/OptionsBar'
 import { StatusBar } from '@/components/editor/StatusBar'
 import { NewDocumentDialog } from '@/components/dialogs/NewDocumentDialog'
+import { ImageGenerationDialog } from '@/components/editor/dialogs/ImageGenerationDialog'
 import { useDocumentStore } from '@/store/documentStore'
 import { useToolStore } from '@/store/toolStore'
 import { createClient } from '@/lib/db/supabase/client'
@@ -132,6 +133,7 @@ export default function EditorPage() {
         open={showNewDocumentDialog}
         onOpenChange={setShowNewDocumentDialog}
       />
+      <ImageGenerationDialog />
     </div>
   )
 } 

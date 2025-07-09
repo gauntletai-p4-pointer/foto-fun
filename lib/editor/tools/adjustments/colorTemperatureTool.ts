@@ -123,12 +123,6 @@ class ColorTemperatureTool extends BaseTool {
       this.state.set('isApplying', false)
     }
   }
-  
-  private getOptionValue(optionId: string): unknown {
-    const toolOptions = useToolOptionsStore.getState().getToolOptions(this.id)
-    const option = toolOptions?.find(opt => opt.id === optionId)
-    return option?.value
-  }
 }
 
 // Export singleton

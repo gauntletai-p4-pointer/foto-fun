@@ -69,68 +69,33 @@ class HueTool extends BaseTool {
     
     this.state.set('rotation', rotation)
     
-    // Get all objects and filter for images
-    const objects = this.canvas.getObjects()
-    const images = objects.filter(obj => obj.type === 'image') as FabricImage[]
+    // Get target images using selection-aware method
+    const images = this.getTargetImages()
     
     if (images.length === 0) {
-      console.warn('No images found on canvas to adjust hue')
+      console.warn('No images found to adjust hue')
       return
     }
     
-    // Apply hue rotation filter to each image
-    images.forEach(img => {
-      // Store original filters if not already stored
-      const imgId = (img as FabricObject & { id?: string }).id || img.toString()
-      if (!this.state.get('previousFilters').has(imgId)) {
-        this.state.get('previousFilters').set(imgId, img.filters ? [...img.filters] as unknown as ImageFilter[] : [])
-      }
-      
-      // Remove existing hue rotation filters
-      if (!img.filters) {
-        img.filters = []
-      } else {
-        img.filters = img.filters.filter((f) => (f as unknown as ImageFilter).type !== 'HueRotation')
-      }
-      
-      // Add new hue rotation filter if rotation is not 0
-      if (rotation !== 0) {
-        // Fabric.js HueRotation expects rotation in radians (0 to 2π)
-        // Convert degrees to radians
-        const rotationRadians = (rotation * Math.PI) / 180
-        
-        // Create hue rotation filter
-        const hueFilter = new filters.HueRotation({
-          rotation: rotationRadians
-        })
-        
-        img.filters.push(hueFilter)
-      }
-      
-      // Apply filters
-      img.applyFilters()
+    // Use the base class filter management
+    this.executeWithGuard('isAdjusting', async () => {
+      await this.applyImageFilters(
+        images,
+        'HueRotation',
+        () => {
+          if (rotation !== 0) {
+            // Fabric.js HueRotation expects rotation in radians (0 to 2π)
+            // Convert degrees to radians
+            const rotationRadians = (rotation * Math.PI) / 180
+            return new filters.HueRotation({
+              rotation: rotationRadians
+            })
+          }
+          return null
+        },
+        `Rotate hue by ${rotation}°`
+      )
     })
-    
-    // Render canvas
-    this.canvas.renderAll()
-    
-    // Record command for undo/redo
-    if (!this.state.get('isAdjusting')) {
-      this.state.set('isAdjusting', true)
-      
-      // Create modify command for each image
-      images.forEach(img => {
-        const command = new ModifyCommand(
-          this.canvas!,
-          img as FabricObject,
-          { filters: img.filters },
-          `Rotate hue by ${rotation}°`
-        )
-        this.executeCommand(command)
-      })
-      
-      this.state.set('isAdjusting', false)
-    }
   }
   
   /**

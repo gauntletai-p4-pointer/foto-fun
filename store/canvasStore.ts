@@ -20,9 +20,17 @@ interface CanvasStore {
   height: number
   backgroundColor: string
   
+  // Active AI Tool (for UI activation)
+  activeAITool: {
+    type: string
+    tool: any // BaseAITool
+    activationType: 'dialog' | 'panel' | 'immediate'
+  } | null
+  
   // Actions
   initCanvas: (element: HTMLCanvasElement, width: number, height: number) => Promise<void>
   disposeCanvas: () => void
+  setActiveAITool: (tool: { type: string; tool: any; activationType: 'dialog' | 'panel' | 'immediate' } | null) => void
   
   // Zoom actions
   setZoom: (zoom: number) => void
@@ -83,6 +91,7 @@ export const useCanvasStore = create<CanvasStore>()(
       isReady: false,
       initializationError: null,
       initializationPromise: null,
+      activeAITool: null,
       
       // Initialize canvas with proper async handling
       initCanvas: async (element, width, height) => {
@@ -423,6 +432,11 @@ export const useCanvasStore = create<CanvasStore>()(
       hasContent: () => {
         const { fabricCanvas } = get()
         return fabricCanvas && fabricCanvas.getObjects().length > 0
+      },
+      
+      // Set active AI tool
+      setActiveAITool: (tool) => {
+        set({ activeAITool: tool })
       }
     }),
     {

@@ -12,6 +12,10 @@ export class ImageGenerationTool implements BaseAITool<GenerationInput, ImageOut
   name = 'Image Generation'
   description = 'Generate images from text descriptions using Stable Diffusion XL'
   
+  // UI Support
+  supportsUIActivation = true
+  uiActivationType: 'dialog' | 'panel' | 'immediate' = 'dialog'
+  
   // Using Stability AI's SDXL model - stable and reliable
   private readonly modelId = 'stability-ai/sdxl:39ed52f2a78e934b3ba6e2a89f5b1c712de7dfea535525255b1aa35c5565e08b'
   

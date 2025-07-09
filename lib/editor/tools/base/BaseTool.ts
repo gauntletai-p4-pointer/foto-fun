@@ -10,7 +10,8 @@ import { useHistoryStore } from '@/store/historyStore'
 import { useLayerStore } from '@/store/layerStore'
 import type { StoreApi } from 'zustand'
 import type { CustomFabricObjectProps } from '@/types'
-import type { FabricObject } from 'fabric'
+import type { FabricObject, Image as FabricImage } from 'fabric'
+import { ModifyCommand } from '@/lib/editor/commands/canvas'
 
 // Type for event cleanup functions
 type CleanupFunction = () => void
@@ -252,6 +253,187 @@ export abstract class BaseTool implements Tool {
     } catch (error) {
       console.error('Emergency cleanup failed:', error)
     }
+  }
+  
+  /**
+   * Get objects to operate on based on selection state
+   * @param type Optional type filter (e.g., 'image', 'text')
+   * @returns Array of objects to operate on
+   */
+  protected getTargetObjects(type?: string): FabricObject[] {
+    if (!this.canvas) return []
+    
+    // Check for active selection first
+    const activeObjects = this.canvas.getActiveObjects()
+    const hasSelection = activeObjects.length > 0
+    
+    // Determine which objects to target
+    let objects = hasSelection ? activeObjects : this.canvas.getObjects()
+    
+    // Filter by type if specified
+    if (type) {
+      objects = objects.filter(obj => obj.type === type)
+    }
+    
+    // Log for debugging
+    console.log(`[${this.name}] Targeting ${objects.length} object(s)${type ? ` of type '${type}'` : ''} - ${hasSelection ? 'selected only' : 'all objects'}`)
+    
+    return objects
+  }
+  
+  /**
+   * Get images to operate on based on selection state
+   * Convenience method for image-specific tools
+   */
+  protected getTargetImages(): FabricImage[] {
+    return this.getTargetObjects('image') as FabricImage[]
+  }
+  
+  /**
+   * Get option value with type safety
+   * @param optionId The option ID
+   * @returns The option value or undefined
+   */
+  protected getOptionValue<T = unknown>(optionId: string): T | undefined {
+    const toolOptions = this.toolOptionsStore.getToolOptions(this.id)
+    const option = toolOptions?.find(opt => opt.id === optionId)
+    return option?.value as T | undefined
+  }
+  
+  /**
+   * Apply filters to images with proper management
+   * @param images Array of images to apply filters to
+   * @param filterType The type of filter (for removal)
+   * @param createFilter Function to create the new filter (return null to remove only)
+   * @param description Command description for history
+   */
+  protected async applyImageFilters(
+    images: FabricImage[],
+    filterType: string,
+    createFilter: () => unknown | null,
+    description: string
+  ): Promise<void> {
+    if (!this.canvas || images.length === 0) return
+    
+    const commands: ICommand[] = []
+    
+    images.forEach(img => {
+      // Remove existing filters of the same type
+      if (!img.filters) {
+        img.filters = []
+      } else {
+        img.filters = img.filters.filter((f) => {
+          const filter = f as unknown as { type?: string }
+          return filter.type !== filterType
+        })
+      }
+      
+      // Add new filter if provided
+      const newFilter = createFilter()
+      if (newFilter) {
+        img.filters.push(newFilter as typeof img.filters[0])
+      }
+      
+      // Apply filters
+      img.applyFilters()
+      
+      // Create command for history
+      const command = new ModifyCommand(
+        this.canvas!,
+        img as FabricObject,
+        { filters: img.filters },
+        description
+      )
+      commands.push(command)
+    })
+    
+    // Render canvas
+    this.canvas.renderAll()
+    
+    // Execute all commands
+    for (const command of commands) {
+      await this.executeCommand(command)
+    }
+  }
+  
+  /**
+   * Execute an operation with state guard
+   * Prevents concurrent execution and ensures cleanup
+   * @param stateName The state property name to guard
+   * @param operation The operation to execute
+   */
+  protected async executeWithGuard<T>(
+    stateName: string,
+    operation: () => T | Promise<T>
+  ): Promise<T | undefined> {
+    // Check if we have a state object with get/set methods
+    const state = (this as any).state
+    if (!state || typeof state.get !== 'function' || typeof state.set !== 'function') {
+      // No state management, just execute
+      return await operation()
+    }
+    
+    // Check guard
+    if (state.get(stateName)) {
+      console.warn(`[${this.name}] Operation already in progress (${stateName})`)
+      return undefined
+    }
+    
+    // Set guard
+    state.set(stateName, true)
+    
+    try {
+      return await operation()
+    } finally {
+      // Always clear guard
+      state.set(stateName, false)
+    }
+  }
+  
+  /**
+   * Apply initial tool option value if it exists
+   * @param optionId The option ID to check
+   * @param applyFn Function to apply the value
+   */
+  protected applyInitialValue<T>(
+    optionId: string,
+    applyFn: (value: T) => void,
+    defaultValue?: T
+  ): void {
+    const value = this.getOptionValue<T>(optionId)
+    if (value !== undefined && value !== defaultValue) {
+      applyFn(value)
+    }
+  }
+  
+  /**
+   * Subscribe to a specific tool option
+   * @param optionId The option ID to watch
+   * @param callback Function to call when option changes
+   * @param trackState Optional state property to track last value
+   */
+  protected subscribeToOption<T>(
+    optionId: string,
+    callback: (value: T) => void,
+    trackState?: { stateName: string, stateObject: any }
+  ): void {
+    this.subscribeToToolOptions((options) => {
+      const value = options.find(opt => opt.id === optionId)?.value as T | undefined
+      
+      if (value !== undefined) {
+        // Check if value changed (if tracking)
+        if (trackState) {
+          const lastValue = trackState.stateObject.get(trackState.stateName)
+          if (value === lastValue) return
+          trackState.stateObject.set(trackState.stateName, value)
+        }
+        
+        // Track performance
+        this.track(`apply_${optionId}`, () => {
+          callback(value)
+        })
+      }
+    })
   }
   
   // Optional Tool interface methods

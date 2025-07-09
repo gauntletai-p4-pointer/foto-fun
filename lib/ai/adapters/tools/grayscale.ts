@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { BaseToolAdapter } from '../base'
+import { CanvasToolAdapter } from '../base'
 import { grayscaleTool } from '@/lib/editor/tools/filters/grayscaleTool'
 import type { CanvasContext } from '@/lib/ai/tools/canvas-bridge'
 
@@ -20,7 +20,7 @@ interface GrayscaleOutput {
 }
 
 // Create adapter class
-export class GrayscaleAdapter extends BaseToolAdapter<GrayscaleInput, GrayscaleOutput> {
+export class GrayscaleAdapter extends CanvasToolAdapter<GrayscaleInput, GrayscaleOutput> {
   tool = grayscaleTool
   aiName = 'convertToGrayscale'
   description = `Convert existing images to grayscale (black and white). Simple enable/disable control.
@@ -41,48 +41,25 @@ Common grayscale requests:
 
   inputSchema = grayscaleParameters
   
+  protected getActionVerb(): string {
+    return 'convert to grayscale'
+  }
+  
   async execute(params: GrayscaleInput, context: CanvasContext): Promise<GrayscaleOutput> {
-    try {
-      console.log('[GrayscaleAdapter] Execute called with params:', params)
-      console.log('[GrayscaleAdapter] Targeting mode:', context.targetingMode)
-      
-      // Use pre-filtered target images from enhanced context
-      const images = context.targetImages
-      
-      console.log('[GrayscaleAdapter] Target images:', images.length)
-      console.log('[GrayscaleAdapter] Targeting mode:', context.targetingMode)
-      
-      if (images.length === 0) {
-        throw new Error('No images found to convert. Please load an image or select images first.')
-      }
-      
-      // Activate the grayscale tool first
-      const { useToolStore } = await import('@/store/toolStore')
-      useToolStore.getState().setActiveTool(this.tool.id)
-      
-      // Small delay to ensure tool is activated and subscribed
-      await new Promise(resolve => setTimeout(resolve, 50))
+    return this.executeWithCommonPatterns(params, context, async (images) => {
+      // Activate the grayscale tool
+      await this.activateTool()
       
       // Trigger the toggle action
-      const { useToolOptionsStore } = await import('@/store/toolOptionsStore')
-      useToolOptionsStore.getState().updateOption(this.tool.id, 'action', 'toggle')
+      await this.updateToolOption('action', 'toggle')
       
       return {
-        success: true,
         enabled: params.enable,
         message: params.enable 
           ? `Converted ${images.length} image(s) to grayscale`
-          : `Restored color to ${images.length} image(s)`,
-        targetingMode: context.targetingMode
+          : `Restored color to ${images.length} image(s)`
       }
-    } catch (error) {
-      return {
-        success: false,
-        enabled: false,
-        message: error instanceof Error ? error.message : 'Failed to apply grayscale',
-        targetingMode: context.targetingMode
-      }
-    }
+    })
   }
 }
 

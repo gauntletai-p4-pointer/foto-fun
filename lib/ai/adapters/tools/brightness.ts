@@ -1,16 +1,9 @@
 import { z } from 'zod'
-import { BaseToolAdapter } from '../base'
+import { FilterToolAdapter } from '../base'
 import { brightnessTool } from '@/lib/editor/tools/adjustments/brightnessTool'
 import type { Canvas } from 'fabric'
-import type { Image as FabricImage } from 'fabric'
 import { filters } from 'fabric'
 import type { CanvasContext } from '@/lib/ai/tools/canvas-bridge'
-
-// Extended type for FabricImage with filters
-type FabricImageWithFilters = FabricImage & {
-  filters?: unknown[]
-  applyFilters(): void
-}
 
 // Input schema following AI SDK v5 patterns
 const brightnessParameters = z.object({
@@ -31,17 +24,11 @@ interface BrightnessOutput {
   targetingMode: 'selection' | 'all-images'
 }
 
-// Define filter type
-interface ImageFilter {
-  type?: string
-  [key: string]: unknown
-}
-
 /**
  * Adapter for the brightness tool to make it AI-compatible
  * Following AI SDK v5 patterns with intelligent image targeting
  */
-export class BrightnessToolAdapter extends BaseToolAdapter<BrightnessInput, BrightnessOutput> {
+export class BrightnessToolAdapter extends FilterToolAdapter<BrightnessInput, BrightnessOutput> {
   tool = brightnessTool
   aiName = 'adjustBrightness'
   description = `Adjust the brightness of existing images on the canvas. This tool makes images lighter or darker.
@@ -69,77 +56,38 @@ Range: -100 (completely black) to +100 (completely white)`
 
   inputSchema = brightnessParameters
   
-  async execute(params: BrightnessInput, context: CanvasContext): Promise<BrightnessOutput> {
-    console.log('[BrightnessToolAdapter] Execute called with params:', params)
-    console.log('[BrightnessToolAdapter] Targeting mode:', context.targetingMode)
-    
-    const canvas = context.canvas
-    
-    if (!canvas) {
-      throw new Error('Canvas is required but not provided in context')
-    }
-    
-    // Use pre-filtered target images from enhanced context
-    const images = context.targetImages
-    
-    console.log('[BrightnessToolAdapter] Target images:', images.length)
-    console.log('[BrightnessToolAdapter] Targeting mode:', context.targetingMode)
-    
-    if (images.length === 0) {
-      throw new Error('No images found to adjust brightness. Please load an image or select images first.')
-    }
-    
-    // Store previous brightness values (simplified - just track if filters existed)
-    const previousValue = 0 // In a real implementation, we'd track the current brightness
-    
-    // Apply brightness to target images only
-    images.forEach((img, index) => {
-      console.log(`[BrightnessToolAdapter] Processing image ${index + 1}/${images.length}`)
-      
-      const imageWithFilters = img as FabricImageWithFilters
-      
-      // Remove existing brightness filters
-      if (!imageWithFilters.filters) {
-        imageWithFilters.filters = []
-      } else {
-        imageWithFilters.filters = imageWithFilters.filters.filter((f: unknown) => (f as unknown as ImageFilter).type !== 'Brightness')
-      }
-      
-      // Add new brightness filter if adjustment is not 0
-      if (params.adjustment !== 0) {
-        const brightnessValue = params.adjustment / 100
-        const brightnessFilter = new filters.Brightness({
-          brightness: brightnessValue
-        })
-        
-        imageWithFilters.filters.push(brightnessFilter)
-      }
-      
-      // Apply filters
-      imageWithFilters.applyFilters()
-    })
-    
-    // Render the canvas to show changes
-    canvas.renderAll()
-    
-    console.log('[BrightnessToolAdapter] Brightness adjustment applied successfully')
-    
-    return {
-      success: true,
-      previousValue,
-      newValue: params.adjustment,
-      affectedImages: images.length,
-      targetingMode: context.targetingMode
-    }
+  protected getActionVerb(): string {
+    return 'adjust brightness'
   }
   
-  canExecute(canvas: Canvas): boolean {
-    // Can only adjust brightness if there are images on the canvas
-    const hasImages = canvas.getObjects().some(obj => obj.type === 'image')
-    if (!hasImages) {
-      console.warn('Brightness tool: No images on canvas')
-    }
-    return hasImages
+  protected getFilterType(): string {
+    return 'Brightness'
+  }
+  
+  protected shouldApplyFilter(params: BrightnessInput): boolean {
+    return params.adjustment !== 0
+  }
+  
+  protected createFilter(params: BrightnessInput): unknown {
+    const brightnessValue = params.adjustment / 100
+    return new filters.Brightness({
+      brightness: brightnessValue
+    })
+  }
+  
+  async execute(params: BrightnessInput, context: CanvasContext): Promise<BrightnessOutput> {
+    return this.executeWithCommonPatterns(params, context, async (images) => {
+      // Apply brightness filter to images
+      await this.applyFilterToImages(images, params, context.canvas)
+      
+      console.log('[BrightnessToolAdapter] Brightness adjustment applied successfully')
+      
+      return {
+        previousValue: 0, // In a real implementation, we'd track the current brightness
+        newValue: params.adjustment,
+        affectedImages: images.length
+      }
+    })
   }
   
   async generatePreview(params: BrightnessInput, canvas: Canvas): Promise<{ before: string; after: string }> {

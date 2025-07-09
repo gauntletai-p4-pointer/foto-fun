@@ -76,8 +76,16 @@ class RotateTool extends BaseTool {
     this.state.set('isRotating', true)
     
     try {
-      const objects = canvas.getObjects()
-      if (objects.length === 0) return
+      // Check for active selection first
+      const activeObjects = canvas.getActiveObjects()
+      const hasSelection = activeObjects.length > 0
+      
+      // Determine which objects to rotate
+      const objectsToRotate = hasSelection ? activeObjects : canvas.getObjects()
+      
+      if (objectsToRotate.length === 0) return
+      
+      console.log(`[RotateTool] Rotating ${objectsToRotate.length} object(s) by ${angle}° - ${hasSelection ? 'selected only' : 'all objects'}`)
       
       // Get the center point of the canvas
       const centerX = canvas.getWidth() / 2
@@ -86,8 +94,8 @@ class RotateTool extends BaseTool {
       // Calculate the angle difference from the last rotation
       const angleDiff = angle - this.state.get('lastAngle')
       
-      // Apply rotation to all objects
-      objects.forEach((obj: FabricObject) => {
+      // Apply rotation to target objects
+      objectsToRotate.forEach((obj: FabricObject) => {
         // Store the old state for undo
         const oldAngle = obj.angle || 0
         const oldLeft = obj.left || 0
@@ -130,12 +138,6 @@ class RotateTool extends BaseTool {
     } finally {
       this.state.set('isRotating', false)
     }
-  }
-  
-  private getOptionValue(optionId: string): unknown {
-    const toolOptions = useToolOptionsStore.getState().getToolOptions(this.id)
-    const option = toolOptions?.find(opt => opt.id === optionId)
-    return option?.value
   }
   
   /**

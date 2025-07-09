@@ -1,11 +1,12 @@
 import { Sliders } from 'lucide-react'
 import { TOOL_IDS } from '@/constants'
-import type { Canvas, Image, FabricObject } from 'fabric'
+import type { Canvas, FabricObject, Image } from 'fabric'
 import { BaseTool } from '../base/BaseTool'
 import { createToolState } from '../utils/toolState'
 import { useToolOptionsStore } from '@/store/toolOptionsStore'
 import { ModifyCommand } from '@/lib/editor/commands/canvas'
 import * as fabric from 'fabric'
+import type { ICommand } from '@/lib/editor/commands/base'
 
 // Define tool state
 type ExposureToolState = {
@@ -50,27 +51,17 @@ class ExposureTool extends BaseTool {
   
   // Required: Cleanup
   protected cleanup(): void {
-    // Don't reset the exposure value - let it persist
-    // The user can manually reset or use undo if they want to remove the effect
-    
-    // Reset only the internal state
-    this.state.setState({
-      isApplying: false,
-      lastValue: this.state.get('lastValue'), // Keep the last value
-      isAdjusting: false
-    })
+    this.state.reset()
   }
   
   private applyExposure(canvas: Canvas, value: number): void {
-    if (this.state.get('isApplying')) return
-    
-    this.state.set('isApplying', true)
-    
-    try {
-      const objects = canvas.getObjects()
-      const images = objects.filter((obj): obj is Image => obj.type === 'image')
+    // Use guard to prevent concurrent execution
+    this.executeWithGuard('isApplying', async () => {
+      const images = this.getTargetImages()
       
       if (images.length === 0) return
+      
+      const commands: ICommand[] = []
       
       images.forEach(img => {
         if (!img.filters) {
@@ -100,28 +91,27 @@ class ExposureTool extends BaseTool {
           newFilters = existingFilters as typeof img.filters
         }
         
-        // Create command BEFORE modifying the object
+        // Apply the filters
+        img.filters = newFilters
+        img.applyFilters()
+        
+        // Create command for history
         const command = new ModifyCommand(
           canvas,
           img as FabricObject,
           { filters: newFilters },
           `Adjust exposure to ${value}%`
         )
-        
-        // Execute the command (which will apply the changes and handle applyFilters)
-        this.executeCommand(command)
+        commands.push(command)
       })
       
       canvas.renderAll()
-    } finally {
-      this.state.set('isApplying', false)
-    }
-  }
-  
-  private getOptionValue(optionId: string): unknown {
-    const toolOptions = useToolOptionsStore.getState().getToolOptions(this.id)
-    const option = toolOptions?.find(opt => opt.id === optionId)
-    return option?.value
+      
+      // Execute all commands
+      for (const command of commands) {
+        await this.executeCommand(command)
+      }
+    })
   }
 }
 

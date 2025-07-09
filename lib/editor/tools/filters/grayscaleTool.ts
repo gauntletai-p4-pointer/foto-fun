@@ -51,55 +51,28 @@ class GrayscaleTool extends BaseTool {
   }
   
   private toggleGrayscale(canvas: Canvas): void {
-    if (this.state.get('isApplying')) return
-    
-    this.state.set('isApplying', true)
-    const newState = !this.state.get('isGrayscale')
-    
-    try {
-      const objects = canvas.getObjects()
+    this.executeWithGuard('isApplying', async () => {
+      const newState = !this.state.get('isGrayscale')
+      const images = this.getTargetImages()
+      
+      if (images.length === 0) {
+        console.warn('No images found to apply grayscale')
+        return
+      }
       
       // Apply to all image objects
-      objects.forEach((obj) => {
-        if (obj instanceof FabricImage) {
-          // Calculate new filters array
-          const existingFilters = obj.filters?.filter(
-            (f: unknown) => !(f instanceof filters.Grayscale)
-          ) || []
-          
-          let newFilters: typeof obj.filters
-          if (newState) {
-            const grayscaleFilter = new filters.Grayscale()
-            newFilters = [...existingFilters, grayscaleFilter] as typeof obj.filters
-          } else {
-            newFilters = existingFilters as typeof obj.filters
-          }
-          
-          // Create command BEFORE modifying the object
-          const command = new ModifyCommand(
-            canvas,
-            obj,
-            { filters: newFilters },
-            newState ? 'Apply grayscale' : 'Remove grayscale'
-          )
-          
-          // Execute the command (which will apply the changes and handle applyFilters)
-          this.executeCommand(command)
-        }
-      })
+      await this.applyImageFilters(
+        images,
+        'Grayscale',
+        () => newState ? new filters.Grayscale() : null,
+        newState ? 'Apply grayscale' : 'Remove grayscale'
+      )
       
-      canvas.renderAll()
       this.state.set('isGrayscale', newState)
-    } finally {
-      this.state.set('isApplying', false)
-    }
+    })
   }
   
-  private getOptionValue(optionId: string): unknown {
-    const toolOptions = useToolOptionsStore.getState().getToolOptions(this.id)
-    const option = toolOptions?.find(opt => opt.id === optionId)
-    return option?.value
-  }
+  // Remove duplicate getOptionValue method - use the one from BaseTool
 }
 
 // Export singleton
