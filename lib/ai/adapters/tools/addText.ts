@@ -7,16 +7,12 @@ import { useHistoryStore } from '@/store/historyStore'
 
 // Define input schema for text parameters
 const addTextInputSchema = z.object({
-  text: z.string().describe('The text content to add'),
-  x: z.number().optional().describe('X position in pixels (default: center)'),
-  y: z.number().optional().describe('Y position in pixels (default: center)'),
-  fontSize: z.number().min(8).max(144).optional().describe('Font size in points (default: 24)'),
-  fontFamily: z.string().optional().describe('Font family name (default: Arial)'),
+  text: z.string().min(1).describe('The text content to add'),
+  position: z.enum(['top', 'center', 'bottom', 'top-left', 'top-right', 'bottom-left', 'bottom-right']).optional().describe('Position of the text on the canvas (default: center)'),
+  fontSize: z.number().min(8).max(144).optional().describe('Font size in points (default: 60)'),
+  fontFamily: z.string().optional().describe('Font family (default: Arial)'),
   color: z.string().optional().describe('Text color in hex format (default: #000000)'),
-  alignment: z.enum(['left', 'center', 'right', 'justify']).optional().describe('Text alignment (default: left)'),
-  bold: z.boolean().optional().describe('Whether text should be bold (default: false)'),
-  italic: z.boolean().optional().describe('Whether text should be italic (default: false)'),
-  underline: z.boolean().optional().describe('Whether text should be underlined (default: false)')
+  style: z.enum(['normal', 'title', 'subtitle', 'caption', 'watermark']).optional().describe('Predefined text style')
 })
 
 type AddTextInput = z.infer<typeof addTextInputSchema>
@@ -42,18 +38,17 @@ export class AddTextToolAdapter extends BaseToolAdapter<AddTextInput, AddTextOut
   aiName = 'addText'
   description = `Add text to the image at specified position with styling. You MUST calculate positions based on user intent.
 Common patterns you should use:
-- "add text at top" → y: 50-100 pixels from top
-- "add text at bottom" → y: canvas.height - 100 pixels
-- "add text in center" → x: canvas.width/2, y: canvas.height/2
-- "add text on the left" → x: 50-100 pixels from left
-- "add text on the right" → x: canvas.width - 200 pixels
-- "add title" → fontSize: 36-48, bold: true
-- "add caption" → fontSize: 14-18, bottom position
-- "add watermark" → fontSize: 24-36, opacity consideration
-- "heading style" → fontSize: 32-48, bold: true
-- "body text" → fontSize: 16-20
+- "add text at top" → position: 'top'
+- "add text at bottom" → position: 'bottom'
+- "add text in center" → position: 'center' (default)
+- "add text on the top left" → position: 'top-left'
+- "add title" → style: 'title' (72pt bold)
+- "add caption" → style: 'caption' (24pt)
+- "add subtitle" → style: 'subtitle' (48pt)
+- "add watermark" → style: 'watermark' (36pt)
+- Default font size is 60pt if not specified
 - Natural colors: "red text" → #FF0000, "blue text" → #0000FF, etc.
-NEVER ask for exact positions - interpret the user's intent and calculate appropriate coordinates.`
+NEVER ask for exact positions - interpret the user's intent and use the position enum.`
   
   inputSchema = addTextInputSchema
   
@@ -68,26 +63,77 @@ NEVER ask for exact positions - interpret the user's intent and calculate approp
     }
     
     try {
-      // Calculate position if not provided
+      // Calculate position based on position enum
       const canvasWidth = canvas.getWidth()
       const canvasHeight = canvas.getHeight()
+      const margin = 50 // Default margin from edges
       
-      const x = params.x ?? canvasWidth / 2
-      const y = params.y ?? canvasHeight / 2
+      let x = canvasWidth / 2
+      let y = canvasHeight / 2
+      
+      switch (params.position) {
+        case 'top':
+          y = margin + 30
+          break
+        case 'bottom':
+          y = canvasHeight - margin - 30
+          break
+        case 'top-left':
+          x = margin + 100
+          y = margin + 30
+          break
+        case 'top-right':
+          x = canvasWidth - margin - 100
+          y = margin + 30
+          break
+        case 'bottom-left':
+          x = margin + 100
+          y = canvasHeight - margin - 30
+          break
+        case 'bottom-right':
+          x = canvasWidth - margin - 100
+          y = canvasHeight - margin - 30
+          break
+        case 'center':
+        default:
+          // Already set to center
+          break
+      }
+      
+      // Apply style presets
+      let fontSize = params.fontSize || 60
+      let fontWeight = 'normal' as 'normal' | 'bold'
+      const fontStyle = 'normal' as 'normal' | 'italic'
+      
+      switch (params.style) {
+        case 'title':
+          fontSize = params.fontSize || 72
+          fontWeight = 'bold'
+          break
+        case 'subtitle':
+          fontSize = params.fontSize || 48
+          break
+        case 'caption':
+          fontSize = params.fontSize || 24
+          break
+        case 'watermark':
+          fontSize = params.fontSize || 36
+          break
+      }
       
       // Create text object with parameters
       const text = new IText(params.text, {
         left: x,
         top: y,
-        fontSize: params.fontSize || 24,
+        fontSize,
         fontFamily: params.fontFamily || 'Arial',
         fill: params.color || '#000000',
-        textAlign: params.alignment || 'left',
-        fontWeight: params.bold ? 'bold' : 'normal',
-        fontStyle: params.italic ? 'italic' : 'normal',
-        underline: params.underline || false,
+        textAlign: 'center',
+        fontWeight,
+        fontStyle,
         originX: 'center',
         originY: 'center',
+        splitByGrapheme: true // Support emojis
       })
       
       // Generate unique ID for the text

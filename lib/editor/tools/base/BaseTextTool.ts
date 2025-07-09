@@ -171,12 +171,45 @@ export abstract class BaseTextTool extends BaseTool {
     // Ensure proper Unicode/emoji support
     textObject.set('splitByGrapheme', true)
     
+    // Don't show selection handles - go straight to edit mode
+    textObject.set({
+      hasControls: false,
+      hasBorders: false,
+      lockMovementX: true,
+      lockMovementY: true,
+      lockRotation: true,
+      lockScalingX: true,
+      lockScalingY: true,
+      evented: true
+    })
+    
     // Temporarily add to canvas for editing (will be removed and re-added by command)
     this.canvas.add(textObject)
-    this.canvas.setActiveObject(textObject)
     
-    // Enter edit mode
-    this.enterEditMode(textObject)
+    // Enter edit mode immediately without selecting first
+    this.state.setState({
+      currentText: textObject,
+      originalText: '',
+      isEditing: true,
+      isCommitting: false
+    })
+    
+    // Set up object-specific event handlers
+    const exitHandler = () => {
+      if (!this.state.get('isCommitting')) {
+        this.commitText()
+      }
+    }
+    
+    // Store handlers for cleanup
+    this.textEventHandlers.set('editing:exited', exitHandler)
+    
+    // Attach handler to the specific text object
+    textObject.on('editing:exited', exitHandler)
+    
+    // Enter editing mode immediately
+    textObject.enterEditing()
+    textObject.hiddenTextarea?.focus()
     
     // Remove from canvas before command execution
     this.canvas.remove(textObject)
@@ -263,6 +296,17 @@ export abstract class BaseTextTool extends BaseTool {
       if (currentText.isEditing) {
         currentText.exitEditing()
       }
+      
+      // Restore controls after editing
+      currentText.set({
+        hasControls: true,
+        hasBorders: true,
+        lockMovementX: false,
+        lockMovementY: false,
+        lockRotation: false,
+        lockScalingX: false,
+        lockScalingY: false
+      })
       
       // If text is empty, remove it
       if (!currentText.text || currentText.text.trim() === '') {

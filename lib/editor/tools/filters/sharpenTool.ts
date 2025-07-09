@@ -14,12 +14,12 @@ type SharpenToolState = {
 }
 
 class SharpenTool extends BaseTool {
-  // Required properties
+  // Tool identification
   id = TOOL_IDS.SHARPEN
   name = 'Sharpen'
   icon = Focus
   cursor = 'default'
-  shortcut = 'S'
+  shortcut = undefined // Access via filters menu
   
   // Tool state
   private state = createToolState<SharpenToolState>({

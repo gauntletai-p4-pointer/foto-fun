@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.0/fabric.min.js"></script>
+    <style>
+        canvas { border: 1px solid #ccc; margin: 10px; }
+        #log { font-family: monospace; white-space: pre; }
+    </style>
+</head>
+<body>
+    <h3>Original Canvas</h3>
+    <canvas id="canvas" width="400" height="300"></canvas>
+    
+    <h3>Cropped Result</h3>
+    <canvas id="result" width="400" height="300"></canvas>
+    
+    <button onclick="testCrop()">Test Crop (100,50 200x150)</button>
+    
+    <h3>Log</h3>
+    <div id="log"></div>
+    
+    <script>
+        const log = (msg) => {
+            document.getElementById('log').innerHTML += msg + '\n';
+        };
+        
+        // Create canvas
+        const canvas = new fabric.Canvas('canvas');
+        
+        // Add a rectangle to test with
+        const rect = new fabric.Rect({
+            left: 50,
+            top: 50,
+            width: 300,
+            height: 200,
+            fill: 'red'
+        });
+        canvas.add(rect);
+        
+        // Add some text
+        const text = new fabric.Text('Test Image', {
+            left: 150,
+            top: 100,
+            fill: 'white'
+        });
+        canvas.add(text);
+        
+        function testCrop() {
+            log('--- Testing Crop ---');
+            
+            const cropBounds = {
+                left: 100,
+                top: 50,
+                width: 200,
+                height: 150
+            };
+            
+            log('Crop bounds: ' + JSON.stringify(cropBounds));
+            
+            // Method 1: Using toDataURL with bounds
+            try {
+                const dataUrl = canvas.toDataURL({
+                    left: cropBounds.left,
+                    top: cropBounds.top,
+                    width: cropBounds.width,
+                    height: cropBounds.height,
+                    multiplier: 1
+                });
+                
+                log('DataURL created, length: ' + dataUrl.length);
+                
+                // Load into result canvas
+                const img = new Image();
+                img.onload = function() {
+                    log('Image loaded: ' + img.width + 'x' + img.height);
+                    
+                    const resultCanvas = new fabric.Canvas('result');
+                    resultCanvas.clear();
+                    
+                    const fabricImg = new fabric.Image(img);
+                    fabricImg.set({
+                        left: 0,
+                        top: 0
+                    });
+                    
+                    resultCanvas.setDimensions({
+                        width: cropBounds.width,
+                        height: cropBounds.height
+                    });
+                    
+                    resultCanvas.add(fabricImg);
+                    resultCanvas.renderAll();
+                    
+                    log('Result canvas updated');
+                };
+                
+                img.onerror = function() {
+                    log('ERROR: Failed to load image');
+                };
+                
+                img.src = dataUrl;
+                
+            } catch (e) {
+                log('ERROR: ' + e.message);
+            }
+        }
+    </script>
+</body>
+</html> 

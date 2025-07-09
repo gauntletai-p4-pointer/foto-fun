@@ -20,15 +20,15 @@ class HorizontalTypeTool extends BaseTextTool {
    */
   protected createTextObject(x: number, y: number): IText {
     const fontFamily = this.getOptionValue<string>('fontFamily') || 'Arial'
-    const fontSize = this.getOptionValue<number>('fontSize') || 24
+    const fontSize = this.getOptionValue<number>('fontSize') || 60
     const color = this.getOptionValue<string>('color') || '#000000'
     const alignment = this.getOptionValue<string>('alignment') || 'left'
     const bold = this.getOptionValue<boolean>('bold') || false
     const italic = this.getOptionValue<boolean>('italic') || false
     const underline = this.getOptionValue<boolean>('underline') || false
     
-    // Create IText object with initial properties
-    const text = new IText('', {
+    // Create IText object with a placeholder space to ensure cursor is visible
+    const text = new IText(' ', {
       left: x,
       top: y,
       fontFamily,
@@ -39,13 +39,13 @@ class HorizontalTypeTool extends BaseTextTool {
       fontStyle: italic ? 'italic' : 'normal',
       underline,
       editable: true,
-      cursorColor: '#000000',
+      cursorColor: color, // Match cursor color to text color
       cursorWidth: 2,
       cursorDelay: 500,
       cursorDuration: 500,
       selectionColor: 'rgba(100, 100, 255, 0.3)',
       selectionStart: 0,
-      selectionEnd: 0,
+      selectionEnd: 1, // Select the placeholder space
       evented: true
     })
     

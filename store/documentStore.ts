@@ -16,6 +16,7 @@ interface DocumentStore {
   // Actions
   createNewDocument: (preset: keyof typeof DOCUMENT_PRESETS | 'custom', customOptions?: Partial<Document>) => void
   openDocument: (file: File) => Promise<void>
+  insertImage: (file: File) => Promise<void>
   saveDocument: () => void
   closeDocument: () => void
   
@@ -108,8 +109,8 @@ export const useDocumentStore = create<DocumentStore>((set, get) => ({
               fabricImg.set({
                 left: 0,
                 top: 0,
-                selectable: false,
-                evented: false
+                selectable: true,  // Changed from false to true
+                evented: true      // Changed from false to true
               })
               canvasStore.fabricCanvas!.renderAll()
               canvasStore.centerContent()
@@ -119,6 +120,63 @@ export const useDocumentStore = create<DocumentStore>((set, get) => ({
           }
           
           get().addToRecent(newDocument)
+          resolve()
+        }
+        
+        img.onerror = () => {
+          reject(new Error('Failed to load image'))
+        }
+        
+        img.src = e.target?.result as string
+      }
+      
+      reader.onerror = () => {
+        reject(new Error('Failed to read file'))
+      }
+      
+      reader.readAsDataURL(file)
+    })
+  },
+  
+  insertImage: async (file) => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      
+      reader.onload = (e) => {
+        const img = new Image()
+        
+        img.onload = () => {
+          // Insert image into existing canvas
+          const canvasStore = useCanvasStore.getState()
+          if (canvasStore.fabricCanvas) {
+            console.log('[DocumentStore] Inserting image into canvas...')
+            
+            FabricImage.fromURL(e.target?.result as string).then((fabricImg) => {
+              console.log('[DocumentStore] FabricImage created, adding to canvas')
+              
+              // Center the image in the viewport
+              const viewportCenter = canvasStore.fabricCanvas!.getVpCenter()
+              fabricImg.set({
+                left: viewportCenter.x - (fabricImg.width || 0) / 2,
+                top: viewportCenter.y - (fabricImg.height || 0) / 2,
+                selectable: true,
+                evented: true
+              })
+              
+              canvasStore.fabricCanvas!.add(fabricImg)
+              canvasStore.fabricCanvas!.setActiveObject(fabricImg)
+              canvasStore.fabricCanvas!.renderAll()
+              
+              console.log('[DocumentStore] Image inserted successfully')
+              
+              // Mark document as modified
+              get().markAsModified()
+            })
+          } else {
+            // If no canvas exists, create a new document with the image
+            get().openDocument(file)
+          }
+          
           resolve()
         }
         

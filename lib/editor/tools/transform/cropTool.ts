@@ -97,11 +97,11 @@ class CropTool extends BaseTool {
       let cropRect = this.state.get('cropRect')
       
       if (!cropRect) {
-        // Create crop rectangle if it doesn't exist
+        // Create crop rectangle with top-left origin
         cropRect = new Rect({
           fill: 'rgba(0,0,0,0.3)',
           stroke: '#ffffff',
-          strokeWidth: 2,
+          strokeWidth: 1,
           strokeDashArray: [5, 5],
           visible: false,
           hasRotatingPoint: false,
@@ -110,7 +110,15 @@ class CropTool extends BaseTool {
           cornerStrokeColor: 'black',
           borderColor: 'white',
           borderDashArray: [5, 5],
-          lockRotation: true
+          lockRotation: true,
+          originX: 'left',
+          originY: 'top',
+          scaleX: 1,
+          scaleY: 1,
+          lockScalingX: true,
+          lockScalingY: true,
+          strokeUniform: true,
+          objectCaching: false
         })
         this.canvas!.add(cropRect)
         this.state.set('cropRect', cropRect)
@@ -118,13 +126,18 @@ class CropTool extends BaseTool {
       
       const point = { x: e.scenePoint.x, y: e.scenePoint.y }
       
+      // Set initial position and size
       cropRect.set({
-        width: 2,
-        height: 2,
         left: point.x,
         top: point.y,
+        width: 2,  // Start with 2 instead of 1
+        height: 2,  // Start with 2 instead of 1
         visible: true
       })
+      
+      // Ensure scale is 1
+      cropRect.scaleX = 1
+      cropRect.scaleY = 1
       
       this.state.set('startPoint', point)
       this.state.set('isDrawing', true)
@@ -148,22 +161,11 @@ class CropTool extends BaseTool {
     this.track('updateCrop', () => {
       const point = { x: e.scenePoint.x, y: e.scenePoint.y }
       
-      let width = point.x - startPoint.x
-      let height = point.y - startPoint.y
-      
-      // Handle negative dimensions (dragging left/up)
-      let left = startPoint.x
-      let top = startPoint.y
-      
-      if (width < 0) {
-        left = point.x
-        width = Math.abs(width)
-      }
-      
-      if (height < 0) {
-        top = point.y
-        height = Math.abs(height)
-      }
+      // Calculate bounds ensuring positive width/height
+      const left = Math.min(startPoint.x, point.x)
+      const top = Math.min(startPoint.y, point.y)
+      const width = Math.abs(point.x - startPoint.x)
+      const height = Math.abs(point.y - startPoint.y)
       
       // Handle aspect ratio if shift is held
       const aspectRatioValue = this.aspectRatio
@@ -171,20 +173,44 @@ class CropTool extends BaseTool {
         ? ASPECT_RATIOS[aspectRatioValue as keyof typeof ASPECT_RATIOS] 
         : null
       
-      if (ratio && e.e.shiftKey) {
+      let finalWidth = width
+      let finalHeight = height
+      
+      if (ratio && e.e.shiftKey && width > 0 && height > 0) {
         if (width > height) {
-          height = width / ratio
+          finalHeight = width / ratio
         } else {
-          width = height * ratio
+          finalWidth = height * ratio
         }
       }
       
+      // Update rectangle with top-left origin
       cropRect.set({
         left: left,
         top: top,
-        width: width,
-        height: height
+        width: finalWidth,
+        height: finalHeight
       })
+      
+      // Force scale to be 1
+      cropRect.scaleX = 1
+      cropRect.scaleY = 1
+      
+      // Update the object's coordinates
+      cropRect.setCoords()
+      
+      // Debug the actual values being set
+      if (finalWidth > 10 && finalHeight > 10) {
+        console.log('[CropTool] Setting crop rect:', {
+          left,
+          top,
+          width: finalWidth,
+          height: finalHeight,
+          scaleX: cropRect.scaleX,
+          scaleY: cropRect.scaleY,
+          boundingRect: cropRect.getBoundingRect()
+        })
+      }
       
       this.canvas!.renderAll()
     })
@@ -233,11 +259,43 @@ class CropTool extends BaseTool {
       
       if (objects.length === 0) return
       
-      // Get crop rect bounds
+      // Get the actual bounding rect which accounts for all transforms
+      const boundingRect = cropRect.getBoundingRect()
+      
+      // Use the rectangle's actual properties since getBoundingRect seems to be returning incorrect values
       const cropLeft = cropRect.left!
       const cropTop = cropRect.top!
-      const cropWidth = cropRect.width! * cropRect.scaleX!
-      const cropHeight = cropRect.height! * cropRect.scaleY!
+      const cropWidth = cropRect.width!
+      const cropHeight = cropRect.height!
+      
+      console.log('[CropTool] Crop rectangle properties:', {
+        left: cropRect.left,
+        top: cropRect.top,
+        width: cropRect.width,
+        height: cropRect.height,
+        originX: cropRect.originX,
+        originY: cropRect.originY,
+        scaleX: cropRect.scaleX,
+        scaleY: cropRect.scaleY
+      })
+      
+      console.log('[CropTool] Crop rectangle bounding rect (for debugging):', boundingRect)
+      
+      // Calculate actual dimensions considering scale
+      const actualWidth = cropRect.width! * cropRect.scaleX!
+      const actualHeight = cropRect.height! * cropRect.scaleY!
+      
+      console.log('[CropTool] Actual dimensions (width * scaleX, height * scaleY):', {
+        actualWidth,
+        actualHeight
+      })
+      
+      console.log('[CropTool] Using rectangle properties for crop:', {
+        left: cropLeft,
+        top: cropTop,
+        width: cropWidth,
+        height: cropHeight
+      })
       
       // Remove crop rect first
       this.canvas!.remove(cropRect)

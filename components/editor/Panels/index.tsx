@@ -47,35 +47,26 @@ export function Panels() {
     })
   }, [mounted])
   
-  // Set initial panel to AI if available, otherwise first available panel
-  const getInitialPanel = (): PanelType => {
-    // Check if AI panel is available
-    const aiPanel = panels.find(p => p.id === 'ai')
-    if (aiPanel) return 'ai'
-    
-    // Otherwise use first available panel
-    return panels.length > 0 ? panels[0].id : 'layers'
-  }
-  
-  const [activePanel, setActivePanel] = useState<PanelType>(getInitialPanel())
+  // Set initial panel
+  const [activePanel, setActivePanel] = useState<PanelType>(() => {
+    // Default to layers which is always available
+    return 'layers'
+  })
   
   // Update mounted state after hydration
   useEffect(() => {
     setMounted(true)
   }, [])
   
-  // Update active panel after mount to set AI as default if available
+  // Set AI as default panel only once after mount if available
   useEffect(() => {
-    if (mounted) {
+    if (mounted && panels.length > 0) {
       const aiPanel = panels.find(p => p.id === 'ai')
-      if (aiPanel && activePanel !== 'ai') {
+      if (aiPanel) {
         setActivePanel('ai')
-      } else if (!panels.find(p => p.id === activePanel)) {
-        // If current panel is not available, switch to first available
-        setActivePanel(panels.length > 0 ? panels[0].id : 'layers')
       }
     }
-  }, [panels, mounted, activePanel])
+  }, [mounted, panels]) // Include panels dependency
   
   const ActivePanelComponent = panels.find(p => p.id === activePanel)?.component || LayersPanel
   
@@ -90,15 +81,14 @@ export function Panels() {
                 key={panel.id}
                 onClick={() => setActivePanel(panel.id)}
                 className={cn(
-                  "flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded text-xs font-medium transition-colors",
+                  "flex-1 flex items-center justify-center p-2 rounded text-xs font-medium transition-colors",
                   activePanel === panel.id
                     ? "bg-primary/10 text-primary"
                     : "hover:bg-foreground/5 text-foreground/70 hover:text-foreground"
                 )}
                 title={panel.label}
               >
-                <Icon className="w-3.5 h-3.5" />
-                <span className="sr-only">{panel.label}</span>
+                <Icon className="w-4 h-4" />
               </button>
             )
           })}

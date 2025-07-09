@@ -10,6 +10,8 @@ import type { ToolEvent } from '@/types'
 import { CopyCommand, CutCommand, PasteCommand } from '@/lib/editor/commands/clipboard'
 import { ClearSelectionCommand } from '@/lib/editor/commands/selection'
 import { useSelectionStore } from '@/store/selectionStore'
+import { RemoveObjectCommand } from '@/lib/editor/commands/canvas'
+import { IText } from 'fabric'
 
 export function Canvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -112,6 +114,19 @@ export function Canvas() {
       } else if (isMeta && e.key === '1') {
         e.preventDefault()
         zoomToActual()
+      }
+      
+      // Delete key handling
+      else if (e.key === 'Delete' || e.key === 'Backspace') {
+        // Only handle delete if not in a text input
+        if (fabricCanvas) {
+          const activeObject = fabricCanvas.getActiveObject()
+          if (activeObject && !(activeObject.type === 'i-text' && (activeObject as IText).isEditing)) {
+            e.preventDefault()
+            const command = new RemoveObjectCommand(fabricCanvas, activeObject)
+            executeCommand(command)
+          }
+        }
       }
       
       // Pan with space

@@ -14,7 +14,7 @@ class TypeOnPathTool extends BaseTextTool {
   name = 'Type on a Path Tool'
   icon = Type
   cursor = 'text'
-  shortcut = 'T' // Same shortcut group as other text tools
+  shortcut = undefined // Access via tool palette
   
   // Track the selected path
   private selectedPath: Path | null = null
@@ -140,7 +140,7 @@ class TypeOnPathTool extends BaseTextTool {
   protected createTextObject(x: number, y: number): IText {
     // Get text options
     const fontFamily = this.getOptionValue<string>('fontFamily') || 'Arial'
-    const fontSize = this.getOptionValue<number>('fontSize') || 24
+    const fontSize = this.getOptionValue<number>('fontSize') || 60
     const color = this.getOptionValue<string>('color') || '#000000'
     const alignment = this.getOptionValue<string>('alignment') || 'left'
     const bold = this.getOptionValue<boolean>('bold') || false
@@ -149,7 +149,7 @@ class TypeOnPathTool extends BaseTextTool {
     
     if (this.selectedPath) {
       // Create text that will follow the path
-      const text = new IText('', {
+      const text = new IText(' ', {
         left: x,
         top: y,
         fontFamily,
@@ -160,8 +160,10 @@ class TypeOnPathTool extends BaseTextTool {
         fontStyle: italic ? 'italic' : 'normal',
         underline,
         editable: true,
-        cursorColor: '#000000',
+        cursorColor: color, // Match cursor color to text color
         cursorWidth: 2,
+        selectionStart: 0,
+        selectionEnd: 1, // Select the placeholder space
         // Store reference to the path
         data: {
           pathId: this.selectedPath.get('id' as keyof Path),
@@ -176,7 +178,7 @@ class TypeOnPathTool extends BaseTextTool {
       return text
     } else {
       // Create regular text if no path selected
-      return new IText('', {
+      return new IText(' ', {
         left: x,
         top: y,
         fontFamily,
@@ -187,8 +189,10 @@ class TypeOnPathTool extends BaseTextTool {
         fontStyle: italic ? 'italic' : 'normal',
         underline,
         editable: true,
-        cursorColor: '#000000',
-        cursorWidth: 2
+        cursorColor: color, // Match cursor color to text color
+        cursorWidth: 2,
+        selectionStart: 0,
+        selectionEnd: 1 // Select the placeholder space
       })
     }
   }

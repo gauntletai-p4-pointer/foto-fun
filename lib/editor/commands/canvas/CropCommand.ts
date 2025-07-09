@@ -1,6 +1,6 @@
 import { Command } from '../base'
-import type { Canvas, FabricObject } from 'fabric'
-import { Rect } from 'fabric'
+import type { Canvas } from 'fabric'
+import { FabricImage } from 'fabric'
 
 interface CropBounds {
   left: number
@@ -9,25 +9,15 @@ interface CropBounds {
   height: number
 }
 
-interface ObjectState {
-  clipPath?: unknown // Using unknown to avoid complex Fabric type issues
-  left: number
-  top: number
-  scaleX: number
-  scaleY: number
-}
-
 /**
  * Command to crop the canvas content
- * Stores original states to enable undo/redo
+ * Simplified implementation matching proven working solution
  */
 export class CropCommand extends Command {
   private canvas: Canvas
   private cropBounds: CropBounds
-  private originalStates: Map<FabricObject, ObjectState> = new Map()
   private originalCanvasSize: { width: number; height: number }
-  private newCanvasSize?: { width: number; height: number }
-  private scale: number = 1
+  private originalContent: string = ''
   
   constructor(canvas: Canvas, cropBounds: CropBounds) {
     super('Crop image')
@@ -39,96 +29,145 @@ export class CropCommand extends Command {
       width: canvas.getWidth(),
       height: canvas.getHeight()
     }
-    
-    // Store original state of all objects
-    const objects = canvas.getObjects()
-    objects.forEach(obj => {
-      this.originalStates.set(obj, {
-        clipPath: obj.clipPath,
-        left: obj.left || 0,
-        top: obj.top || 0,
-        scaleX: obj.scaleX || 1,
-        scaleY: obj.scaleY || 1
-      })
-    })
   }
   
   async execute(): Promise<void> {
-    const { left: cropLeft, top: cropTop, width: cropWidth, height: cropHeight } = this.cropBounds
+    const { left, top, width, height } = this.cropBounds
     
-    // Calculate scale factor to fit canvas
-    const canvasWidth = this.canvas.getWidth()
-    const canvasHeight = this.canvas.getHeight()
-    const scaleX = canvasWidth / cropWidth
-    const scaleY = canvasHeight / cropHeight
-    this.scale = Math.min(scaleX, scaleY)
-    
-    // Apply crop to all objects
-    this.originalStates.forEach((originalState, obj) => {
-      // Create and apply clip rectangle
-      const clipRect = new Rect({
-        left: cropLeft,
-        top: cropTop,
-        width: cropWidth,
-        height: cropHeight,
-        absolutePositioned: true
-      })
-      
-      obj.clipPath = clipRect
-      
-      // Scale the object
-      obj.set({
-        scaleX: originalState.scaleX * this.scale,
-        scaleY: originalState.scaleY * this.scale
-      })
-      
-      // Reposition the object
-      obj.set({
-        left: (originalState.left - cropLeft) * this.scale,
-        top: (originalState.top - cropTop) * this.scale
-      })
-      
-      obj.setCoords()
+    console.log('[CropCommand] Cropping with bounds:', this.cropBounds)
+    console.log('[CropCommand] Canvas dimensions:', {
+      width: this.canvas.getWidth(),
+      height: this.canvas.getHeight()
     })
     
-    // Optionally resize canvas to maintain aspect ratio
-    if (scaleX !== scaleY) {
-      this.newCanvasSize = {
-        width: cropWidth * this.scale,
-        height: cropHeight * this.scale
-      }
-      this.canvas.setDimensions(this.newCanvasSize)
-    }
+    // Debug what's on the canvas
+    const objects = this.canvas.getObjects()
+    console.log('[CropCommand] Objects on canvas:', objects.length)
+    objects.forEach((obj, i) => {
+      console.log(`[CropCommand] Object ${i}:`, {
+        type: obj.type,
+        left: obj.left,
+        top: obj.top,
+        width: obj.width,
+        height: obj.height,
+        originX: obj.originX,
+        originY: obj.originY,
+        bounds: obj.getBoundingRect()
+      })
+    })
     
-    this.canvas.renderAll()
+    // Save original canvas state for undo
+    this.originalContent = JSON.stringify(this.canvas.toJSON())
+    
+    // First, let's see what toDataURL returns without any parameters
+    const fullDataUrl = this.canvas.toDataURL()
+    console.log('[CropCommand] Full canvas data URL length:', fullDataUrl.length)
+    
+    // Export only the crop area using Fabric's toDataURL
+    const croppedDataUrl = this.canvas.toDataURL({
+      left: left,
+      top: top,
+      width: width,
+      height: height,
+      multiplier: 1
+    })
+    
+    console.log('[CropCommand] Cropped data URL length:', croppedDataUrl.length)
+    console.log('[CropCommand] URLs are same?', fullDataUrl === croppedDataUrl)
+    
+    console.log('[CropCommand] Created cropped data URL')
+    
+    // Create new image from cropped data
+    return new Promise((resolve, reject) => {
+      const croppedImage = new Image()
+      
+      croppedImage.onload = () => {
+        console.log('[CropCommand] Cropped image loaded:', croppedImage.width, 'x', croppedImage.height)
+        
+        // Let's check if the image actually has content
+        const testCanvas = document.createElement('canvas')
+        testCanvas.width = croppedImage.width
+        testCanvas.height = croppedImage.height
+        const testCtx = testCanvas.getContext('2d')!
+        testCtx.drawImage(croppedImage, 0, 0)
+        
+        const imageData = testCtx.getImageData(0, 0, testCanvas.width, testCanvas.height)
+        let hasVisiblePixels = false
+        for (let i = 3; i < imageData.data.length; i += 4) {
+          if (imageData.data[i] > 0) { // Check alpha channel
+            hasVisiblePixels = true
+            break
+          }
+        }
+        
+        console.log('[CropCommand] Image has visible pixels:', hasVisiblePixels)
+        console.log('[CropCommand] First few pixels:', Array.from(imageData.data.slice(0, 16)))
+        
+        // Clear the canvas
+        this.canvas.clear()
+        
+        // Create fabric image from cropped image
+        const fabricImage = new FabricImage(croppedImage)
+        
+        // Set position to 0,0 (top-left)
+        fabricImage.set({
+          left: 0,
+          top: 0
+        })
+        
+        // Resize canvas to match cropped size
+        this.canvas.setDimensions({
+          width: width,
+          height: height
+        })
+        
+        // Add the cropped image
+        this.canvas.add(fabricImage)
+        this.canvas.renderAll()
+        
+        console.log('[CropCommand] Crop complete')
+        resolve()
+      }
+      
+      croppedImage.onerror = (error) => {
+        console.error('[CropCommand] Error loading cropped image:', error)
+        reject(new Error('Failed to load cropped image'))
+      }
+      
+      croppedImage.src = croppedDataUrl
+    })
   }
   
   async undo(): Promise<void> {
-    // Restore original states for all objects
-    this.originalStates.forEach((originalState, obj) => {
-      obj.set({
-        clipPath: originalState.clipPath,
-        left: originalState.left,
-        top: originalState.top,
-        scaleX: originalState.scaleX,
-        scaleY: originalState.scaleY
-      })
-      obj.setCoords()
-    })
-    
     // Restore original canvas size
     this.canvas.setDimensions(this.originalCanvasSize)
     
-    this.canvas.renderAll()
+    // Restore original content
+    return new Promise((resolve) => {
+      this.canvas.loadFromJSON(this.originalContent, () => {
+        this.canvas.renderAll()
+        resolve()
+      })
+    })
   }
   
   async redo(): Promise<void> {
-    // Re-execute the crop
+    // Simply re-execute
     await this.execute()
   }
   
   canExecute(): boolean {
-    // Can execute if there are objects to crop
-    return this.canvas.getObjects().length > 0
+    // Can execute if crop bounds are valid
+    const canvasWidth = this.canvas.getWidth()
+    const canvasHeight = this.canvas.getHeight()
+    
+    return (
+      this.cropBounds.left >= 0 &&
+      this.cropBounds.top >= 0 &&
+      this.cropBounds.left + this.cropBounds.width <= canvasWidth &&
+      this.cropBounds.top + this.cropBounds.height <= canvasHeight &&
+      this.cropBounds.width > 0 &&
+      this.cropBounds.height > 0
+    )
   }
 } 

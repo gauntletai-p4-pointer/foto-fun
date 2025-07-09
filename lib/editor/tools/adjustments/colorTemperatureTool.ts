@@ -14,12 +14,12 @@ type ColorTemperatureToolState = {
 }
 
 class ColorTemperatureTool extends BaseTool {
-  // Required properties
+  // Tool identification
   id = TOOL_IDS.COLOR_TEMPERATURE
   name = 'Color Temperature'
   icon = Thermometer
   cursor = 'default'
-  shortcut = 'T'
+  shortcut = undefined // Access via adjustments menu
   
   // Tool state
   private state = createToolState<ColorTemperatureToolState>({

@@ -15,7 +15,7 @@ class TypeMaskTool extends BaseTextTool {
   name = 'Type Mask Tool'
   icon = Type
   cursor = 'text'
-  shortcut = 'T' // Same shortcut group as other text tools
+  shortcut = undefined // Access via tool palette
   
   /**
    * Override commitText to create selection instead of keeping text
@@ -23,26 +23,52 @@ class TypeMaskTool extends BaseTextTool {
   protected commitText(): void {
     const currentText = this.state.get('currentText')
     
-    if (!currentText || !this.canvas) return
+    if (!currentText || !this.canvas || this.state.get('isCommitting')) return
     
-    // Exit editing mode
-    currentText.exitEditing()
+    // Set guard flag to prevent re-entry
+    this.state.set('isCommitting', true)
     
-    // If text is not empty, convert to selection
-    if (currentText.text && currentText.text.trim() !== '') {
-      this.convertTextToSelection(currentText)
+    try {
+      // Clean up event handlers first
+      this.cleanupTextEventHandlers()
+      
+      // Exit editing mode
+      if (currentText.isEditing) {
+        currentText.exitEditing()
+      }
+      
+      // Restore controls temporarily for proper bounds calculation
+      currentText.set({
+        hasControls: true,
+        hasBorders: true,
+        lockMovementX: false,
+        lockMovementY: false,
+        lockRotation: false,
+        lockScalingX: false,
+        lockScalingY: false
+      })
+      
+      // If text is not empty (and not just our placeholder space), convert to selection
+      if (currentText.text && currentText.text.trim() !== '') {
+        this.convertTextToSelection(currentText)
+      }
+      
+      // Always remove the text object (we only want the selection)
+      this.canvas.remove(currentText)
+      this.canvas.renderAll()
+      
+      // Reset state
+      this.state.setState({
+        currentText: null,
+        isEditing: false,
+        originalText: '',
+        isCommitting: false
+      })
+    } catch (error) {
+      console.error('Error committing text mask:', error)
+      // Ensure we reset the committing flag even on error
+      this.state.set('isCommitting', false)
     }
-    
-    // Always remove the text object (we only want the selection)
-    this.canvas.remove(currentText)
-    this.canvas.renderAll()
-    
-    // Reset state
-    this.state.setState({
-      currentText: null,
-      isEditing: false,
-      originalText: ''
-    })
   }
   
   /**
@@ -151,14 +177,14 @@ class TypeMaskTool extends BaseTextTool {
   protected createTextObject(x: number, y: number): IText {
     // Create a new text object with visual indicators
     const fontFamily = this.getOptionValue<string>('fontFamily') || 'Arial'
-    const fontSize = this.getOptionValue<number>('fontSize') || 24
+    const fontSize = this.getOptionValue<number>('fontSize') || 60
     const color = this.getOptionValue<string>('color') || '#000000'
     const alignment = this.getOptionValue<string>('alignment') || 'left'
     const bold = this.getOptionValue<boolean>('bold') || false
     const italic = this.getOptionValue<boolean>('italic') || false
     const underline = this.getOptionValue<boolean>('underline') || false
     
-    const text = new IText('', {
+    const text = new IText(' ', {
       left: x,
       top: y,
       fontFamily,
@@ -169,13 +195,13 @@ class TypeMaskTool extends BaseTextTool {
       fontStyle: italic ? 'italic' : 'normal',
       underline,
       editable: true,
-      cursorColor: '#000000',
+      cursorColor: color, // Match cursor color to text color
       cursorWidth: 2,
       cursorDelay: 500,
       cursorDuration: 500,
       selectionColor: 'rgba(100, 100, 255, 0.3)',
       selectionStart: 0,
-      selectionEnd: 0,
+      selectionEnd: 1, // Select the placeholder space
       evented: true,
       // Visual indicator that this is a mask tool
       stroke: '#0066ff',

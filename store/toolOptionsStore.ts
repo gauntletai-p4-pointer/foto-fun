@@ -686,7 +686,7 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         id: 'fontSize',
         type: 'number',
         label: 'Size',
-        value: 24,
+        value: 60,
         props: {
           min: 8,
           max: 144,
@@ -773,7 +773,7 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         id: 'fontSize',
         type: 'number',
         label: 'Size',
-        value: 24,
+        value: 60,
         props: {
           min: 8,
           max: 144,
@@ -860,7 +860,7 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         id: 'fontSize',
         type: 'number',
         label: 'Size',
-        value: 24,
+        value: 60,
         props: {
           min: 8,
           max: 144,
@@ -941,7 +941,7 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         id: 'fontSize',
         type: 'number',
         label: 'Size',
-        value: 24,
+        value: 60,
         props: {
           min: 8,
           max: 144,

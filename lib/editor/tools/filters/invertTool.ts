@@ -14,12 +14,12 @@ type InvertToolState = {
 }
 
 class InvertTool extends BaseTool {
-  // Required properties
+  // Tool identification
   id = TOOL_IDS.INVERT
   name = 'Invert'
   icon = Contrast
   cursor = 'default'
-  shortcut = 'I'
+  shortcut = undefined // Access via filters menu
   
   // Tool state
   private state = createToolState<InvertToolState>({

@@ -13,22 +13,22 @@ class VerticalTypeTool extends BaseTextTool {
   name = 'Vertical Type Tool'
   icon = Type
   cursor = 'text'
-  shortcut = 'T' // Same as horizontal, toggle between them
+  shortcut = undefined // Access via tool palette or tool cycling
   
   /**
    * Create a vertical text object
    */
   protected createTextObject(x: number, y: number): IText {
     const fontFamily = this.getOptionValue<string>('fontFamily') || 'Arial'
-    const fontSize = this.getOptionValue<number>('fontSize') || 24
+    const fontSize = this.getOptionValue<number>('fontSize') || 60
     const color = this.getOptionValue<string>('color') || '#000000'
     const alignment = this.getOptionValue<string>('alignment') || 'left'
     const bold = this.getOptionValue<boolean>('bold') || false
     const italic = this.getOptionValue<boolean>('italic') || false
     const underline = this.getOptionValue<boolean>('underline') || false
     
-    // Create IText object with vertical properties
-    const text = new IText('', {
+    // Create IText object with vertical orientation
+    const text = new IText(' ', {
       left: x,
       top: y,
       fontFamily,
@@ -38,26 +38,19 @@ class VerticalTypeTool extends BaseTextTool {
       fontWeight: bold ? 'bold' : 'normal',
       fontStyle: italic ? 'italic' : 'normal',
       underline,
+      angle: -90, // Rotate 90 degrees counter-clockwise for vertical text
+      originX: 'left',
+      originY: 'top',
       editable: true,
-      cursorColor: '#000000',
+      cursorColor: color, // Match cursor color to text color
       cursorWidth: 2,
       cursorDelay: 500,
       cursorDuration: 500,
       selectionColor: 'rgba(100, 100, 255, 0.3)',
       selectionStart: 0,
-      selectionEnd: 0,
-      evented: true,
-      // Vertical text specific properties
-      direction: 'rtl', // Right to left for vertical
-      splitByGrapheme: true, // Important for Asian characters
+      selectionEnd: 1, // Select the placeholder space
+      evented: true
     })
-    
-    // Rotate for vertical orientation
-    text.angle = 90
-    
-    // Adjust origin for better positioning
-    text.originX = 'center'
-    text.originY = 'center'
     
     return text
   }

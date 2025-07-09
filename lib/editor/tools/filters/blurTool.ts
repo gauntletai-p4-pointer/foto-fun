@@ -14,12 +14,12 @@ type BlurToolState = {
 }
 
 class BlurTool extends BaseTool {
-  // Required properties
+  // Tool identification
   id = TOOL_IDS.BLUR
   name = 'Blur'
   icon = Aperture
   cursor = 'default'
-  shortcut = 'B'
+  shortcut = undefined // Access via filters menu
   
   // Tool state
   private state = createToolState<BlurToolState>({

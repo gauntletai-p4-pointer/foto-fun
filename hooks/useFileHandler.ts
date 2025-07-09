@@ -2,8 +2,9 @@ import { useCallback, useRef } from 'react'
 import { useDocumentStore } from '@/store/documentStore'
 import { MAX_FILE_SIZE } from '@/constants'
 
-export function useFileHandler() {
+export function useFileHandler(mode: 'open' | 'insert' = 'open') {
   const openDocument = useDocumentStore(state => state.openDocument)
+  const insertImage = useDocumentStore(state => state.insertImage)
   const fileInputRef = useRef<HTMLInputElement>(null)
   
   const validateFile = (file: File): string | null => {
@@ -28,12 +29,16 @@ export function useFileHandler() {
     }
     
     try {
-      await openDocument(file)
+      if (mode === 'insert') {
+        await insertImage(file)
+      } else {
+        await openDocument(file)
+      }
     } catch (error) {
-      console.error('Failed to open file:', error)
-      alert('Failed to open file. Please try again.')
+      console.error('Failed to handle file:', error)
+      alert('Failed to handle file. Please try again.')
     }
-  }, [openDocument])
+  }, [openDocument, insertImage, mode])
   
   const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]

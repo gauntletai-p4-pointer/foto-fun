@@ -29,7 +29,8 @@ import { SettingsDialog } from './SettingsDialog'
 export function MenuBar() {
   const [newDocumentOpen, setNewDocumentOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const { fileInputRef, handleFileSelect, triggerFileInput } = useFileHandler()
+  const { fileInputRef: openFileInputRef, handleFileSelect: handleOpenFileSelect, triggerFileInput: triggerOpenFileInput } = useFileHandler('open')
+  const { fileInputRef: insertFileInputRef, handleFileSelect: handleInsertFileSelect, triggerFileInput: triggerInsertFileInput } = useFileHandler('insert')
   const { saveDocument, currentDocument, hasUnsavedChanges } = useDocumentStore()
   const { theme, setTheme } = useTheme()
   const { user } = useAuth()
@@ -138,10 +139,14 @@ export function MenuBar() {
                 New
                 <DropdownMenuShortcut>⌘N</DropdownMenuShortcut>
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={triggerFileInput}>
+              <DropdownMenuItem onClick={triggerOpenFileInput}>
                 <FileImage className="mr-2 h-4 w-4" />
                 Open...
                 <DropdownMenuShortcut>⌘O</DropdownMenuShortcut>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={triggerInsertFileInput}>
+                <FileImage className="mr-2 h-4 w-4" />
+                Insert Image...
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem 
@@ -379,10 +384,17 @@ export function MenuBar() {
       
       {/* Hidden file input */}
       <input
-        ref={fileInputRef}
+        ref={openFileInputRef}
         type="file"
         accept="image/*"
-        onChange={handleFileSelect}
+        onChange={handleOpenFileSelect}
+        className="hidden"
+      />
+      <input
+        ref={insertFileInputRef}
+        type="file"
+        accept="image/*"
+        onChange={handleInsertFileSelect}
         className="hidden"
       />
       
