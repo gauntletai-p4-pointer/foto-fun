@@ -4,6 +4,7 @@ import { Check, Sparkles, Zap, Users, Code } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import Link from 'next/link'
 import { signInWithOAuth } from '@/lib/auth/actions'
+import { useAuth } from '@/hooks/useAuth'
 
 const plans = [
   {
@@ -80,6 +81,8 @@ const plans = [
 ]
 
 export function PricingSection() {
+  const { user, loading } = useAuth()
+
   const handleStartFree = async () => {
     // Sign in with Google OAuth
     await signInWithOAuth('google')
@@ -159,7 +162,9 @@ export function PricingSection() {
 
                 {/* CTA */}
                 <div className="mt-auto">
-                  {plan.name === 'Pro' ? (
+                  {loading ? (
+                    <div className="h-10 w-full bg-foreground/10 rounded-md animate-pulse" />
+                  ) : plan.name === 'Pro' ? (
                     <form action={handleStartFree}>
                       <Button 
                         type="submit"
@@ -169,6 +174,28 @@ export function PricingSection() {
                         {plan.cta}
                       </Button>
                     </form>
+                  ) : plan.name === 'Free' ? (
+                    user ? (
+                      <Button 
+                        className="w-full"
+                        variant="outline"
+                        asChild
+                      >
+                        <Link href="/editor">
+                          {plan.cta}
+                        </Link>
+                      </Button>
+                    ) : (
+                      <form action={handleStartFree}>
+                        <Button 
+                          type="submit"
+                          className="w-full"
+                          variant="outline"
+                        >
+                          {plan.cta}
+                        </Button>
+                      </form>
+                    )
                   ) : (
                     <Button 
                       className={`w-full ${plan.popular ? 'bg-gradient-to-r from-primary to-primary-dark hover:shadow-lg hover:shadow-primary/25' : ''}`}

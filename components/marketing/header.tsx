@@ -7,8 +7,7 @@ import { Moon, Sun, Menu, X, Github, ArrowRight } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { cn } from '@/lib/utils'
 import { signInWithOAuth } from '@/lib/auth/actions'
-// import { createClient } from '@/lib/db/supabase/client'
-// import { User } from '@supabase/supabase-js'
+import { useAuth } from '@/hooks/useAuth'
 
 const navigation = [
   { name: 'Features', href: '#features' },
@@ -22,7 +21,7 @@ export function Header() {
   const [isScrolled, setIsScrolled] = useState(false)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const [githubStars] = useState<number | null>(null)
-  const [user] = useState<null>(null) // Temporarily disabled
+  const { user, loading } = useAuth()
 
   useEffect(() => {
     const handleScroll = () => {
@@ -39,24 +38,6 @@ export function Header() {
   //     .then(res => res.json())
   //     .then(data => setGithubStars(data.stargazers_count))
   //     .catch(() => setGithubStars(null))
-  // }, [])
-
-  // Temporarily disable auth check
-  // useEffect(() => {
-  //   const checkUser = async () => {
-  //     const supabase = createClient()
-  //     const { data: { user } } = await supabase.auth.getUser()
-  //     setUser(user)
-  //   }
-    
-  //   checkUser()
-
-  //   const supabase = createClient()
-  //   const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-  //     setUser(session?.user ?? null)
-  //   })
-
-  //   return () => subscription.unsubscribe()
   // }, [])
 
   const handleSignIn = async () => {
@@ -125,7 +106,9 @@ export function Header() {
 
             {/* CTA Button */}
             <div className="ml-2">
-              {user ? (
+              {loading ? (
+                <div className="h-9 w-24 bg-foreground/10 rounded-md animate-pulse" />
+              ) : user ? (
                 <Button asChild>
                   <Link href="/editor">
                     Open Editor
@@ -193,7 +176,9 @@ export function Header() {
                   </span>
                 )}
               </Link>
-              {user ? (
+              {loading ? (
+                <div className="h-10 w-full bg-foreground/10 rounded-md animate-pulse" />
+              ) : user ? (
                 <Link href="/editor" className="block pt-2">
                   <Button className="w-full bg-gradient-to-r from-primary to-primary-dark">
                     Open Editor

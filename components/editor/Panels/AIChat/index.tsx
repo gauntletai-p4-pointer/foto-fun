@@ -6,7 +6,6 @@ import type { UIMessage } from 'ai'
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { Send, Bot, User, Loader2, AlertCircle, Wrench, Check, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
@@ -65,11 +64,38 @@ const parseMessageWithTools = (text: string, toolNames: string[]) => {
 
 export function AIChat() {
   const scrollAreaRef = useRef<HTMLDivElement>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
   const [input, setInput] = useState('')
   const [toolNames, setToolNames] = useState<string[]>([])
   const [quickActions, setQuickActions] = useState<string[]>([])
   const { isReady: isCanvasReady, initializationError, waitForReady, hasContent } = useCanvasStore()
   const { settings: aiSettings } = useAISettings()
+  
+  // Auto-resize textarea with max height
+  const adjustTextareaHeight = useCallback(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto'
+      const scrollHeight = textareaRef.current.scrollHeight
+      const maxHeight = 8 * 24 // 8 lines * 24px line height
+      textareaRef.current.style.height = `${Math.min(scrollHeight, maxHeight)}px`
+    }
+  }, [])
+  
+  useEffect(() => {
+    adjustTextareaHeight()
+  }, [input, adjustTextareaHeight])
+  
+  // Handle Enter key to send message
+  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      // Trigger form submission
+      const form = e.currentTarget.form
+      if (form) {
+        form.requestSubmit()
+      }
+    }
+  }, [])
   
   // Initialize adapter registry and get tool names
   useEffect(() => {
@@ -229,9 +255,11 @@ export function AIChat() {
         const objects = currentState.fabricCanvas.getObjects()
         console.log('[AIChat] Canvas objects:', objects.length)
         
-        // Check if there's actually an image loaded
+        // Check if there's actually an image loaded (some tools like image generation don't need existing content)
         if (objects.length === 0) {
-          throw new Error('No image loaded. Please open an image file before using AI tools.')
+          // Only show this warning for tools that require existing content
+          // Image generation and other AI-native tools can work with empty canvas
+          console.log('[AIChat] Canvas is empty, but some tools (like image generation) can work with empty canvas')
         }
         
         // Execute the tool - canvas context is now handled internally by ClientToolExecutor
@@ -258,14 +286,14 @@ export function AIChat() {
     e.preventDefault()
     // Get fresh state from store
     const currentState = useCanvasStore.getState()
-    if (input.trim() && !isLoading && currentState.hasContent()) {
+    if (input.trim() && !isLoading && currentState.isReady) {
       // Include canvas context and AI settings with each message
       const canvasContext = currentState.fabricCanvas ? {
         dimensions: {
           width: currentState.fabricCanvas.getWidth(),
           height: currentState.fabricCanvas.getHeight()
         },
-        hasContent: true,
+        hasContent: currentState.hasContent(),
         objectCount: currentState.fabricCanvas.getObjects().length
       } : null
       
@@ -292,14 +320,14 @@ export function AIChat() {
   const handleQuickAction = useCallback((suggestion: string) => {
     // Get fresh state from store
     const currentState = useCanvasStore.getState()
-    if (!isLoading && suggestion && currentState.hasContent()) {
+    if (!isLoading && suggestion && currentState.isReady) {
       // Include canvas context with quick actions too
       const canvasContext = currentState.fabricCanvas ? {
         dimensions: {
           width: currentState.fabricCanvas.getWidth(),
           height: currentState.fabricCanvas.getHeight()
         },
-        hasContent: true,
+        hasContent: currentState.hasContent(),
         objectCount: currentState.fabricCanvas.getObjects().length
       } : null
       
@@ -344,7 +372,7 @@ export function AIChat() {
           {isCanvasReady && !hasContent() && (
             <div className="text-center text-foreground/60 text-sm p-3 bg-foreground/10/10 rounded-lg border border-foreground/20">
               <AlertCircle className="w-4 h-4 inline-block mr-2" />
-              Please open an image file to start editing.
+              Canvas is ready! Open an image file to start editing, or ask me to generate one.
             </div>
           )}
           
@@ -358,32 +386,37 @@ export function AIChat() {
                 <span className="text-xs text-muted-foreground font-medium">AI Assistant</span>
               </div>
               
-              {/* Welcome message content */}
-              <div className="flex justify-start">
-                <div className="max-w-[95%] bg-foreground/5 text-foreground rounded-lg rounded-tl-sm px-3 py-2">
-                  <p className="text-sm mb-3">Welcome! I&apos;m ready to help edit your photo. What would you like to do?</p>
-                  
-                  {/* Quick start suggestions */}
-                  <div className="space-y-2">
-                    <p className="text-xs text-foreground/60">Try asking me to...</p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {[
-                        "Enhance the colors",
-                        "Make it brighter",
-                        "Add blur effect",
-                        "Convert to black & white"
-                      ].map((suggestion) => (
-                        <button
-                          key={suggestion}
-                          type="button"
-                          onClick={() => handleQuickAction(suggestion)}
-                          className="text-xs px-2 py-1 rounded-md bg-foreground/10 hover:bg-foreground/20 text-foreground transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                          disabled={!isCanvasReady || !hasContent()}
-                        >
-                          {suggestion}
-                        </button>
-                      ))}
-                    </div>
+              {/* Welcome message styled like assistant message */}
+              <div className="flex-1 space-y-3">
+                <div className="bg-foreground/5 text-foreground rounded-lg px-3 py-2 max-w-[85%]">
+                  <p className="text-sm">Welcome! I&apos;m ready to help you {hasContent() ? 'edit your photo' : 'generate or edit photos'}. What would you like to do?</p>
+                </div>
+                
+                {/* Quick start suggestions */}
+                <div className="space-y-2">
+                  <p className="text-xs text-foreground/60 ml-1">Try asking me to...</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {(hasContent() ? [
+                      "Enhance the colors",
+                      "Make it brighter",
+                      "Add blur effect",
+                      "Convert to black & white"
+                    ] : [
+                      "Generate an image of a sunset",
+                      "Create a logo design",
+                      "Generate a landscape photo",
+                      "Create abstract art"
+                    ]).map((suggestion) => (
+                      <button
+                        key={suggestion}
+                        type="button"
+                        onClick={() => handleQuickAction(suggestion)}
+                        className="text-xs px-2 py-1 rounded-md bg-foreground/10 hover:bg-foreground/10/80 text-foreground transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        disabled={!isCanvasReady || isLoading}
+                      >
+                        {suggestion}
+                      </button>
+                    ))}
                   </div>
                 </div>
               </div>
@@ -693,20 +726,29 @@ export function AIChat() {
       </ScrollArea>
       
       {/* Input */}
-      <form onSubmit={handleSubmit} className="border-t border-foreground/10 p-4">
-        <div className="flex gap-3">
-          <Input
+      <form onSubmit={handleSubmit} className="border-t border-foreground/10 p-3">
+        <div className="flex gap-2">
+          <textarea
+            ref={textareaRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder={isCanvasReady ? "Ask me anything about editing your photo..." : "Waiting for canvas to load..."}
+            onKeyDown={handleKeyDown}
+            placeholder={isCanvasReady ? (hasContent() ? "Ask me anything about editing your photo..." : "Ask me to generate or edit photos...") : "Waiting for canvas to load..."}
             disabled={isLoading || !isCanvasReady}
-            className="flex-1 text-foreground bg-background border-foreground/20 focus:border-primary"
+            rows={1}
+            className={cn(
+              "flex-1 min-h-[2.5rem] w-full resize-none rounded-md border border-foreground/10 bg-transparent px-3 py-2 text-sm shadow-sm transition-colors outline-none overflow-y-auto",
+              "placeholder:text-foreground/40",
+              "hover:border-foreground/20",
+              "focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/20",
+              "disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50"
+            )}
           />
           <Button
             type="submit"
             size="icon"
             disabled={!input.trim() || isLoading || !isCanvasReady}
-            className="shrink-0"
+            className="self-end"
           >
             {isLoading ? (
               <Loader2 className="w-4 h-4 animate-spin" />
@@ -717,14 +759,19 @@ export function AIChat() {
         </div>
         
         {/* Quick actions */}
-        <div className="mt-3 flex flex-wrap gap-1.5">
-          {quickActions.map((suggestion) => (
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {(hasContent() ? quickActions : [
+            "Generate an image of a sunset",
+            "Create a logo design",
+            "Generate a landscape photo",
+            "Create abstract art"
+          ]).map((suggestion) => (
             <button
               key={suggestion}
               type="button"
               onClick={() => handleQuickAction(suggestion)}
-              className="text-xs px-3 py-1.5 rounded-full bg-foreground/10 hover:bg-foreground/20 text-foreground transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              disabled={isLoading || !isCanvasReady || !hasContent()}
+              className="text-xs px-2 py-1 rounded-md bg-foreground/10 hover:bg-foreground/10/80 text-foreground transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={isLoading || !isCanvasReady}
             >
               {suggestion}
             </button>

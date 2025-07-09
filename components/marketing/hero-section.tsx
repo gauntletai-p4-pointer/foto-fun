@@ -5,9 +5,11 @@ import { Button } from '@/components/ui/button'
 import { ArrowRight, Sparkles, Zap } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { signInWithOAuth } from '@/lib/auth/actions'
+import { useAuth } from '@/hooks/useAuth'
 
 export function HeroSection() {
   const [commandText, setCommandText] = useState('')
+  const { user, loading } = useAuth()
   
   useEffect(() => {
     const commands = [
@@ -93,19 +95,37 @@ export function HeroSection() {
 
               {/* CTAs */}
               <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start animate-in fade-in slide-in-from-bottom-3 duration-500 delay-300">
-                <form action={handleGetStarted}>
+                {loading ? (
+                  <div className="h-11 w-48 bg-foreground/10 rounded-md animate-pulse" />
+                ) : user ? (
                   <Button 
-                    type="submit"
                     size="lg" 
                     className="group relative overflow-hidden bg-gradient-to-r from-primary to-blue-600 hover:from-primary/90 hover:to-blue-600/90 text-white shadow-xl hover:shadow-2xl transition-all duration-300"
+                    asChild
                   >
-                    <span className="relative z-10 flex items-center gap-2">
-                      Start Creating Free
-                      <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-                    </span>
-                    <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-primary opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                    <Link href="/editor">
+                      <span className="relative z-10 flex items-center gap-2">
+                        Start Creating Free
+                        <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                      </span>
+                      <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-primary opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                    </Link>
                   </Button>
-                </form>
+                ) : (
+                  <form action={handleGetStarted}>
+                    <Button 
+                      type="submit"
+                      size="lg" 
+                      className="group relative overflow-hidden bg-gradient-to-r from-primary to-blue-600 hover:from-primary/90 hover:to-blue-600/90 text-white shadow-xl hover:shadow-2xl transition-all duration-300"
+                    >
+                      <span className="relative z-10 flex items-center gap-2">
+                        Start Creating Free
+                        <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                      </span>
+                      <div className="absolute inset-0 bg-gradient-to-r from-blue-600 to-primary opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                    </Button>
+                  </form>
+                )}
                 <Button 
                   size="lg" 
                   variant="outline"

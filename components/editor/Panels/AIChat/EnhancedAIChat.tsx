@@ -6,7 +6,6 @@ import type { UIMessage } from 'ai'
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { Send, Bot, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { useCanvasStore } from '@/store/canvasStore'
 import { AgentApprovalDialog } from '../../AgentApprovalDialog'
@@ -16,9 +15,36 @@ import { cn } from '@/lib/utils'
 
 export function EnhancedAIChat() {
   const scrollAreaRef = useRef<HTMLDivElement>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
   const [input, setInput] = useState('')
   const [agentMode, setAgentMode] = useState(false)
   const { isReady: isCanvasReady, fabricCanvas, hasContent } = useCanvasStore()
+  
+  // Auto-resize textarea with max height
+  const adjustTextareaHeight = useCallback(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto'
+      const scrollHeight = textareaRef.current.scrollHeight
+      const maxHeight = 8 * 24 // 8 lines * 24px line height
+      textareaRef.current.style.height = `${Math.min(scrollHeight, maxHeight)}px`
+    }
+  }, [])
+  
+  useEffect(() => {
+    adjustTextareaHeight()
+  }, [input, adjustTextareaHeight])
+  
+  // Handle Enter key to send message
+  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      // Trigger form submission
+      const form = e.currentTarget.form
+      if (form) {
+        form.requestSubmit()
+      }
+    }
+  }, [])
   
   // Mock pending approval state for now
   const [pendingApproval, setPendingApproval] = useState<{
@@ -53,13 +79,13 @@ export function EnhancedAIChat() {
 
   const handleSubmit = useCallback((e: React.FormEvent) => {
     e.preventDefault()
-    if (input.trim() && !isLoading && fabricCanvas && hasContent()) {
+    if (input.trim() && !isLoading && fabricCanvas && isCanvasReady) {
       const canvasContext = {
         dimensions: {
           width: fabricCanvas.getWidth(),
           height: fabricCanvas.getHeight()
         },
-        hasContent: fabricCanvas.getObjects().length > 0,
+        hasContent: hasContent(),
         objectCount: fabricCanvas.getObjects().length
       }
       
@@ -175,13 +201,23 @@ export function EnhancedAIChat() {
       {/* Input */}
       <form onSubmit={handleSubmit} className="p-4 border-t">
         <div className="flex gap-2">
-          <Input
+          <textarea
+            ref={textareaRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
+            onKeyDown={handleKeyDown}
             placeholder={agentMode ? "Describe what you'd like to do..." : "Ask about editing..."}
             disabled={isLoading || !isCanvasReady}
+            rows={1}
+            className={cn(
+              "flex-1 min-h-[2.5rem] w-full resize-none rounded-md border border-foreground/10 bg-transparent px-3 py-2 text-sm shadow-sm transition-colors outline-none overflow-y-auto",
+              "placeholder:text-foreground/40",
+              "hover:border-foreground/20",
+              "focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/20",
+              "disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50"
+            )}
           />
-          <Button type="submit" disabled={isLoading || !fabricCanvas || !hasContent()}>
+          <Button type="submit" disabled={isLoading || !fabricCanvas || !isCanvasReady} className="self-end">
             <Send className="h-4 w-4" />
           </Button>
         </div>

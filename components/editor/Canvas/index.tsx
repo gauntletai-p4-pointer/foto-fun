@@ -32,8 +32,7 @@ export function Canvas() {
     clipboardManager
   } = useCanvasStore()
   
-
-  const { handleDrop, handleDragOver } = useFileHandler()
+  const { handleDrop, handleDragOver } = useFileHandler('insert')
   const { executeCommand } = useHistoryStore()
   
   // Initialize canvas

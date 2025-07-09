@@ -1,8 +1,9 @@
-import { type NextRequest, NextResponse } from 'next/server'
+import { type NextRequest } from 'next/server'
+import { updateSession } from '@/lib/db/supabase/middleware'
 
 export async function middleware(request: NextRequest) {
-  // Temporarily bypass all auth checks to diagnose the 431 error
-  return NextResponse.next()
+  // Use the existing updateSession function which handles auth checks
+  return await updateSession(request)
 }
 
 export const config = {

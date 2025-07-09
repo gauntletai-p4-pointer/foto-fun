@@ -94,10 +94,11 @@ export class ClientToolExecutor {
       throw new Error('Canvas is not available. Please ensure an image is loaded.')
     }
     
-    // Check if canvas has content
+    // Check if canvas has content for tools that need it
     if (!hasContent()) {
-      console.error('[ClientToolExecutor] Canvas has no content')
-      throw new Error('No image loaded. Please open an image file before using AI tools.')
+      console.log('[ClientToolExecutor] Canvas has no content')
+      // Some tools (like image generation) don't need existing content
+      // Let the tool adapter handle whether it needs content or not
     }
     
     // Get full context from bridge, but use our verified canvas
