@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { BaseToolAdapter } from '../base'
 import { flipTool } from '@/lib/editor/tools/transform/flipTool'
-import type { Canvas } from 'fabric'
+import type { CanvasContext } from '@/lib/ai/tools/canvas-bridge'
 
 // Define parameter schema
 const flipParameters = z.object({
@@ -17,25 +17,47 @@ interface FlipOutput {
   horizontal: boolean
   vertical: boolean
   message: string
+  targetingMode: 'selection' | 'all-images'
 }
 
 // Create adapter class
 export class FlipAdapter extends BaseToolAdapter<FlipInput, FlipOutput> {
   tool = flipTool
   aiName = 'flipImage'
-  description = `Flip an image horizontally (mirror) or vertically (upside down). Common patterns:
+  description = `Flip existing images horizontally or vertically. You MUST determine the flip direction based on user intent.
+
+INTELLIGENT TARGETING:
+- If you have images selected, only those images will be flipped
+- If no images are selected, all images on the canvas will be flipped
+
+Common flip requests:
 - "flip horizontally" or "mirror" → horizontal: true
-- "flip vertically" or "upside down" → vertical: true  
+- "flip vertically" or "flip upside down" → vertical: true
 - "flip both ways" → horizontal: true, vertical: true
-NEVER ask which direction to flip.`
+
+NEVER ask which direction - interpret the user's intent.`
+
+  metadata = {
+    category: 'canvas-editing' as const,
+    executionType: 'fast' as const,
+    worksOn: 'existing-image' as const
+  }
+
   inputSchema = flipParameters
   
-  async execute(params: FlipInput, context: { canvas: Canvas }): Promise<FlipOutput> {
+  async execute(params: FlipInput, context: CanvasContext): Promise<FlipOutput> {
     try {
-      // Verify canvas has content
-      const objects = context.canvas.getObjects()
-      if (objects.length === 0) {
-        throw new Error('No content found on canvas. Please load an image first.')
+      console.log('[FlipAdapter] Execute called with params:', params)
+      console.log('[FlipAdapter] Targeting mode:', context.targetingMode)
+      
+      // Use pre-filtered target images from enhanced context
+      const images = context.targetImages
+      
+      console.log('[FlipAdapter] Target images:', images.length)
+      console.log('[FlipAdapter] Targeting mode:', context.targetingMode)
+      
+      if (images.length === 0) {
+        throw new Error('No images found to flip. Please load an image or select images first.')
       }
       
       // Activate the flip tool first
@@ -69,15 +91,17 @@ NEVER ask which direction to flip.`
         horizontal: params.horizontal || false,
         vertical: params.vertical || false,
         message: flips.length > 0 
-          ? `Flipped image ${flips.join(' and ')}`
-          : 'No flip applied'
+          ? `Flipped ${images.length} image(s) ${flips.join(' and ')}`
+          : 'No flip applied',
+        targetingMode: context.targetingMode
       }
     } catch (error) {
       return {
         success: false,
         horizontal: false,
         vertical: false,
-        message: error instanceof Error ? error.message : 'Failed to flip image'
+        message: error instanceof Error ? error.message : 'Failed to flip image',
+        targetingMode: context.targetingMode
       }
     }
   }

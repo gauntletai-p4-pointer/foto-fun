@@ -2,6 +2,16 @@ import { z } from 'zod'
 import { tool } from 'ai'
 import type { Tool } from '@/types'
 import type { Canvas } from 'fabric'
+import type { CanvasContext } from '@/lib/ai/tools/canvas-bridge'
+
+/**
+ * Metadata for tool adapters to help with routing decisions
+ */
+export interface ToolMetadata {
+  category: 'canvas-editing' | 'ai-native'
+  executionType: 'fast' | 'slow' | 'expensive'
+  worksOn: 'existing-image' | 'new-image' | 'both'
+}
 
 /**
  * Base class for tool adapters following AI SDK v5 patterns
@@ -38,15 +48,20 @@ export abstract class BaseToolAdapter<
   abstract description: string
   
   /**
+   * Metadata for routing decisions
+   */
+  abstract metadata: ToolMetadata
+  
+  /**
    * Zod schema for input validation (AI SDK v5 beta.9 uses 'inputSchema')
    */
   abstract inputSchema: z.ZodType<TInput>
   
   /**
    * Execute the tool with the given parameters
-   * This follows AI SDK v5's execute pattern
+   * This follows AI SDK v5's execute pattern with enhanced canvas context
    */
-  abstract execute(params: TInput, context: { canvas: Canvas }): Promise<TOutput>
+  abstract execute(params: TInput, context: CanvasContext): Promise<TOutput>
   
   /**
    * Optional: Check if the tool can be executed in the current state

@@ -4,6 +4,13 @@ import { exposureTool } from '@/lib/editor/tools/adjustments/exposureTool'
 import type { Canvas } from 'fabric'
 import type { Image as FabricImage } from 'fabric'
 import { filters } from 'fabric'
+import type { CanvasContext } from '@/lib/ai/tools/canvas-bridge'
+
+// Extended type for FabricImage with filters
+type FabricImageWithFilters = FabricImage & {
+  filters?: unknown[]
+  applyFilters(): void
+}
 
 // Define parameter schema
 const exposureParameters = z.object({
@@ -21,6 +28,7 @@ interface ExposureOutput {
   adjustment: number
   affectedImages: number
   message: string
+  targetingMode: 'selection' | 'all-images'
 }
 
 // Define filter type
@@ -34,56 +42,70 @@ interface ImageFilter {
 export class ExposureToolAdapter extends BaseToolAdapter<ExposureInput, ExposureOutput> {
   tool = exposureTool
   aiName = 'adjustExposure'
-  description = `Adjust image exposure (simulates camera exposure compensation). You MUST calculate the adjustment value based on user intent.
-Common patterns you should use:
-- "increase exposure" or "overexpose" → +30 to +50
-- "decrease exposure" or "underexpose" → -30 to -50
-- "slightly overexposed" → +15 to +25
-- "slightly underexposed" → -15 to -25
-- "blown out" or "very overexposed" → +60 to +80
-- "very dark" or "very underexposed" → -60 to -80
-- "adjust exposure by X stops" → X * 33 (each stop ≈ 33 units)
-Note: Exposure has a more dramatic effect than brightness, affecting the entire tonal range.
-NEVER ask for exact values - always interpret the user's intent and choose an appropriate value.`
-  
+  description = `Adjust the exposure of existing images to make them appear properly exposed.
+
+INTELLIGENT TARGETING:
+- If you have images selected, only those images will be adjusted
+- If no images are selected, all images on the canvas will be adjusted
+
+You MUST calculate the adjustment value based on user intent:
+- "increase exposure" or "brighter exposure" → +20 to +30
+- "decrease exposure" or "darker exposure" → -20 to -30
+- "fix overexposure" → -30 to -50
+- "fix underexposure" → +30 to +50
+- "neutral exposure" → 0
+
+NEVER ask for exact values - interpret the user's intent.
+Range: -100 (very dark) to +100 (very bright)`
+
+  metadata = {
+    category: 'canvas-editing' as const,
+    executionType: 'fast' as const,
+    worksOn: 'existing-image' as const
+  }
+
   inputSchema = exposureParameters
   
-  async execute(params: ExposureInput, context: { canvas: Canvas }): Promise<ExposureOutput> {
+  async execute(params: ExposureInput, context: CanvasContext): Promise<ExposureOutput> {
     console.log('[ExposureToolAdapter] Execute called with params:', params)
+    console.log('[ExposureToolAdapter] Targeting mode:', context.targetingMode)
+    
     const canvas = context.canvas
     
     if (!canvas) {
       throw new Error('Canvas is required but not provided in context')
     }
     
-    // Get all image objects
-    const objects = canvas.getObjects()
-    const images = objects.filter(obj => obj.type === 'image') as FabricImage[]
+    // Use pre-filtered target images from enhanced context
+    const images = context.targetImages
     
-    console.log('[ExposureToolAdapter] Found images:', images.length)
-    console.log('[ExposureToolAdapter] All objects:', objects.map(obj => obj.type))
+    console.log('[ExposureToolAdapter] Target images:', images.length)
+    console.log('[ExposureToolAdapter] Targeting mode:', context.targetingMode)
     
     if (images.length === 0) {
-      throw new Error('No images found on canvas. Please load an image first before adjusting exposure.')
+      throw new Error('No images found to adjust exposure. Please load an image or select images first.')
     }
     
-    // Apply exposure to all images
+    // Apply exposure to target images only
     images.forEach((img, index) => {
-      console.log(`[ExposureToolAdapter] Processing image ${index + 1}:`)
-      console.log(`  - Before filters:`, img.filters?.length || 0, 'filters')
+      console.log(`[ExposureToolAdapter] Processing image ${index + 1}/${images.length}`)
+      
+      const imageWithFilters = img as FabricImageWithFilters
+      
+      console.log(`  - Before filters:`, imageWithFilters.filters?.length || 0, 'filters')
       
       // Remove existing exposure filters
-      if (!img.filters) {
-        img.filters = []
+      if (!imageWithFilters.filters) {
+        imageWithFilters.filters = []
       } else {
-        const beforeCount = img.filters.length
-        img.filters = img.filters.filter((f) => {
+        const beforeCount = imageWithFilters.filters.length
+        imageWithFilters.filters = imageWithFilters.filters.filter((f: unknown) => {
           const filter = f as unknown as ImageFilter
           const isExposureFilter = f instanceof filters.Brightness && filter.isExposure
           console.log(`    - Checking filter, isExposure: ${isExposureFilter}`)
           return !isExposureFilter
         })
-        const afterCount = img.filters.length
+        const afterCount = imageWithFilters.filters.length
         console.log(`    - Removed ${beforeCount - afterCount} existing exposure filters`)
       }
       
@@ -107,17 +129,17 @@ NEVER ask for exact values - always interpret the user's intent and choose an ap
         console.log(`    - Created exposure filter:`, exposureFilter)
         console.log(`    - Filter marked as exposure: ${(exposureFilter as unknown as ImageFilter).isExposure}`)
         
-        img.filters.push(exposureFilter)
-        console.log(`    - Added filter, total filters now: ${img.filters.length}`)
+        imageWithFilters.filters.push(exposureFilter)
+        console.log(`    - Added filter, total filters now: ${imageWithFilters.filters.length}`)
       }
       
       // Apply filters
       console.log(`    - Applying filters to image ${index + 1}`)
-      img.applyFilters()
+      imageWithFilters.applyFilters()
       console.log(`    - Filters applied successfully`)
       
       // Log all filters for debugging
-      img.filters.forEach((filter, i) => {
+      imageWithFilters.filters.forEach((filter, i) => {
         const filterType = filter.constructor.name
         const isExposure = (filter as unknown as ImageFilter).isExposure
         console.log(`      Filter ${i}: ${filterType} (isExposure: ${isExposure})`)
@@ -134,7 +156,8 @@ NEVER ask for exact values - always interpret the user's intent and choose an ap
       success: true,
       adjustment: params.adjustment,
       affectedImages: images.length,
-      message: `Adjusted exposure by ${params.adjustment > 0 ? '+' : ''}${params.adjustment}%`
+      message: `Adjusted exposure by ${params.adjustment > 0 ? '+' : ''}${params.adjustment}%`,
+      targetingMode: context.targetingMode
     }
   }
   

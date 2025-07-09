@@ -94,7 +94,12 @@ export class MasterRoutingAgent {
       if (result.results.length > 0) {
         // Merge our status updates with any existing ones
         const firstResult = result.results[0]
-        const existingStatusUpdates = (firstResult.data as { statusUpdates?: typeof this.statusUpdates })?.statusUpdates || []
+        const existingStatusUpdates = (firstResult.data as { statusUpdates?: Array<{
+          type: string
+          message: string
+          details?: string
+          timestamp: string
+        }> })?.statusUpdates || []
         
         firstResult.data = {
           ...(firstResult.data as Record<string, unknown>),
@@ -142,7 +147,14 @@ export class MasterRoutingAgent {
     // Update canvas analysis
     await this.analyzeCanvas()
     
-    const availableTools = Array.from(adapterRegistry.getAll()).map(a => a.aiName)
+    console.log('[MasterRoutingAgent] Canvas analysis:', {
+      dimensions: this.context.canvasAnalysis.dimensions,
+      hasContent: this.context.canvasAnalysis.hasContent,
+      objectCount: this.context.canvasAnalysis.objectCount
+    })
+    
+    const canvasEditingTools = adapterRegistry.getToolNamesByCategory('canvas-editing')
+    const aiNativeTools = adapterRegistry.getToolNamesByCategory('ai-native')
     
     const { object: analysis } = await generateObject({
       model: openai('gpt-4o'),
@@ -156,20 +168,24 @@ Canvas context:
 - Has content: ${this.context.canvasAnalysis.hasContent}
 - Object count: ${this.context.canvasAnalysis.objectCount}
 
-Available tools: ${availableTools.join(', ')}
+Available AI-native tools (expensive, single-use only): ${aiNativeTools.join(', ')}
+Available canvas-editing tools (fast, workflow-compatible): ${canvasEditingTools.join(', ')}
 
 ROUTING RULES:
 1. **text-only**: Questions, help requests, or informational queries
    - Examples: "what tools are available?", "how do I crop?", "what is brightness adjustment?"
    - Provide helpful text response
 
-2. **simple-tool**: Single, straightforward tool operations
-   - Examples: "make it brighter", "crop to square", "rotate 90 degrees"
-   - Should be high confidence (>0.8) for auto-approval
+2. **simple-tool**: Single tool operations
+   - ALL AI-native tools (expensive): ${aiNativeTools.join(', ')}
+   - Single canvas operations: "make it brighter", "crop to square", "rotate 90 degrees"
+   - NEVER include AI-native tools in workflows - they are always single-tool only
    - Suggest the specific tool to use
 
-3. **sequential-workflow**: Multi-step operations requiring planning
+3. **sequential-workflow**: Multi-step operations on EXISTING images
    - Examples: "make this vintage", "enhance this photo", "make it dramatic"
+   - ONLY uses canvas-editing tools: ${canvasEditingTools.join(', ')}
+   - NEVER includes AI-native tools (no generateImage, etc.)
    - Delegate to SequentialEditingAgent for specialized planning
 
 4. **evaluator-optimizer**: Quality-focused workflows (future)
@@ -179,6 +195,12 @@ ROUTING RULES:
 5. **orchestrator-worker**: Parallel processing workflows (future)
    - Examples: "apply multiple filters", "batch process effects"
    - Will delegate to OrchestratorAgent
+
+IMPORTANT CLARIFICATIONS:
+- "improve", "enhance", "fix" requests should use sequential-workflow if there's content
+- If canvas has NO content and user asks to "improve", suggest they need an image first
+- "generate" requests should use simple-tool with generateImage
+- Quality improvement requests ("improve this photo", "enhance") need sequential-workflow
 
 Analyze the request and provide:
 - Route type and confidence
@@ -236,12 +258,37 @@ Analyze the request and provide:
     // Infer parameters for the tool
     const params = await this.inferToolParameters(tool, request)
     
+    // Calculate confidence for single tool operation
+    const toolConfidence = await this.calculateToolConfidence(tool, params, request)
+    
+    this.addStatusUpdate('planning-steps', 'Confidence calculation', 
+      `Tool: ${toolName}\nConfidence: ${Math.round(toolConfidence.overall * 100)}%\nFactors: ${JSON.stringify(toolConfidence.factors, null, 2)}`)
+    
     // Auto-approve if confidence is high enough
     const threshold = this.context.userPreferences.autoApprovalThreshold
-    const isAutoApproved = analysis.confidence >= threshold
+    const isAutoApproved = toolConfidence.overall >= threshold
     
     this.addStatusUpdate('executing-tool', 'Executing simple tool', 
-      `Tool: ${toolName}, Auto-approved: ${isAutoApproved}, Confidence: ${Math.round(analysis.confidence * 100)}%`)
+      `Tool: ${toolName}, Auto-approved: ${isAutoApproved}, Confidence: ${Math.round(toolConfidence.overall * 100)}%, Threshold: ${Math.round(threshold * 100)}%`)
+    
+    // Check if this is an AI-native tool for follow-up suggestions
+    const isAINativeTool = tool.metadata.category === 'ai-native'
+    
+    // Build the result with full transparency
+    const transparentResult = {
+      type: isAutoApproved ? 'simple-tool-execution' : 'simple-tool-approval-required',
+      toolName,
+      params,
+      description: tool.description,
+      reasoning: analysis.reasoning,
+      routingDecision: 'simple-tool',
+      autoApproved: isAutoApproved,
+      confidence: toolConfidence.overall,
+      confidenceFactors: toolConfidence.factors,
+      threshold,
+      isAINativeTool,
+      statusUpdates: this.statusUpdates
+    }
     
     if (isAutoApproved) {
       // Execute directly using AI SDK v5 generateText
@@ -254,22 +301,22 @@ Analyze the request and provide:
         prompt: `Execute ${toolName} to fulfill: "${request}"`
       })
       
+      // Generate follow-up suggestion for AI-native tools
+      let followUpSuggestion = ''
+      if (isAINativeTool) {
+        followUpSuggestion = await this.generateFollowUpSuggestion(toolName, request)
+      }
+      
       return {
         completed: true,
         results: [{
           success: true,
           data: {
-            type: 'simple-tool-execution',
-            toolName,
-            params,
-            description: tool.description,
-            reasoning: analysis.reasoning,
-            routingDecision: 'simple-tool',
-            autoApproved: true,
+            ...transparentResult,
             executionResult: result,
-            statusUpdates: this.statusUpdates
+            followUpSuggestion
           },
-          confidence: analysis.confidence
+          confidence: toolConfidence.overall
         }]
       }
     } else {
@@ -279,17 +326,10 @@ Analyze the request and provide:
         results: [{
           success: false,
           data: {
-            type: 'simple-tool-approval-required',
-            toolName,
-            params,
-            description: tool.description,
-            reasoning: analysis.reasoning,
-            routingDecision: 'simple-tool',
-            autoApproved: false,
-            approvalRequired: true,
-            statusUpdates: this.statusUpdates
+            ...transparentResult,
+            approvalRequired: true
           },
-          confidence: analysis.confidence
+          confidence: toolConfidence.overall
         }]
       }
     }
@@ -306,7 +346,12 @@ Analyze the request and provide:
     // Merge status updates from sequential agent
     if (result.results.length > 0) {
       const firstResult = result.results[0]
-      const sequentialStatusUpdates = (firstResult.data as { statusUpdates?: typeof this.statusUpdates })?.statusUpdates || []
+      const sequentialStatusUpdates = (firstResult.data as { statusUpdates?: Array<{
+        type: string
+        message: string
+        details?: string
+        timestamp: string
+      }> })?.statusUpdates || []
       
               // Combine our routing updates with sequential agent updates
         firstResult.data = {
@@ -320,6 +365,15 @@ Analyze the request and provide:
 
   // Update canvas analysis
   private async analyzeCanvas(): Promise<void> {
+    // Don't overwrite canvas analysis if it already has valid data from the client
+    if (this.context.canvasAnalysis.lastAnalyzedAt && 
+        Date.now() - this.context.canvasAnalysis.lastAnalyzedAt < 60000) { // Less than 1 minute old
+      console.log('[MasterRoutingAgent] Using existing canvas analysis from client')
+      return
+    }
+    
+    // Only use mock canvas as fallback if no analysis exists
+    console.log('[MasterRoutingAgent] WARNING: Using mock canvas for analysis - this should not happen in production')
     const canvas = this.context.canvas
     const objects = canvas.getObjects()
     
@@ -341,7 +395,35 @@ Analyze the request and provide:
   ): Promise<Record<string, unknown>> {
     const { object: params } = await generateObject({
       model: openai('gpt-4o'),
-      schema: z.record(z.unknown()),
+      schema: z.object({
+        // Common parameters that most tools might have
+        value: z.number().optional(),
+        adjustment: z.number().optional(),
+        amount: z.number().optional(),
+        factor: z.number().optional(),
+        intensity: z.number().optional(),
+        strength: z.number().optional(),
+        // Dimension parameters
+        width: z.number().optional(),
+        height: z.number().optional(),
+        x: z.number().optional(),
+        y: z.number().optional(),
+        // Boolean flags
+        enable: z.boolean().optional(),
+        horizontal: z.boolean().optional(),
+        vertical: z.boolean().optional(),
+        // Rotation/angle
+        angle: z.number().optional(),
+        degrees: z.number().optional(),
+        // Text parameters
+        text: z.string().optional(),
+        prompt: z.string().optional(),
+        // Color parameters
+        color: z.string().optional(),
+        temperature: z.number().optional(),
+        // Generic fallback
+        params: z.record(z.any()).optional()
+      }).passthrough(), // Allow additional properties
       prompt: `Infer parameters for the ${tool.aiName} tool based on this request: "${request}"
 
 Tool description: ${tool.description}
@@ -350,9 +432,90 @@ Canvas context:
 - Dimensions: ${this.context.canvasAnalysis.dimensions.width}x${this.context.canvasAnalysis.dimensions.height}
 - Has content: ${this.context.canvasAnalysis.hasContent}
 
-Provide appropriate parameters for this tool. Be conservative with values.`
+Provide appropriate parameters for this tool. Be conservative with values.
+Common parameter names include: value, adjustment, amount, factor, intensity, width, height, angle, degrees, text, prompt, etc.`
     })
     
-    return params
+    // Flatten the params object if it exists
+    if (params.params && typeof params.params === 'object') {
+      return { ...params, ...params.params } as Record<string, unknown>
+    }
+    
+    return params as Record<string, unknown>
+  }
+  
+  // Generate a follow-up suggestion for AI-native tools
+  private async generateFollowUpSuggestion(toolName: string, request: string): Promise<string> {
+    const tool = adapterRegistry.get(toolName)
+    if (!tool) return ''
+    
+    const canvasEditingTools = adapterRegistry.getToolNamesByCategory('canvas-editing')
+    
+    const { text: suggestion } = await generateText({
+      model: openai('gpt-4o'),
+      prompt: `The user just used "${toolName}" with request: "${request}"
+
+Available canvas-editing tools for follow-up: ${canvasEditingTools.join(', ')}
+
+Based on what they just did, suggest ONE specific follow-up action they might want to take next.
+Be conversational and helpful. Format as a question like "Would you like me to make it brighter?" or "Should I crop it to focus on the subject?"
+
+Keep it short and actionable.`
+    })
+    
+    return suggestion
+  }
+  
+  // Calculate confidence for a single tool operation
+  private async calculateToolConfidence(
+    tool: BaseToolAdapter<unknown, unknown>,
+    params: Record<string, unknown>,
+    request: string
+  ): Promise<{
+    overall: number
+    factors: {
+      parameterAppropriate: number
+      canvasContext: number
+      toolSuitability: number
+      riskLevel: number
+    }
+  }> {
+    const { object: confidence } = await generateObject({
+      model: openai('gpt-4o'),
+      schema: z.object({
+        overall: z.number().min(0).max(1),
+        factors: z.object({
+          parameterAppropriate: z.number().min(0).max(1).describe('Are the parameters reasonable and safe?'),
+          canvasContext: z.number().min(0).max(1).describe('Does the canvas state support this operation?'),
+          toolSuitability: z.number().min(0).max(1).describe('Is this the optimal tool for the request?'),
+          riskLevel: z.number().min(0).max(1).describe('How likely is this to produce the intended result?')
+        }),
+        reasoning: z.string()
+      }),
+      prompt: `Calculate confidence for executing ${tool.aiName} with request: "${request}"
+
+Tool: ${tool.aiName}
+Description: ${tool.description}
+Parameters: ${JSON.stringify(params, null, 2)}
+
+Canvas context:
+- Dimensions: ${this.context.canvasAnalysis.dimensions.width}x${this.context.canvasAnalysis.dimensions.height}
+- Has content: ${this.context.canvasAnalysis.hasContent}
+- Object count: ${this.context.canvasAnalysis.objectCount}
+
+Calculate confidence based on:
+1. Parameter Appropriateness: Are values reasonable and within safe ranges?
+2. Canvas Context: Does the current canvas state support this operation?
+3. Tool Suitability: Is this the best tool for what the user wants?
+4. Risk Level: How likely is this to succeed without issues?
+
+Overall confidence should be the weighted average of these factors.
+Be conservative - it's better to ask for approval than to make mistakes.`
+    })
+    
+    return {
+      overall: confidence.overall,
+      factors: confidence.factors
+    }
   }
 } 

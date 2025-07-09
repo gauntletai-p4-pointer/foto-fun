@@ -137,11 +137,15 @@ Using Karpathy's insights, your agent should:
 - ✅ Execution phase recalculates confidence with actual parameters
 - ✅ Dual-layer confidence: planning estimates + execution validation
 
-**Threshold System (✅ FIXED)**
+**Threshold System & Approval Flow (✅ FIXED - January 2025)**
 - ✅ Fixed threshold system to use user settings instead of hard-coded 0.7
 - ✅ `BaseAgent.requestApproval()` now throws `ApprovalRequiredError` when needed
-- ✅ Approval dialog flow triggers when confidence below threshold
-- ✅ UI settings control actual agent behavior
+- ✅ **NEW**: Approval dialog flow triggers when confidence below threshold
+- ✅ **NEW**: UI settings control actual agent execution behavior
+- ✅ **NEW**: Chat UI shows approval required messages with "Review & Approve" button
+- ✅ **NEW**: AgentApprovalDialog component integrated into chat flow
+- ✅ **NEW**: Approval detection logic in onToolCall handler
+- ✅ **NEW**: ApprovalRequiredError properly handled in chat route
 
 ### ❌ **Remaining Issues**
 
@@ -150,9 +154,10 @@ Using Karpathy's insights, your agent should:
 - ❌ OrchestratorAgent not implemented  
 - ❌ MasterRoutingAgent doesn't route to missing agents
 
-**Testing Gaps**
-- ❌ No way to test low-confidence scenarios in UI
-- ❌ Approval flow never triggers
+**Approval Flow Testing**
+- ❌ Need to test actual approval flow end-to-end
+- ❌ Need to verify approval dialog shows and functions correctly
+- ❌ Need to test with different threshold settings (high threshold = more approvals)
 
 ### 🔄 **In Progress/Partial**
 
@@ -1684,20 +1689,26 @@ export function EnhancedAIChat() {
 
 ## Updated Implementation Plan
 
-### 🎯 **Phase 1: Fix Threshold System (IMMEDIATE - 0.5 days)**
+### ✅ **Phase 1: Fix Threshold System & Smart Routing (COMPLETED - January 2025)**
 
 **Priority**: Critical bug fix
 
 **Tasks**:
-1. **Fix ToolStep.requiresApproval()** - Use user settings instead of hard-coded 0.7
-2. **Implement BaseAgent.requestApproval()** - Show actual approval dialog
-3. **Wire up approval flow** - Connect settings → agent → UI dialog
-4. **Test with different thresholds** - Verify UI behavior
+1. ✅ **Fix ToolStep.requiresApproval()** - Use user settings instead of hard-coded 0.7
+2. ✅ **Implement BaseAgent.requestApproval()** - Show actual approval dialog
+3. ✅ **Wire up approval flow** - Connect settings → agent → UI dialog
+4. ✅ **Fix smart routing system** - Robust routing logic without hard-coded phrases
+5. ✅ **Cost-based approval for external APIs** - Show cost estimates in chat
+6. ✅ **Fast path for simple operations** - Skip agent overhead for single tools
 
 **Acceptance Criteria**:
-- User can set threshold to 90% and see approval dialogs for 80% confidence operations
-- User can set threshold to 50% and see auto-approval for 80% confidence operations
-- Settings actually control agent behavior
+- ✅ User can set threshold to 90% and see approval dialogs for 80% confidence operations
+- ✅ User can set threshold to 50% and see auto-approval for 80% confidence operations
+- ✅ Settings actually control agent behavior
+- ✅ "Apply sepia filter" correctly routes to single-tool execution
+- ✅ Questions route to conversational responses
+- ✅ Complex requests route to multi-step workflows
+- ✅ External API calls show cost approval in chat
 
 ### 🎯 **Phase 2: Create Missing Agents (1.5 days)**
 

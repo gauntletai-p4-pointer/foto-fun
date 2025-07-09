@@ -44,8 +44,14 @@ export function Canvas() {
     console.log('[Canvas] Starting initialization...')
     const startTime = Date.now()
     
+    // Get the canvas wrapper dimensions (accounting for padding)
+    const canvasWrapper = container.querySelector('div') as HTMLDivElement
+    if (!canvasWrapper) return
+    
+    const { width, height } = canvasWrapper.getBoundingClientRect()
+    
     // Initialize canvas
-    initCanvas(canvas, container.offsetWidth, container.offsetHeight).then(() => {
+    initCanvas(canvas, width, height).then(() => {
       console.log('[Canvas] Initialization complete after', Date.now() - startTime, 'ms')
     }).catch((error) => {
       console.error('[Canvas] Initialization failed:', error)
@@ -213,7 +219,11 @@ export function Canvas() {
     const handleResize = () => {
       if (!containerRef.current || !fabricCanvas) return
       
-      const { width, height } = containerRef.current.getBoundingClientRect()
+      // Get the canvas wrapper dimensions (accounting for padding)
+      const canvasWrapper = containerRef.current.querySelector('div') as HTMLDivElement
+      if (!canvasWrapper) return
+      
+      const { width, height } = canvasWrapper.getBoundingClientRect()
       fabricCanvas.setDimensions({ width, height })
       fabricCanvas.renderAll()
     }
@@ -225,23 +235,26 @@ export function Canvas() {
   return (
     <div 
       ref={containerRef}
-      className="relative flex-1 bg-content-background overflow-hidden"
+      className="relative flex-1 bg-content-background p-4"
       onDrop={handleDrop}
       onDragOver={handleDragOver}
     >
-      {/* Canvas checkerboard background */}
-      <div 
-        className="absolute inset-0 opacity-10"
-        style={{
-          backgroundImage: `
-            repeating-conic-gradient(#808080 0% 25%, transparent 0% 50%) 
-            50% / 20px 20px
-          `
-        }}
-      />
-      
-      {/* Main canvas */}
-      <canvas ref={canvasRef} className="absolute inset-0" />
+      {/* Canvas wrapper with subtle border to indicate boundaries */}
+      <div className="relative w-full h-full border border-foreground/10 rounded-lg overflow-hidden">
+        {/* Canvas checkerboard background */}
+        <div 
+          className="absolute inset-0 opacity-10"
+          style={{
+            backgroundImage: `
+              repeating-conic-gradient(#808080 0% 25%, transparent 0% 50%) 
+              50% / 20px 20px
+            `
+          }}
+        />
+        
+        {/* Main canvas */}
+        <canvas ref={canvasRef} className="absolute inset-0" />
+      </div>
       
       {/* Zoom indicator */}
       <div className="absolute bottom-4 right-4 bg-background/90 backdrop-blur-sm text-foreground px-3 py-1 rounded-md text-sm font-mono border border-foreground/10 shadow-lg">

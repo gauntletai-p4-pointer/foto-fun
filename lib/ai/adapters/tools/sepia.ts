@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { BaseToolAdapter } from '../base'
 import { sepiaTool } from '@/lib/editor/tools/filters/sepiaTool'
-import type { Canvas } from 'fabric'
+import type { CanvasContext } from '@/lib/ai/tools/canvas-bridge'
 
 // Define parameter schema
 const sepiaParameters = z.object({
@@ -16,27 +16,49 @@ interface SepiaOutput {
   success: boolean
   intensity: number
   message: string
+  targetingMode: 'selection' | 'all-images'
 }
 
 // Create adapter class
 export class SepiaAdapter extends BaseToolAdapter<SepiaInput, SepiaOutput> {
   tool = sepiaTool
-  aiName = 'applySepia'
-  description = `Apply vintage sepia tone effect to the image. Common patterns:
-- "slight sepia" or "subtle vintage" → intensity: 20-30
-- "sepia" or "vintage effect" → intensity: 50-60
-- "strong sepia" or "old photo" → intensity: 80-90
-- "full sepia" → intensity: 100
+  aiName = 'applySepiaEffect'
+  description = `Apply sepia (vintage brown) effect to existing images. You MUST calculate the intensity based on user intent.
+
+INTELLIGENT TARGETING:
+- If you have images selected, only those images will have sepia applied
+- If no images are selected, all images on the canvas will have sepia applied
+
+Common sepia requests:
+- "sepia" or "vintage look" → intensity: 0.8
+- "strong sepia" or "heavy vintage" → intensity: 1.0
+- "subtle sepia" or "slight vintage" → intensity: 0.5
 - "remove sepia" → intensity: 0
-NEVER ask for the sepia intensity.`
+
+NEVER ask for exact values - interpret the user's intent.
+Range: 0 (no effect) to 1 (full sepia)`
+
+  metadata = {
+    category: 'canvas-editing' as const,
+    executionType: 'fast' as const,
+    worksOn: 'existing-image' as const
+  }
+
   inputSchema = sepiaParameters
   
-  async execute(params: SepiaInput, context: { canvas: Canvas }): Promise<SepiaOutput> {
+  async execute(params: SepiaInput, context: CanvasContext): Promise<SepiaOutput> {
     try {
-      // Verify canvas has content
-      const objects = context.canvas.getObjects()
-      if (objects.length === 0) {
-        throw new Error('No content found on canvas. Please load an image first.')
+      console.log('[SepiaAdapter] Execute called with params:', params)
+      console.log('[SepiaAdapter] Targeting mode:', context.targetingMode)
+      
+      // Use pre-filtered target images from enhanced context
+      const images = context.targetImages
+      
+      console.log('[SepiaAdapter] Target images:', images.length)
+      console.log('[SepiaAdapter] Targeting mode:', context.targetingMode)
+      
+      if (images.length === 0) {
+        throw new Error('No images found to apply sepia. Please load an image or select images first.')
       }
       
       // Activate the sepia tool first
@@ -54,14 +76,16 @@ NEVER ask for the sepia intensity.`
         success: true,
         intensity: params.intensity,
         message: params.intensity > 0 
-          ? `Applied ${params.intensity}% sepia effect to the image`
-          : 'Removed sepia effect from the image'
+          ? `Applied ${params.intensity}% sepia effect to ${images.length} image(s)`
+          : `Removed sepia effect from ${images.length} image(s)`,
+        targetingMode: context.targetingMode
       }
     } catch (error) {
       return {
         success: false,
         intensity: 0,
-        message: error instanceof Error ? error.message : 'Failed to apply sepia effect'
+        message: error instanceof Error ? error.message : 'Failed to apply sepia effect',
+        targetingMode: context.targetingMode
       }
     }
   }

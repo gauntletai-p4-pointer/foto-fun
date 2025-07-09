@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { BaseToolAdapter } from '../base'
 import { colorTemperatureTool } from '@/lib/editor/tools/adjustments/colorTemperatureTool'
-import type { Canvas } from 'fabric'
+import type { CanvasContext } from '@/lib/ai/tools/canvas-bridge'
 
 // Define parameter schema
 const colorTemperatureParameters = z.object({
@@ -18,35 +18,50 @@ interface ColorTemperatureOutput {
   success: boolean
   adjustment: number
   message: string
+  targetingMode: 'selection' | 'all-images'
 }
 
 // Create adapter class
 export class ColorTemperatureToolAdapter extends BaseToolAdapter<ColorTemperatureInput, ColorTemperatureOutput> {
   tool = colorTemperatureTool
   aiName = 'adjustColorTemperature'
-  description = `Adjust image color temperature (warm/cool tones). You MUST calculate the adjustment value based on user intent.
-Common patterns you should use:
-- "warmer" or "warm it up" → +30 to +40
-- "much warmer" or "very warm" → +50 to +70
-- "slightly warmer" → +15 to +25
-- "cooler" or "cool it down" → -30 to -40
-- "much cooler" or "very cool" → -50 to -70
-- "slightly cooler" → -15 to -25
-- "golden hour" or "sunset" → +60 to +80
-- "blue hour" or "cold" → -60 to -80
-Note: This adjusts the overall color temperature by shifting the balance between warm (orange/red) and cool (blue) tones.
-NEVER ask for exact values - always interpret the user's intent and choose an appropriate value.`
-  
+  description = `Adjust the color temperature of existing images to make them warmer or cooler.
+
+INTELLIGENT TARGETING:
+- If you have images selected, only those images will be adjusted
+- If no images are selected, all images on the canvas will be adjusted
+
+You MUST calculate the adjustment value based on user intent:
+- "warmer" or "more warm" → +20 to +30
+- "much warmer" or "very warm" → +40 to +60
+- "cooler" or "more cool" → -20 to -30
+- "much cooler" or "very cool" → -40 to -60
+- "neutral temperature" → 0
+
+NEVER ask for exact values - interpret the user's intent.
+Range: -100 (very cool/blue) to +100 (very warm/orange)`
+
+  metadata = {
+    category: 'canvas-editing' as const,
+    executionType: 'fast' as const,
+    worksOn: 'existing-image' as const
+  }
+
   inputSchema = colorTemperatureParameters
   
-  async execute(params: ColorTemperatureInput, context: { canvas: Canvas }): Promise<ColorTemperatureOutput> {
+  async execute(params: ColorTemperatureInput, context: CanvasContext): Promise<ColorTemperatureOutput> {
     try {
-      // Verify canvas has content
-      const objects = context.canvas.getObjects()
-      const hasImages = objects.some(obj => obj.type === 'image')
+      console.log('[ColorTemperatureToolAdapter] Execute called with params:', params)
+      console.log('[ColorTemperatureToolAdapter] Targeting mode:', context.targetingMode)
       
-      if (!hasImages) {
-        throw new Error('No image found on canvas. Please load an image first.')
+      // Use pre-filtered target images from enhanced context
+      const images = context.targetImages
+      
+      console.log('[ColorTemperatureToolAdapter] Target images:', images.length)
+      console.log('[ColorTemperatureToolAdapter] Targeting mode:', context.targetingMode)
+      
+      if (images.length === 0) {
+        throw new Error('No images found to adjust color temperature. Please load an image or select images first.')
       }
       
       // Get the color temperature tool options and update them
@@ -56,13 +71,15 @@ NEVER ask for exact values - always interpret the user's intent and choose an ap
       return {
         success: true,
         adjustment: params.adjustment,
-        message: `Adjusted color temperature by ${params.adjustment > 0 ? '+' : ''}${params.adjustment}% (${params.adjustment > 0 ? 'warmer' : 'cooler'})`
+        message: `Adjusted color temperature by ${params.adjustment > 0 ? '+' : ''}${params.adjustment}% (${params.adjustment > 0 ? 'warmer' : 'cooler'})`,
+        targetingMode: context.targetingMode
       }
     } catch (error) {
       return {
         success: false,
         adjustment: 0,
-        message: error instanceof Error ? error.message : 'Failed to adjust color temperature'
+        message: error instanceof Error ? error.message : 'Failed to adjust color temperature',
+        targetingMode: context.targetingMode
       }
     }
   }

@@ -4,6 +4,13 @@ import { brightnessTool } from '@/lib/editor/tools/adjustments/brightnessTool'
 import type { Canvas } from 'fabric'
 import type { Image as FabricImage } from 'fabric'
 import { filters } from 'fabric'
+import type { CanvasContext } from '@/lib/ai/tools/canvas-bridge'
+
+// Extended type for FabricImage with filters
+type FabricImageWithFilters = FabricImage & {
+  filters?: unknown[]
+  applyFilters(): void
+}
 
 // Input schema following AI SDK v5 patterns
 const brightnessParameters = z.object({
@@ -21,6 +28,7 @@ interface BrightnessOutput {
   previousValue: number
   newValue: number
   affectedImages: number
+  targetingMode: 'selection' | 'all-images'
 }
 
 // Define filter type
@@ -31,53 +39,70 @@ interface ImageFilter {
 
 /**
  * Adapter for the brightness tool to make it AI-compatible
- * Following AI SDK v5 patterns
+ * Following AI SDK v5 patterns with intelligent image targeting
  */
 export class BrightnessToolAdapter extends BaseToolAdapter<BrightnessInput, BrightnessOutput> {
   tool = brightnessTool
   aiName = 'adjustBrightness'
-  description = `Adjust image brightness. You MUST calculate the adjustment value based on user intent.
-Common patterns you should use:
-- "brighter" or "lighten" → +20 to +30
+  description = `Adjust the brightness of existing images on the canvas. This tool makes images lighter or darker.
+
+INTELLIGENT TARGETING:
+- If you have images selected, only those images will be adjusted
+- If no images are selected, all images on the canvas will be adjusted
+
+You MUST calculate the adjustment value based on user intent:
+- "brighter" or "lighter" → +20 to +30
 - "much brighter" or "very bright" → +40 to +60
-- "slightly brighter" or "a bit lighter" → +10 to +15
-- "darker" or "darken" → -20 to -30
+- "slightly brighter" → +10 to +15
+- "darker" or "dimmer" → -20 to -30
 - "much darker" or "very dark" → -40 to -60
-- "slightly darker" or "a bit darker" → -10 to -15
-- "brighten by X%" → use X directly
-- "darken by X%" → use -X
-NEVER ask for exact values - always interpret the user's intent and choose an appropriate value.`
-  
+- "slightly darker" → -10 to -15
+
+NEVER ask for exact values - interpret the user's intent and calculate appropriate adjustment values.
+Range: -100 (completely black) to +100 (completely white)`
+
+  metadata = {
+    category: 'canvas-editing' as const,
+    executionType: 'fast' as const,
+    worksOn: 'existing-image' as const
+  }
+
   inputSchema = brightnessParameters
   
-  async execute(params: BrightnessInput, context: { canvas: Canvas }): Promise<BrightnessOutput> {
+  async execute(params: BrightnessInput, context: CanvasContext): Promise<BrightnessOutput> {
     console.log('[BrightnessToolAdapter] Execute called with params:', params)
+    console.log('[BrightnessToolAdapter] Targeting mode:', context.targetingMode)
+    
     const canvas = context.canvas
     
     if (!canvas) {
       throw new Error('Canvas is required but not provided in context')
     }
     
-    // Get all image objects
-    const objects = canvas.getObjects()
-    const images = objects.filter(obj => obj.type === 'image') as FabricImage[]
+    // Use pre-filtered target images from enhanced context
+    const images = context.targetImages
     
-    console.log('[BrightnessToolAdapter] Found images:', images.length)
+    console.log('[BrightnessToolAdapter] Target images:', images.length)
+    console.log('[BrightnessToolAdapter] Targeting mode:', context.targetingMode)
     
     if (images.length === 0) {
-      throw new Error('No images found on canvas. Please load an image first before adjusting brightness.')
+      throw new Error('No images found to adjust brightness. Please load an image or select images first.')
     }
     
     // Store previous brightness values (simplified - just track if filters existed)
     const previousValue = 0 // In a real implementation, we'd track the current brightness
     
-    // Apply brightness to all images
-    images.forEach(img => {
+    // Apply brightness to target images only
+    images.forEach((img, index) => {
+      console.log(`[BrightnessToolAdapter] Processing image ${index + 1}/${images.length}`)
+      
+      const imageWithFilters = img as FabricImageWithFilters
+      
       // Remove existing brightness filters
-      if (!img.filters) {
-        img.filters = []
+      if (!imageWithFilters.filters) {
+        imageWithFilters.filters = []
       } else {
-        img.filters = img.filters.filter((f) => (f as unknown as ImageFilter).type !== 'Brightness')
+        imageWithFilters.filters = imageWithFilters.filters.filter((f: unknown) => (f as unknown as ImageFilter).type !== 'Brightness')
       }
       
       // Add new brightness filter if adjustment is not 0
@@ -87,11 +112,11 @@ NEVER ask for exact values - always interpret the user's intent and choose an ap
           brightness: brightnessValue
         })
         
-        img.filters.push(brightnessFilter)
+        imageWithFilters.filters.push(brightnessFilter)
       }
       
       // Apply filters
-      img.applyFilters()
+      imageWithFilters.applyFilters()
     })
     
     // Render the canvas to show changes
@@ -103,7 +128,8 @@ NEVER ask for exact values - always interpret the user's intent and choose an ap
       success: true,
       previousValue,
       newValue: params.adjustment,
-      affectedImages: images.length
+      affectedImages: images.length,
+      targetingMode: context.targetingMode
     }
   }
   

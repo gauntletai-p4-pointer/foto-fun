@@ -36,20 +36,22 @@ interface AddTextOutput {
 export class AddTextToolAdapter extends BaseToolAdapter<AddTextInput, AddTextOutput> {
   tool = horizontalTypeTool
   aiName = 'addText'
-  description = `Add text to the image at specified position with styling. You MUST calculate positions based on user intent.
-Common patterns you should use:
-- "add text at top" → position: 'top'
-- "add text at bottom" → position: 'bottom'
-- "add text in center" → position: 'center' (default)
-- "add text on the top left" → position: 'top-left'
-- "add title" → style: 'title' (72pt bold)
-- "add caption" → style: 'caption' (24pt)
-- "add subtitle" → style: 'subtitle' (48pt)
-- "add watermark" → style: 'watermark' (36pt)
-- Default font size is 60pt if not specified
-- Natural colors: "red text" → #FF0000, "blue text" → #0000FF, etc.
-NEVER ask for exact positions - interpret the user's intent and use the position enum.`
-  
+  description = `Add text overlays to existing images on the canvas. You MUST determine text properties based on user intent.
+
+Common text requests:
+- "add text 'Hello'" → text: "Hello", default styling
+- "add title 'Welcome'" → text: "Welcome", style: "title"
+- "add watermark" → style: "watermark", appropriate positioning
+- "add caption" → style: "caption", position: "bottom"
+
+NEVER ask for exact styling - interpret the user's intent and choose appropriate defaults.`
+
+  metadata = {
+    category: 'canvas-editing' as const,
+    executionType: 'fast' as const,
+    worksOn: 'existing-image' as const
+  }
+
   inputSchema = addTextInputSchema
   
   async execute(params: AddTextInput, context: { canvas: Canvas }): Promise<AddTextOutput> {

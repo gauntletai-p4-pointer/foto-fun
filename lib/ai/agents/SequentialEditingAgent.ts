@@ -32,45 +32,136 @@ export class SequentialEditingAgent extends BaseExecutionAgent {
   description = 'Executes editing operations in planned sequence with workflow-level approval'
   
   private planObject: z.infer<typeof planSchema> | null = null
+  private statusUpdates: Array<{
+    type: string
+    message: string
+    details?: string
+    timestamp: string
+  }> = []
 
   async execute(request: string): Promise<AgentResult> {
     try {
+      // Clear previous status updates
+      this.statusUpdates = []
+      
       // Step 1: Generate detailed plan using AI SDK v5 generateObject
+      this.addStatusUpdate('planning-steps', 'Generating detailed workflow plan', 
+        `Analyzing request: "${request}"`)
+      
       const plan = await this.generatePlan(request)
       this.planObject = plan
+      
+      this.addStatusUpdate('planning-steps', 'Plan generated successfully', 
+        `Generated ${plan.steps.length} steps with ${plan.overallComplexity} complexity\nOverall confidence: ${Math.round(plan.overallConfidence * 100)}%`)
       
       // Step 2: Build system prompt for execution
       const systemPrompt = this.buildSequentialSystemPrompt(request, plan)
       
       // Step 3: Execute using BaseExecutionAgent's AI SDK v5 pattern
-      // This will handle workflow-level approval automatically
+      this.addStatusUpdate('executing-tool', 'Starting workflow execution', 
+        `Executing ${plan.steps.length} steps using AI SDK v5 patterns`)
+      
       const result = await this.executeWithAISDK(request, systemPrompt)
+      
+      // Step 4: Attach workflow information and status updates to result
+      if (result.results.length > 0) {
+        const firstResult = result.results[0]
+        const existingStatusUpdates = (firstResult.data as { statusUpdates?: Array<{
+          type: string
+          message: string
+          details?: string
+          timestamp: string
+        }> })?.statusUpdates || []
+        
+        firstResult.data = {
+          ...(firstResult.data as Record<string, unknown>),
+          // Add workflow information for UI display
+          workflow: {
+            description: `Sequential workflow: ${request}`,
+            steps: plan.steps.map(step => ({
+              id: step.id,
+              toolName: step.tool,
+              params: step.params,
+              description: step.description,
+              confidence: step.estimatedConfidence
+            })),
+            agentType: 'sequential-editing',
+            totalSteps: plan.steps.length,
+            reasoning: plan.reasoning,
+            overallComplexity: plan.overallComplexity,
+            riskAssessment: plan.riskAssessment,
+            overallConfidence: plan.overallConfidence
+          },
+          statusUpdates: [...existingStatusUpdates, ...this.statusUpdates]
+        }
+      }
+      
+      this.addStatusUpdate('generating-response', 'Workflow execution complete', 
+        `Completed ${result.results.length} results with success: ${result.completed}`)
       
       return result
     } catch (error) {
+      this.addStatusUpdate('generating-response', 'Error in workflow execution', 
+        `Error: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      
       console.error('[SequentialEditingAgent] Error in execute:', error)
       
       // Re-throw ApprovalRequiredError so it can be handled by the chat route
       if (error instanceof Error && error.name === 'ApprovalRequiredError') {
+        // Attach status updates to the error context if possible
+                 if ('workflowContext' in error) {
+                       const errorWithContext = error as Error & { workflowContext?: { statusUpdates?: Array<{
+              type: string
+              message: string
+              details?: string
+              timestamp: string
+            }> } }
+           errorWithContext.workflowContext = {
+             ...errorWithContext.workflowContext,
+             statusUpdates: this.statusUpdates
+           }
+         }
         throw error
       }
       
       return {
         completed: false,
-        results: [],
+        results: [{
+          success: false,
+          data: {
+            error: error instanceof Error ? error.message : 'Unknown error',
+            statusUpdates: this.statusUpdates
+          },
+          confidence: 0
+        }],
         reason: error instanceof Error ? error.message : 'Unknown error'
       }
     }
+  }
+
+  // Helper method to add status updates with timestamps
+  private addStatusUpdate(type: string, message: string, details?: string): void {
+    this.statusUpdates.push({
+      type,
+      message,
+      details,
+      timestamp: new Date().toISOString()
+    })
+    console.log(`[SequentialEditingAgent] ${type}: ${message}${details ? ` - ${details}` : ''}`)
   }
 
   // Generate detailed plan using AI SDK v5 generateObject
   private async generatePlan(request: string): Promise<z.infer<typeof planSchema>> {
     await this.analyzeCanvas()
     
-    const availableTools = Array.from(adapterRegistry.getAll()).map(a => ({
+    // Only use canvas-editing tools in workflows - exclude AI-native tools
+    const availableTools = adapterRegistry.getCanvasEditingTools().map(a => ({
       name: a.aiName,
       description: a.description
     }))
+    
+    this.addStatusUpdate('planning-steps', 'Analyzing available canvas-editing tools', 
+      `Found ${availableTools.length} canvas-editing tools (excluding AI-native tools)`)
     
     const { object: plan } = await generateObject({
       model: openai('gpt-4o'),
@@ -82,8 +173,11 @@ Canvas context:
 - Has content: ${this.context.canvasAnalysis.hasContent}
 - Object count: ${this.context.canvasAnalysis.objectCount}
 
-Available tools:
+Available canvas-editing tools (AI-native tools excluded from workflows):
 ${availableTools.map(t => `- ${t.name}: ${t.description}`).join('\n')}
+
+IMPORTANT: This is a canvas-editing workflow. DO NOT use AI-native tools like generateImage, upscaleImage, etc.
+Only use fast, local canvas-editing tools that modify existing images.
 
 PLANNING REQUIREMENTS:
 1. Create specific, executable steps with exact parameters
@@ -108,6 +202,9 @@ CONFIDENCE CALCULATION:
 Provide a complete plan with reasoning and risk assessment.`
     })
     
+    this.addStatusUpdate('planning-steps', 'Plan analysis complete', 
+      `Steps planned: ${plan.steps.map(s => s.tool).join(' → ')}\nComplexity: ${plan.overallComplexity}\nConfidence: ${Math.round(plan.overallConfidence * 100)}%`)
+    
     console.log('[SequentialEditingAgent] Generated plan:', plan)
     return plan
   }
@@ -118,6 +215,9 @@ Provide a complete plan with reasoning and risk assessment.`
       name: a.aiName,
       description: a.description
     }))
+    
+    this.addStatusUpdate('planning-steps', 'Building execution strategy', 
+      `Creating system prompt for ${plan.steps.length} planned steps`)
     
     return `You are a Sequential Editing Agent executing a planned photo editing workflow.
 
@@ -157,12 +257,17 @@ Execute the planned workflow step by step. Use the exact parameters from the pla
     if (this.planObject) {
       const planStep = this.planObject.steps.find(s => s.tool === toolCall.toolName)
       if (planStep) {
+        this.addStatusUpdate('executing-tool', `Confidence calculated for ${toolCall.toolName}`, 
+          `Plan confidence: ${Math.round(planStep.estimatedConfidence * 100)}%`)
         return planStep.estimatedConfidence
       }
     }
     
     // Fall back to default confidence calculation
-    return super.calculateStepConfidence(toolCall, toolResult)
+    const defaultConfidence = super.calculateStepConfidence(toolCall, toolResult)
+    this.addStatusUpdate('executing-tool', `Default confidence calculated for ${toolCall.toolName}`, 
+      `Confidence: ${Math.round(defaultConfidence * 100)}%`)
+    return defaultConfidence
   }
 
   // Override approval logic to consider plan confidence
@@ -174,16 +279,26 @@ Execute the planned workflow step by step. Use the exact parameters from the pla
       
       if (planStep) {
         // Use plan-based confidence for approval decision
-        return planStep.estimatedConfidence < this.context.userPreferences.autoApprovalThreshold
+        const needsApproval = planStep.estimatedConfidence < this.context.userPreferences.autoApprovalThreshold
+        this.addStatusUpdate('executing-tool', `Approval check for ${toolName}`, 
+          `Confidence: ${Math.round(planStep.estimatedConfidence * 100)}%, Threshold: ${Math.round(this.context.userPreferences.autoApprovalThreshold * 100)}%, Needs approval: ${needsApproval}`)
+        return needsApproval
       }
     }
     
     // Fall back to default approval logic
-    return super.shouldRequestApproval(result)
+    const needsApproval = super.shouldRequestApproval(result)
+    this.addStatusUpdate('executing-tool', 'Default approval check', 
+      `Needs approval: ${needsApproval}`)
+    return needsApproval
   }
 
   // Simple evaluation of completed steps
-  private async evaluateSteps(stepResults: unknown[], originalRequest: string) {
+  private async evaluateSteps(stepResults: unknown[]): Promise<{
+    avgConfidence: number
+    suggestions: string[]
+    quality: 'excellent' | 'good' | 'fair' | 'poor'
+  }> {
     // Calculate average confidence from step results
     const validResults = stepResults.filter(result => 
       result && typeof result === 'object' && 'confidence' in result
@@ -195,19 +310,31 @@ Execute the planned workflow step by step. Use the exact parameters from the pla
     
     // Generate suggestions based on request and results
     const suggestions: string[] = []
-    if (avgConfidence < 0.6) {
+    let quality: 'excellent' | 'good' | 'fair' | 'poor' = 'good'
+    
+    if (avgConfidence < 0.4) {
+      quality = 'poor'
+      suggestions.push('Consider using different tools or parameters')
+      suggestions.push('Review the original request for clarity')
+    } else if (avgConfidence < 0.6) {
+      quality = 'fair'
       suggestions.push('Consider using higher quality settings')
-    }
-    if (originalRequest.includes('professional') && avgConfidence < 0.8) {
-      suggestions.push('Professional requests may need manual review')
-    }
-    if (stepResults.length > 5) {
-      suggestions.push('Complex workflows may benefit from step-by-step review')
+      suggestions.push('Some operations may need manual adjustment')
+    } else if (avgConfidence < 0.8) {
+      quality = 'good'
+      suggestions.push('Results look good, minor adjustments possible')
+    } else {
+      quality = 'excellent'
+      suggestions.push('High quality results achieved')
     }
     
+    this.addStatusUpdate('evaluating-result', 'Workflow evaluation complete', 
+      `Quality: ${quality}, Average confidence: ${Math.round(avgConfidence * 100)}%`)
+    
     return {
-      overallConfidence: avgConfidence,
-      suggestions
+      avgConfidence,
+      suggestions,
+      quality
     }
   }
 } 

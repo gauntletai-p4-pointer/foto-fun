@@ -59,7 +59,8 @@ export const useDocumentStore = create<DocumentStore>((set, get) => ({
     // Initialize canvas with new document dimensions
     const canvasStore = useCanvasStore.getState()
     if (canvasStore.fabricCanvas) {
-      canvasStore.resize(newDocument.width, newDocument.height)
+      // Don't resize the canvas - keep it at its current viewport size
+      // canvasStore.resize(newDocument.width, newDocument.height)
       
       // Use theme-aware background color
       const isDarkMode = document.documentElement.classList.contains('dark')
@@ -100,7 +101,8 @@ export const useDocumentStore = create<DocumentStore>((set, get) => ({
           const canvasStore = useCanvasStore.getState()
           if (canvasStore.fabricCanvas) {
             console.log('[DocumentStore] Loading image into canvas...')
-            canvasStore.resize(newDocument.width, newDocument.height)
+            // Don't resize canvas to image dimensions - keep current canvas size
+            // canvasStore.resize(newDocument.width, newDocument.height)
             
             FabricImage.fromURL(e.target?.result as string).then((fabricImg) => {
               console.log('[DocumentStore] FabricImage created, adding to canvas')
@@ -132,8 +134,24 @@ export const useDocumentStore = create<DocumentStore>((set, get) => ({
               })
               
               canvasStore.fabricCanvas!.renderAll()
+              
+              // Center and fit the image in the viewport
               canvasStore.centerContent()
-              canvasStore.zoomToFit()
+              
+              // Calculate zoom to fit the image in the viewport
+              const canvasWidth = canvasStore.fabricCanvas!.getWidth()
+              const canvasHeight = canvasStore.fabricCanvas!.getHeight()
+              const imgWidth = fabricImg.width || newDocument.width
+              const imgHeight = fabricImg.height || newDocument.height
+              
+              // Calculate zoom to fit with some padding
+              const zoomX = canvasWidth / imgWidth * 0.9
+              const zoomY = canvasHeight / imgHeight * 0.9
+              const zoom = Math.min(zoomX, zoomY, 1) // Don't zoom in beyond 100%
+              
+              canvasStore.setZoom(zoom)
+              canvasStore.centerContent()
+              
               console.log('[DocumentStore] Image loaded successfully, objects:', canvasStore.fabricCanvas!.getObjects().length)
             })
           }

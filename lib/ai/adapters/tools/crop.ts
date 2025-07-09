@@ -3,6 +3,7 @@ import { BaseToolAdapter } from '../base'
 import { cropTool } from '@/lib/editor/tools/transform/cropTool'
 import { CropCommand } from '@/lib/editor/commands/canvas'
 import { useHistoryStore } from '@/store/historyStore'
+import type { CanvasContext } from '@/lib/ai/tools/canvas-bridge'
 
 // Input schema following AI SDK v5 patterns
 const cropParameters = z.object({
@@ -22,29 +23,43 @@ interface CropOutput {
     height: number
   }
   scale?: number
+  targetingMode: 'selection' | 'all-images'
 }
 
 /**
  * Adapter for the crop tool to make it AI-compatible
- * Following AI SDK v5 patterns
+ * Following AI SDK v5 patterns with intelligent image targeting
  */
 export class CropToolAdapter extends BaseToolAdapter<CropInput, CropOutput> {
   tool = cropTool
   aiName = 'cropImage'
-  description = `Crop the image to a specific area. You MUST calculate exact pixel coordinates based on user intent.
-Common patterns you should handle:
-- "crop left/right half" → calculate x:0 or x:width/2 accordingly
-- "crop top/bottom half" → calculate y:0 or y:height/2 accordingly  
-- "crop 50%" or "crop to 50%" → keep center 50% (trim 25% from each edge)
-- "crop X% from edges" → trim that percentage from all sides
-- "crop to square" → calculate largest centered square
-- "crop to 16:9" → calculate dimensions maintaining aspect ratio
-NEVER ask for pixel values - always calculate them from the canvas dimensions.`
-  
+  description = `Crop images to focus on specific areas or change aspect ratios. You MUST calculate exact pixel coordinates.
+
+INTELLIGENT TARGETING:
+- If you have images selected, only those images will be cropped
+- If no images are selected, all images on the canvas will be cropped
+
+Common crop requests:
+- "crop to square" → make width = height, centered
+- "crop to focus on [subject]" → estimate subject position and crop around it
+- "remove edges" → crop 10-20% from each side
+- "crop to 16:9" → calculate 16:9 aspect ratio dimensions
+- "crop tighter" → reduce dimensions by 20-30%
+
+NEVER ask for exact coordinates - calculate them based on the current canvas size and user intent.`
+
+  metadata = {
+    category: 'canvas-editing' as const,
+    executionType: 'fast' as const,
+    worksOn: 'existing-image' as const
+  }
+
   inputSchema = cropParameters
   
-  async execute(params: CropInput, context: { canvas: import('fabric').Canvas }): Promise<CropOutput> {
+  async execute(params: CropInput, context: CanvasContext): Promise<CropOutput> {
     console.log('[CropToolAdapter] Execute called with params:', params)
+    console.log('[CropToolAdapter] Targeting mode:', context.targetingMode)
+    
     const canvas = context.canvas
     
     if (!canvas) {
@@ -53,12 +68,14 @@ NEVER ask for pixel values - always calculate them from the canvas dimensions.`
     
     console.log('[CropToolAdapter] Canvas dimensions:', canvas.getWidth(), 'x', canvas.getHeight())
     
-    // Get all objects on canvas
-    const objects = canvas.getObjects()
-    console.log('[CropToolAdapter] Objects on canvas:', objects.length)
+    // Use pre-filtered target images from enhanced context
+    const images = context.targetImages
     
-    if (objects.length === 0) {
-      throw new Error('No objects to crop')
+    console.log('[CropToolAdapter] Target images:', images.length)
+    console.log('[CropToolAdapter] Targeting mode:', context.targetingMode)
+    
+    if (images.length === 0) {
+      throw new Error('No images found to crop. Please load an image or select images first.')
     }
     
     // Validate crop bounds
@@ -91,7 +108,8 @@ NEVER ask for pixel values - always calculate them from the canvas dimensions.`
         width: canvas.getWidth(),
         height: canvas.getHeight()
       },
-      scale: scale
+      scale: scale,
+      targetingMode: context.targetingMode
     }
   }
   

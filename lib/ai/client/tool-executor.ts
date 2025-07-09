@@ -101,27 +101,21 @@ export class ClientToolExecutor {
       // Let the tool adapter handle whether it needs content or not
     }
     
-    // Get full context from bridge, but use our verified canvas
+    // Get full enhanced context from bridge
     const context = CanvasToolBridge.getCanvasContext()
     if (!context) {
-      // If bridge doesn't have context, create a minimal one with our verified canvas
-      console.log('[ClientToolExecutor] Bridge context not available, using direct canvas')
-      const minimalContext = { canvas: fabricCanvas }
-      
-      try {
-        // Execute the adapter with minimal context
-        const result = await tool.execute(params, minimalContext)
-        console.log('[ClientToolExecutor] Adapter execution successful:', result)
-        return result
-      } catch (error) {
-        console.error(`AI tool execution failed for ${toolName}:`, error)
-        throw error
-      }
+      console.error('[ClientToolExecutor] Bridge context not available')
+      throw new Error('Canvas context is not available. Please ensure an image is loaded.')
     }
     
+    console.log('[ClientToolExecutor] Using enhanced context with targeting:', {
+      targetImages: context.targetImages.length,
+      targetingMode: context.targetingMode
+    })
+    
     try {
-      // Execute the adapter with full context
-      const result = await tool.execute(params, { canvas: fabricCanvas })
+      // Execute the adapter with enhanced context
+      const result = await tool.execute(params, context)
       console.log('[ClientToolExecutor] Adapter execution successful:', result)
       return result
     } catch (error) {

@@ -4,6 +4,13 @@ import { hueTool } from '@/lib/editor/tools/adjustments/hueTool'
 import type { Canvas } from 'fabric'
 import type { Image as FabricImage } from 'fabric'
 import { filters } from 'fabric'
+import type { CanvasContext } from '@/lib/ai/tools/canvas-bridge'
+
+// Extended type for FabricImage with filters
+type FabricImageWithFilters = FabricImage & {
+  filters?: unknown[]
+  applyFilters(): void
+}
 
 // Input schema following AI SDK v5 patterns
 const hueParameters = z.object({
@@ -21,22 +28,30 @@ interface HueOutput {
   previousValue: number
   newValue: number
   affectedImages: number
+  targetingMode: 'selection' | 'all-images'
 }
 
-// Define filter type
-interface ImageFilter {
+// Type for filter with additional properties
+type FilterWithMarkers = {
   type?: string
+  constructor: { name: string }
+  _isHueRotation?: boolean
+  _isHueTest?: boolean
   [key: string]: unknown
 }
 
 /**
  * Adapter for the hue tool to make it AI-compatible
- * Following AI SDK v5 patterns
+ * Following AI SDK v5 patterns with intelligent image targeting
  */
 export class HueToolAdapter extends BaseToolAdapter<HueInput, HueOutput> {
   tool = hueTool
   aiName = 'adjustHue'
   description = `Adjust image hue (color rotation on the color wheel). You MUST calculate the rotation value based on user intent.
+
+INTELLIGENT TARGETING:
+- If you have images selected, only those images will be adjusted
+- If no images are selected, all images on the canvas will be adjusted
 
 IMPORTANT: When user specifies exact degrees, ALWAYS use that value directly:
 - "shift hue by 70 degrees" → use 70
@@ -61,50 +76,62 @@ NEVER ask for exact values - always interpret the user's intent and choose an ap
   
   inputSchema = hueParameters
   
-  async execute(params: HueInput, context: { canvas: Canvas }): Promise<HueOutput> {
+  // Add metadata property required by BaseToolAdapter
+  metadata = {
+    category: 'canvas-editing' as const,
+    executionType: 'fast' as const,
+    worksOn: 'existing-image' as const
+  }
+  
+  async execute(params: HueInput, context: CanvasContext): Promise<HueOutput> {
     console.log('[HueToolAdapter] Execute called with params:', params)
+    console.log('[HueToolAdapter] Targeting mode:', context.targetingMode)
+    
     const canvas = context.canvas
     
     if (!canvas) {
       throw new Error('Canvas is required but not provided in context')
     }
     
-    // Get all image objects
-    const objects = canvas.getObjects()
-    const images = objects.filter(obj => obj.type === 'image') as FabricImage[]
+    // Use pre-filtered target images from enhanced context
+    const images = context.targetImages
     
-    console.log('[HueToolAdapter] Found images:', images.length)
-    console.log('[HueToolAdapter] All objects:', objects.map(obj => obj.type))
+    console.log('[HueToolAdapter] Target images:', images.length)
+    console.log('[HueToolAdapter] Targeting mode:', context.targetingMode)
     
     if (images.length === 0) {
-      throw new Error('No images found on canvas. Please load an image first before adjusting hue.')
+      throw new Error('No images found to adjust hue. Please load an image or select images first.')
     }
     
-    // Apply hue to all images
+    // Apply hue to target images only
     images.forEach((img, index) => {
-      console.log(`[HueToolAdapter] Processing image ${index + 1}:`)
-      console.log(`  - Before filters:`, img.filters?.length || 0, 'filters')
+      console.log(`[HueToolAdapter] Processing image ${index + 1}/${images.length}`)
+      
+      const imageWithFilters = img as FabricImageWithFilters
+      
+      console.log(`  - Before filters:`, imageWithFilters.filters?.length || 0, 'filters')
       
       // Remove existing hue rotation filters
-      if (!img.filters) {
-        img.filters = []
+      if (!imageWithFilters.filters) {
+        imageWithFilters.filters = []
       } else {
-        const beforeCount = img.filters.length
-        img.filters = img.filters.filter((f) => {
-          const filterType = (f as any)?.type || f.constructor.name
+        const beforeCount = imageWithFilters.filters.length
+        imageWithFilters.filters = imageWithFilters.filters.filter((f: unknown) => {
+          const filter = f as unknown as FilterWithMarkers
+          const filterType = filter.type || filter.constructor.name
           console.log(`    - Checking filter type: ${filterType}`)
           // Remove ColorMatrix filters that were used for hue rotation
           // We identify them by checking if they have the hue rotation marker
-          if (filterType === 'ColorMatrix' && (f as any)._isHueRotation) {
+          if (filterType === 'ColorMatrix' && filter._isHueRotation) {
             return false
           }
           // Remove test brightness filters from debugging
-          if (filterType === 'Brightness' && (f as any)._isHueTest) {
+          if (filterType === 'Brightness' && filter._isHueTest) {
             return false
           }
           return filterType !== 'HueRotation'
         })
-        const afterCount = img.filters.length
+        const afterCount = imageWithFilters.filters.length
         console.log(`    - Removed ${beforeCount - afterCount} existing hue filters`)
       }
       
@@ -121,10 +148,10 @@ NEVER ask for exact values - always interpret the user's intent and choose an ap
           })
           
           console.log(`    - Created HueRotation filter:`, hueFilter)
-          console.log(`    - Filter type:`, (hueFilter as any)?.type || hueFilter.constructor.name)
+          console.log(`    - Filter type:`, (hueFilter as unknown as FilterWithMarkers).type || hueFilter.constructor.name)
           
-          img.filters.push(hueFilter)
-          console.log(`    - Added HueRotation filter, total filters now: ${img.filters.length}`)
+          imageWithFilters.filters.push(hueFilter)
+          console.log(`    - Added HueRotation filter, total filters now: ${imageWithFilters.filters.length}`)
         } catch (error) {
           console.log(`    - HueRotation failed, trying ColorMatrix approach:`, error)
           
@@ -161,13 +188,13 @@ NEVER ask for exact values - always interpret the user's intent and choose an ap
           })
           
           // Mark this filter as a hue rotation filter for identification
-          ;(colorMatrixFilter as any)._isHueRotation = true
+          ;(colorMatrixFilter as unknown as FilterWithMarkers)._isHueRotation = true
           
           console.log(`    - Created ColorMatrix filter for hue rotation`)
-          console.log(`    - Filter type:`, (colorMatrixFilter as any)?.type || colorMatrixFilter.constructor.name)
+          console.log(`    - Filter type:`, (colorMatrixFilter as unknown as FilterWithMarkers).type || colorMatrixFilter.constructor.name)
           
-          img.filters.push(colorMatrixFilter)
-          console.log(`    - Added ColorMatrix filter, total filters now: ${img.filters.length}`)
+          imageWithFilters.filters.push(colorMatrixFilter)
+          console.log(`    - Added ColorMatrix filter, total filters now: ${imageWithFilters.filters.length}`)
         }
       }
       
@@ -179,19 +206,21 @@ NEVER ask for exact values - always interpret the user's intent and choose an ap
         const testBrightness = new filters.Brightness({
           brightness: 0.1 // Slight brightness increase to test if filters work
         })
-        ;(testBrightness as any)._isHueTest = true
-        img.filters.push(testBrightness)
+        ;(testBrightness as unknown as FilterWithMarkers)._isHueTest = true
+        imageWithFilters.filters.push(testBrightness)
         console.log(`    - Added test brightness filter for debugging`)
       }
       
-      img.applyFilters()
+      imageWithFilters.applyFilters()
       console.log(`    - Filters applied successfully`)
-      console.log(`    - Final filter count: ${img.filters.length}`)
+      console.log(`    - Final filter count: ${imageWithFilters.filters.length}`)
       
       // Log all filters for debugging
-      img.filters.forEach((filter, i) => {
-        const filterType = (filter as any)?.type || filter.constructor.name
-        console.log(`      Filter ${i}: ${filterType}`)
+      imageWithFilters.filters.forEach((filter, i) => {
+        const filterType = filter.constructor.name
+        const isHueRotation = (filter as unknown as FilterWithMarkers)._isHueRotation
+        const isHueTest = (filter as unknown as FilterWithMarkers)._isHueTest
+        console.log(`      Filter ${i}: ${filterType} (isHueRotation: ${isHueRotation}, isHueTest: ${isHueTest})`)
       })
     })
     
@@ -199,13 +228,13 @@ NEVER ask for exact values - always interpret the user's intent and choose an ap
     canvas.renderAll()
     
     console.log('[HueToolAdapter] Hue adjustment applied successfully')
-    console.log('[HueToolAdapter] Final result: rotation =', params.rotation, 'degrees')
     
     return {
       success: true,
-      previousValue: 0, // In a real implementation, we'd track the current value
+      previousValue: 0, // In a real implementation, we'd track the current hue
       newValue: params.rotation,
-      affectedImages: images.length
+      affectedImages: images.length,
+      targetingMode: context.targetingMode
     }
   }
   
@@ -219,6 +248,6 @@ NEVER ask for exact values - always interpret the user's intent and choose an ap
   }
 }
 
-// Export singleton instance
+// Export default instance for auto-discovery
 const hueAdapter = new HueToolAdapter()
 export default hueAdapter 

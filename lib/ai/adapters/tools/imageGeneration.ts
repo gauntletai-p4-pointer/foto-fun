@@ -3,6 +3,8 @@ import { BaseToolAdapter } from '../base'
 import type { Canvas } from 'fabric'
 import * as fabric from 'fabric'
 import { useLayerStore } from '@/store/layerStore'
+import { tool } from 'ai'
+import type { Tool } from '@/types'
 
 // Input schema for AI SDK v5
 const imageGenerationInputSchema = z.object({
@@ -29,6 +31,24 @@ interface ImageGenerationOutput {
   }
 }
 
+interface ServerResponse {
+  success: boolean
+  imageUrl?: string
+  error?: string
+  metadata?: {
+    width: number
+    height: number
+    model?: string
+    processingTime?: number
+  }
+}
+
+interface ServerErrorResponse {
+  error: string
+  message?: string
+  details?: unknown
+}
+
 /**
  * Tool Adapter for Image Generation AI-Native Tool
  * Integrates Replicate's SDXL model with FotoFun's canvas
@@ -36,26 +56,49 @@ interface ImageGenerationOutput {
 export class ImageGenerationAdapter extends BaseToolAdapter<ImageGenerationInput, ImageGenerationOutput> {
   // Required BaseToolAdapter properties
   aiName = 'generateImage'
-  description = `Generate images from text descriptions using Stable Diffusion XL. 
-Creates new images based on detailed text prompts. The generated image will be added to the canvas.
+  description = `Generate NEW images from scratch using text descriptions with Stable Diffusion XL. 
+This tool creates completely new images based on detailed text prompts - it does NOT modify existing images.
 
-Examples:
-- "a serene mountain landscape at sunset"
-- "a futuristic robot in a cyberpunk city"
-- "an oil painting of a cat wearing a hat"
+Use this tool when the user wants to:
+- Create a new image from a description
+- Add a new generated image to the canvas
+- Generate artwork, photos, or illustrations from text
+
+DO NOT use this tool for:
+- Making existing images "more vibrant" (use adjustSaturation instead)
+- Enhancing existing photos (use other adjustment tools)
+- Modifying colors, brightness, or effects on existing images
+
+Examples of when to use this tool:
+- "generate a serene mountain landscape at sunset"
+- "create a futuristic robot in a cyberpunk city"
+- "add an oil painting of a cat wearing a hat"
+- "generate a new background image"
 
 Common dimensions (all multiples of 8):
 - Square: 512x512, 768x768, 1024x1024
 - Portrait: 512x768, 768x1024
 - Landscape: 768x512, 1024x768
 
-Be specific in your descriptions for better results.`
+Be specific in your descriptions for better results. The generated image will be added as a new layer on the canvas.`
+  
+  metadata = {
+    category: 'ai-native' as const,
+    executionType: 'expensive' as const,
+    worksOn: 'new-image' as const
+  }
   
   inputSchema = imageGenerationInputSchema
   
-  // We don't need a canvas tool reference since this is an AI-Native Tool
-  get tool() {
-    return null as any // Not applicable for AI-Native Tools
+  // We don't have a canvas tool for AI-Native Tools - create a placeholder
+  get tool(): Tool {
+    return {
+      id: 'ai-image-generation',
+      name: 'AI Image Generation',
+      icon: () => null,
+      cursor: 'default',
+      isImplemented: true
+    }
   }
   
   async execute(params: ImageGenerationInput, context: { canvas: Canvas }): Promise<ImageGenerationOutput> {
@@ -72,11 +115,11 @@ Be specific in your descriptions for better results.`
       })
       
       if (!response.ok) {
-        const errorData = await response.json()
+        const errorData: ServerErrorResponse = await response.json()
         throw new Error(errorData.error || `Server error: ${response.status}`)
       }
       
-      const result = await response.json()
+      const result: ServerResponse = await response.json()
       console.log('[ImageGenerationAdapter] Server response:', result)
       
       if (!result.success || !result.imageUrl) {
@@ -200,17 +243,17 @@ Be specific in your descriptions for better results.`
     console.log('  - Image size:', imgWidth, 'x', imgHeight)
     console.log('  - Existing objects:', existingObjects.length)
     
-    // If canvas is empty, center the image
+    // If no existing objects, center the image
     if (existingObjects.length === 0) {
       const centerPosition = {
         left: (canvasWidth - imgWidth) / 2,
         top: (canvasHeight - imgHeight) / 2
       }
-      console.log('  - Empty canvas, centering at:', centerPosition)
+      console.log('  - No existing objects, centering:', centerPosition)
       return centerPosition
     }
     
-    // Helper function to check if a rectangle overlaps with existing objects
+    // Check if a position overlaps with existing objects
     const hasOverlap = (left: number, top: number, width: number, height: number): boolean => {
       for (const obj of existingObjects) {
         const objLeft = obj.left || 0
@@ -219,9 +262,9 @@ Be specific in your descriptions for better results.`
         const objHeight = (obj.height || 0) * (obj.scaleY || 1)
         
         // Check if rectangles overlap
-        const overlaps = left < objLeft + objWidth && 
-                        left + width > objLeft && 
-                        top < objTop + objHeight && 
+        const overlaps = left < objLeft + objWidth &&
+                        left + width > objLeft &&
+                        top < objTop + objHeight &&
                         top + height > objTop
         
         if (overlaps) {
@@ -356,7 +399,7 @@ Be specific in your descriptions for better results.`
   /**
    * Check if the adapter can execute (API configured)
    */
-  canExecute(canvas: Canvas): boolean {
+  canExecute(): boolean {
     // For simplicity, return true - server will handle API key validation
     return true
   }
@@ -366,13 +409,10 @@ Be specific in your descriptions for better results.`
    * On the server, this tool calls our API route directly
    */
   toAITool(): unknown {
-    // Import the tool function only on the server
-    const { tool } = require('ai')
-    
     return tool({
       description: this.description,
       inputSchema: this.inputSchema,
-      execute: async (args: any) => {
+      execute: async (args: ImageGenerationInput) => {
         console.log('[ImageGenerationAdapter] Server-side tool execution with args:', args)
         
         try {
@@ -387,11 +427,11 @@ Be specific in your descriptions for better results.`
           })
           
           if (!response.ok) {
-            const errorData = await response.json()
+            const errorData: ServerErrorResponse = await response.json()
             throw new Error(errorData.error || `Server error: ${response.status}`)
           }
           
-          const result = await response.json()
+          const result: ServerResponse = await response.json()
           console.log('[ImageGenerationAdapter] Server tool result:', result)
           
           return {
@@ -413,7 +453,7 @@ Be specific in your descriptions for better results.`
   /**
    * Generate preview for approval system (not implemented for generation)
    */
-  async generatePreview(params: ImageGenerationInput): Promise<{ before: string; after: string }> {
+  async generatePreview(): Promise<{ before: string; after: string }> {
     // For image generation, we can't provide a meaningful preview
     // Return empty images - the actual generation will happen on execute
     return {

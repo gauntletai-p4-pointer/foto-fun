@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { BaseToolAdapter } from '../base'
 import { sharpenTool } from '@/lib/editor/tools/filters/sharpenTool'
-import type { Canvas } from 'fabric'
+import type { CanvasContext } from '@/lib/ai/tools/canvas-bridge'
 
 // Define parameter schema
 const sharpenParameters = z.object({
@@ -16,27 +16,49 @@ interface SharpenOutput {
   success: boolean
   amount: number
   message: string
+  targetingMode: 'selection' | 'all-images'
 }
 
 // Create adapter class
 export class SharpenAdapter extends BaseToolAdapter<SharpenInput, SharpenOutput> {
   tool = sharpenTool
-  aiName = 'applySharpen'
-  description = `Apply sharpening effect to enhance edge definition. Common patterns:
-- "slight sharpen" or "subtle sharpen" → amount: 10-20
-- "sharpen" or "enhance edges" → amount: 30-40
-- "strong sharpen" or "heavy sharpen" → amount: 60-80
-- "maximum sharpen" → amount: 100
-- "remove sharpen" → amount: 0
-NEVER ask for the sharpen amount.`
+  aiName = 'sharpenImage'
+  description = `Sharpen existing images to make them appear more crisp and detailed. You MUST calculate the amount based on user intent.
+
+INTELLIGENT TARGETING:
+- If you have images selected, only those images will be sharpened
+- If no images are selected, all images on the canvas will be sharpened
+
+Common sharpen requests:
+- "sharpen" or "make it crisp" → amount: 15-25
+- "heavy sharpen" or "very sharp" → amount: 30-40
+- "subtle sharpen" or "slight sharpening" → amount: 5-10
+- "remove sharpening" → amount: 0
+
+NEVER ask for exact values - interpret the user's intent.
+Range: 0 (no sharpening) to 50 (maximum sharpening)`
+
+  metadata = {
+    category: 'canvas-editing' as const,
+    executionType: 'fast' as const,
+    worksOn: 'existing-image' as const
+  }
+
   inputSchema = sharpenParameters
   
-  async execute(params: SharpenInput, context: { canvas: Canvas }): Promise<SharpenOutput> {
+  async execute(params: SharpenInput, context: CanvasContext): Promise<SharpenOutput> {
     try {
-      // Verify canvas has content
-      const objects = context.canvas.getObjects()
-      if (objects.length === 0) {
-        throw new Error('No content found on canvas. Please load an image first.')
+      console.log('[SharpenAdapter] Execute called with params:', params)
+      console.log('[SharpenAdapter] Targeting mode:', context.targetingMode)
+      
+      // Use pre-filtered target images from enhanced context
+      const images = context.targetImages
+      
+      console.log('[SharpenAdapter] Target images:', images.length)
+      console.log('[SharpenAdapter] Targeting mode:', context.targetingMode)
+      
+      if (images.length === 0) {
+        throw new Error('No images found to sharpen. Please load an image or select images first.')
       }
       
       // Activate the sharpen tool first
@@ -54,14 +76,16 @@ NEVER ask for the sharpen amount.`
         success: true,
         amount: params.amount,
         message: params.amount > 0 
-          ? `Applied ${params.amount}% sharpening to the image`
-          : 'Removed sharpening from the image'
+          ? `Applied ${params.amount}% sharpening to ${images.length} image(s)`
+          : `Removed sharpening from ${images.length} image(s)`,
+        targetingMode: context.targetingMode
       }
     } catch (error) {
       return {
         success: false,
         amount: 0,
-        message: error instanceof Error ? error.message : 'Failed to apply sharpening'
+        message: error instanceof Error ? error.message : 'Failed to apply sharpening',
+        targetingMode: context.targetingMode
       }
     }
   }

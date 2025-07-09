@@ -465,6 +465,15 @@ Analyze the complexity and confidence for this request.`,
   
   // Preserve existing canvas analysis functionality
   protected async analyzeCanvas(): Promise<void> {
+    // Don't overwrite canvas analysis if it already has valid data from the client
+    if (this.context.canvasAnalysis.lastAnalyzedAt && 
+        Date.now() - this.context.canvasAnalysis.lastAnalyzedAt < 60000) { // Less than 1 minute old
+      console.log('[BaseExecutionAgent] Using existing canvas analysis from client')
+      return
+    }
+    
+    // Only use mock canvas as fallback if no analysis exists
+    console.log('[BaseExecutionAgent] WARNING: Using mock canvas for analysis - this should not happen in production')
     const canvas = this.context.canvas
     const objects = canvas.getObjects()
     

@@ -32,11 +32,24 @@ export interface AnalyzeCanvasOutput {
 }
 
 export class AnalyzeCanvasAdapter extends BaseToolAdapter<AnalyzeCanvasInput, AnalyzeCanvasOutput> {
-  name = 'analyzeCanvas'
-  aiName = 'analyze_canvas'
-  description = 'Analyze and describe the current canvas state, including visual properties and content'
   tool = {} as unknown as Tool // This is a special adapter that doesn't wrap a canvas tool
-  
+  aiName = 'analyzeCanvas'
+  description = `Analyze the current canvas state and provide detailed information about its contents.
+
+This tool provides information about:
+- Canvas dimensions and content
+- Objects and layers present
+- Image analysis and properties
+- Suggestions for improvements
+
+Use this when you need to understand what's currently on the canvas.`
+
+  metadata = {
+    category: 'canvas-editing' as const,
+    executionType: 'fast' as const,
+    worksOn: 'existing-image' as const
+  }
+
   inputSchema = z.object({
     includeHistogram: z.boolean().optional().describe('Include color histogram analysis'),
     includeObjectDetails: z.boolean().optional().describe('Include details about individual objects')

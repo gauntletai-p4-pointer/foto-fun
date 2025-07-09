@@ -3,10 +3,15 @@ import type { FotoFunTool, ToolExecutionContext } from './base'
 import { useCanvasStore } from '@/store/canvasStore'
 import { useDocumentStore } from '@/store/documentStore'
 
+// Type for Fabric.js image objects
+type FabricImage = FabricObject & { type: 'image' }
+
 export interface CanvasContext extends Omit<ToolExecutionContext, 'canvas' | 'selection'> {
   canvas: Canvas
   imageData?: ImageData
   selection?: FabricObject[]
+  targetImages: FabricImage[]  // Pre-filtered images based on selection
+  targetingMode: 'selection' | 'all-images'  // How targeting was determined
   dimensions: {
     width: number
     height: number
@@ -24,6 +29,7 @@ export interface CanvasContext extends Omit<ToolExecutionContext, 'canvas' | 'se
 export class CanvasToolBridge {
   /**
    * Get the current canvas context for tool execution
+   * Now includes intelligent image targeting based on user selection
    */
   static getCanvasContext(): CanvasContext | null {
     const { fabricCanvas, isReady } = useCanvasStore.getState()
@@ -41,18 +47,39 @@ export class CanvasToolBridge {
     
     const documentStore = useDocumentStore.getState()
     
-    // Check if canvas has any content
+    // Get all objects and active selection
     const objects = fabricCanvas.getObjects()
-    if (objects.length === 0) {
-      console.warn('Canvas has no objects')
-    }
-    
-    // Get active selection if any
     const activeSelection = fabricCanvas.getActiveObjects()
+    
+    // INTELLIGENT IMAGE TARGETING LOGIC
+    // Get all images on canvas
+    const allImages = objects.filter(obj => obj.type === 'image') as FabricImage[]
+    
+    // Get selected images (if any)
+    const selectedImages = activeSelection.filter(obj => obj.type === 'image') as FabricImage[]
+    
+    // Determine target images: prioritize selection, fallback to all images
+    const targetImages = selectedImages.length > 0 ? selectedImages : allImages
+    const targetingMode = selectedImages.length > 0 ? 'selection' : 'all-images'
+    
+    console.log('[CanvasToolBridge] Image targeting:', {
+      totalObjects: objects.length,
+      totalImages: allImages.length,
+      selectedObjects: activeSelection.length,
+      selectedImages: selectedImages.length,
+      targetImages: targetImages.length,
+      targetingMode
+    })
+    
+    if (objects.length === 0) {
+      console.warn('[CanvasToolBridge] Canvas has no objects')
+    }
     
     return {
       canvas: fabricCanvas,
       selection: activeSelection.length > 0 ? activeSelection : undefined,
+      targetImages,
+      targetingMode,
       dimensions: {
         width: fabricCanvas.getWidth(),
         height: fabricCanvas.getHeight()

@@ -42,7 +42,7 @@ export default function SignInPage() {
           {plan && (
             <div className="bg-primary/5 border border-primary/20 rounded-lg p-4 text-center">
               <p className="text-sm">
-                You're signing in to start your{' '}
+                You&apos;re signing in to start your{' '}
                 <span className="font-semibold capitalize">{plan}</span> plan
               </p>
             </div>

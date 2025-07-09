@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { BaseToolAdapter } from '../base'
 import { grayscaleTool } from '@/lib/editor/tools/filters/grayscaleTool'
-import type { Canvas } from 'fabric'
+import type { CanvasContext } from '@/lib/ai/tools/canvas-bridge'
 
 // Define parameter schema
 const grayscaleParameters = z.object({
@@ -16,26 +16,44 @@ interface GrayscaleOutput {
   success: boolean
   enabled: boolean
   message: string
+  targetingMode: 'selection' | 'all-images'
 }
 
 // Create adapter class
 export class GrayscaleAdapter extends BaseToolAdapter<GrayscaleInput, GrayscaleOutput> {
   tool = grayscaleTool
-  aiName = 'applyGrayscale'
-  description = `Convert image to grayscale (black and white) or restore color. Common patterns:
-- "convert to black and white" or "make grayscale" → enable: true
-- "convert to grayscale" or "remove color" → enable: true
-- "restore color" or "remove grayscale" → enable: false
-- "black and white" → enable: true
-NEVER ask whether to enable or disable.`
+  aiName = 'convertToGrayscale'
+  description = `Convert existing images to grayscale (black and white). Simple enable/disable control.
+
+INTELLIGENT TARGETING:
+- If you have images selected, only those images will be converted
+- If no images are selected, all images on the canvas will be converted
+
+Common grayscale requests:
+- "make it grayscale" or "black and white" → enable: true
+- "remove grayscale" or "restore color" → enable: false`
+
+  metadata = {
+    category: 'canvas-editing' as const,
+    executionType: 'fast' as const,
+    worksOn: 'existing-image' as const
+  }
+
   inputSchema = grayscaleParameters
   
-  async execute(params: GrayscaleInput, context: { canvas: Canvas }): Promise<GrayscaleOutput> {
+  async execute(params: GrayscaleInput, context: CanvasContext): Promise<GrayscaleOutput> {
     try {
-      // Verify canvas has content
-      const objects = context.canvas.getObjects()
-      if (objects.length === 0) {
-        throw new Error('No content found on canvas. Please load an image first.')
+      console.log('[GrayscaleAdapter] Execute called with params:', params)
+      console.log('[GrayscaleAdapter] Targeting mode:', context.targetingMode)
+      
+      // Use pre-filtered target images from enhanced context
+      const images = context.targetImages
+      
+      console.log('[GrayscaleAdapter] Target images:', images.length)
+      console.log('[GrayscaleAdapter] Targeting mode:', context.targetingMode)
+      
+      if (images.length === 0) {
+        throw new Error('No images found to convert. Please load an image or select images first.')
       }
       
       // Activate the grayscale tool first
@@ -53,14 +71,16 @@ NEVER ask whether to enable or disable.`
         success: true,
         enabled: params.enable,
         message: params.enable 
-          ? 'Converted image to grayscale'
-          : 'Restored color to image'
+          ? `Converted ${images.length} image(s) to grayscale`
+          : `Restored color to ${images.length} image(s)`,
+        targetingMode: context.targetingMode
       }
     } catch (error) {
       return {
         success: false,
         enabled: false,
-        message: error instanceof Error ? error.message : 'Failed to apply grayscale'
+        message: error instanceof Error ? error.message : 'Failed to apply grayscale',
+        targetingMode: context.targetingMode
       }
     }
   }

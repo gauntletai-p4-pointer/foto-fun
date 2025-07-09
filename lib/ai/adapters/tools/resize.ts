@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { BaseToolAdapter } from '../base'
 import { resizeTool } from '@/lib/editor/tools/transform/resizeTool'
-import type { Canvas } from 'fabric'
+import type { CanvasContext } from '@/lib/ai/tools/canvas-bridge'
 
 // Define parameter schema
 const resizeParameters = z.object({
@@ -29,32 +29,49 @@ interface ResizeOutput {
   mode: string
   dimensions: { width: number; height: number }
   message: string
+  targetingMode: 'selection' | 'all-images'
 }
 
 // Create adapter class
 export class ResizeToolAdapter extends BaseToolAdapter<ResizeInput, ResizeOutput> {
   tool = resizeTool
   aiName = 'resizeImage'
-  description = `Resize the image by percentage or to specific dimensions. You MUST calculate the values based on user intent.
-Common patterns you should use:
-- "resize to 50%" or "half size" → mode: percentage, width: 50
-- "make it twice as big" or "200%" → mode: percentage, width: 200
-- "resize to 800x600" → mode: absolute, width: 800, height: 600
-- "resize to 1920 wide" → mode: absolute, width: 1920 (height auto-calculated)
-- "make it smaller" → mode: percentage, width: 75
-- "make it larger" → mode: percentage, width: 125
-- "thumbnail size" → mode: absolute, width: 150, height: 150
-- Default to maintaining aspect ratio unless user specifies otherwise
-NEVER ask for exact values - interpret the user's intent and calculate appropriate dimensions.`
-  
+  description = `Resize existing images to different dimensions. You MUST calculate dimensions based on user intent.
+
+INTELLIGENT TARGETING:
+- If you have images selected, only those images will be resized
+- If no images are selected, all images on the canvas will be resized
+
+Common resize requests:
+- "resize to 50%" → mode: "percentage", width: 50, maintainAspectRatio: true
+- "make it smaller" → mode: "percentage", width: 75, maintainAspectRatio: true
+- "make it larger" → mode: "percentage", width: 150, maintainAspectRatio: true
+- "resize to 1920x1080" → mode: "absolute", width: 1920, height: 1080
+- "resize width to 800" → mode: "absolute", width: 800, maintainAspectRatio: true
+
+NEVER ask for exact dimensions - interpret the user's intent.`
+
+  metadata = {
+    category: 'canvas-editing' as const,
+    executionType: 'fast' as const,
+    worksOn: 'existing-image' as const
+  }
+
   inputSchema = resizeParameters
   
-  async execute(params: ResizeInput, context: { canvas: Canvas }): Promise<ResizeOutput> {
+  async execute(params: ResizeInput, context: CanvasContext): Promise<ResizeOutput> {
     try {
-      // Verify canvas has content
-      const objects = context.canvas.getObjects()
-      if (objects.length === 0) {
-        throw new Error('No content found on canvas. Please load an image first.')
+      console.log('[ResizeToolAdapter] Execute called with params:', params)
+      console.log('[ResizeToolAdapter] Targeting mode:', context.targetingMode)
+      
+      // Use pre-filtered target images from enhanced context
+      const images = context.targetImages
+      
+      console.log('[ResizeToolAdapter] Target images:', images.length)
+      console.log('[ResizeToolAdapter] Targeting mode:', context.targetingMode)
+      
+      if (images.length === 0) {
+        throw new Error('No images found to resize. Please load an image or select images first.')
       }
       
       // Get the resize tool options and update them
@@ -93,15 +110,17 @@ NEVER ask for exact values - interpret the user's intent and calculate appropria
         mode: params.mode,
         dimensions: finalDimensions,
         message: params.mode === 'percentage' 
-          ? `Resized image to ${params.width}%`
-          : `Resized image to ${finalDimensions.width}x${finalDimensions.height} pixels`
+          ? `Resized ${images.length} image(s) to ${params.width}%`
+          : `Resized ${images.length} image(s) to ${finalDimensions.width}x${finalDimensions.height} pixels`,
+        targetingMode: context.targetingMode
       }
     } catch (error) {
       return {
         success: false,
         mode: '',
         dimensions: { width: 0, height: 0 },
-        message: error instanceof Error ? error.message : 'Failed to resize image'
+        message: error instanceof Error ? error.message : 'Failed to resize image',
+        targetingMode: context.targetingMode
       }
     }
   }

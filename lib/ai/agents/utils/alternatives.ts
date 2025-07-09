@@ -4,6 +4,7 @@ import { openai } from '@ai-sdk/openai'
 import { z } from 'zod'
 import { captureCanvasState } from './canvas'
 import { adapterRegistry } from '@/lib/ai/adapters/registry'
+import { CanvasToolBridge } from '@/lib/ai/tools/canvas-bridge'
 
 // Schema for generating alternatives
 const AlternativesSchema = z.object({
@@ -57,7 +58,13 @@ export async function generateAlternatives(
       const currentState = await captureCanvasState(context.canvas)
       
       // Execute the alternative to generate preview
-      await adapter.execute(alt.params, { canvas: context.canvas })
+      const canvasContext = CanvasToolBridge.getCanvasContext()
+      if (!canvasContext) {
+        console.warn('Canvas context not available for alternative generation')
+        continue
+      }
+      
+      await adapter.execute(alt.params, canvasContext)
       const afterState = await captureCanvasState(context.canvas)
       
       // Restore canvas to original state

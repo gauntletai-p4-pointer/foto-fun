@@ -67,6 +67,34 @@ class AdapterRegistry {
   hasAdapter(name: string): boolean {
     return this.adapters.has(name)
   }
+  
+  /**
+   * Get adapters by category for routing decisions
+   */
+  getByCategory(category: 'canvas-editing' | 'ai-native'): ToolAdapter[] {
+    return this.getAll().filter(adapter => adapter.metadata.category === category)
+  }
+  
+  /**
+   * Get only canvas editing tools (for workflows)
+   */
+  getCanvasEditingTools(): ToolAdapter[] {
+    return this.getByCategory('canvas-editing')
+  }
+  
+  /**
+   * Get only AI-native tools (for single-tool execution)
+   */
+  getAINativeTools(): ToolAdapter[] {
+    return this.getByCategory('ai-native')
+  }
+  
+  /**
+   * Get tool names by category
+   */
+  getToolNamesByCategory(category: 'canvas-editing' | 'ai-native'): string[] {
+    return this.getByCategory(category).map(adapter => adapter.aiName)
+  }
 }
 
 // Singleton instance
