@@ -43,13 +43,22 @@ Common patterns you should use:
 - "blown out" or "very overexposed" → +60 to +80
 - "very dark" or "very underexposed" → -60 to -80
 - "adjust exposure by X stops" → X * 33 (each stop ≈ 33 units)
+- "turn exposure down by X%" → use -X directly (e.g., "down by 10%" → -10)
+- "turn exposure up by X%" → use +X directly (e.g., "up by 15%" → +15)
+- "increase exposure X%" → use +X directly 
+- "decrease exposure X%" → use -X directly
+- "reduce exposure X%" → use -X directly
 Note: Exposure has a more dramatic effect than brightness, affecting the entire tonal range.
 NEVER ask for exact values - always interpret the user's intent and choose an appropriate value.`
   
   inputSchema = exposureParameters
   
   async execute(params: ExposureInput, context: { canvas: Canvas }): Promise<ExposureOutput> {
+    console.log('[ExposureToolAdapter] ===== EXECUTE CALLED =====')
     console.log('[ExposureToolAdapter] Execute called with params:', params)
+    console.log('[ExposureToolAdapter] Params type:', typeof params)
+    console.log('[ExposureToolAdapter] Params keys:', Object.keys(params))
+    console.log('[ExposureToolAdapter] Adjustment value:', params.adjustment)
     const canvas = context.canvas
     
     if (!canvas) {

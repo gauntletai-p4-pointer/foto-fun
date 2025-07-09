@@ -1,0 +1,49 @@
+#!/bin/bash
+
+# Git pre-push hook to run linting and type checking before pushing to main
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
+# Get the current branch
+current_branch=$(git rev-parse --abbrev-ref HEAD)
+
+echo -e "${YELLOW}Pre-push hook: Checking push to '$current_branch'${NC}"
+
+# Only run checks when pushing to main
+if [ "$current_branch" = "main" ]; then
+    echo -e "${YELLOW}Pushing to main branch - running quality checks...${NC}"
+    
+    # Check Node.js version
+    node_version=$(node --version)
+    echo -e "${YELLOW}Using Node.js version: $node_version${NC}"
+    
+    # Run linting
+    echo -e "${YELLOW}Running bun lint...${NC}"
+    if ! bun lint 2>&1; then
+        echo -e "${RED}❌ Lint check failed! Push aborted.${NC}"
+        echo -e "${RED}Please fix linting errors before pushing to main.${NC}"
+        echo -e "${YELLOW}If you're seeing Node.js compatibility issues, try updating Node.js to version 18+ or use: git push --no-verify${NC}"
+        exit 1
+    fi
+    echo -e "${GREEN}✅ Lint check passed${NC}"
+    
+    # Run type checking
+    echo -e "${YELLOW}Running bun typecheck...${NC}"
+    if ! bun typecheck 2>&1; then
+        echo -e "${RED}❌ Type check failed! Push aborted.${NC}"
+        echo -e "${RED}Please fix type errors before pushing to main.${NC}"
+        echo -e "${YELLOW}If you're seeing Node.js compatibility issues, try updating Node.js to version 18+ or use: git push --no-verify${NC}"
+        exit 1
+    fi
+    echo -e "${GREEN}✅ Type check passed${NC}"
+    
+    echo -e "${GREEN}🎉 All quality checks passed! Push allowed.${NC}"
+else
+    echo -e "${GREEN}Not pushing to main - skipping quality checks${NC}"
+fi
+
+exit 0

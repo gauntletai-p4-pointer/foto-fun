@@ -31,16 +31,24 @@ export class ClientToolExecutor {
     toolName: string,
     params: unknown
   ): Promise<unknown> {
-    console.log('[ClientToolExecutor] Executing tool:', toolName, 'with params:', params)
+    console.log('[ClientToolExecutor] === EXECUTE TOOL ===')
+    console.log('[ClientToolExecutor] Tool name:', toolName)
+    console.log('[ClientToolExecutor] Params:', params)
+    console.log('[ClientToolExecutor] Params type:', typeof params)
     
     // Initialize adapters if not already done
     await this.initialize()
     
     // Get tool from registry
     const tool = adapterRegistry.get(toolName)
+    console.log('[ClientToolExecutor] Tool lookup result:', !!tool)
+    console.log('[ClientToolExecutor] Looking for tool:', toolName)
+    console.log('[ClientToolExecutor] Is saturation tool?:', toolName === 'adjustSaturation')
+    
     if (!tool) {
       console.error('[ClientToolExecutor] Tool not found:', toolName)
       console.log('[ClientToolExecutor] Available tools:', adapterRegistry.getAll().map(t => t.aiName))
+      console.log('[ClientToolExecutor] Registry has saturation:', adapterRegistry.get('adjustSaturation') !== undefined)
       throw new Error(`Tool not found: ${toolName}`)
     }
     

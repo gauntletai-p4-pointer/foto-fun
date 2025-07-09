@@ -76,8 +76,9 @@ export function AIChat() {
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto'
       const scrollHeight = textareaRef.current.scrollHeight
+      const minHeight = 2 * 24 // 2 lines * 24px line height
       const maxHeight = 8 * 24 // 8 lines * 24px line height
-      textareaRef.current.style.height = `${Math.min(scrollHeight, maxHeight)}px`
+      textareaRef.current.style.height = `${Math.max(minHeight, Math.min(scrollHeight, maxHeight))}px`
     }
   }, [])
   
@@ -174,6 +175,7 @@ export function AIChat() {
       try {
         console.log('[AIChat] ===== onToolCall TRIGGERED =====')
         console.log('[AIChat] onToolCall triggered with:', toolCall)
+        console.log('[AIChat] toolCall structure:', JSON.stringify(toolCall, null, 2))
         console.log('[AIChat] toolCall type:', typeof toolCall)
         console.log('[AIChat] toolCall keys:', Object.keys(toolCall))
         
@@ -203,7 +205,9 @@ export function AIChat() {
         
         // SPECIAL HANDLING: If this is the agent workflow tool, execute the planned tools directly
         if (toolName === 'executeAgentWorkflow') {
+          console.log('[AIChat] === AGENT WORKFLOW TOOL DETECTED ===')
           const agentResult = args as { toolExecutions?: Array<{ toolName: string; params: unknown }> }
+          console.log('[AIChat] Agent result:', agentResult)
           
           if (agentResult.toolExecutions && agentResult.toolExecutions.length > 0) {
             console.log('[AIChat] Agent workflow - executing planned tools:', agentResult.toolExecutions)
@@ -241,6 +245,10 @@ export function AIChat() {
           // If no tool executions, just return the agent result
           return args
         }
+        
+        console.log('[AIChat] === EXECUTING INDIVIDUAL TOOL ===')
+        console.log('[AIChat] Final tool name:', toolName)
+        console.log('[AIChat] Final args:', args)
         
         // Get fresh state from store instead of using stale closure values
         const currentState = useCanvasStore.getState()
@@ -735,9 +743,9 @@ export function AIChat() {
             onKeyDown={handleKeyDown}
             placeholder={isCanvasReady ? (hasContent() ? "Ask me anything about editing your photo..." : "Ask me to generate or edit photos...") : "Waiting for canvas to load..."}
             disabled={isLoading || !isCanvasReady}
-            rows={1}
+            rows={2}
             className={cn(
-              "flex-1 min-h-[2.5rem] w-full resize-none rounded-md border border-foreground/10 bg-transparent px-3 py-2 text-sm shadow-sm transition-colors outline-none overflow-y-auto",
+              "flex-1 min-h-[3rem] w-full resize-none rounded-md border border-foreground/10 bg-transparent px-3 py-2 text-sm shadow-sm transition-colors outline-none overflow-y-auto",
               "placeholder:text-foreground/40",
               "hover:border-foreground/20",
               "focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/20",
