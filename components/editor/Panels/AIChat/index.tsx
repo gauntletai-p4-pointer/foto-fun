@@ -421,8 +421,8 @@ export function AIChat() {
                   className={cn(
                     "max-w-[95%] rounded-lg px-3 py-2",
                     message.role === 'user'
-                      ? 'bg-primary text-primary-foreground rounded-tr-sm'
-                      : 'bg-foreground/5 text-foreground rounded-tl-sm'
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-foreground/5 text-foreground'
                   )}
                 >
                   {/* Render message parts */}
