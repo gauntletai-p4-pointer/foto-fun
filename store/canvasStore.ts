@@ -2,8 +2,9 @@ import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import { Canvas, Point, TPointerEvent, TPointerEventInfo } from 'fabric'
 import { DEFAULT_ZOOM, MIN_ZOOM, MAX_ZOOM, ZOOM_LEVELS } from '@/constants'
-import { SelectionManager, SelectionRenderer } from '@/lib/editor/selection'
+import { LayerAwareSelectionManager, SelectionRenderer } from '@/lib/editor/selection'
 import { ClipboardManager } from '@/lib/editor/clipboard'
+import { useObjectRegistryStore } from './objectRegistryStore'
 
 interface CanvasStore {
   // Canvas instances
@@ -45,7 +46,7 @@ interface CanvasStore {
   setObjectSelection: (enabled: boolean) => void
   
   // Selection management
-  selectionManager: SelectionManager | null
+  selectionManager: LayerAwareSelectionManager | null
   selectionRenderer: SelectionRenderer | null
   clipboardManager: ClipboardManager | null
   
@@ -141,27 +142,11 @@ export const useCanvasStore = create<CanvasStore>()(
               backgroundColor: bgColor
             })
             
-            // Wait a frame to ensure state is updated
+            // Wait for next frame to ensure canvas is rendered
             await new Promise(resolve => requestAnimationFrame(resolve))
             
-            // Initialize selection system
-            const state = get()
-            if (state.fabricCanvas) {
-              const selectionManager = new SelectionManager(state.fabricCanvas)
-              const selectionRenderer = new SelectionRenderer(state.fabricCanvas, selectionManager)
-              const clipboardManager = new ClipboardManager(state.fabricCanvas, selectionManager)
-              
-              set({ 
-                selectionManager, 
-                selectionRenderer, 
-                clipboardManager 
-              })
-              
-              // Start rendering if there's already a selection
-              if (selectionManager.hasSelection()) {
-                selectionRenderer.startRendering()
-              }
-            }
+            // Initialize selection management
+            get().initializeSelection()
             
             // Render canvas
             canvas.renderAll()
@@ -205,6 +190,12 @@ export const useCanvasStore = create<CanvasStore>()(
         
         // Cleanup selection system first
         cleanupSelection()
+        
+        // Clear any pending pixel map update
+        if ((window as any).pixelMapUpdateTimeout) {
+          clearTimeout((window as any).pixelMapUpdateTimeout)
+          delete (window as any).pixelMapUpdateTimeout
+        }
         
         if (fabricCanvas) {
           fabricCanvas.dispose()
@@ -343,8 +334,68 @@ export const useCanvasStore = create<CanvasStore>()(
       
       // Selection management actions
       initializeSelection: () => {
-        // This is now called from within initCanvas
-        // Kept for backward compatibility but does nothing
+        const state = get()
+        
+        if (!state.fabricCanvas) {
+          console.error('Canvas not initialized')
+          return
+        }
+        
+        try {
+          const selectionManager = new LayerAwareSelectionManager(state.fabricCanvas)
+          const selectionRenderer = new SelectionRenderer(state.fabricCanvas, selectionManager)
+          const clipboardManager = new ClipboardManager(state.fabricCanvas, selectionManager)
+          
+          // Initialize object registry but don't update on every render
+          const objectRegistry = useObjectRegistryStore.getState()
+          
+          // Only update pixel map when objects actually change
+          state.fabricCanvas.on('object:added', () => {
+            // Defer update to avoid blocking UI
+            requestAnimationFrame(() => {
+              objectRegistry.updatePixelMap()
+            })
+          })
+          
+          state.fabricCanvas.on('object:removed', () => {
+            requestAnimationFrame(() => {
+              objectRegistry.updatePixelMap()
+            })
+          })
+          
+          state.fabricCanvas.on('object:modified', (e: any) => {
+            // Mark specific object as dirty for incremental update
+            const obj = e.target
+            if (obj && obj.get('id')) {
+              objectRegistry.markDirty(obj.get('id') as string)
+              
+              // Debounce modifications since they can fire rapidly
+              if ((window as any).pixelMapUpdateTimeout) {
+                clearTimeout((window as any).pixelMapUpdateTimeout)
+              }
+              
+              (window as any).pixelMapUpdateTimeout = setTimeout(() => {
+                objectRegistry.updatePixelMapIfNeeded()
+              }, 300) // Wait 300ms after last modification
+            }
+          })
+          
+          // Also listen for object:moving to mark as dirty but don't update until done
+          state.fabricCanvas.on('object:moving', (e: any) => {
+            const obj = e.target
+            if (obj && obj.get('id')) {
+              objectRegistry.markDirty(obj.get('id') as string)
+            }
+          })
+          
+          set({ 
+            selectionManager, 
+            selectionRenderer,
+            clipboardManager
+          })
+        } catch (error) {
+          console.error('Failed to initialize selection system:', error)
+        }
       },
       
       cleanupSelection: () => {

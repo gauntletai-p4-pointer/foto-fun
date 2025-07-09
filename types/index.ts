@@ -1,5 +1,6 @@
 import type * as PIXI from 'pixi.js'
 import type { Canvas, TPointerEventInfo, TPointerEvent, FabricObject } from 'fabric'
+import type { PixelSelection } from '@/lib/editor/selection/SelectionManager'
 
 // Canvas types
 export interface CanvasState {
@@ -110,4 +111,48 @@ export interface ExportOptions {
   width?: number
   height?: number
   includeMetadata?: boolean
-} 
+}
+
+// Object-aware selection types
+export interface BoundingBox {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
+export interface ObjectRegistry {
+  pixelToObject: Map<string, string>
+  objectBounds: Map<string, BoundingBox>
+  renderOrder: string[]
+}
+
+export interface LayerAwareSelectionManager {
+  // From base SelectionManager
+  canvas: Canvas
+  selection: PixelSelection | null
+  
+  // New properties
+  objectSelections: Map<string, PixelSelection>
+  activeObjectId: string | null
+  mode: SelectionMode
+  
+  // Methods (interface only)
+  createObjectSelection: (objectId: string, mask: ImageData) => void
+  getObjectSelection: (objectId: string) => PixelSelection | null
+  applySelectionToObject: (objectId: string, operation: any) => void
+  setActiveObject: (objectId: string | null) => void
+}
+
+export interface ObjectPixelCache {
+  cache: Map<string, {
+    imageData: ImageData
+    bounds: BoundingBox
+    timestamp: number
+  }>
+}
+
+export type SelectionMode = 'global' | 'object' | 'layer'
+
+// Re-export selection types
+export type { PixelSelection } 

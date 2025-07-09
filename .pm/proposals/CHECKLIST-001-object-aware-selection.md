@@ -1,67 +1,67 @@
 # CHECKLIST-001: Object-Aware Selection Implementation
 
 **Based on**: PROPOSAL-001-object-aware-selection.md  
-**Status**: 🟡 Ready to Start  
+**Status**: 🟢 In Progress  
 **Priority**: P1  
 **Created**: 2024-12-28  
 **Estimated Duration**: 3 months  
 
-## Phase 1: Foundation (Weeks 1-2)
+## Phase 1: Foundation (Weeks 1-2) ✅ COMPLETED
 
-### 1.1 Object Registry Store
-- [ ] **Create store/objectRegistryStore.ts**
-  - [ ] Define ObjectRegistryStore interface
-  - [ ] Implement pixelToObject Map
-  - [ ] Implement objectBounds Map
-  - [ ] Add renderOrder array
-  - [ ] Create updatePixelMap() method
-  - [ ] Create getObjectAtPixel() method
-  - [ ] Create getObjectPixels() method
-  - [ ] Add tests for object registry
-  - [ ] **Implement object overlap handling**
-    - [ ] Track z-order for pixel ownership
-    - [ ] Handle transparency in pixel ownership calculation
-    - [ ] Implement getObjectsAtPixel() for multiple overlaps
-    - [ ] Add click-through detection for transparent pixels
-    - [ ] Create object picker UI for ambiguous clicks
+### 1.1 Object Registry Store ✅
+- [x] **Create store/objectRegistryStore.ts**
+  - [x] Define ObjectRegistryStore interface
+  - [x] Implement pixelToObject Map
+  - [x] Implement objectBounds Map
+  - [x] Add renderOrder array
+  - [x] Create updatePixelMap() method
+  - [x] Create getObjectAtPixel() method
+  - [x] Create getObjectPixels() method
+  - [x] Add tests for object registry
+  - [x] **Implement object overlap handling**
+    - [x] Track z-order for pixel ownership
+    - [x] Handle transparency in pixel ownership calculation
+    - [x] Implement getObjectsAtPixel() for multiple overlaps
+    - [x] Add click-through detection for transparent pixels
+    - [ ] Create object picker UI for ambiguous clicks (moved to Phase 4)
 
-### 1.2 Update Types
-- [ ] **Update types/index.ts**
-  - [ ] Add BoundingBox interface
-  - [ ] Add ObjectRegistry interface
-  - [ ] Add LayerAwareSelectionManager interface
-  - [ ] Add ObjectPixelCache interface
-  - [ ] Add SelectionMode type ('global' | 'object' | 'layer')
+### 1.2 Update Types ✅
+- [x] **Update types/index.ts**
+  - [x] Add BoundingBox interface
+  - [x] Add ObjectRegistry interface
+  - [x] Add LayerAwareSelectionManager interface
+  - [x] Add ObjectPixelCache interface
+  - [x] Add SelectionMode type ('global' | 'object' | 'layer')
 
-### 1.3 Object Pixel Cache
-- [ ] **Create lib/editor/selection/ObjectPixelCache.ts**
-  - [ ] Implement cache Map structure
-  - [ ] Create getObjectPixels() method
-  - [ ] Create invalidateObject() method
-  - [ ] Create renderObjectToPixels() method
-  - [ ] Add LRU eviction logic
-  - [ ] Add memory management
+### 1.3 Object Pixel Cache ✅
+- [x] **Create lib/editor/selection/ObjectPixelCache.ts**
+  - [x] Implement cache Map structure
+  - [x] Create getObjectPixels() method
+  - [x] Create invalidateObject() method
+  - [x] Create renderObjectToPixels() method
+  - [x] Add LRU eviction logic
+  - [x] Add memory management
 
-### 1.4 Extend Selection Manager
-- [ ] **Create lib/editor/selection/LayerAwareSelectionManager.ts**
-  - [ ] Extend from SelectionManager
-  - [ ] Add objectSelections Map
-  - [ ] Add activeObjectId property
-  - [ ] Add selection mode property
-  - [ ] Implement createObjectSelection()
-  - [ ] Implement getObjectSelection()
-  - [ ] Implement applySelectionToObject()
-  - [ ] Override createRectangle() for object-aware behavior
-  - [ ] Override createEllipse() for object-aware behavior
-  - [ ] Override createFromPath() for object-aware behavior
+### 1.4 Extend Selection Manager ✅
+- [x] **Create lib/editor/selection/LayerAwareSelectionManager.ts**
+  - [x] Extend from SelectionManager
+  - [x] Add objectSelections Map
+  - [x] Add activeObjectId property
+  - [x] Add selection mode property
+  - [x] Implement createObjectSelection()
+  - [x] Implement getObjectSelection()
+  - [x] Implement applySelectionToObject()
+  - [x] Override createRectangle() for object-aware behavior
+  - [x] Override createEllipse() for object-aware behavior
+  - [x] Override createFromPath() for object-aware behavior
 
-### 1.5 Update Canvas Store
-- [ ] **Modify store/canvasStore.ts**
-  - [ ] Replace SelectionManager with LayerAwareSelectionManager
-  - [ ] Add objectRegistry reference
-  - [ ] Update initCanvas() to initialize object registry
-  - [ ] Add method to sync object registry on canvas changes
-  - [ ] Update selection initialization
+### 1.5 Update Canvas Store ✅
+- [x] **Modify store/canvasStore.ts**
+  - [x] Replace SelectionManager with LayerAwareSelectionManager
+  - [x] Add objectRegistry reference
+  - [x] Update initCanvas() to initialize object registry
+  - [x] Add method to sync object registry on canvas changes
+  - [x] Update selection initialization
 
 ## Phase 2: Tool Integration (Weeks 3-4)
 

@@ -4,6 +4,8 @@ import { Path } from 'fabric'
 import { createToolState } from '../utils/toolState'
 import { constrainProportions, drawFromCenter, type Point } from '../utils/constraints'
 import { useSelectionStore } from '@/store/selectionStore'
+import { useCanvasStore } from '@/store/canvasStore'
+import { useObjectRegistryStore } from '@/store/objectRegistryStore'
 
 // Selection tool state interface - use type instead of interface for index signature
 type SelectionToolState = {
@@ -36,6 +38,10 @@ export abstract class SelectionTool extends BaseTool {
   // Visual feedback element
   protected feedbackElement: Path | null = null
   
+  // Bound event handlers for cleanup
+  private boundHandleKeyDown = this.handleKeyDown.bind(this)
+  private boundHandleKeyUp = this.handleKeyUp.bind(this)
+  
   /**
    * Get the current selection mode from tool options
    */
@@ -48,17 +54,26 @@ export abstract class SelectionTool extends BaseTool {
    * Tool-specific setup
    */
   protected setupTool(canvas: Canvas): void {
-    // Disable object selection while using selection tools
-    canvas.selection = false
+    // Ensure pixel map is updated when selection tool is activated
+    const objectRegistry = useObjectRegistryStore.getState()
+    objectRegistry.updatePixelMapIfNeeded()
     
-    // Set up event handlers using BaseTool's event management
+    // Ensure canvas object selection is disabled for pixel-based selection tools
+    const canvasStore = useCanvasStore.getState()
+    canvasStore.setObjectSelection(false)
+    
+    // Mouse event handlers
     this.addCanvasEvent('mouse:down', (e: unknown) => this.handleMouseDown(e as TPointerEventInfo<MouseEvent>))
     this.addCanvasEvent('mouse:move', (e: unknown) => this.handleMouseMove(e as TPointerEventInfo<MouseEvent>))
     this.addCanvasEvent('mouse:up', () => this.handleMouseUp())
     
+    // Set up cursor
+    canvas.defaultCursor = this.cursor
+    canvas.hoverCursor = this.cursor
+    
     // Keyboard events for modifiers
-    this.addEventListener(window, 'keydown', this.handleKeyDown.bind(this))
-    this.addEventListener(window, 'keyup', this.handleKeyUp.bind(this))
+    document.addEventListener('keydown', this.boundHandleKeyDown)
+    document.addEventListener('keyup', this.boundHandleKeyUp)
     
     // Subscribe to tool options changes
     this.subscribeToToolOptions((options) => {
@@ -76,6 +91,10 @@ export abstract class SelectionTool extends BaseTool {
       canvas.remove(this.feedbackElement)
     }
     this.feedbackElement = null
+    
+    // Remove keyboard event listeners
+    document.removeEventListener('keydown', this.boundHandleKeyDown)
+    document.removeEventListener('keyup', this.boundHandleKeyUp)
     
     // Reset state
     this.state.reset()
