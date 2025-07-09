@@ -20,12 +20,19 @@ async function initialize() {
 export async function POST(req: Request) {
   const { messages, canvasContext, aiSettings } = await req.json()
   
+  // Add useful debugging logs
+  console.log('=== AI CHAT POST REQUEST ===')
+  console.log('Messages count:', messages.length)
+  console.log('Last message:', messages[messages.length - 1]?.content || 'No content')
+  console.log('Canvas context hasContent:', canvasContext?.hasContent)
+  console.log('Canvas dimensions:', canvasContext?.dimensions)
+  
   // Initialize adapters
   await initialize()
   
-  // Just use the normal AI chat with all tools available
-  // Let the AI decide what to do naturally
+  // Get AI tools from adapter registry
   const aiTools = adapterRegistry.getAITools()
+  console.log('Available AI tools:', Object.keys(aiTools))
   
   return streamText({
     model: openai('gpt-4o'),
@@ -111,6 +118,9 @@ async function executeMultiStepWorkflow(
   canvasContext: { dimensions: { width: number; height: number }; hasContent: boolean; objectCount?: number }, 
   aiSettings: { autoApproveThreshold?: number; showConfidenceScores?: boolean; showApprovalDecisions?: boolean }
 ) {
+  console.log('[Agent] === EXECUTING MULTI-STEP WORKFLOW ===')
+  console.log('[Agent] Request:', request)
+  
   // Create mock canvas for server-side operations
   const mockCanvas = {
     getWidth: () => canvasContext?.dimensions?.width || 0,
@@ -185,10 +195,17 @@ async function executeMultiStepWorkflow(
         description: `Multi-step workflow: ${request}`,
         steps: toolExecutions,
         agentType: 'sequential', // Default agent type
+        totalSteps: toolExecutions.length,
+        reasoning: statusUpdates.find(s => s.type === 'routing-decision')?.details || `Planned ${toolExecutions.length} steps for: ${request}`
+      },
+      agentStatus: {
         confidence: overallConfidence,
-        requiresApproval,
-        statusUpdates
-      }
+        approvalRequired: requiresApproval,
+        threshold: agentContext.userPreferences.autoApprovalThreshold
+      },
+      statusUpdates,
+      toolExecutions,
+      message: `Planned ${toolExecutions.length} steps. Now executing each tool...`
     }
   } catch (error) {
     console.error('[Agent] Error executing workflow:', error)

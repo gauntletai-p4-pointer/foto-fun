@@ -13,7 +13,8 @@ class AdapterRegistry {
    */
   register(adapter: ToolAdapter): void {
     this.adapters.set(adapter.aiName, adapter)
-    console.log(`Registered AI adapter: ${adapter.aiName}`)
+    console.log(`[AdapterRegistry] Registered AI adapter: ${adapter.aiName}`)
+    console.log(`[AdapterRegistry] Adapter description: ${adapter.description}`)
   }
   
   /**
@@ -45,9 +46,14 @@ class AdapterRegistry {
   getAITools(): Record<string, Tool<unknown, unknown>> {
     const tools: Record<string, Tool<unknown, unknown>> = {}
     
+    console.log('[AdapterRegistry] Getting AI tools, total adapters:', this.adapters.size)
+    
     this.adapters.forEach(adapter => {
+      console.log(`[AdapterRegistry] Creating AI tool for: ${adapter.aiName}`)
       tools[adapter.aiName] = adapter.toAITool() as Tool<unknown, unknown>
     })
+    
+    console.log('[AdapterRegistry] Created AI tools:', Object.keys(tools))
     
     return tools
   }
@@ -112,6 +118,9 @@ export async function autoDiscoverAdapters(): Promise<void> {
     const { default: SaturationAdapter } = await import('./tools/saturation')
     const { default: HueAdapter } = await import('./tools/hue')
     const { default: ExposureAdapter } = await import('./tools/exposure')
+    console.log('[AdapterRegistry] ExposureAdapter imported:', ExposureAdapter)
+    console.log('[AdapterRegistry] ExposureAdapter type:', typeof ExposureAdapter)
+    console.log('[AdapterRegistry] ExposureAdapter aiName:', ExposureAdapter?.aiName)
     const { default: ColorTemperatureAdapter } = await import('./tools/colorTemperature')
     const { default: RotateAdapter } = await import('./tools/rotate')
     const { default: FlipAdapter } = await import('./tools/flip')
@@ -130,7 +139,7 @@ export async function autoDiscoverAdapters(): Promise<void> {
     adapterRegistry.register(new ContrastAdapter())
     adapterRegistry.register(new SaturationAdapter())
     adapterRegistry.register(HueAdapter)
-    adapterRegistry.register(ExposureAdapter)
+    adapterRegistry.register(ExposureAdapter) // This is already an instance, not a class
     adapterRegistry.register(ColorTemperatureAdapter)
     adapterRegistry.register(RotateAdapter)
     adapterRegistry.register(FlipAdapter)

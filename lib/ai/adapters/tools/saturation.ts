@@ -62,10 +62,23 @@ You MUST calculate the adjustment value based on user intent:
 - "more saturated" or "more vibrant" → +20 to +30
 - "much more saturated" or "very vibrant" → +40 to +60
 - "slightly more saturated" → +10 to +15
-- "less saturated" or "muted colors" → -20 to -40
-- "desaturated" or "grayscale" → -80 to -100
+- "less saturated" or "muted colors" → -20 to -30
+- "much less saturated" or "very muted" → -40 to -60
+- "desaturate" or "grayscale" → -100
+- "black and white" → -100
+- "increase saturation by X%" → use +X directly (e.g., "by 25%" → +25)
+- "increase the saturation by X%" → use +X directly (e.g., "by 25%" → +25)
+- "decrease saturation by X%" → use -X directly (e.g., "by 20%" → -20)
+- "reduce saturation by X%" → use -X directly (e.g., "by 30%" → -30)
+- "saturation by X%" → use X directly
+- "boost saturation X%" → use +X directly
+- "lower saturation X%" → use -X directly
+- "make colors more vibrant" → +25 to +35
+- "to make colors more vibrant" → +25 to +35
+- "more colorful" → +20 to +30
+- "less colorful" → -20 to -30
 
-NEVER ask for exact values - interpret the user's intent and calculate appropriate adjustment values.`
+NEVER ask for exact values - always interpret the user's intent and choose an appropriate value.`
 
   metadata = {
     category: 'canvas-editing' as const,
@@ -76,7 +89,11 @@ NEVER ask for exact values - interpret the user's intent and calculate appropria
   inputSchema = saturationParameters
   
   async execute(params: SaturationInput, context: CanvasContext): Promise<SaturationOutput> {
+    console.log('[SaturationToolAdapter] ===== EXECUTE CALLED =====')
     console.log('[SaturationToolAdapter] Execute called with params:', params)
+    console.log('[SaturationToolAdapter] Params type:', typeof params)
+    console.log('[SaturationToolAdapter] Params keys:', Object.keys(params))
+    console.log('[SaturationToolAdapter] Adjustment value:', params.adjustment)
     console.log('[SaturationToolAdapter] Targeting mode:', context.targetingMode)
     
     const canvas = context.canvas

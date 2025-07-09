@@ -42,20 +42,31 @@ interface ImageFilter {
 export class ExposureToolAdapter extends BaseToolAdapter<ExposureInput, ExposureOutput> {
   tool = exposureTool
   aiName = 'adjustExposure'
-  description = `Adjust the exposure of existing images to make them appear properly exposed.
+  description = `Adjust the exposure of existing images (simulates camera exposure compensation).
 
 INTELLIGENT TARGETING:
 - If you have images selected, only those images will be adjusted
 - If no images are selected, all images on the canvas will be adjusted
 
 You MUST calculate the adjustment value based on user intent:
-- "increase exposure" or "brighter exposure" → +20 to +30
-- "decrease exposure" or "darker exposure" → -20 to -30
+- "increase exposure" or "overexpose" → +30 to +50
+- "decrease exposure" or "underexpose" → -30 to -50
+- "slightly overexposed" → +15 to +25
+- "slightly underexposed" → -15 to -25
+- "blown out" or "very overexposed" → +60 to +80
+- "very dark" or "very underexposed" → -60 to -80
 - "fix overexposure" → -30 to -50
 - "fix underexposure" → +30 to +50
 - "neutral exposure" → 0
+- "adjust exposure by X stops" → X * 33 (each stop ≈ 33 units)
+- "turn exposure down by X%" → use -X directly (e.g., "down by 10%" → -10)
+- "turn exposure up by X%" → use +X directly (e.g., "up by 15%" → +15)
+- "increase exposure X%" → use +X directly 
+- "decrease exposure X%" → use -X directly
+- "reduce exposure X%" → use -X directly
 
-NEVER ask for exact values - interpret the user's intent.
+Note: Exposure has a more dramatic effect than brightness, affecting the entire tonal range.
+NEVER ask for exact values - always interpret the user's intent and choose an appropriate value.
 Range: -100 (very dark) to +100 (very bright)`
 
   metadata = {
@@ -67,7 +78,11 @@ Range: -100 (very dark) to +100 (very bright)`
   inputSchema = exposureParameters
   
   async execute(params: ExposureInput, context: CanvasContext): Promise<ExposureOutput> {
+    console.log('[ExposureToolAdapter] ===== EXECUTE CALLED =====')
     console.log('[ExposureToolAdapter] Execute called with params:', params)
+    console.log('[ExposureToolAdapter] Params type:', typeof params)
+    console.log('[ExposureToolAdapter] Params keys:', Object.keys(params))
+    console.log('[ExposureToolAdapter] Adjustment value:', params.adjustment)
     console.log('[ExposureToolAdapter] Targeting mode:', context.targetingMode)
     
     const canvas = context.canvas
