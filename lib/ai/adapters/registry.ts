@@ -77,7 +77,7 @@ export async function autoDiscoverAdapters(): Promise<void> {
   console.log('[AdapterRegistry] Starting auto-discovery of tool adapters')
   
   try {
-    // Import all tool adapters
+    // Import all canvas tool adapters
     const { CropToolAdapter } = await import('./tools/crop')
     const { default: BrightnessAdapter } = await import('./tools/brightness')
     const { default: ContrastAdapter } = await import('./tools/contrast')
@@ -96,7 +96,7 @@ export async function autoDiscoverAdapters(): Promise<void> {
     const { addTextAdapter } = await import('./tools/addText')
     const { AnalyzeCanvasAdapter } = await import('./tools/analyzeCanvas')
     
-    // Register all adapters
+    // Register canvas tool adapters
     adapterRegistry.register(new CropToolAdapter())
     adapterRegistry.register(new BrightnessAdapter())
     adapterRegistry.register(new ContrastAdapter())
@@ -115,7 +115,16 @@ export async function autoDiscoverAdapters(): Promise<void> {
     adapterRegistry.register(addTextAdapter)
     adapterRegistry.register(new AnalyzeCanvasAdapter())
     
-    console.log('[AdapterRegistry] Registered 17 tool adapters')
+    // Import and register AI-Native Tool adapters (Replicate)
+    try {
+      const { ImageGenerationAdapter } = await import('./tools/imageGeneration')
+      adapterRegistry.register(new ImageGenerationAdapter())
+      console.log('[AdapterRegistry] Registered Replicate AI-Native Tool adapters')
+    } catch (error) {
+      console.warn('[AdapterRegistry] Replicate adapters not available (API key not configured):', error)
+    }
+    
+    console.log('[AdapterRegistry] Registered 18 tool adapters (17 canvas + 1 AI-Native)')
   } catch (error) {
     console.error('[AdapterRegistry] Error during auto-discovery:', error)
   }
