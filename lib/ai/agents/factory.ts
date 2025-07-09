@@ -3,6 +3,7 @@ import type { UIMessage } from 'ai'
 import type { AgentContext, UserPreferences } from './types'
 import { WorkflowMemory } from './WorkflowMemory'
 import { SequentialEditingAgent } from './SequentialEditingAgent'
+import { MasterRoutingAgent } from './MasterRoutingAgent'
 import { BaseAgent } from './BaseAgent'
 
 // Default user preferences
@@ -73,9 +74,7 @@ export class AgentFactory {
         return new SequentialEditingAgent(context, maxSteps)
         
       case 'routing':
-        // TODO: Implement RoutingAgent
-        console.warn('RoutingAgent not yet implemented, falling back to sequential')
-        return new SequentialEditingAgent(context, maxSteps)
+        return new MasterRoutingAgent(context, maxSteps)
         
       default:
         throw new Error(`Unknown agent type: ${type}`)

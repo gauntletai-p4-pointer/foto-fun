@@ -42,6 +42,25 @@ export interface Alternative {
   confidence: number
 }
 
+export type AgentStatusType = 
+  | 'analyzing-prompt'
+  | 'routing-decision'
+  | 'planning-steps'
+  | 'executing-tool'
+  | 'evaluating-result'
+  | 'generating-response'
+
+export interface AgentStatus {
+  type: AgentStatusType
+  message: string
+  details?: string
+  timestamp: string
+  confidence?: number
+  approvalRequired?: boolean
+  approvalThreshold?: number
+  toolName?: string
+}
+
 export interface WorkflowMemory {
   steps: ExecutedStep[]
   checkpoints: Map<string, CanvasState>
@@ -87,8 +106,11 @@ export interface PreviousWorkflow {
 export interface UserPreferences {
   autoApprovalThreshold: number
   maxAutonomousSteps: number
-  preferredComparisonMode: ComparisonMode
-  historicalChoices: UserDecision[]
+  preferredComparisonMode?: 'slider' | 'side-by-side' | 'overlay'
+  historicalChoices?: UserDecision[]
+  showConfidenceScores?: boolean
+  showApprovalDecisions?: boolean
+  showEducationalContent?: boolean
 }
 
 export interface CanvasAnalysis {

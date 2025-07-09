@@ -1,9 +1,9 @@
 'use client'
 
+import Image from 'next/image'
 import { cn } from '@/lib/utils'
-import { Card } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
 import type { Alternative } from '@/lib/ai/agents/types'
+import { Check } from 'lucide-react'
 
 interface AlternativeGridProps {
   alternatives: Alternative[]
@@ -11,45 +11,61 @@ interface AlternativeGridProps {
   onSelect: (index: number) => void
 }
 
-export function AlternativeGrid({
-  alternatives,
-  selectedIndex,
-  onSelect
+export function AlternativeGrid({ 
+  alternatives, 
+  selectedIndex, 
+  onSelect 
 }: AlternativeGridProps) {
+  // Check if image is base64
+  const isBase64 = (src: string | undefined) => src?.startsWith('data:')
+  
   return (
-    <div className="grid grid-cols-3 gap-3">
+    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
       {alternatives.map((alt, index) => (
-        <Card
+        <button
           key={alt.id}
-          className={cn(
-            'cursor-pointer transition-all hover:shadow-md',
-            selectedIndex === index && 'ring-2 ring-primary'
-          )}
           onClick={() => onSelect(index)}
+          className={cn(
+            "relative rounded-lg overflow-hidden border-2 transition-all",
+            selectedIndex === index 
+              ? "border-primary ring-2 ring-primary ring-offset-2" 
+              : "border-muted hover:border-muted-foreground"
+          )}
         >
-          <div className="p-3 space-y-2">
-            {alt.preview && (
-              <img
-                src={alt.preview.after}
-                alt={alt.description}
-                className="w-full h-32 object-cover rounded"
-              />
-            )}
-            <div className="space-y-1">
-              <p className="text-sm font-medium line-clamp-2">
-                {alt.description}
-              </p>
-              <div className="flex items-center justify-between">
-                <Badge variant="secondary" className="text-xs">
-                  {Math.round(alt.confidence * 100)}% confidence
-                </Badge>
-                {selectedIndex === index && (
-                  <Badge className="text-xs">Selected</Badge>
-                )}
-              </div>
+          {alt.preview?.after && (
+            <div className="relative aspect-video bg-muted">
+              {isBase64(alt.preview.after) ? (
+                <Image
+                  src={alt.preview.after}
+                  alt={alt.description}
+                  fill
+                  className="object-contain"
+                  unoptimized
+                />
+              ) : (
+                <Image
+                  src={alt.preview.after}
+                  alt={alt.description}
+                  fill
+                  className="object-contain"
+                />
+              )}
             </div>
+          )}
+          
+          <div className="p-2 bg-background">
+            <p className="text-xs text-left">{alt.description}</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              {Math.round(alt.confidence * 100)}% confidence
+            </p>
           </div>
-        </Card>
+          
+          {selectedIndex === index && (
+            <div className="absolute top-2 right-2 w-6 h-6 bg-primary rounded-full flex items-center justify-center">
+              <Check className="w-4 h-4 text-primary-foreground" />
+            </div>
+          )}
+        </button>
       ))}
     </div>
   )

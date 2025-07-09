@@ -12,6 +12,8 @@ import { cn } from '@/lib/utils'
 import { ClientToolExecutor } from '@/lib/ai/client/tool-executor'
 import { useCanvasStore } from '@/store/canvasStore'
 import { adapterRegistry } from '@/lib/ai/adapters/registry'
+import { AgentStatusPart } from './AgentStatusPart'
+import { useAISettings } from '@/hooks/useAISettings'
 
 // Get all AI tool names for highlighting
 const getAIToolNames = () => {
@@ -60,6 +62,7 @@ export function AIChat() {
   const [toolNames, setToolNames] = useState<string[]>([])
   const [quickActions, setQuickActions] = useState<string[]>([])
   const { isReady: isCanvasReady, initializationError, waitForReady, hasContent } = useCanvasStore()
+  const { settings: aiSettings } = useAISettings()
   
   // Initialize adapter registry and get tool names
   useEffect(() => {
@@ -201,22 +204,35 @@ export function AIChat() {
     // Get fresh state from store
     const currentState = useCanvasStore.getState()
     if (input.trim() && !isLoading && currentState.hasContent()) {
-      // Include canvas context with each message
+      // Include canvas context and AI settings with each message
       const canvasContext = currentState.fabricCanvas ? {
         dimensions: {
           width: currentState.fabricCanvas.getWidth(),
           height: currentState.fabricCanvas.getHeight()
         },
-        hasContent: currentState.fabricCanvas.getObjects().length > 0
-      } : undefined
+        hasContent: true,
+        objectCount: currentState.fabricCanvas.getObjects().length
+      } : null
       
       sendMessage(
         { text: input },
-        { body: { canvasContext } }
+        { 
+          body: {
+            canvasContext,
+            agentMode: true,
+            aiSettings: {
+              autoApproveThreshold: aiSettings.autoApproveThreshold,
+              showConfidenceScores: aiSettings.showConfidenceScores,
+              showApprovalDecisions: aiSettings.showApprovalDecisions,
+              showEducationalContent: aiSettings.showEducationalContent,
+              stepByStepMode: aiSettings.stepByStepMode,
+            }
+          }
+        }
       )
       setInput('')
     }
-  }, [input, isLoading, sendMessage])
+  }, [input, isLoading, sendMessage, aiSettings])
   
   const handleQuickAction = useCallback((suggestion: string) => {
     // Get fresh state from store
@@ -228,15 +244,28 @@ export function AIChat() {
           width: currentState.fabricCanvas.getWidth(),
           height: currentState.fabricCanvas.getHeight()
         },
-        hasContent: currentState.fabricCanvas.getObjects().length > 0
-      } : undefined
+        hasContent: true,
+        objectCount: currentState.fabricCanvas.getObjects().length
+      } : null
       
       sendMessage(
         { text: suggestion },
-        { body: { canvasContext } }
+        { 
+          body: { 
+            canvasContext, 
+            agentMode: true,
+            aiSettings: {
+              autoApproveThreshold: aiSettings.autoApproveThreshold,
+              showConfidenceScores: aiSettings.showConfidenceScores,
+              showApprovalDecisions: aiSettings.showApprovalDecisions,
+              showEducationalContent: aiSettings.showEducationalContent,
+              stepByStepMode: aiSettings.stepByStepMode,
+            }
+          } 
+        }
       )
     }
-  }, [isLoading, sendMessage])
+  }, [isLoading, sendMessage, aiSettings])
   
   return (
     <div className="flex flex-col h-full bg-background">
@@ -304,165 +333,198 @@ export function AIChat() {
           )}
           
           {messages.map((message: UIMessage) => (
-            <div
-              key={message.id}
-              className={cn(
-                "flex gap-2",
-                message.role === 'user' ? 'justify-end' : 'justify-start'
-              )}
-            >
-              {message.role === 'assistant' && (
-                <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
-                  <Bot className="w-3 h-3 text-primary" />
-                </div>
-              )}
+            <div key={message.id}>
               
               <div
                 className={cn(
-                  "max-w-[85%] rounded-lg px-3 py-2",
-                  message.role === 'user'
-                    ? 'bg-primary text-primary-foreground'
-                    : 'bg-foreground/5 text-foreground'
+                  "flex gap-2",
+                  message.role === 'user' ? 'justify-end' : 'justify-start'
                 )}
               >
-                {/* Render message parts */}
-                {message.parts?.map((part, index) => {
-                  if (part.type === 'text') {
-                    return (
-                      <div key={index} className="text-sm whitespace-pre-wrap">
-                        {message.role === 'assistant' 
-                          ? parseMessageWithTools(part.text, toolNames)
-                          : part.text
-                        }
-                      </div>
-                    )
-                  }
-                  
-                  // Check if it's a tool invocation part (handles both generic and specific tool types)
-                  if (part.type === 'tool-invocation' || 
-                      part.type?.startsWith('tool-') || 
-                      (part as unknown as { toolInvocation?: unknown }).toolInvocation) {
-                    
-                    // Handle AI SDK v5 tool message format
-                    const toolData = part as unknown as {
-                      type?: string
-                      toolInvocation?: {
-                        toolName?: string
-                        state?: string
-                        input?: unknown
-                        output?: unknown
-                        errorText?: string
-                        toolCallId?: string
-                      }
-                      toolName?: string
-                      state?: string
-                      input?: unknown
-                      output?: unknown
-                      errorText?: string
-                      toolCallId?: string | number
-                    }
-                    const toolName = toolData.type?.startsWith('tool-') ? toolData.type.substring(5) : 
-                                   toolData.toolInvocation?.toolName || 
-                                   toolData.toolName || 
-                                   'unknown'
-                    
-                    const state = toolData.state || toolData.toolInvocation?.state
-                    const input = toolData.input || toolData.toolInvocation?.input
-                    const output = toolData.output || toolData.toolInvocation?.output
-                    const errorText = toolData.errorText || toolData.toolInvocation?.errorText
-                    const toolCallId = toolData.toolCallId || toolData.toolInvocation?.toolCallId || index
-                    
-                    return (
-                      <div
-                        key={toolCallId}
-                        className="mt-2 p-3 bg-background/50 rounded border border-foreground/10/50"
-                      >
-                        <div className="flex items-center gap-2 mb-2">
-                          <span className="inline-flex items-center gap-1 px-2 py-1 bg-primary text-primary-foreground rounded-md text-xs font-medium">
-                            <Wrench className="w-3 h-3" />
-                            {toolName}
-                          </span>
-                          {state === 'output-available' && (
-                            <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-green-500 text-white">
-                              <Check className="w-3 h-3" />
-                            </span>
-                          )}
-                          {state === 'output-error' && (
-                            <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-red-500 text-white">
-                              <X className="w-3 h-3" />
-                            </span>
-                          )}
+                {message.role === 'assistant' && (
+                  <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <Bot className="w-3 h-3 text-primary" />
+                  </div>
+                )}
+                
+                <div
+                  className={cn(
+                    "max-w-[85%] rounded-lg px-3 py-2",
+                    message.role === 'user'
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-foreground/5 text-foreground'
+                  )}
+                >
+                  {/* Render message parts */}
+                  {message.parts?.map((part, index) => {
+                    if (part.type === 'text') {
+                      return (
+                        <div key={index} className="text-sm whitespace-pre-wrap">
+                          {message.role === 'assistant' 
+                            ? parseMessageWithTools(part.text, toolNames)
+                            : part.text
+                          }
                         </div>
-                        
-                        {state === 'input-streaming' && (
-                          <div className="space-y-2">
-                            <div className="flex items-center gap-2 text-foreground/60">
-                              <Loader2 className="w-3 h-3 animate-spin" />
-                              <span className="text-xs">Preparing parameters...</span>
+                      )
+                    }
+                    
+                    // Check if it's a tool invocation part (AI SDK v5 uses tool-${toolName} format)
+                    if (part.type?.startsWith('tool-')) {
+                      
+                      // Extract tool name from the type (e.g., 'tool-brightness' -> 'brightness')
+                      const toolName = part.type.substring(5)
+                      
+                      // AI SDK v5 tool part structure - properly typed
+                      const toolPart = part as {
+                        type: string
+                        state: 'input-streaming' | 'input-available' | 'output-available' | 'output-error'
+                        input?: Record<string, unknown>
+                        output?: Record<string, unknown>
+                        errorText?: string
+                      }
+                      
+                      // Check if this is the executeAgentRequest tool with agent status
+                      const isAgentExecution = toolName === 'executeAgentRequest'
+                      
+                      // Extract agent status from tool output if available
+                      const toolOutput = toolPart.state === 'output-available' ? toolPart.output as { 
+                        agentStatus?: {
+                          confidence?: number
+                          approvalRequired?: boolean
+                          threshold?: number
+                        }
+                        statusUpdates?: Array<{
+                          type: string
+                          message: string
+                          details?: string
+                          timestamp: string
+                        }>
+                      } | undefined : undefined
+                      
+                      const agentStatus = toolOutput?.agentStatus
+                      const statusUpdates = toolOutput?.statusUpdates
+                      
+                      return (
+                        <div key={`${message.id}-${index}`} className="space-y-2">
+                          {/* Show agent status updates if available and settings allow */}
+                          {isAgentExecution && statusUpdates && aiSettings.showConfidenceScores && (
+                            <div className="space-y-1">
+                              {statusUpdates.map((status, idx) => (
+                                <AgentStatusPart 
+                                  key={idx}
+                                  status={{
+                                    type: status.type as 'analyzing-prompt' | 'routing-decision' | 'planning-steps' | 'executing-tool' | 'generating-response',
+                                    message: status.message,
+                                    details: status.details,
+                                    timestamp: status.timestamp,
+                                    confidence: agentStatus?.confidence,
+                                    approvalRequired: agentStatus?.approvalRequired,
+                                    approvalThreshold: agentStatus?.threshold,
+                                    toolName: toolName
+                                  }}
+                                />
+                              ))}
                             </div>
-                            {input ? (
-                              <details className="text-xs">
-                                <summary className="cursor-pointer text-foreground/60 hover:text-foreground">Parameters</summary>
-                                <pre className="mt-1 bg-foreground/10/50 p-2 rounded overflow-auto">
-                                  {String(JSON.stringify(input, null, 2))}
-                                </pre>
-                              </details>
-                            ) : null}
-                          </div>
-                        )}
-                        
-                        {state === 'input-available' && (
-                          <div className="space-y-2">
-                            <div className="flex items-center gap-2 text-foreground/60">
-                              <Loader2 className="w-3 h-3 animate-spin" />
-                              <span className="text-xs">Executing...</span>
+                          )}
+                          
+                          {/* Tool invocation display */}
+                          <div className="flex items-start gap-2 text-sm">
+                            <Wrench className="w-4 h-4 mt-0.5 text-muted-foreground flex-shrink-0" />
+                            <div className="flex-1 space-y-1">
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium">
+                                  {toolName}
+                                </span>
+                                {toolPart.state === 'input-streaming' && (
+                                  <Loader2 className="w-3 h-3 animate-spin" />
+                                )}
+                                {toolPart.state === 'output-available' && !toolPart.errorText && (
+                                  <Check className="w-3 h-3 text-green-600" />
+                                )}
+                                {toolPart.state === 'output-error' && (
+                                  <X className="w-3 h-3 text-red-600" />
+                                )}
+                              </div>
+                              
+                              {/* Show confidence and approval info if settings allow */}
+                              {(() => {
+                                if (toolOutput && aiSettings.showApprovalDecisions && agentStatus) {
+                                  return (
+                                    <div className="text-xs text-muted-foreground">
+                                      {agentStatus.approvalRequired ? (
+                                        <span className="text-amber-600">
+                                          Manual approval required (confidence: {Math.round((agentStatus.confidence || 0) * 100)}%)
+                                        </span>
+                                      ) : agentStatus.confidence !== undefined ? (
+                                        <span className="text-green-600">
+                                          Auto-approved (confidence: {Math.round(agentStatus.confidence * 100)}%)
+                                        </span>
+                                      ) : null}
+                                    </div>
+                                  )
+                                }
+                                return null
+                              })()}
+                              
+                              {/* Show input for non-agent tools when available */}
+                              {!isAgentExecution && (toolPart.state === 'input-available' || toolPart.state === 'output-available') && toolPart.input && (
+                                <div className="text-xs text-muted-foreground">
+                                  <details>
+                                    <summary className="cursor-pointer">Parameters</summary>
+                                    <pre className="mt-1 overflow-auto">
+                                      {JSON.stringify(toolPart.input, null, 2)}
+                                    </pre>
+                                  </details>
+                                </div>
+                              )}
+                              
+                              {/* Show errors */}
+                              {toolPart.state === 'output-error' && toolPart.errorText && (
+                                <div className="text-xs text-red-600">
+                                  Error: {toolPart.errorText}
+                                </div>
+                              )}
+                              
+                              {/* Show output for non-agent tools */}
+                              {toolPart.output && toolPart.state === 'output-available' && !isAgentExecution && (
+                                <div className="text-xs text-muted-foreground">
+                                  <details>
+                                    <summary className="cursor-pointer">Result</summary>
+                                    <pre className="mt-1 overflow-auto">{String(JSON.stringify(toolPart.output, null, 2))}</pre>
+                                  </details>
+                                </div>
+                              )}
                             </div>
-                            {input ? (
-                              <details className="text-xs">
-                                <summary className="cursor-pointer text-foreground/60 hover:text-foreground">Parameters</summary>
-                                <pre className="mt-1 bg-foreground/10/50 p-2 rounded overflow-auto">
-                                  {String(JSON.stringify(input, null, 2))}
-                                </pre>
-                              </details>
-                            ) : null}
                           </div>
-                        )}
-                        
-                        {state === 'output-available' && output ? (
-                          <details className="text-xs">
-                            <summary className="cursor-pointer text-foreground/60 hover:text-foreground">Result</summary>
-                            <pre className="mt-1 bg-foreground/10/50 p-2 rounded overflow-auto">
-                              {String(JSON.stringify(output, null, 2))}
-                            </pre>
-                          </details>
-                        ) : null}
-                        
-                        {state === 'output-error' && (
-                          <div className="text-xs text-destructive/90">
-                            {errorText || 'Unknown error occurred'}
-                          </div>
-                        )}
-                      </div>
-                    )
-                  }
-                  
-                  // Skip step-start and other non-renderable parts
-                  const partType = (part as unknown as { type?: string }).type
-                  if (partType === 'step-start' || partType === 'step-end') {
+                        </div>
+                      )
+                    }
+                    
+                    // Skip step-start and other non-renderable parts
+                    const partType = (part as unknown as { type?: string }).type
+                    if (partType === 'step-start' || partType === 'step-end') {
+                      return null
+                    }
+                    
                     return null
-                  }
-                  
-                  return null
-                })}
-              </div>
-              
-              {message.role === 'user' && (
-                <div className="w-6 h-6 rounded-full bg-foreground/5 flex items-center justify-center flex-shrink-0 mt-0.5">
-                  <User className="w-3 h-3 text-foreground" />
+                  })}
                 </div>
-              )}
+                
+                {message.role === 'user' && (
+                  <div className="w-6 h-6 rounded-full bg-foreground/5 flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <User className="w-3 h-3 text-foreground" />
+                  </div>
+                )}
+              </div>
             </div>
           ))}
+          
+          {/* Show agent statuses during loading */}
+          {isLoading && (
+            <div className="space-y-1 mb-2">
+              {/* Agent statuses are now part of tool results, not a separate state */}
+            </div>
+          )}
           
           {isLoading && (
             <div className="flex gap-2">

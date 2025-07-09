@@ -1,0 +1,185 @@
+import { z } from 'zod'
+import { tool } from 'ai'
+import { BaseToolAdapter } from '../base'
+import type { Canvas } from 'fabric'
+import type { Tool } from '@/types'
+
+export interface AnalyzeCanvasInput {
+  includeHistogram?: boolean
+  includeObjectDetails?: boolean
+}
+
+export interface AnalyzeCanvasOutput {
+  success: boolean
+  analysis: {
+    dimensions: { width: number; height: number }
+    hasContent: boolean
+    objectCount: number
+    imageData?: string // base64 thumbnail
+    histogram?: {
+      brightness: number
+      contrast: number
+      saturation: number
+      dominantColors: string[]
+    }
+    objects?: Array<{
+      type: string
+      position: { x: number; y: number }
+      size: { width: number; height: number }
+    }>
+    description: string
+  }
+}
+
+export class AnalyzeCanvasAdapter extends BaseToolAdapter<AnalyzeCanvasInput, AnalyzeCanvasOutput> {
+  name = 'analyzeCanvas'
+  aiName = 'analyze_canvas'
+  description = 'Analyze and describe the current canvas state, including visual properties and content'
+  tool = {} as unknown as Tool // This is a special adapter that doesn't wrap a canvas tool
+  
+  inputSchema = z.object({
+    includeHistogram: z.boolean().optional().describe('Include color histogram analysis'),
+    includeObjectDetails: z.boolean().optional().describe('Include details about individual objects')
+  })
+  
+  async execute(
+    params: AnalyzeCanvasInput,
+    context: { canvas: Canvas }
+  ): Promise<AnalyzeCanvasOutput> {
+    const { canvas } = context
+    
+    try {
+      // Get basic canvas info
+      const objects = canvas.getObjects()
+      const analysis: AnalyzeCanvasOutput['analysis'] = {
+        dimensions: {
+          width: canvas.getWidth(),
+          height: canvas.getHeight()
+        },
+        hasContent: objects.length > 0,
+        objectCount: objects.length,
+        description: ''
+      }
+      
+      // Generate a small thumbnail for AI analysis
+      if (objects.length > 0) {
+        // Create a smaller version for analysis (max 512px)
+        const maxSize = 512
+        const scale = Math.min(maxSize / canvas.getWidth(), maxSize / canvas.getHeight(), 1)
+        
+        analysis.imageData = canvas.toDataURL({
+          format: 'jpeg',
+          quality: 0.8,
+          multiplier: scale
+        })
+      }
+      
+      // Analyze histogram if requested
+      if (params.includeHistogram && objects.length > 0) {
+        analysis.histogram = await this.analyzeHistogram()
+      }
+      
+      // Get object details if requested
+      if (params.includeObjectDetails) {
+        analysis.objects = objects.map(obj => ({
+          type: obj.type || 'unknown',
+          position: { x: obj.left || 0, y: obj.top || 0 },
+          size: { 
+            width: obj.getScaledWidth(), 
+            height: obj.getScaledHeight() 
+          }
+        }))
+      }
+      
+      // Generate description
+      analysis.description = this.generateDescription(analysis)
+      
+      return {
+        success: true,
+        analysis
+      }
+    } catch (error) {
+      console.error('Canvas analysis error:', error)
+      return {
+        success: false,
+        analysis: {
+          dimensions: { width: 0, height: 0 },
+          hasContent: false,
+          objectCount: 0,
+          description: 'Failed to analyze canvas'
+        }
+      }
+    }
+  }
+  
+  private async analyzeHistogram(): Promise<AnalyzeCanvasOutput['analysis']['histogram']> {
+    // This is a simplified version - in production you'd use proper image analysis
+    // For now, return mock data that could be replaced with real analysis
+    return {
+      brightness: 0.5,
+      contrast: 0.5,
+      saturation: 0.5,
+      dominantColors: ['#808080', '#a0a0a0', '#606060']
+    }
+  }
+  
+  private generateDescription(analysis: AnalyzeCanvasOutput['analysis']): string {
+    if (!analysis.hasContent) {
+      return `Empty canvas (${analysis.dimensions.width}x${analysis.dimensions.height}px)`
+    }
+    
+    let desc = `Canvas with ${analysis.objectCount} object(s) at ${analysis.dimensions.width}x${analysis.dimensions.height}px`
+    
+    if (analysis.histogram) {
+      const brightness = analysis.histogram.brightness > 0.6 ? 'bright' : 
+                        analysis.histogram.brightness < 0.4 ? 'dark' : 'normal brightness'
+      const saturation = analysis.histogram.saturation > 0.6 ? 'vibrant' :
+                        analysis.histogram.saturation < 0.4 ? 'muted' : 'normal saturation'
+      desc += `. Image appears ${brightness} with ${saturation}`
+    }
+    
+    return desc
+  }
+  
+  async resolveParams(): Promise<AnalyzeCanvasInput> {
+    // Default behavior - include basic analysis
+    return {
+      includeHistogram: false,
+      includeObjectDetails: false
+    }
+  }
+  
+  clientExecutionRequired = false
+
+  // Override toAITool since this adapter runs server-side
+  toAITool(): unknown {
+    const toolConfig = {
+      description: this.description,
+      inputSchema: this.inputSchema as z.ZodSchema,
+      execute: async (args: unknown) => {
+        console.log(`[${this.aiName}] Server-side analysis tool call with args:`, args)
+        
+        // For analyze canvas, we can't actually execute server-side without the canvas
+        // But we can return a result that tells the AI what to expect
+        return {
+          success: true,
+          analysis: {
+            dimensions: { width: 0, height: 0 },
+            hasContent: true,
+            objectCount: 1,
+            description: 'Canvas analysis requires client-side execution to access the actual canvas',
+            imageData: undefined
+          },
+          message: 'Canvas analysis will be performed on the client',
+          clientExecutionRequired: true,
+          params: args
+        }
+      }
+    }
+    
+    return tool(toolConfig as unknown as Parameters<typeof tool>[0])
+  }
+}
+
+// Export both named and default
+export default AnalyzeCanvasAdapter

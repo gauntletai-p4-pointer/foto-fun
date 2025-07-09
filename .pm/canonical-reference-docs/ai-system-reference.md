@@ -2,16 +2,17 @@
 
 ## Table of Contents
 1. [Overview](#overview)
-2. [Karpathy Framework Implementation](#karpathy-framework-implementation)
-3. [Core Architecture](#core-architecture)
-4. [Tool System](#tool-system)
-5. [Object & Region Detection](#object--region-detection)
-6. [Orchestration & Intent Recognition](#orchestration--intent-recognition)
-7. [Visual Feedback & Approval](#visual-feedback--approval)
-8. [Quality Control & Evaluation](#quality-control--evaluation)
-9. [Advanced Features](#advanced-features)
-10. [Integration Patterns](#integration-patterns)
-11. [Implementation Timeline](#implementation-timeline)
+2. [Terminology and Architecture](#terminology-and-architecture)
+3. [Karpathy Framework Implementation](#karpathy-framework-implementation)
+4. [Core Architecture](#core-architecture)
+5. [Tool System](#tool-system)
+6. [Object & Region Detection](#object--region-detection)
+7. [Orchestration & Intent Recognition](#orchestration--intent-recognition)
+8. [Visual Feedback & Approval](#visual-feedback--approval)
+9. [Quality Control & Evaluation](#quality-control--evaluation)
+10. [Advanced Features](#advanced-features)
+11. [Integration Patterns](#integration-patterns)
+12. [Implementation Timeline](#implementation-timeline)
 
 ## Overview
 
@@ -25,6 +26,87 @@ The FotoFun AI system is built on AI SDK v5 beta and implements a comprehensive 
 - **Visual Feedback**: Preview changes before applying
 - **Quality Assurance**: AI-powered evaluation of edits
 - **Autonomous Editing**: Self-correcting agents that iterate until satisfied
+
+## Terminology and Architecture
+
+### Established Nomenclature
+
+The FotoFun codebase uses consistent terminology to maintain clarity across all components:
+
+#### Component Hierarchy
+
+1. **Canvas Tools** (Base Layer)
+   - **Definition**: Core tools that directly manipulate the Fabric.js canvas
+   - **Location**: `lib/editor/tools/`
+   - **Examples**: `cropTool`, `brightnessTool`, `moveTool`
+   - **Naming**: `[action]Tool` (camelCase, singleton instances)
+
+2. **Tool Adapters** (AI Integration Layer)
+   - **Definition**: Wrappers that make any tool AI-compatible by adding schemas and natural language understanding
+   - **Location**: `lib/ai/adapters/tools/`
+   - **Examples**: `CropToolAdapter`, `BrightnessToolAdapter`, `InpaintingToolAdapter`
+   - **Naming**: `[ToolName]Adapter` (PascalCase classes)
+   - **Key Feature**: Works for both Canvas Tools and AI-Native Tools
+
+3. **AI-Native Tools** (External API Tools)
+   - **Definition**: Tools that call external AI services (Replicate, DALL-E, etc.)
+   - **Location**: `lib/ai/tools/`
+   - **Examples**: `InpaintingTool`, `ImageGenerationTool`, `BackgroundRemovalTool`
+   - **Naming**: `[Action]Tool` (PascalCase classes)
+   - **Integration**: Also use Tool Adapters for AI chat compatibility
+
+4. **Agent Steps** (Workflow Units)
+   - **Definition**: Individual executable units within an agent workflow
+   - **Location**: `lib/ai/agents/steps/`
+   - **Types**: `ToolStep`, `EvaluationStep`, `PlanningStep`, `RoutingStep`
+   - **Naming**: `[Type]Step` (PascalCase classes)
+
+5. **Agents** (Workflow Orchestrators)
+   - **Definition**: High-level coordinators that plan and execute multi-step workflows
+   - **Location**: `lib/ai/agents/`
+   - **Examples**: `SequentialEditingAgent`, `MasterRoutingAgent`
+   - **Naming**: `[Pattern/Purpose]Agent` (PascalCase classes)
+
+### Unified Adapter Pattern
+
+The key architectural insight is that both Canvas Tools and AI-Native Tools use the exact same adapter pattern:
+
+```typescript
+// Canvas Tool Adapter
+export class CropToolAdapter extends BaseToolAdapter<CropInput, CropOutput> {
+  tool = cropTool  // References canvas tool
+  aiName = 'cropImage'
+  
+  async execute(params: CropInput, context: { canvas: Canvas }) {
+    // Manipulates canvas directly
+    return this.tool.execute(params)
+  }
+}
+
+// AI-Native Tool Adapter
+export class InpaintingToolAdapter extends BaseToolAdapter<InpaintInput, InpaintOutput> {
+  tool = new InpaintingTool()  // References AI service tool
+  aiName = 'inpaintImage'
+  
+  async execute(params: InpaintInput, context: { canvas: Canvas }) {
+    // 1. Extract image from canvas
+    // 2. Call AI service
+    // 3. Apply result to canvas
+    const result = await this.tool.execute(params)
+    return this.applyToCanvas(result, context.canvas)
+  }
+}
+
+// Both register identically
+adapterRegistry.register(new CropToolAdapter())
+adapterRegistry.register(new InpaintingToolAdapter())
+```
+
+This unified approach means:
+- The AI system doesn't need to know if a tool manipulates canvas or calls an API
+- All tools follow the same registration and execution patterns
+- New AI services can be added without changing core architecture
+- Type safety is maintained throughout the system
 
 ## Karpathy Framework Implementation
 

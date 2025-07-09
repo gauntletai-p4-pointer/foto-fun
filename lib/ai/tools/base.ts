@@ -121,3 +121,108 @@ export class ToolValidationError extends ToolExecutionError {
     this.name = 'ToolValidationError'
   }
 } 
+
+/**
+ * Base interface for AI-Native Tools
+ * These tools call external AI services (Replicate, OpenAI, etc.)
+ * and need Tool Adapters to integrate with the canvas
+ */
+export interface BaseAITool<TInput = unknown, TOutput = unknown> {
+  /**
+   * Tool name for identification
+   */
+  name: string
+  
+  /**
+   * Human-readable description of what the tool does
+   */
+  description: string
+  
+  /**
+   * Execute the AI service call
+   * This method calls the external API and returns the result
+   * Canvas integration happens in the adapter layer
+   */
+  execute(params: TInput): Promise<TOutput>
+  
+  /**
+   * Optional: Check if the tool is available (API keys configured, etc.)
+   */
+  isAvailable?(): Promise<boolean>
+  
+  /**
+   * Optional: Get estimated cost for the operation
+   */
+  estimateCost?(params: TInput): Promise<{ credits?: number; dollars?: number }>
+}
+
+/**
+ * Common input/output types for AI-Native tools
+ */
+
+export interface ImageInput {
+  image: string  // base64 or URL
+  format?: 'base64' | 'url'
+}
+
+export interface ImageOutput {
+  image: string  // base64 or URL
+  format: 'base64' | 'url'
+  metadata?: {
+    width: number
+    height: number
+    model?: string
+    processingTime?: number
+  }
+}
+
+export interface InpaintingInput extends ImageInput {
+  mask: string     // base64 mask image
+  prompt: string   // what to generate
+  negativePrompt?: string
+  strength?: number
+}
+
+export interface GenerationInput {
+  prompt: string
+  negativePrompt?: string
+  width?: number
+  height?: number
+  model?: string
+  steps?: number
+  seed?: number
+}
+
+export interface BackgroundRemovalInput extends ImageInput {
+  model?: 'general' | 'portrait' | 'product'
+  returnMask?: boolean
+}
+
+/**
+ * Error types specific to AI services
+ */
+export class AIServiceError extends Error {
+  constructor(
+    message: string,
+    public service: string,
+    public code?: string,
+    public details?: unknown
+  ) {
+    super(message)
+    this.name = 'AIServiceError'
+  }
+}
+
+export class AIQuotaExceededError extends AIServiceError {
+  constructor(service: string, details?: unknown) {
+    super('AI service quota exceeded', service, 'QUOTA_EXCEEDED', details)
+    this.name = 'AIQuotaExceededError'
+  }
+}
+
+export class AIServiceUnavailableError extends AIServiceError {
+  constructor(service: string, details?: unknown) {
+    super('AI service temporarily unavailable', service, 'SERVICE_UNAVAILABLE', details)
+    this.name = 'AIServiceUnavailableError'
+  }
+} 

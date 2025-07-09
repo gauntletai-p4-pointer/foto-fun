@@ -23,35 +23,30 @@ export class ToolStep implements AgentStep {
   }
   
   async execute(context: AgentContext): Promise<StepResult> {
+    // Context is available but not needed for this implementation
+    // since we're returning tool info for client-side execution
+    void context; // Acknowledge the parameter
+    
     try {
-      // Get the tool adapter
+      // Get the tool adapter to validate it exists
       const adapter = adapterRegistry.get(this.toolName)
       if (!adapter) {
         throw new Error(`Tool not found: ${this.toolName}`)
       }
       
-      // Execute the tool
-      const result = await adapter.execute(this.params, { canvas: context.canvas })
-      
-      // Generate preview if available
-      let preview
-      if (adapter.generatePreview) {
-        const previewData = await adapter.generatePreview(this.params, context.canvas)
-        preview = {
-          before: previewData.before,
-          after: previewData.after
-        }
-      }
-      
+      // Instead of executing, return the tool information for client-side execution
       return {
         success: true,
-        data: result,
+        data: {
+          toolName: this.toolName,
+          params: this.params,
+          description: this.description
+        },
         confidence: 0.8, // Default confidence
-        preview,
         alternatives: [] // No alternatives for now
       }
     } catch (error) {
-      console.error(`Error executing tool ${this.toolName}:`, error)
+      console.error(`Error preparing tool ${this.toolName}:`, error)
       return {
         success: false,
         data: { error: error instanceof Error ? error.message : 'Unknown error' },

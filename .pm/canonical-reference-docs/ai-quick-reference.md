@@ -1,5 +1,36 @@
 # FotoFun AI System - Quick Reference
 
+## Terminology Overview
+
+### Component Hierarchy
+1. **Canvas Tools** (`lib/editor/tools/`) - Core tools that manipulate Fabric.js canvas
+   - Examples: `cropTool`, `brightnessTool` (camelCase singletons)
+   
+2. **Tool Adapters** (`lib/ai/adapters/tools/`) - Make any tool AI-compatible
+   - Examples: `CropToolAdapter`, `InpaintingToolAdapter` (PascalCase classes)
+   - Works for both Canvas Tools and AI-Native Tools
+   
+3. **AI-Native Tools** (`lib/ai/tools/`) - Tools that call external AI services
+   - Examples: `InpaintingTool`, `ImageGenerationTool` (PascalCase classes)
+   - Also use Tool Adapters for AI integration
+   
+4. **Agent Steps** (`lib/ai/agents/steps/`) - Workflow building blocks
+   - Types: `ToolStep`, `EvaluationStep`, `PlanningStep` (PascalCase)
+   
+5. **Agents** (`lib/ai/agents/`) - Workflow orchestrators
+   - Examples: `SequentialEditingAgent`, `MasterRoutingAgent` (PascalCase)
+
+### Key Pattern: Unified Adapter System
+```typescript
+// Both Canvas and AI-Native tools use same adapter pattern
+const cropAdapter = new CropToolAdapter()         // Wraps canvas tool
+const inpaintAdapter = new InpaintingToolAdapter() // Wraps AI API tool
+
+// Both register identically
+adapterRegistry.register(cropAdapter)
+adapterRegistry.register(inpaintAdapter)
+```
+
 ## AI SDK v5 Tool Pattern (Epic 5 - CURRENT)
 
 ### Creating an AI-Compatible Tool Adapter

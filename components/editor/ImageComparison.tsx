@@ -1,52 +1,69 @@
 'use client'
 
 import { useState, useRef } from 'react'
-import { cn } from '@/lib/utils'
+import Image from 'next/image'
+import { Slider } from '@/components/ui/slider'
 import type { ComparisonMode } from '@/lib/ai/agents/types'
 
 interface ImageComparisonProps {
   before: string
   after: string
   mode: ComparisonMode
-  className?: string
 }
 
-export function ImageComparison({
-  before,
-  after,
-  mode,
-  className
-}: ImageComparisonProps) {
+export function ImageComparison({ before, after, mode }: ImageComparisonProps) {
   const [sliderPosition, setSliderPosition] = useState(50)
-  const [opacity, setOpacity] = useState(0.5)
+  const [overlayOpacity, setOverlayOpacity] = useState(50)
   const containerRef = useRef<HTMLDivElement>(null)
   
-  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!containerRef.current) return
-    const rect = containerRef.current.getBoundingClientRect()
-    const x = e.clientX - rect.left
-    const percentage = (x / rect.width) * 100
-    setSliderPosition(Math.max(0, Math.min(100, percentage)))
-  }
+  // For base64 images, we need to handle them specially
+  const isBase64 = (src: string) => src.startsWith('data:')
   
   if (mode === 'side-by-side') {
     return (
-      <div className={cn('grid grid-cols-2 gap-4', className)}>
+      <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
-          <h4 className="text-xs font-medium text-muted-foreground">Before</h4>
-          <img
-            src={before}
-            alt="Before"
-            className="w-full rounded-md border"
-          />
+          <h4 className="text-sm font-medium text-center">Before</h4>
+          <div className="relative aspect-video bg-muted rounded-lg overflow-hidden">
+            {isBase64(before) ? (
+              // For base64, we need to use unoptimized
+              <Image
+                src={before}
+                alt="Before"
+                fill
+                className="object-contain"
+                unoptimized
+              />
+            ) : (
+              <Image
+                src={before}
+                alt="Before"
+                fill
+                className="object-contain"
+              />
+            )}
+          </div>
         </div>
         <div className="space-y-2">
-          <h4 className="text-xs font-medium text-muted-foreground">After</h4>
-          <img
-            src={after}
-            alt="After"
-            className="w-full rounded-md border"
-          />
+          <h4 className="text-sm font-medium text-center">After</h4>
+          <div className="relative aspect-video bg-muted rounded-lg overflow-hidden">
+            {isBase64(after) ? (
+              <Image
+                src={after}
+                alt="After"
+                fill
+                className="object-contain"
+                unoptimized
+              />
+            ) : (
+              <Image
+                src={after}
+                alt="After"
+                fill
+                className="object-contain"
+              />
+            )}
+          </div>
         </div>
       </div>
     )
@@ -54,28 +71,52 @@ export function ImageComparison({
   
   if (mode === 'overlay') {
     return (
-      <div className={cn('relative', className)}>
-        <img
-          src={before}
-          alt="Before"
-          className="w-full rounded-md"
-        />
-        <img
-          src={after}
-          alt="After"
-          className="absolute inset-0 w-full rounded-md"
-          style={{ opacity }}
-        />
-        <div className="absolute bottom-4 left-4 right-4">
-          <label className="text-xs text-white drop-shadow-md">
-            Opacity: {Math.round(opacity * 100)}%
-          </label>
-          <input
-            type="range"
-            min="0"
-            max="100"
-            value={opacity * 100}
-            onChange={(e) => setOpacity(Number(e.target.value) / 100)}
+      <div className="space-y-4">
+        <div className="relative aspect-video bg-muted rounded-lg overflow-hidden" ref={containerRef}>
+          {isBase64(before) ? (
+            <Image
+              src={before}
+              alt="Before"
+              fill
+              className="object-contain"
+              unoptimized
+            />
+          ) : (
+            <Image
+              src={before}
+              alt="Before"
+              fill
+              className="object-contain"
+            />
+          )}
+          <div className="absolute inset-0" style={{ opacity: overlayOpacity / 100 }}>
+            {isBase64(after) ? (
+              <Image
+                src={after}
+                alt="After"
+                fill
+                className="object-contain"
+                unoptimized
+              />
+            ) : (
+              <Image
+                src={after}
+                alt="After"
+                fill
+                className="object-contain"
+              />
+            )}
+          </div>
+        </div>
+        
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Overlay Opacity</label>
+          <Slider
+            value={[overlayOpacity]}
+            onValueChange={([value]) => setOverlayOpacity(value)}
+            min={0}
+            max={100}
+            step={1}
             className="w-full"
           />
         </div>
@@ -83,52 +124,75 @@ export function ImageComparison({
     )
   }
   
-  if (mode === 'slider') {
-    return (
-      <div
+  // Slider mode
+  return (
+    <div className="space-y-4">
+      <div 
+        className="relative aspect-video bg-muted rounded-lg overflow-hidden"
         ref={containerRef}
-        className={cn('relative overflow-hidden rounded-md cursor-col-resize', className)}
-        onMouseMove={handleMouseMove}
       >
-        <img
-          src={before}
-          alt="Before"
-          className="w-full"
-        />
-        <div
-          className="absolute inset-0 overflow-hidden"
-          style={{ width: `${sliderPosition}%` }}
-        >
-          <img
-            src={after}
-            alt="After"
-            className="w-full"
-            style={{ width: `${(100 / sliderPosition) * 100}%` }}
+        {/* Before image (full width) */}
+        {isBase64(before) ? (
+          <Image
+            src={before}
+            alt="Before"
+            fill
+            className="object-contain"
+            unoptimized
           />
+        ) : (
+          <Image
+            src={before}
+            alt="Before"
+            fill
+            className="object-contain"
+          />
+        )}
+        
+        {/* After image (clipped) */}
+        <div 
+          className="absolute inset-0 overflow-hidden"
+          style={{ clipPath: `inset(0 ${100 - sliderPosition}% 0 0)` }}
+        >
+          {isBase64(after) ? (
+            <Image
+              src={after}
+              alt="After"
+              fill
+              className="object-contain"
+              unoptimized
+            />
+          ) : (
+            <Image
+              src={after}
+              alt="After"
+              fill
+              className="object-contain"
+            />
+          )}
         </div>
-        <div
-          className="absolute top-0 bottom-0 w-0.5 bg-white shadow-lg"
+        
+        {/* Slider handle */}
+        <div 
+          className="absolute top-0 bottom-0 w-1 bg-primary cursor-ew-resize"
           style={{ left: `${sliderPosition}%` }}
         >
-          <div className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-8 h-8 bg-white rounded-full shadow-lg flex items-center justify-center">
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <path d="M4 8L1 5M1 11L4 8M12 8L15 5M15 11L12 8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 bg-primary rounded-full flex items-center justify-center">
+            <div className="w-4 h-4 bg-background rounded-full" />
           </div>
         </div>
       </div>
-    )
-  }
-  
-  // Difference mode (placeholder - would need image processing)
-  return (
-    <div className={cn('space-y-2', className)}>
-      <p className="text-sm text-muted-foreground">
-        Difference visualization not yet implemented
-      </p>
-      <div className="grid grid-cols-2 gap-4">
-        <img src={before} alt="Before" className="w-full rounded-md border" />
-        <img src={after} alt="After" className="w-full rounded-md border" />
+      
+      <div className="space-y-2">
+        <label className="text-sm font-medium">Comparison Position</label>
+        <Slider
+          value={[sliderPosition]}
+          onValueChange={([value]) => setSliderPosition(value)}
+          min={0}
+          max={100}
+          step={1}
+          className="w-full"
+        />
       </div>
     </div>
   )

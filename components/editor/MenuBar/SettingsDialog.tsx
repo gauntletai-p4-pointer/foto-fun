@@ -14,6 +14,8 @@ import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Slider } from '@/components/ui/slider'
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import {
   featureManager,
   FEATURE_CATEGORIES,
@@ -33,6 +35,8 @@ import {
   ExternalLink,
   Sparkles,
   Info,
+  Brain,
+  Shield,
 } from 'lucide-react'
 
 interface SettingsDialogProps {
@@ -56,10 +60,27 @@ const categoryTitles: Record<FeatureCategory, string> = {
   [FEATURE_CATEGORIES.INTEGRATIONS]: 'Integrations',
 }
 
+interface AISettings {
+  stepByStepMode: 'always' | 'complex-only' | 'never'
+  autoApproveThreshold: number
+  showEducationalContent: boolean
+  showConfidenceScores: boolean
+  showApprovalDecisions: boolean
+}
+
+const defaultAISettings: AISettings = {
+  stepByStepMode: 'complex-only',
+  autoApproveThreshold: 0.8,
+  showEducationalContent: true,
+  showConfidenceScores: true,
+  showApprovalDecisions: true,
+}
+
 export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
   const [mounted, setMounted] = useState(false)
   const [featureStates, setFeatureStates] = useState<Record<Feature, boolean>>({} as Record<Feature, boolean>)
   const [showSetupHelp, setShowSetupHelp] = useState<Feature | null>(null)
+  const [aiSettings, setAISettings] = useState<AISettings>(defaultAISettings)
   const isCloud = getDeploymentMode() === 'cloud'
   
   useEffect(() => {
@@ -76,6 +97,12 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
       states[feature] = featureManager.isFeatureEnabled(feature)
     })
     setFeatureStates(states)
+    
+    // Load AI settings from localStorage
+    const savedAISettings = localStorage.getItem('ai-settings')
+    if (savedAISettings) {
+      setAISettings(JSON.parse(savedAISettings))
+    }
   }, [open, mounted])
   
   const handleFeatureToggle = (feature: Feature, enabled: boolean) => {
@@ -88,6 +115,12 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
     
     featureManager.setFeatureEnabled(feature, enabled)
     setFeatureStates(prev => ({ ...prev, [feature]: enabled }))
+  }
+
+  const updateAISetting = <K extends keyof AISettings>(key: K, value: AISettings[K]) => {
+    const newSettings = { ...aiSettings, [key]: value }
+    setAISettings(newSettings)
+    localStorage.setItem('ai-settings', JSON.stringify(newSettings))
   }
   
   const renderFeatureItem = (feature: Feature) => {
@@ -142,6 +175,128 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
       </div>
     )
   }
+
+  const renderAISettings = () => {
+    return (
+      <div className="space-y-6">
+        {/* Step-by-Step Mode */}
+        <div className="space-y-3">
+          <Label className="text-base font-medium">Step-by-Step Mode</Label>
+          <RadioGroup 
+            value={aiSettings.stepByStepMode}
+            onValueChange={(value) => updateAISetting('stepByStepMode', value as AISettings['stepByStepMode'])}
+          >
+            <div className="flex items-center space-x-2">
+              <RadioGroupItem value="always" id="always" />
+              <Label htmlFor="always" className="font-normal cursor-pointer">
+                Always show steps (recommended for learning)
+              </Label>
+            </div>
+            <div className="flex items-center space-x-2">
+              <RadioGroupItem value="complex-only" id="complex" />
+              <Label htmlFor="complex" className="font-normal cursor-pointer">
+                Only for complex edits (3+ steps)
+              </Label>
+            </div>
+            <div className="flex items-center space-x-2">
+              <RadioGroupItem value="never" id="never" />
+              <Label htmlFor="never" className="font-normal cursor-pointer">
+                Never (fastest, for experienced users)
+              </Label>
+            </div>
+          </RadioGroup>
+        </div>
+        
+        {/* Auto-Approval Threshold */}
+        <div className="space-y-3">
+          <div className="space-y-1">
+            <Label className="text-base font-medium">Auto-Approval Confidence Threshold</Label>
+            <p className="text-sm text-muted-foreground">
+              Operations with confidence above this threshold will be applied automatically
+            </p>
+          </div>
+          <div className="flex items-center space-x-4">
+            <Slider
+              value={[aiSettings.autoApproveThreshold]}
+              onValueChange={([value]) => updateAISetting('autoApproveThreshold', value)}
+              min={0}
+              max={1}
+              step={0.05}
+              className="flex-1"
+            />
+            <span className="w-14 text-sm font-medium text-right">
+              {Math.round(aiSettings.autoApproveThreshold * 100)}%
+            </span>
+          </div>
+          <div className="flex justify-between text-xs text-muted-foreground">
+            <span>Manual approval for all</span>
+            <span>Auto-approve high confidence</span>
+          </div>
+        </div>
+        
+        {/* Transparency Settings */}
+        <div className="space-y-3">
+          <Label className="text-base font-medium">Transparency Settings</Label>
+          
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label htmlFor="confidence-scores" className="font-normal cursor-pointer">
+                Show Confidence Scores
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Display AI confidence levels for each operation
+              </p>
+            </div>
+            <Switch
+              id="confidence-scores"
+              checked={aiSettings.showConfidenceScores}
+              onCheckedChange={(checked) => updateAISetting('showConfidenceScores', checked)}
+            />
+          </div>
+          
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label htmlFor="approval-decisions" className="font-normal cursor-pointer">
+                Show Approval Decisions
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                See when operations require manual approval
+              </p>
+            </div>
+            <Switch
+              id="approval-decisions"
+              checked={aiSettings.showApprovalDecisions}
+              onCheckedChange={(checked) => updateAISetting('showApprovalDecisions', checked)}
+            />
+          </div>
+          
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label htmlFor="educational-content" className="font-normal cursor-pointer">
+                Show Educational Tips
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Learn about tools as the AI uses them
+              </p>
+            </div>
+            <Switch
+              id="educational-content"
+              checked={aiSettings.showEducationalContent}
+              onCheckedChange={(checked) => updateAISetting('showEducationalContent', checked)}
+            />
+          </div>
+        </div>
+        
+        {/* Info Alert */}
+        <Alert>
+          <Shield className="h-4 w-4" />
+          <AlertDescription>
+            These settings help you control how much autonomy the AI has. Lower thresholds mean more manual approvals, giving you more control but requiring more interaction.
+          </AlertDescription>
+        </Alert>
+      </div>
+    )
+  }
   
   // Don't render content until mounted to avoid hydration issues
   if (!mounted) {
@@ -179,7 +334,7 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
           </DialogHeader>
           
           <Tabs defaultValue={FEATURE_CATEGORIES.AI} className="flex-1">
-            <TabsList className="grid grid-cols-4 w-full h-10 p-1">
+            <TabsList className="grid grid-cols-5 w-full h-10 p-1">
               {Object.values(FEATURE_CATEGORIES).slice(0, 4).map(category => (
                 <TabsTrigger key={category} value={category} className="text-xs px-3 data-[state=active]:text-foreground">
                   <span className="flex items-center gap-1.5">
@@ -188,6 +343,12 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
                   </span>
                 </TabsTrigger>
               ))}
+              <TabsTrigger value="ai-settings" className="text-xs px-3 data-[state=active]:text-foreground">
+                <span className="flex items-center gap-1.5">
+                  <Brain className="w-4 h-4" />
+                  <span className="hidden sm:inline">AI Agent</span>
+                </span>
+              </TabsTrigger>
             </TabsList>
             
             <ScrollArea className="h-[400px] mt-4">
@@ -196,6 +357,9 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
                   {renderCategoryContent(category)}
                 </TabsContent>
               ))}
+              <TabsContent value="ai-settings" className="px-1">
+                {renderAISettings()}
+              </TabsContent>
             </ScrollArea>
           </Tabs>
           

@@ -4,6 +4,67 @@
 
 This epic implements Andrej Karpathy's agent design framework principles into FotoFun, building upon the existing foundation from Epics 1, 2, and 5. We'll create a production-ready AI photo editing system using AI SDK v5's agent patterns, emphasizing human-AI collaboration through intelligent context management, generation with verification, and adjustable autonomy.
 
+## Terminology and Architecture
+
+### Established Nomenclature
+
+To maintain consistency across the codebase, we use the following terminology:
+
+#### 1. **Canvas Tools** (Base Layer)
+- **Definition**: Core tools that directly manipulate the Fabric.js canvas
+- **Location**: `lib/editor/tools/`
+- **Examples**: `cropTool`, `brightnessTool`, `moveTool`
+- **Naming**: `[action]Tool` (camelCase, singleton instances)
+
+#### 2. **Tool Adapters** (AI Integration Layer)
+- **Definition**: Wrappers that make any tool AI-compatible by adding schemas and natural language understanding
+- **Location**: `lib/ai/adapters/tools/`
+- **Examples**: `CropToolAdapter`, `BrightnessToolAdapter`, `InpaintingToolAdapter`
+- **Naming**: `[ToolName]Adapter` (PascalCase classes)
+- **Note**: Works for both Canvas Tools and AI-Native Tools
+
+#### 3. **AI-Native Tools** (External API Tools)
+- **Definition**: Tools that call external AI services (Replicate, DALL-E, etc.)
+- **Location**: `lib/ai/tools/`
+- **Examples**: `InpaintingTool`, `ImageGenerationTool`, `BackgroundRemovalTool`
+- **Naming**: `[Action]Tool` (PascalCase classes)
+- **Note**: These also use Tool Adapters for AI chat integration
+
+#### 4. **Agent Steps** (Workflow Units)
+- **Definition**: Individual executable units within an agent workflow
+- **Location**: `lib/ai/agents/steps/`
+- **Types**: `ToolStep`, `EvaluationStep`, `PlanningStep`, `RoutingStep`
+- **Naming**: `[Type]Step` (PascalCase classes)
+
+#### 5. **Agents** (Workflow Orchestrators)
+- **Definition**: High-level coordinators that plan and execute multi-step workflows
+- **Location**: `lib/ai/agents/`
+- **Examples**: `SequentialEditingAgent`, `MasterRoutingAgent`
+- **Naming**: `[Pattern/Purpose]Agent` (PascalCase classes)
+
+### Architecture Benefits
+
+This architecture provides several key advantages:
+
+1. **Unified Adapter Pattern**: Both Canvas Tools and AI-Native Tools use the same adapter pattern
+2. **Single Registry**: All tools register in the same `adapterRegistry`
+3. **Consistent AI Interface**: The AI chat doesn't need to know if a tool manipulates canvas or calls an API
+4. **Future-Proof**: Easy to add new AI services without changing the core architecture
+
+```typescript
+// Example: Both types of tools follow the same pattern
+const canvasToolAdapter = new CropToolAdapter()         // Wraps canvas tool
+const aiNativeAdapter = new InpaintingToolAdapter()     // Wraps AI API tool
+
+// Both register the same way
+adapterRegistry.register(canvasToolAdapter)
+adapterRegistry.register(aiNativeAdapter)
+
+// AI uses them identically
+"crop the image to square"     // Uses CropToolAdapter → cropTool
+"remove the person in the background"  // Uses InpaintingToolAdapter → InpaintingTool
+```
+
 ## Assignment Requirements
 
 ### The Agent Design Framework
@@ -302,150 +363,54 @@ export class RoutingAgent extends BaseAgent {
 }
 ```
 
-### RAG/Vector-Based Learning System
+### RAG/Vector-Based Learning System (DEFERRED)
 
-The learning system uses embeddings to understand semantic similarity between workflows, user preferences, and parameter choices. This enables the agent to learn from past interactions and improve over time.
+**Decision**: After careful consideration, we've decided to defer the implementation of the RAG/vector-based learning system. Instead, we'll use a simpler database-backed preference system that provides most of the benefits without the complexity.
 
-#### Vector Store Architecture
+#### Why Deferred:
+1. **No Usage Data**: Without real user interactions, the learning system has nothing to learn from
+2. **Complexity vs Value**: Adds significant complexity (IndexedDB, embeddings, vector similarity) for uncertain value
+3. **Cost**: Requires OpenAI embedding API calls for every workflow
+4. **Simpler Alternative**: Database tables can handle preferences and history effectively
 
+#### Simple Database Approach (To Be Implemented):
 ```typescript
-// lib/ai/agents/learning/vector-store.ts
-import { openai } from '@/lib/ai/providers'
-import { embed } from 'ai'
+// Using Drizzle/Supabase tables instead:
+- user_preferences: Store tool parameter preferences
+- workflow_history: Track successful workflows
+- tool_usage_stats: Monitor which tools users prefer
 
-interface VectorDocument {
-  id: string
-  embedding: number[]
-  metadata: {
-    type: 'workflow' | 'preference' | 'decision' | 'parameter'
-    timestamp: number
-    userId?: string
-    success: boolean
-    context: any
-  }
-  content: string
-}
+// Example queries:
+// Get user's preferred brightness level
+const pref = await db.query.userPreferences.findFirst({
+  where: and(
+    eq(userPreferences.userId, userId),
+    eq(userPreferences.toolName, 'brightness')
+  )
+})
 
-export class AgentVectorStore {
-  private documents: Map<string, VectorDocument> = new Map()
-  private indexedDb: IDBDatabase | null = null
-  
-  async initialize() {
-    // Initialize IndexedDB for persistent storage
-    this.indexedDb = await this.openIndexedDb()
-    await this.loadDocuments()
-  }
-  
-  async addWorkflow(workflow: ExecutedWorkflow) {
-    const content = this.serializeWorkflow(workflow)
-    const embedding = await this.generateEmbedding(content)
-    
-    const doc: VectorDocument = {
-      id: `workflow-${Date.now()}`,
-      embedding,
-      metadata: {
-        type: 'workflow',
-        timestamp: Date.now(),
-        success: workflow.outcome === 'success',
-        context: {
-          request: workflow.request,
-          toolsUsed: workflow.steps.map(s => s.tool),
-          parameters: workflow.steps.map(s => s.params),
-          confidence: workflow.averageConfidence
-        }
-      },
-      content
-    }
-    
-    await this.storeDocument(doc)
-  }
-  
-  async findSimilarWorkflows(request: string, k: number = 5): Promise<SimilarWorkflow[]> {
-    const queryEmbedding = await this.generateEmbedding(request)
-    const workflows = Array.from(this.documents.values())
-      .filter(doc => doc.metadata.type === 'workflow')
-    
-    // Calculate cosine similarity
-    const similarities = workflows.map(doc => ({
-      doc,
-      similarity: this.cosineSimilarity(queryEmbedding, doc.embedding)
-    }))
-    
-    // Sort by similarity and take top k
-    return similarities
-      .sort((a, b) => b.similarity - a.similarity)
-      .slice(0, k)
-      .map(({ doc, similarity }) => ({
-        id: doc.id,
-        workflow: this.deserializeWorkflow(doc.content),
-        similarity,
-        metadata: doc.metadata
-      }))
-  }
-  
-  async learnFromDecision(decision: UserDecision, context: AgentContext) {
-    // Store parameter preferences
-    if (decision.action === 'approve') {
-      const paramDoc: VectorDocument = {
-        id: `param-${Date.now()}`,
-        embedding: await this.generateEmbedding(
-          JSON.stringify({ operation: decision.operation, params: decision.params })
-        ),
-        metadata: {
-          type: 'parameter',
-          timestamp: Date.now(),
-          success: true,
-          context: {
-            operation: decision.operation,
-            params: decision.params,
-            canvasState: context.canvasAnalysis
-          }
-        },
-        content: JSON.stringify(decision)
-      }
-      
-      await this.storeDocument(paramDoc)
-    }
-  }
-  
-  async suggestParameters(operation: string, context: AgentContext): Promise<ParameterSuggestion[]> {
-    const query = `${operation} ${JSON.stringify(context.canvasAnalysis)}`
-    const queryEmbedding = await this.generateEmbedding(query)
-    
-    const paramDocs = Array.from(this.documents.values())
-      .filter(doc => 
-        doc.metadata.type === 'parameter' && 
-        doc.metadata.context.operation === operation
-      )
-    
-    const suggestions = paramDocs
-      .map(doc => ({
-        params: doc.metadata.context.params,
-        similarity: this.cosineSimilarity(queryEmbedding, doc.embedding),
-        successRate: doc.metadata.success ? 1 : 0
-      }))
-      .sort((a, b) => b.similarity - a.similarity)
-      .slice(0, 3)
-    
-    return suggestions
-  }
-  
-  private async generateEmbedding(text: string): Promise<number[]> {
-    const { embedding } = await embed({
-      model: openai('text-embedding-3-small'),
-      value: text
-    })
-    return embedding
-  }
-  
-  private cosineSimilarity(a: number[], b: number[]): number {
-    const dotProduct = a.reduce((sum, val, i) => sum + val * b[i], 0)
-    const magnitudeA = Math.sqrt(a.reduce((sum, val) => sum + val * val, 0))
-    const magnitudeB = Math.sqrt(b.reduce((sum, val) => sum + val * val, 0))
-    return dotProduct / (magnitudeA * magnitudeB)
-  }
-}
+// Get recent successful workflows
+const recent = await db.query.workflowHistory.findMany({
+  where: and(
+    eq(workflowHistory.userId, userId),
+    eq(workflowHistory.success, true)
+  ),
+  orderBy: desc(workflowHistory.createdAt),
+  limit: 10
+})
 ```
+
+This approach provides:
+- User preference tracking
+- Workflow history
+- Simple pattern matching
+- No additional API costs
+- Easier to debug and maintain
+
+The vector-based learning system can be reconsidered in the future when:
+- We have significant usage data
+- Users request "do it like last time" features
+- The simple system proves insufficient
 
 #### Learning Integration
 
@@ -573,15 +538,10 @@ export class MasterRoutingAgent extends BaseAgent {
     orchestrator: new OrchestratorAgent()
   }
   
-  private learner: AgentLearner
+  // Note: Learning system deferred - will use database preferences when implemented
   
   constructor() {
     super()
-    this.learner = new AgentLearner()
-  }
-  
-  async initialize() {
-    await this.learner.initialize()
   }
   
   protected async plan(request: string): Promise<AgentStep[]> {
@@ -593,24 +553,17 @@ export class MasterRoutingAgent extends BaseAgent {
         // Analyze the request using AI
         const analysis = await this.analyzeRequest(request, context)
         
-        // Check for similar past workflows
-        const suggestion = await this.learner.suggestWorkflow(request, context)
+        // TODO: Check database for similar past workflows when preference system is implemented
         
         // Route to appropriate handler
         const result = await this.routeRequest(
           request,
           analysis,
           context,
-          suggestion
+          null // No suggestions yet - will add when database preferences are implemented
         )
         
-        // Learn from the execution
-        if (result.completed) {
-          await this.learner.learnFromWorkflow(
-            result.workflow,
-            { userSatisfaction: result.confidence }
-          )
-        }
+        // TODO: Store successful workflows in database when preference system is implemented
         
         return {
           success: result.completed,
@@ -1661,56 +1614,63 @@ export function EnhancedAIChat() {
 
 ## Implementation Plan
 
-### Phase 1: Agent Foundation (2 days)
+### Phase 1: Agent Foundation (2 days) ✅
 1. **Core Agent System**
-   - BaseAgent abstract class
-   - AgentContext and AgentStep interfaces
-   - WorkflowMemory implementation
-   - Basic SequentialEditingAgent
+   - BaseAgent abstract class ✅
+   - AgentContext and AgentStep interfaces ✅
+   - WorkflowMemory implementation ✅
+   - Basic SequentialEditingAgent ✅
 
-2. **Enhanced Tool Adapters**
-   - Add confidence calculation
-   - Add alternative generation
+2. **Directory Structure for AI-Native Tools**
+   - Create `lib/ai/tools/` directory
+   - Create `BaseAITool` interface
+   - Prepare for future AI service integrations
+
+3. **Enhanced Tool Adapters**
+   - Add confidence calculation to existing adapters
+   - Add alternative generation methods
    - Enhanced preview system
    - Quality evaluation methods
 
-### Phase 2: Visual Approval System & Step-by-Step Mode (2.5 days)
+### Phase 2: Visual Approval System & Step-by-Step Mode (2.5 days) ✅
 1. **Approval Dialog Components**
-   - AgentApprovalDialog with tabs
-   - ComparisonView with multiple modes
-   - AlternativeGrid for options
-   - ConfidenceIndicator component
+   - AgentApprovalDialog with tabs ✅
+   - ComparisonView with multiple modes ✅
+   - AlternativeGrid for options ✅
+   - ConfidenceIndicator component ✅
 
 2. **Step-by-Step Execution**
-   - StepByStepExecution component
-   - WorkflowTimeline visualization
-   - Tool education system
-   - Parameter display and editing
-   - Step status tracking
+   - StepByStepExecution component (conceptual design complete)
+   - WorkflowTimeline visualization (conceptual design complete)
+   - Tool education system (conceptual design complete)
+   - Parameter display and editing (conceptual design complete)
+   - Step status tracking (conceptual design complete)
 
 3. **Comparison Modes**
-   - Slider comparison
-   - Side-by-side view
-   - Overlay with opacity
+   - Slider comparison ✅
+   - Side-by-side view ✅
+   - Overlay with opacity ✅
    - Difference visualization
 
 4. **Settings Integration**
-   - Step-by-step mode preferences
-   - Per-tool approval policies
-   - Educational content toggles
+   - Step-by-step mode preferences (conceptual design complete)
+   - Per-tool approval policies (conceptual design complete)
+   - Educational content toggles (conceptual design complete)
 
-### Phase 3: RAG/Vector Learning System (2 days)
-1. **Vector Store Infrastructure**
-   - AgentVectorStore with IndexedDB persistence
-   - Embedding generation using OpenAI
-   - Similarity search implementation
-   - Document management system
+### Phase 3: RAG/Vector Learning System (DEFERRED - See section above for details)
+~~1. **Vector Store Infrastructure**~~
+   ~~- AgentVectorStore with IndexedDB persistence~~
+   ~~- Embedding generation using OpenAI~~
+   ~~- Similarity search implementation~~
+   ~~- Document management system~~
 
-2. **Learning Components**
-   - AgentLearner for pattern recognition
-   - Workflow adaptation system
-   - Parameter suggestion engine
-   - User preference modeling
+~~2. **Learning Components**~~
+   ~~- AgentLearner for pattern recognition~~
+   ~~- Workflow adaptation system~~
+   ~~- Parameter suggestion engine~~
+   ~~- User preference modeling~~
+
+**Instead**: Will implement simple database tables for preferences and history when needed
 
 ### Phase 4: Master Routing Agent (2 days)
 1. **Routing Implementation**

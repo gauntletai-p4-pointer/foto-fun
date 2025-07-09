@@ -1,23 +1,23 @@
-import { generateObject } from 'ai'
-import { z } from 'zod'
-import { openai } from '@/lib/ai/providers'
 import { BaseAgent } from './BaseAgent'
+import type { AgentStep, StepResult, AgentResult } from './types'
 import { ToolStep } from './steps/ToolStep'
-import type { AgentStep, AgentResult, StepResult } from './types'
+import { generateObject } from 'ai'
+import { openai } from '@ai-sdk/openai'
+import { z } from 'zod'
+import { adapterRegistry } from '@/lib/ai/adapters/registry'
 
-// Schema for the AI to generate a plan
-const PlanSchema = z.object({
+const planSchema = z.object({
   steps: z.array(z.object({
     id: z.string(),
     tool: z.string(),
-    params: z.any(),
     description: z.string(),
-    requiresApproval: z.boolean().optional()
+    params: z.any(),
+    dependencies: z.array(z.string()).optional(),
+    requiresApproval: z.boolean().optional(),
+    estimatedConfidence: z.number().min(0).max(1).optional()
   })),
   reasoning: z.string()
 })
-
-type Plan = z.infer<typeof PlanSchema>
 
 export class SequentialEditingAgent extends BaseAgent {
   async execute(request: string): Promise<AgentResult> {
@@ -28,26 +28,12 @@ export class SequentialEditingAgent extends BaseAgent {
       // Generate steps for the request
       const steps = await this.generateSteps(request)
       
-      if (steps.length === 0) {
-        return {
-          completed: false,
-          results: [],
-          reason: 'No steps generated for the request'
-        }
-      }
-      
-      const results: StepResult[] = []
-      
       // Execute steps sequentially
+      const results: StepResult[] = []
       for (const step of steps) {
-        if (this.shouldStop()) {
-          return {
-            completed: false,
-            results,
-            reason: 'Maximum steps reached'
-          }
-        }
+        console.log(`[SequentialEditingAgent] Executing step: ${step.description}`)
         
+        // Execute the step using BaseAgent's executeStep method which handles approval
         const result = await this.executeStep(step)
         results.push(result)
         
@@ -58,6 +44,15 @@ export class SequentialEditingAgent extends BaseAgent {
             reason: `Step failed: ${step.description}`
           }
         }
+        
+        // Check if we should stop
+        if (this.shouldStop()) {
+          return {
+            completed: false,
+            results,
+            reason: 'Maximum steps reached'
+          }
+        }
       }
       
       return {
@@ -65,7 +60,6 @@ export class SequentialEditingAgent extends BaseAgent {
         results
       }
     } catch (error) {
-      console.error('Agent execution error:', error)
       return {
         completed: false,
         results: [],
@@ -75,46 +69,64 @@ export class SequentialEditingAgent extends BaseAgent {
   }
   
   async generateSteps(request: string): Promise<AgentStep[]> {
+    const availableTools = Array.from(adapterRegistry.getAll()).map(a => ({
+      name: a.aiName,
+      description: a.description
+    }))
+    
     // Use AI to generate a plan
     const { object } = await generateObject({
       model: openai('gpt-4o'),
-      schema: PlanSchema,
-      prompt: `You are an AI photo editing assistant. Generate a step-by-step plan to fulfill this request: "${request}"
+      schema: planSchema,
+      prompt: `Create a step-by-step plan to: ${request}
       
-      Current canvas state:
-      - Dimensions: ${this.context.canvasAnalysis.dimensions.width}x${this.context.canvasAnalysis.dimensions.height}
-      - Has content: ${this.context.canvasAnalysis.hasContent}
-      - Object count: ${this.context.canvasAnalysis.objectCount}
-      
-      Available tools:
-      - crop: Crop the image (params: x, y, width, height)
-      - brightness: Adjust brightness (params: value from -100 to 100)
-      - contrast: Adjust contrast (params: value from -100 to 100)
-      - saturation: Adjust saturation (params: value from -100 to 100)
-      - blur: Apply blur effect (params: radius)
-      - rotate: Rotate image (params: angle)
-      - flip: Flip image (params: direction: 'horizontal' | 'vertical')
-      - resize: Resize image (params: width, height, maintainAspectRatio)
-      - grayscale: Convert to grayscale (no params)
-      - sepia: Apply sepia effect (no params)
-      - invert: Invert colors (no params)
-      - removeBackground: Remove background (no params)
-      
-      Generate a plan with specific tools and parameters. Mark steps that significantly change the image as requiresApproval: true.`
+Canvas context:
+- Dimensions: ${this.context.canvasAnalysis.dimensions.width}x${this.context.canvasAnalysis.dimensions.height}
+- Has content: ${this.context.canvasAnalysis.hasContent}
+
+Available tools:
+${availableTools.map(t => `- ${t.name}: ${t.description}`).join('\n')}
+
+Create a plan with specific parameters for each tool. Be precise with values.
+For example:
+- brightness: use values between -100 and 100
+- contrast: use values between -100 and 100
+- saturation: use values between -100 and 100
+- crop: use exact pixel coordinates
+- blur: use radius values between 0 and 50
+
+Return a list of steps with tool names and parameters.`
     })
     
-    if (!object || !object.steps) {
-      return []
-    }
+    console.log('[SequentialEditingAgent] Generated plan:', object)
     
-    // Convert plan to AgentSteps
-    return object.steps.map((planStep, index) => 
-      new ToolStep({
+    // Convert plan to executable steps
+    return object.steps.map((step, index) => {
+      const toolStep = new ToolStep({
         id: `step-${index}`,
-        tool: planStep.tool,
-        params: planStep.params,
-        description: planStep.description
+        tool: step.tool,
+        params: step.params,
+        description: step.description
       })
-    )
+      
+      // Override requiresApproval if specified in the plan
+      if (step.requiresApproval !== undefined || step.estimatedConfidence !== undefined) {
+        const originalRequiresApproval = toolStep.requiresApproval.bind(toolStep)
+        toolStep.requiresApproval = (result: StepResult) => {
+          // Use plan's requiresApproval if explicitly set
+          if (step.requiresApproval !== undefined) {
+            return step.requiresApproval
+          }
+          // Use confidence threshold if provided
+          if (step.estimatedConfidence !== undefined) {
+            return step.estimatedConfidence < 0.8
+          }
+          // Otherwise use default logic
+          return originalRequiresApproval(result)
+        }
+      }
+      
+      return toolStep
+    })
   }
 } 

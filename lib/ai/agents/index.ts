@@ -6,6 +6,7 @@ export { BaseAgent } from './BaseAgent'
 
 // Agent implementations
 export { SequentialEditingAgent } from './SequentialEditingAgent'
+export { MasterRoutingAgent } from './MasterRoutingAgent'
 
 // Utilities
 export { WorkflowMemory } from './WorkflowMemory'

@@ -94,6 +94,7 @@ export async function autoDiscoverAdapters(): Promise<void> {
     const { default: SepiaAdapter } = await import('./tools/sepia')
     const { default: InvertAdapter } = await import('./tools/invert')
     const { addTextAdapter } = await import('./tools/addText')
+    const { AnalyzeCanvasAdapter } = await import('./tools/analyzeCanvas')
     
     // Register all adapters
     adapterRegistry.register(new CropToolAdapter())
@@ -112,8 +113,9 @@ export async function autoDiscoverAdapters(): Promise<void> {
     adapterRegistry.register(SepiaAdapter)
     adapterRegistry.register(InvertAdapter)
     adapterRegistry.register(addTextAdapter)
+    adapterRegistry.register(new AnalyzeCanvasAdapter())
     
-    console.log('[AdapterRegistry] Registered 16 tool adapters')
+    console.log('[AdapterRegistry] Registered 17 tool adapters')
   } catch (error) {
     console.error('[AdapterRegistry] Error during auto-discovery:', error)
   }
