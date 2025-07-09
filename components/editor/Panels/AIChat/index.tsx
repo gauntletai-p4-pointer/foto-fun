@@ -736,7 +736,7 @@ export function AIChat() {
             onKeyDown={handleKeyDown}
             placeholder={isCanvasReady ? (hasContent() ? "Ask me anything about editing your photo..." : "Ask me to generate or edit photos...") : "Waiting for canvas to load..."}
             disabled={isLoading || !isCanvasReady}
-            rows={1}
+            rows={2}
             className={cn(
               "flex-1 min-h-[3rem] w-full resize-none rounded-md border border-foreground/10 bg-transparent px-3 py-2 text-sm shadow-sm transition-colors outline-none overflow-y-auto",
               "placeholder:text-foreground/40",
