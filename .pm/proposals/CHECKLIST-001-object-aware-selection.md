@@ -63,57 +63,57 @@
   - [x] Add method to sync object registry on canvas changes
   - [x] Update selection initialization
 
-## Phase 2: Tool Integration (Weeks 3-4)
+## Phase 2: Tool Integration (Weeks 3-4) ✅ COMPLETED
 
-### 2.1 Update Base Selection Tool
-- [ ] **Modify lib/editor/tools/base/SelectionTool.ts**
-  - [ ] Import objectRegistryStore
-  - [ ] Update handleMouseDown() to detect clicked object
-  - [ ] Add showObjectSelectionMode() method
-  - [ ] Add selection target detection logic
-  - [ ] Update coordinate handling for object-relative selection
-  - [ ] Add visual feedback for object selection mode
+### 2.1 Update Base Selection Tool ✅
+- [x] **Modify lib/editor/tools/base/SelectionTool.ts**
+  - [x] Import objectRegistryStore
+  - [x] Update handleMouseDown() to detect clicked object
+  - [x] Add showObjectSelectionMode() method
+  - [x] Add selection target detection logic
+  - [x] Update coordinate handling for object-relative selection
+  - [x] Add visual feedback for object selection mode
 
-### 2.2 Update Tool Options
-- [ ] **Modify constants/toolOptions.ts**
-  - [ ] Add selectionTarget option for marquee tools
-  - [ ] Add selectionTarget option for lasso tool
-  - [ ] Add selectionTarget option for magic wand
-  - [ ] Add selectionTarget option for quick selection
-  - [ ] Define option values: 'auto', 'canvas', 'object', 'layer'
+### 2.2 Update Tool Options ✅
+- [x] **Modify constants/toolOptions.ts**
+  - [x] Add selectionTarget option for marquee tools
+  - [x] Add selectionTarget option for lasso tool
+  - [x] Add selectionTarget option for magic wand
+  - [x] Add selectionTarget option for quick selection
+  - [x] Define option values: 'auto', 'canvas', 'object', 'layer'
 
-### 2.3 Update Individual Selection Tools
-- [ ] **Modify lib/editor/tools/selection/marqueeRectTool.ts**
-  - [ ] Handle object-aware selection creation
-  - [ ] Clip selection to object bounds when in object mode
-  - [ ] Update visual feedback
+### 2.3 Update Individual Selection Tools ✅
+- [x] **Modify lib/editor/tools/selection/marqueeRectTool.ts**
+  - [x] Handle object-aware selection creation
+  - [x] Clip selection to object bounds when in object mode
+  - [x] Update visual feedback
 
-- [ ] **Modify lib/editor/tools/selection/marqueeEllipseTool.ts**
-  - [ ] Handle object-aware selection creation
-  - [ ] Clip selection to object bounds when in object mode
-  - [ ] Update visual feedback
+- [x] **Modify lib/editor/tools/selection/marqueeEllipseTool.ts**
+  - [x] Handle object-aware selection creation
+  - [x] Clip selection to object bounds when in object mode
+  - [x] Update visual feedback
 
-- [ ] **Modify lib/editor/tools/selection/lassoTool.ts**
-  - [ ] Handle object-aware path creation
-  - [ ] Clip path to object bounds when in object mode
-  - [ ] Update visual feedback
+- [x] **Modify lib/editor/tools/selection/lassoTool.ts**
+  - [x] Handle object-aware path creation
+  - [x] Clip path to object bounds when in object mode
+  - [x] Update visual feedback
 
-- [ ] **Modify lib/editor/tools/selection/magicWandTool.ts**
-  - [ ] Limit color sampling to active object pixels
-  - [ ] Respect object boundaries in flood fill
-  - [ ] Update selection mask generation
+- [x] **Modify lib/editor/tools/selection/magicWandTool.ts**
+  - [x] Limit color sampling to active object pixels
+  - [x] Respect object boundaries in flood fill
+  - [x] Update selection mask generation
 
-- [ ] **Modify lib/editor/tools/selection/quickSelectionTool.ts**
-  - [ ] Limit brush strokes to active object
-  - [ ] Respect object boundaries
-  - [ ] Update pixel sampling logic
+- [x] **Modify lib/editor/tools/selection/quickSelectionTool.ts**
+  - [x] Limit brush strokes to active object
+  - [x] Respect object boundaries
+  - [x] Update pixel sampling logic
 
-### 2.4 Selection Tool UI
-- [ ] **Modify components/editor/OptionsBar/SelectionOptions.tsx**
-  - [ ] Add selection target dropdown
-  - [ ] Show active object/layer indicator
-  - [ ] Add visual mode indicators
-  - [ ] Connect to tool options store
+### 2.4 Selection Tool UI ✅
+- [x] **Modify components/editor/OptionsBar/SelectionOptions.tsx**
+  - [x] Add selection target dropdown
+  - [x] Show active object/layer indicator
+  - [x] Add visual mode indicators
+  - [x] Connect to tool options store
 
 ## Phase 3: Filter Integration (Weeks 5-6)
 

@@ -33,11 +33,25 @@ export class ClearSelectionCommand extends Command {
     
     // Clear the selection
     this.selectionManager.clear()
+    
+    // Stop the selection renderer
+    const { useCanvasStore } = await import('@/store/canvasStore')
+    const { selectionRenderer } = useCanvasStore.getState()
+    if (selectionRenderer) {
+      selectionRenderer.stopRendering()
+    }
   }
   
   async undo(): Promise<void> {
     if (this.previousSelection) {
       this.selectionManager.restoreSelection(this.previousSelection.mask, this.previousSelection.bounds)
+      
+      // Start the selection renderer
+      const { useCanvasStore } = await import('@/store/canvasStore')
+      const { selectionRenderer } = useCanvasStore.getState()
+      if (selectionRenderer) {
+        selectionRenderer.startRendering()
+      }
     }
   }
   

@@ -350,23 +350,31 @@ export const useCanvasStore = create<CanvasStore>()(
           const objectRegistry = useObjectRegistryStore.getState()
           
           // Only update pixel map when objects actually change
-          state.fabricCanvas.on('object:added', () => {
-            // Defer update to avoid blocking UI
-            requestAnimationFrame(() => {
-              objectRegistry.updatePixelMap()
-            })
+          state.fabricCanvas.on('object:added', (e: any) => {
+            const obj = e.target
+            // Ignore selection overlays and other temporary objects
+            if (obj && !obj.excludeFromExport) {
+              // Defer update to avoid blocking UI
+              requestAnimationFrame(() => {
+                objectRegistry.updatePixelMap()
+              })
+            }
           })
           
-          state.fabricCanvas.on('object:removed', () => {
-            requestAnimationFrame(() => {
-              objectRegistry.updatePixelMap()
-            })
+          state.fabricCanvas.on('object:removed', (e: any) => {
+            const obj = e.target
+            // Ignore selection overlays and other temporary objects
+            if (obj && !obj.excludeFromExport) {
+              requestAnimationFrame(() => {
+                objectRegistry.updatePixelMap()
+              })
+            }
           })
           
           state.fabricCanvas.on('object:modified', (e: any) => {
             // Mark specific object as dirty for incremental update
             const obj = e.target
-            if (obj && obj.get('id')) {
+            if (obj && obj.get('id') && !obj.excludeFromExport) {
               objectRegistry.markDirty(obj.get('id') as string)
               
               // Debounce modifications since they can fire rapidly
@@ -383,7 +391,7 @@ export const useCanvasStore = create<CanvasStore>()(
           // Also listen for object:moving to mark as dirty but don't update until done
           state.fabricCanvas.on('object:moving', (e: any) => {
             const obj = e.target
-            if (obj && obj.get('id')) {
+            if (obj && obj.get('id') && !obj.excludeFromExport) {
               objectRegistry.markDirty(obj.get('id') as string)
             }
           })

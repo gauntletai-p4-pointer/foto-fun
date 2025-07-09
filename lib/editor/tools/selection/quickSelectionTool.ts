@@ -10,6 +10,8 @@ import { useSelectionStore } from '@/store/selectionStore'
 import { useHistoryStore } from '@/store/historyStore'
 import { CreateSelectionCommand } from '@/lib/editor/commands/selection'
 import type { Point } from '../utils/constraints'
+import { useObjectRegistryStore } from '@/store/objectRegistryStore'
+import { LayerAwareSelectionManager } from '@/lib/editor/selection/LayerAwareSelectionManager'
 
 // Quick selection tool state
 type QuickSelectionState = {
@@ -22,6 +24,8 @@ type QuickSelectionState = {
   edgeDetection: boolean
   selectedPixels: Set<string>
   processedRegions: Set<string>
+  targetObjectId: string | null
+  isObjectMode: boolean
 }
 
 /**
@@ -41,6 +45,9 @@ class QuickSelectionTool extends BaseTool {
   cursor = 'crosshair'
   shortcut = 'W'
   
+  // Store reference
+  protected selectionStore = useSelectionStore.getState()
+  
   // Tool state
   private state = createToolState<QuickSelectionState>({
     isSelecting: false,
@@ -51,7 +58,9 @@ class QuickSelectionTool extends BaseTool {
     autoExpand: true,
     edgeDetection: true,
     selectedPixels: new Set(),
-    processedRegions: new Set()
+    processedRegions: new Set(),
+    targetObjectId: null,
+    isObjectMode: false
   })
   
   // Canvas data cache
@@ -111,6 +120,43 @@ class QuickSelectionTool extends BaseTool {
     const pointer = this.canvas.getPointer(e.e)
     const point = { x: pointer.x, y: pointer.y }
     
+    // Check if we're in object mode
+    const selectionTarget = this.toolOptionsStore.getOptionValue<string>(this.id, 'selectionTarget') || 'auto'
+    let targetObjectId: string | null = null
+    let isObjectMode = false
+    
+    // Determine target object based on selection target mode
+    if (selectionTarget === 'auto' || selectionTarget === 'object') {
+      const objectRegistry = useObjectRegistryStore.getState()
+      const targetObject = objectRegistry.getTopObjectAtPixel(pointer.x, pointer.y)
+      
+      if (targetObject) {
+        targetObjectId = targetObject.get('id') as string
+        isObjectMode = true
+        
+        // Get selection manager and set active object
+        const selectionManager = this.canvasStore.selectionManager as LayerAwareSelectionManager
+        if (selectionManager) {
+          selectionManager.setActiveObject(targetObjectId)
+          selectionManager.setSelectionMode('object')
+        }
+      } else if (selectionTarget === 'auto') {
+        // In auto mode, if no object clicked, use canvas mode
+        const selectionManager = this.canvasStore.selectionManager as LayerAwareSelectionManager
+        if (selectionManager) {
+          selectionManager.setActiveObject(null)
+          selectionManager.setSelectionMode('global')
+        }
+      }
+    } else if (selectionTarget === 'canvas') {
+      // Canvas mode
+      const selectionManager = this.canvasStore.selectionManager as LayerAwareSelectionManager
+      if (selectionManager) {
+        selectionManager.setActiveObject(null)
+        selectionManager.setSelectionMode('global')
+      }
+    }
+    
     this.track('startQuickSelection', () => {
       // Cache canvas image data
       const ctx = this.canvas!.getContext()
@@ -122,7 +168,9 @@ class QuickSelectionTool extends BaseTool {
         startPoint: point,
         currentPoint: point,
         selectedPixels: new Set(),
-        processedRegions: new Set()
+        processedRegions: new Set(),
+        targetObjectId,
+        isObjectMode
       })
       
       // Start selection at clicked point
@@ -183,12 +231,21 @@ class QuickSelectionTool extends BaseTool {
     const brushSize = this.state.get('brushSize')
     const tolerance = this.state.get('tolerance')
     const autoExpand = this.state.get('autoExpand')
+    const targetObjectId = this.state.get('targetObjectId')
+    const isObjectMode = this.state.get('isObjectMode')
     
     // Get region around brush
     const minX = Math.max(0, Math.floor(x - brushSize))
     const maxX = Math.min(this.imageDataCache.width - 1, Math.ceil(x + brushSize))
     const minY = Math.max(0, Math.floor(y - brushSize))
     const maxY = Math.min(this.imageDataCache.height - 1, Math.ceil(y + brushSize))
+    
+    // If in object mode, constrain to object bounds
+    let objectBounds: { x: number, y: number, width: number, height: number } | undefined
+    if (isObjectMode && targetObjectId) {
+      const objectRegistry = useObjectRegistryStore.getState()
+      objectBounds = objectRegistry.objectBounds.get(targetObjectId)
+    }
     
     // Mark this region as processed
     const regionKey = `${Math.floor(x / brushSize)},${Math.floor(y / brushSize)}`
@@ -209,6 +266,14 @@ class QuickSelectionTool extends BaseTool {
     
     for (let py = minY; py <= maxY; py++) {
       for (let px = minX; px <= maxX; px++) {
+        // Check if within object bounds if in object mode
+        if (objectBounds) {
+          if (px < objectBounds.x || px >= objectBounds.x + objectBounds.width ||
+              py < objectBounds.y || py >= objectBounds.y + objectBounds.height) {
+            continue // Skip pixels outside object
+          }
+        }
+        
         // Check if within brush circle
         const dx = px - x
         const dy = py - y
@@ -222,7 +287,7 @@ class QuickSelectionTool extends BaseTool {
     
     // Process pixels with flood fill if auto-expand is on
     if (autoExpand) {
-      this.floodFillSelect(pixelsToProcess, targetColor, tolerance)
+      this.floodFillSelect(pixelsToProcess, targetColor, tolerance, objectBounds)
     } else {
       // Just select pixels in brush area that match tolerance
       for (const pixel of pixelsToProcess) {
@@ -260,7 +325,8 @@ class QuickSelectionTool extends BaseTool {
   private floodFillSelect(
     seedPixels: Array<{x: number, y: number}>,
     targetColor: {r: number, g: number, b: number, a: number},
-    tolerance: number
+    tolerance: number,
+    objectBounds?: { x: number, y: number, width: number, height: number }
   ): void {
     if (!this.imageDataCache) return
     
@@ -302,6 +368,13 @@ class QuickSelectionTool extends BaseTool {
       for (const neighbor of neighbors) {
         if (neighbor.x >= 0 && neighbor.x < this.imageDataCache.width &&
             neighbor.y >= 0 && neighbor.y < this.imageDataCache.height) {
+          // Constrain neighbor to object bounds if in object mode
+          if (objectBounds) {
+            if (neighbor.x < objectBounds.x || neighbor.x >= objectBounds.x + objectBounds.width ||
+                neighbor.y < objectBounds.y || neighbor.y >= objectBounds.y + objectBounds.height) {
+              continue // Skip neighbors outside object
+            }
+          }
           queue.push(neighbor)
         }
       }
@@ -391,7 +464,10 @@ class QuickSelectionTool extends BaseTool {
     this.feedbackPath = new Path(pathData, {
       ...selectionStyle,
       fill: 'rgba(0, 120, 255, 0.3)',
-      opacity: 0.5
+      opacity: 0.5,
+      excludeFromExport: true,  // Mark as temporary feedback
+      selectable: false,
+      evented: false
     })
     
     this.canvas.add(this.feedbackPath)
@@ -445,12 +521,11 @@ class QuickSelectionTool extends BaseTool {
     const selectedPixels = this.state.get('selectedPixels')
     if (selectedPixels.size === 0) return
     
-    // Get selection manager and mode
+    // Get selection manager
     const canvasStore = useCanvasStore.getState()
-    const selectionStore = useSelectionStore.getState()
-    const historyStore = useHistoryStore.getState()
+    const selectionManager = canvasStore.selectionManager
     
-    if (!canvasStore.selectionManager || !canvasStore.selectionRenderer) {
+    if (!selectionManager) {
       console.error('Selection system not initialized')
       return
     }
@@ -486,24 +561,53 @@ class QuickSelectionTool extends BaseTool {
       height: maxY - minY + 1
     }
     
-    // Create the selection command
-    const command = new CreateSelectionCommand(
-      canvasStore.selectionManager,
-      {
-        mask: maskData,
-        bounds
-      },
-      selectionStore.mode
+    // Get selection mode from tool options
+    const mode = this.toolOptionsStore.getOptionValue<string>(this.id, 'selectionMode') || 'new'
+    
+    // Create path for selection (simplified rectangular path for now)
+    const pathData = `
+      M ${minX} ${minY}
+      L ${maxX} ${minY}
+      L ${maxX} ${maxY}
+      L ${minX} ${maxY}
+      Z
+    `
+    
+    const selectionPath = new Path(pathData, {
+      ...selectionStyle
+    })
+    
+    // Add the path temporarily to canvas
+    this.canvas.add(selectionPath)
+    
+    // Create the selection - the selection manager will handle object-aware logic
+    selectionManager.createFromPath(
+      selectionPath,
+      mode === 'new' ? 'replace' : mode as 'add' | 'subtract' | 'intersect'
     )
     
-    // Execute the command through history
-    historyStore.executeCommand(command)
+    // Record command for undo/redo
+    const selection = selectionManager.getSelection()
+    if (selection) {
+      const command = new CreateSelectionCommand(
+        selectionManager,
+        selection,
+        mode === 'new' ? 'replace' : mode as 'add' | 'subtract' | 'intersect'
+      )
+      this.historyStore.executeCommand(command)
+      
+      // Update selection store
+      this.selectionStore.updateSelectionState(true, bounds)
+      
+      // Start rendering the selection with marching ants
+      const { selectionRenderer } = canvasStore
+      if (selectionRenderer) {
+        selectionRenderer.startRendering()
+      }
+    }
     
-    // Update selection state
-    selectionStore.updateSelectionState(true, bounds)
-    
-    // Start rendering
-    canvasStore.selectionRenderer.startRendering()
+    // Remove the temporary path
+    this.canvas.remove(selectionPath)
     
     // Clean up feedback
     if (this.feedbackPath) {

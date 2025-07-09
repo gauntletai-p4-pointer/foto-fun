@@ -95,6 +95,20 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
     toolId: TOOL_IDS.MARQUEE_RECT,
     options: [
       {
+        id: 'selectionTarget',
+        type: 'dropdown',
+        label: 'Selection Target',
+        value: 'auto',
+        props: {
+          options: [
+            { value: 'auto', label: 'Auto (Smart)' },
+            { value: 'canvas', label: 'Entire Canvas' },
+            { value: 'object', label: 'Current Object' },
+            { value: 'layer', label: 'Active Layer' }
+          ]
+        }
+      },
+      {
         id: 'selectionMode',
         type: 'button-group',
         label: 'Selection Mode',
@@ -131,6 +145,20 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
   [TOOL_IDS.MARQUEE_ELLIPSE]: {
     toolId: TOOL_IDS.MARQUEE_ELLIPSE,
     options: [
+      {
+        id: 'selectionTarget',
+        type: 'dropdown',
+        label: 'Selection Target',
+        value: 'auto',
+        props: {
+          options: [
+            { value: 'auto', label: 'Auto (Smart)' },
+            { value: 'canvas', label: 'Entire Canvas' },
+            { value: 'object', label: 'Current Object' },
+            { value: 'layer', label: 'Active Layer' }
+          ]
+        }
+      },
       {
         id: 'selectionMode',
         type: 'button-group',
@@ -169,6 +197,20 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
     toolId: TOOL_IDS.LASSO,
     options: [
       {
+        id: 'selectionTarget',
+        type: 'dropdown',
+        label: 'Selection Target',
+        value: 'auto',
+        props: {
+          options: [
+            { value: 'auto', label: 'Auto (Smart)' },
+            { value: 'canvas', label: 'Entire Canvas' },
+            { value: 'object', label: 'Current Object' },
+            { value: 'layer', label: 'Active Layer' }
+          ]
+        }
+      },
+      {
         id: 'selectionMode',
         type: 'button-group',
         label: 'Selection Mode',
@@ -205,6 +247,20 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
   [TOOL_IDS.MAGIC_WAND]: {
     toolId: TOOL_IDS.MAGIC_WAND,
     options: [
+      {
+        id: 'selectionTarget',
+        type: 'dropdown',
+        label: 'Selection Target',
+        value: 'auto',
+        props: {
+          options: [
+            { value: 'auto', label: 'Auto (Smart)' },
+            { value: 'canvas', label: 'Entire Canvas' },
+            { value: 'object', label: 'Current Object' },
+            { value: 'layer', label: 'Active Layer' }
+          ]
+        }
+      },
       {
         id: 'tolerance',
         type: 'slider',
@@ -360,6 +416,20 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
   [TOOL_IDS.QUICK_SELECTION]: {
     toolId: TOOL_IDS.QUICK_SELECTION,
     options: [
+      {
+        id: 'selectionTarget',
+        type: 'dropdown',
+        label: 'Selection Target',
+        value: 'auto',
+        props: {
+          options: [
+            { value: 'auto', label: 'Auto (Smart)' },
+            { value: 'canvas', label: 'Entire Canvas' },
+            { value: 'object', label: 'Current Object' },
+            { value: 'layer', label: 'Active Layer' }
+          ]
+        }
+      },
       {
         id: 'brushSize',
         type: 'slider',

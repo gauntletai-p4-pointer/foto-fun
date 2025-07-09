@@ -14,6 +14,7 @@ export class SelectionRenderer {
   private selectionOverlay: FabricObject | null = null
   private animationOffset = 0
   private isAnimating = false
+  private animationFrame: number | null = null
   
   constructor(canvas: Canvas, selectionManager: SelectionManager) {
     this.canvas = canvas
@@ -27,10 +28,21 @@ export class SelectionRenderer {
     if (this.isAnimating) return
     
     this.isAnimating = true
-    this.selectionManager.startMarchingAnts(() => {
+    
+    // Create the initial selection display
+    this.createSelectionDisplay()
+    
+    // Start the animation loop
+    const animate = () => {
+      if (!this.isAnimating) return
+      
       this.animationOffset = (this.animationOffset + 1) % 10
-      this.updateSelectionDisplay()
-    })
+      this.updateMarchingAnts()
+      
+      this.animationFrame = requestAnimationFrame(animate)
+    }
+    
+    this.animationFrame = requestAnimationFrame(animate)
   }
   
   /**
@@ -38,15 +50,20 @@ export class SelectionRenderer {
    */
   stopRendering(): void {
     this.isAnimating = false
-    this.selectionManager.stopMarchingAnts()
+    
+    if (this.animationFrame) {
+      cancelAnimationFrame(this.animationFrame)
+      this.animationFrame = null
+    }
+    
     this.clearSelectionDisplay()
   }
   
   /**
-   * Update the selection display
+   * Create the selection display
    */
-  private updateSelectionDisplay(): void {
-    // Remove existing overlay
+  private createSelectionDisplay(): void {
+    // Remove existing overlay if any
     this.clearSelectionDisplay()
     
     const selection = this.selectionManager.getSelection()
@@ -59,6 +76,27 @@ export class SelectionRenderer {
       this.canvas.add(overlay)
       this.canvas.renderAll()
     }
+  }
+  
+  /**
+   * Update only the marching ants animation
+   */
+  private updateMarchingAnts(): void {
+    if (!this.selectionOverlay) return
+    
+    // Update the stroke dash offset for animation
+    if (this.selectionOverlay.type === 'group') {
+      const group = this.selectionOverlay as Group
+      const objects = group.getObjects()
+      
+      // Update the black dashed line (second object in the group)
+      if (objects[1]) {
+        objects[1].set('strokeDashOffset', -this.animationOffset)
+      }
+    }
+    
+    // Request a render without triggering object events
+    this.canvas.requestRenderAll()
   }
   
   /**

@@ -1,11 +1,14 @@
 import { BaseTool } from './BaseTool'
-import type { Canvas, TPointerEventInfo } from 'fabric'
-import { Path } from 'fabric'
+import type { Canvas, TPointerEventInfo, FabricObject } from 'fabric'
+import { Path, Rect } from 'fabric'
 import { createToolState } from '../utils/toolState'
 import { constrainProportions, drawFromCenter, type Point } from '../utils/constraints'
 import { useSelectionStore } from '@/store/selectionStore'
 import { useCanvasStore } from '@/store/canvasStore'
 import { useObjectRegistryStore } from '@/store/objectRegistryStore'
+import { useToolOptionsStore } from '@/store/toolOptionsStore'
+import { selectionStyle } from '../utils/selectionRenderer'
+import type { LayerAwareSelectionManager } from '@/lib/editor/selection/LayerAwareSelectionManager'
 
 // Selection tool state interface - use type instead of interface for index signature
 type SelectionToolState = {
@@ -15,6 +18,9 @@ type SelectionToolState = {
   selectionPath: Point[]
   shiftPressed: boolean
   altPressed: boolean
+  // Object-aware selection
+  targetObjectId: string | null
+  isObjectMode: boolean
 }
 
 /**
@@ -29,7 +35,9 @@ export abstract class SelectionTool extends BaseTool {
     currentPoint: null,
     selectionPath: [],
     shiftPressed: false,
-    altPressed: false
+    altPressed: false,
+    targetObjectId: null,
+    isObjectMode: false
   })
   
   // Store reference
@@ -37,6 +45,9 @@ export abstract class SelectionTool extends BaseTool {
   
   // Visual feedback element
   protected feedbackElement: Path | null = null
+  
+  // Object highlight element
+  protected objectHighlight: Rect | null = null
   
   // Bound event handlers for cleanup
   private boundHandleKeyDown = this.handleKeyDown.bind(this)
@@ -48,6 +59,14 @@ export abstract class SelectionTool extends BaseTool {
   protected get selectionMode(): 'new' | 'add' | 'subtract' | 'intersect' {
     const mode = this.toolOptionsStore.getOptionValue<string>(this.id, 'selectionMode')
     return (mode as 'new' | 'add' | 'subtract' | 'intersect') || 'new'
+  }
+  
+  /**
+   * Get the current selection target from tool options
+   */
+  protected get selectionTarget(): 'auto' | 'canvas' | 'object' | 'layer' {
+    const target = this.toolOptionsStore.getOptionValue<string>(this.id, 'selectionTarget')
+    return (target as 'auto' | 'canvas' | 'object' | 'layer') || 'auto'
   }
   
   /**
@@ -67,11 +86,10 @@ export abstract class SelectionTool extends BaseTool {
     this.addCanvasEvent('mouse:move', (e: unknown) => this.handleMouseMove(e as TPointerEventInfo<MouseEvent>))
     this.addCanvasEvent('mouse:up', () => this.handleMouseUp())
     
-    // Set up cursor
-    canvas.defaultCursor = this.cursor
-    canvas.hoverCursor = this.cursor
+    // Add hover handler for object highlighting
+    this.addCanvasEvent('mouse:move:before', (e: unknown) => this.handleHover(e as TPointerEventInfo<MouseEvent>))
     
-    // Keyboard events for modifiers
+    // Keyboard event listeners for modifiers
     document.addEventListener('keydown', this.boundHandleKeyDown)
     document.addEventListener('keyup', this.boundHandleKeyUp)
     
@@ -92,6 +110,12 @@ export abstract class SelectionTool extends BaseTool {
     }
     this.feedbackElement = null
     
+    // Clean up object highlight
+    if (this.objectHighlight && canvas.contains(this.objectHighlight)) {
+      canvas.remove(this.objectHighlight)
+    }
+    this.objectHighlight = null
+    
     // Remove keyboard event listeners
     document.removeEventListener('keydown', this.boundHandleKeyDown)
     document.removeEventListener('keyup', this.boundHandleKeyUp)
@@ -101,13 +125,83 @@ export abstract class SelectionTool extends BaseTool {
     
     // Re-enable object selection
     canvas.selection = true
+    
+    // Note: We don't stop the selection renderer here because
+    // the selection should persist when switching tools
   }
   
-    /**
+  /**
+   * Handle hover to show object highlight
+   */
+  protected handleHover(e: TPointerEventInfo<MouseEvent>): void {
+    if (!this.canvas || this.state.get('isSelecting')) return
+    
+    const selectionTarget = this.selectionTarget
+    if (selectionTarget === 'canvas') return
+    
+    const pointer = this.canvas.getPointer(e.e)
+    const objectRegistry = useObjectRegistryStore.getState()
+    const targetObject = objectRegistry.getTopObjectAtPixel(pointer.x, pointer.y)
+    
+    if (targetObject && (selectionTarget === 'auto' || selectionTarget === 'object')) {
+      this.showObjectHighlight(targetObject)
+    } else {
+      this.hideObjectHighlight()
+    }
+  }
+  
+  /**
+   * Show visual highlight for object that will be selected
+   */
+  protected showObjectHighlight(object: FabricObject): void {
+    if (!this.canvas) return
+    
+    const bounds = object.getBoundingRect()
+    
+    if (!this.objectHighlight) {
+      this.objectHighlight = new Rect({
+        fill: 'transparent',
+        stroke: '#007AFF',
+        strokeWidth: 2,
+        strokeDashArray: [5, 5],
+        selectable: false,
+        evented: false,
+        excludeFromExport: true
+      })
+      this.canvas.add(this.objectHighlight)
+    }
+    
+    this.objectHighlight.set({
+      left: bounds.left,
+      top: bounds.top,
+      width: bounds.width,
+      height: bounds.height
+    })
+    
+    // Bring to front using canvas method
+    this.canvas.bringObjectToFront(this.objectHighlight)
+    this.canvas.renderAll()
+  }
+  
+  /**
+   * Hide object highlight
+   */
+  protected hideObjectHighlight(): void {
+    if (this.objectHighlight && this.canvas) {
+      this.canvas.remove(this.objectHighlight)
+      this.objectHighlight = null
+      this.canvas.renderAll()
+    }
+  }
+  
+  /**
    * Handle mouse down - start selection
    */
   protected handleMouseDown(e: TPointerEventInfo<MouseEvent>): void {
     if (!this.canvas) return
+
+    // Hide object highlight during selection
+    this.hideObjectHighlight()
 
     // Track performance
     this.track('mouseDown', () => {
@@ -115,12 +209,57 @@ export abstract class SelectionTool extends BaseTool {
       const pointer = this.canvas!.getPointer(e.e)
       const point = { x: pointer.x, y: pointer.y }
       
+      // Determine target object based on selection target mode
+      const selectionTarget = this.selectionTarget
+      let targetObjectId: string | null = null
+      let isObjectMode = false
+      
+      if (selectionTarget === 'auto' || selectionTarget === 'object') {
+        // Check if we clicked on an object
+        const objectRegistry = useObjectRegistryStore.getState()
+        const targetObject = objectRegistry.getTopObjectAtPixel(pointer.x, pointer.y)
+        
+        if (targetObject) {
+          targetObjectId = targetObject.get('id') as string
+          isObjectMode = true
+          
+          // Get selection manager and set active object
+          const selectionManager = this.canvasStore.selectionManager as LayerAwareSelectionManager
+          if (selectionManager) {
+            selectionManager.setActiveObject(targetObjectId)
+            selectionManager.setSelectionMode('object')
+          }
+          
+          // Visual feedback for object selection mode
+          this.showObjectSelectionMode(targetObject)
+        } else if (selectionTarget === 'auto') {
+          // In auto mode, if no object clicked, use canvas mode
+          const selectionManager = this.canvasStore.selectionManager as LayerAwareSelectionManager
+          if (selectionManager) {
+            selectionManager.setActiveObject(null)
+            selectionManager.setSelectionMode('global')
+          }
+        }
+      } else if (selectionTarget === 'layer') {
+        // TODO: Implement layer selection mode
+        console.log('Layer selection mode not yet implemented')
+      } else {
+        // Canvas mode
+        const selectionManager = this.canvasStore.selectionManager as LayerAwareSelectionManager
+        if (selectionManager) {
+          selectionManager.setActiveObject(null)
+          selectionManager.setSelectionMode('global')
+        }
+      }
+      
       // Update state
       this.state.setState({
         isSelecting: true,
         startPoint: point,
         currentPoint: point,
-        selectionPath: [point]
+        selectionPath: [point],
+        targetObjectId,
+        isObjectMode
       })
       
       // Create visual feedback
@@ -128,7 +267,15 @@ export abstract class SelectionTool extends BaseTool {
     })
   }
   
-    /**
+  /**
+   * Show visual indicator for object selection mode
+   */
+  protected showObjectSelectionMode(object: FabricObject): void {
+    // The object highlight already provides visual feedback
+    // Additional UI feedback will be added in the options bar
+  }
+  
+  /**
    * Handle mouse move - update selection
    */
   protected handleMouseMove(e: TPointerEventInfo<MouseEvent>): void {
