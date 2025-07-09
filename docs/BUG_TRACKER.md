@@ -11,6 +11,9 @@
 - spacebar+drag panning is choppy
 - hand tool panning is also choppy, but also creates maximum update depth console errors
 - some tools have the same hotkeys (e.g. magic wand and quick selection tools both use "w")
-- selection tools 
+- quick selection tool purpose unclear, causes lag and many browser warnings
+- crop tool doesn't work
+- type on a path tool doesn't seem to work
 
-- zoom keyboard shortcuts don't work other than ctrl+0 and ctrl+1
+features:
+ we should create separate sections on the toolbar for each type of tool (selection, effects, etc.)
