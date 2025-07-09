@@ -1,0 +1,3 @@
+- no auth persistence
+- objects are when holding and dragging regardless of what tool is selected (which tool should this be the case for?)
+- when adding images manually (not generating), the entire canvas is replaced
