@@ -16,10 +16,14 @@ interface CanvasStore {
   lastPosX: number
   lastPosY: number
   
-  // Document properties
+  // Document properties (actual image/document dimensions)
   width: number
   height: number
   backgroundColor: string
+  
+  // Viewport properties (visible area dimensions)
+  viewportWidth: number
+  viewportHeight: number
   
   // Actions
   initCanvas: (element: HTMLCanvasElement, width: number, height: number) => Promise<void>
@@ -40,6 +44,7 @@ interface CanvasStore {
   // Canvas actions
   setBackgroundColor: (color: string) => void
   resize: (width: number, height: number) => void
+  resizeViewport: (width: number, height: number) => void
   centerContent: () => void
   
   // Selection control
@@ -78,6 +83,8 @@ export const useCanvasStore = create<CanvasStore>()(
       width: 800,
       height: 600,
       backgroundColor: '#ffffff',
+      viewportWidth: 800,
+      viewportHeight: 600,
       selectionManager: null,
       selectionRenderer: null,
       clipboardManager: null,
@@ -138,6 +145,8 @@ export const useCanvasStore = create<CanvasStore>()(
               fabricCanvas: canvas, 
               width, 
               height,
+              viewportWidth: width,
+              viewportHeight: height,
               zoom: DEFAULT_ZOOM / 100,
               backgroundColor: bgColor
             })
@@ -232,12 +241,11 @@ export const useCanvasStore = create<CanvasStore>()(
       },
       
       zoomToFit: () => {
-        const { fabricCanvas, width, height } = get()
+        const { fabricCanvas, width, height, viewportWidth, viewportHeight } = get()
         if (!fabricCanvas) return
         
-        const canvasWidth = fabricCanvas.getWidth()
-        const canvasHeight = fabricCanvas.getHeight()
-        const zoom = Math.min(canvasWidth / width, canvasHeight / height) * 0.9
+        // Calculate zoom to fit the document within the viewport
+        const zoom = Math.min(viewportWidth / width, viewportHeight / height) * 0.9
         
         get().setZoom(zoom)
         get().centerContent()
@@ -299,19 +307,32 @@ export const useCanvasStore = create<CanvasStore>()(
       },
       
       resize: (width, height) => {
+        // This updates the document dimensions (actual image/content size)
+        // It does NOT change the viewport size
+        set({ width, height })
+      },
+      
+      resizeViewport: (width, height) => {
+        // This updates the viewport dimensions (visible area)
         const { fabricCanvas } = get()
         if (!fabricCanvas) return
         
         fabricCanvas.setDimensions({ width, height })
-        set({ width, height })
+        set({ viewportWidth: width, viewportHeight: height })
       },
       
       centerContent: () => {
-        const { fabricCanvas } = get()
+        const { fabricCanvas, width, height, viewportWidth, viewportHeight } = get()
         if (!fabricCanvas) return
         
-        const center = fabricCanvas.getCenter()
-        fabricCanvas.absolutePan(new Point(center.left, center.top))
+        // Calculate the pan offset to center the content
+        // We want to move the viewport so that the center of the content
+        // appears at the center of the viewport
+        const panX = (viewportWidth - width * fabricCanvas.getZoom()) / 2
+        const panY = (viewportHeight - height * fabricCanvas.getZoom()) / 2
+        
+        // Set the viewport transform to center the content
+        fabricCanvas.absolutePan(new Point(-panX, -panY))
       },
       
       // Selection control
