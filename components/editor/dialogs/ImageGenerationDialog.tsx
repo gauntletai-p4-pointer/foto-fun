@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useCanvasStore } from '@/store/canvasStore'
+import { useToolStore } from '@/store/toolStore'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -9,6 +10,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Loader2 } from 'lucide-react'
 import { ImageGenerationAdapter } from '@/lib/ai/adapters/tools/imageGeneration'
+import { TOOL_IDS } from '@/constants'
 // Toast notifications - TODO: implement proper toast system
 
 const COMMON_DIMENSIONS = [
@@ -25,6 +27,7 @@ export function ImageGenerationDialog() {
   const activeAITool = useCanvasStore((state) => state.activeAITool)
   const setActiveAITool = useCanvasStore((state) => state.setActiveAITool)
   const fabricCanvas = useCanvasStore((state) => state.fabricCanvas)
+  const setActiveTool = useToolStore((state) => state.setActiveTool)
   
   const [prompt, setPrompt] = useState('')
   const [negativePrompt, setNegativePrompt] = useState('')
@@ -47,6 +50,8 @@ export function ImageGenerationDialog() {
   const handleClose = () => {
     if (!isGenerating) {
       setActiveAITool(null)
+      // Switch back to move tool so the AI tool can be re-activated
+      setActiveTool(TOOL_IDS.MOVE)
     }
   }
   
@@ -89,6 +94,8 @@ export function ImageGenerationDialog() {
         
         // Close dialog after successful generation
         setActiveAITool(null)
+        // Switch back to move tool so the AI tool can be re-activated
+        setActiveTool(TOOL_IDS.MOVE)
       } else {
         console.error('Generation Failed:', result.message || 'Failed to generate image')
         alert(result.message || 'Failed to generate image')
