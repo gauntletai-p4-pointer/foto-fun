@@ -91,7 +91,8 @@ export abstract class SelectionAwareFilter {
     const { mask, bounds } = selection
     
     // Get transformation from canvas space to image space
-    let scaleX = 1, scaleY = 1, offsetX = 0, offsetY = 0
+    let scaleX = 1, scaleY = 1
+    let imgLeft = 0, imgTop = 0
     
     if (image) {
       // Get image transformation
@@ -104,9 +105,9 @@ export abstract class SelectionAwareFilter {
       scaleX = naturalWidth / imgBounds.width
       scaleY = naturalHeight / imgBounds.height
       
-      // Calculate offset - selection bounds are relative to canvas, need to be relative to image
-      offsetX = (bounds.x - imgBounds.left) * scaleX
-      offsetY = (bounds.y - imgBounds.top) * scaleY
+      // Store image position for coordinate transformation
+      imgLeft = imgBounds.left
+      imgTop = imgBounds.top
     }
     
     // Report progress
@@ -120,9 +121,10 @@ export abstract class SelectionAwareFilter {
         
         if (alpha > 0) {
           // This pixel is selected
-          // Transform mask coordinates to image coordinates
-          const imageX = Math.round(x * scaleX + offsetX)
-          const imageY = Math.round(y * scaleY + offsetY)
+          // x and y are already in canvas space (absolute coordinates)
+          // Transform canvas coordinates to image coordinates
+          const imageX = Math.round((x - imgLeft) * scaleX)
+          const imageY = Math.round((y - imgTop) * scaleY)
           
           if (imageX >= 0 && imageX < imageData.width && 
               imageY >= 0 && imageY < imageData.height) {
