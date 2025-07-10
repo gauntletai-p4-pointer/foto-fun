@@ -12,6 +12,7 @@ import { NewDocumentDialog } from '@/components/dialogs/NewDocumentDialog'
 import { ImageGenerationDialog } from '@/components/editor/dialogs/ImageGenerationDialog'
 import { ImageTransformationDialog } from '@/components/editor/dialogs/ImageTransformationDialog'
 import { ReviewImageDialog } from '@/components/editor/dialogs/ReviewImageDialog'
+import { HueAdjustmentDialog } from '@/components/editor/dialogs/HueAdjustmentDialog'
 import { useDocumentStore } from '@/store/documentStore'
 import { useToolStore } from '@/store/toolStore'
 import { createClient } from '@/lib/db/supabase/client'
@@ -138,6 +139,7 @@ export default function EditorPage() {
       <ImageGenerationDialog />
       <ImageTransformationDialog />
       <ReviewImageDialog />
+      <HueAdjustmentDialog />
     </div>
   )
 } 

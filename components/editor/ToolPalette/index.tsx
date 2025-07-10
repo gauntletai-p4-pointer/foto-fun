@@ -36,6 +36,7 @@ export function ToolPalette() {
           return (
             <button
               key={tool.id}
+              data-tool-id={tool.id}
               className={cn(
                 "w-6 h-6 flex items-center justify-center rounded transition-colors relative group",
                 isActive 
@@ -44,7 +45,7 @@ export function ToolPalette() {
                     ? "hover:bg-foreground/5 text-foreground/70 hover:text-foreground"
                     : "hover:bg-foreground/5 text-foreground/30 cursor-not-allowed"
               )}
-              title={`${tool.name} (${tool.shortcut})`}
+              title={tool.shortcut ? `${tool.name} (${tool.shortcut})` : tool.name}
               onClick={() => handleToolClick(tool.id, isImplemented)}
             >
               <Icon 
@@ -78,6 +79,7 @@ export function ToolPalette() {
               return (
                 <button
                   key={tool.id}
+                  data-tool-id={tool.id}
                   className={cn(
                     "w-6 h-6 flex items-center justify-center rounded transition-colors relative group",
                     isActive 
@@ -86,7 +88,7 @@ export function ToolPalette() {
                         ? "hover:bg-foreground/5 text-foreground/70 hover:text-foreground"
                         : "hover:bg-foreground/5 text-foreground/30 cursor-not-allowed"
                   )}
-                  title={`${tool.name} (${tool.shortcut || 'AI Tool'})`}
+                  title={tool.shortcut ? `${tool.name} (${tool.shortcut})` : tool.name}
                   onClick={() => handleToolClick(tool.id, isImplemented)}
                 >
                   <Icon 

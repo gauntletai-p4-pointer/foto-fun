@@ -3,6 +3,7 @@ import { Paintbrush } from 'lucide-react'
 import { TOOL_IDS } from '@/constants'
 import { BaseFilterTool } from '../filters/BaseFilterTool'
 import { createToolState } from '../utils/toolState'
+import { useCanvasStore } from '@/store/canvasStore'
 import type { Canvas } from 'fabric'
 
 /**
@@ -11,11 +12,12 @@ import type { Canvas } from 'fabric'
 type HueState = {
   rotation: number
   isAdjusting: boolean
+  dialogShown: boolean
 }
 
 /**
  * Hue Tool - Rotate image colors on the color wheel
- * Now supports selection-aware filtering
+ * Now uses modal dialog with preview functionality
  */
 class HueTool extends BaseFilterTool {
   // Tool identification
@@ -28,7 +30,8 @@ class HueTool extends BaseFilterTool {
   // Tool state
   private state = createToolState<HueState>({
     rotation: 0,
-    isAdjusting: false
+    isAdjusting: false,
+    dialogShown: false
   })
   
   // Required: Get filter name
@@ -38,64 +41,139 @@ class HueTool extends BaseFilterTool {
   
   // Required: Get default params
   protected getDefaultParams(): any {
-    return { rotation: this.state.get('rotation') }
+    return { rotation: 0 }
   }
   
   /**
-   * Tool setup
+   * Tool setup - opens adjustment dialog
    */
   protected setupFilterTool(canvas: Canvas): void {
-    // Subscribe to tool options
-    this.subscribeToToolOptions(async (options) => {
-      const rotation = options.find(opt => opt.id === 'hue')?.value
-      if (rotation !== undefined && typeof rotation === 'number') {
-        await this.track('adjustHue', async () => {
-          await this.applyHue(rotation)
-        })
-      }
+    // Reset dialog shown state to ensure it opens
+    this.state.set('dialogShown', false)
+    
+    // Get current filter value
+    const currentValue = this.getCurrentFilterValue()
+    
+    // Update state with current value
+    this.state.set('rotation', currentValue.rotation)
+    
+    // Find the hue tool button element
+    const hueButton = document.querySelector(`button[data-tool-id="${this.id}"]`) as HTMLElement
+    
+    // Open the adjustment dialog
+    const canvasStore = useCanvasStore.getState()
+    
+    // Always show dialog when tool is activated
+    this.state.set('dialogShown', true)
+    
+    canvasStore.setActiveAdjustmentTool({
+      toolId: this.id,
+      toolName: this.name,
+      currentValue: 0,  // Always start slider at 0 for incremental adjustments
+      anchorElement: hueButton
     })
-    
-    // Apply initial value if any
-    const currentRotation = this.toolOptionsStore.getOptionValue<number>(this.id, 'hue')
-    if (currentRotation !== undefined && currentRotation !== 0) {
-      this.applyHue(currentRotation)
-    }
-    
-    // Show selection indicator on tool activation
-    this.showSelectionIndicator()
   }
   
   /**
-   * Apply hue adjustment
+   * Apply hue preview (temporary)
    */
-  private async applyHue(adjustment: number): Promise<void> {
-    if (this.state.get('isAdjusting')) return
+  async previewHue(rotation: number): Promise<void> {
+    if (this.state.get('isAdjusting')) {
+      return
+    }
     
     this.state.set('isAdjusting', true)
-    this.state.set('rotation', adjustment)
     
     try {
-      // Use the base class applyFilter method
-      await this.applyFilter({ rotation: adjustment })
+      // Get the base rotation value (what was there when dialog opened)
+      const baseRotation = this.state.get('rotation')
+      // Apply the slider value as an increment to the base
+      const totalRotation = baseRotation + rotation
+      
+      // Use the base class preview method
+      await this.applyFilterPreview({ rotation: totalRotation })
+    } catch (error) {
+      console.error('[HueTool] Preview failed:', error)
     } finally {
       this.state.set('isAdjusting', false)
     }
   }
   
   /**
+   * Apply hue adjustment (permanent)
+   */
+  async applyHue(rotation: number): Promise<void> {
+    if (this.state.get('isAdjusting')) {
+      return
+    }
+    
+    this.state.set('isAdjusting', true)
+    
+    try {
+      // Get the base rotation value (what was there when dialog opened)
+      const baseRotation = this.state.get('rotation')
+      // Apply the slider value as an increment to the base
+      const totalRotation = baseRotation + rotation
+      
+      // Use the base class apply method
+      await this.applyFilter({ rotation: totalRotation })
+    } catch (error) {
+      console.error('[HueTool] Apply failed:', error)
+    } finally {
+      this.state.set('isAdjusting', false)
+    }
+  }
+  
+  /**
+   * Reset hue to default
+   */
+  resetHue(): void {
+    // Get the base rotation value (what was there when dialog opened)
+    const baseRotation = this.state.get('rotation')
+    
+    // Reset to the base rotation (not 0)
+    this.applyFilterPreview({ rotation: baseRotation }).catch(error => {
+      console.error('[HueTool] Reset failed:', error)
+    })
+  }
+  
+  /**
    * Tool cleanup
    */
   protected cleanupFilterTool(): void {
-    // Don't reset the hue value - let it persist
-    // Reset only the internal state
+    // Close the dialog if it's open
+    const canvasStore = useCanvasStore.getState()
+    if (canvasStore.activeAdjustmentTool?.toolId === this.id) {
+      canvasStore.setActiveAdjustmentTool(null)
+    }
+    
+    // Reset state
     this.state.setState({
-      isAdjusting: false
+      rotation: 0,
+      isAdjusting: false,
+      dialogShown: false
     })
   }
   
   // Required: Base cleanup (from BaseTool)
   protected cleanup(): void {
     this.cleanupTool()
+  }
+  
+  // Override onActivate to log
+  onActivate(canvas: Canvas): void {
+    super.onActivate(canvas)
+  }
+  
+  // Override onDeactivate to log
+  onDeactivate(canvas: Canvas): void {
+    // Ensure dialog is closed when tool is deactivated
+    const canvasStore = useCanvasStore.getState()
+    if (canvasStore.activeAdjustmentTool?.toolId === this.id) {
+      canvasStore.setActiveAdjustmentTool(null)
+    }
+    
+    super.onDeactivate(canvas)
   }
 }
 

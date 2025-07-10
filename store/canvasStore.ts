@@ -32,6 +32,14 @@ interface CanvasStore {
     activationType: 'dialog' | 'panel' | 'immediate'
   } | null
   
+  // Active Adjustment Tool (for adjustment dialogs)
+  activeAdjustmentTool: {
+    toolId: string
+    toolName: string
+    currentValue?: number
+    anchorElement?: HTMLElement | null
+  } | null
+  
   // Review Modal (for image processing results)
   reviewModal: {
     isOpen: boolean
@@ -48,6 +56,7 @@ interface CanvasStore {
   initCanvas: (element: HTMLCanvasElement, width: number, height: number) => Promise<void>
   disposeCanvas: () => void
   setActiveAITool: (tool: { type: string; tool: any; activationType: 'dialog' | 'panel' | 'immediate' } | null) => void
+  setActiveAdjustmentTool: (tool: { toolId: string; toolName: string; currentValue?: number; anchorElement?: HTMLElement | null } | null) => void
   setReviewModal: (modal: {
     isOpen: boolean
     title: string
@@ -122,6 +131,7 @@ export const useCanvasStore = create<CanvasStore>()(
       initializationError: null,
       initializationPromise: null,
       activeAITool: null,
+      activeAdjustmentTool: null,
       reviewModal: null,
       
       // Initialize canvas with proper async handling
@@ -547,6 +557,11 @@ export const useCanvasStore = create<CanvasStore>()(
       // Set active AI tool
       setActiveAITool: (tool) => {
         set({ activeAITool: tool })
+      },
+
+      // Set active adjustment tool
+      setActiveAdjustmentTool: (tool) => {
+        set({ activeAdjustmentTool: tool })
       },
 
       // Set review modal
