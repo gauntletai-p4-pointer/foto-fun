@@ -11,6 +11,8 @@ import { useHistoryStore } from '@/store/historyStore'
 import { CreateSelectionCommand } from '@/lib/editor/commands/selection'
 import { useObjectRegistryStore } from '@/store/objectRegistryStore'
 import { LayerAwareSelectionManager } from '@/lib/editor/selection/LayerAwareSelectionManager'
+import { markAsSystemObject } from '@/lib/editor/utils/systemObjects'
+import { SystemObjectType } from '@/types/fabric'
 
 // Magic wand tool state - use type instead of interface for index signature
 type MagicWandState = {
@@ -176,11 +178,11 @@ class MagicWandTool extends BaseTool {
     `
     
     const selection = new Path(pathData, {
-      ...selectionStyle,
-      excludeFromExport: true,  // Mark as temporary for selection creation
-      selectable: false,
-      evented: false
+      ...selectionStyle
     })
+    
+    // Mark as system object
+    markAsSystemObject(selection, SystemObjectType.TEMPORARY)
     
     // Apply the selection
     this.applySelection(selection)

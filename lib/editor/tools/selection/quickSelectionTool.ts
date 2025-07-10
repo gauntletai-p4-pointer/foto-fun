@@ -12,6 +12,8 @@ import { CreateSelectionCommand } from '@/lib/editor/commands/selection'
 import type { Point } from '../utils/constraints'
 import { useObjectRegistryStore } from '@/store/objectRegistryStore'
 import { LayerAwareSelectionManager } from '@/lib/editor/selection/LayerAwareSelectionManager'
+import { markAsSystemObject } from '@/lib/editor/utils/systemObjects'
+import { SystemObjectType } from '@/types/fabric'
 
 // Quick selection tool state
 type QuickSelectionState = {
@@ -464,11 +466,11 @@ class QuickSelectionTool extends BaseTool {
     this.feedbackPath = new Path(pathData, {
       ...selectionStyle,
       fill: 'rgba(0, 120, 255, 0.3)',
-      opacity: 0.5,
-      excludeFromExport: true,  // Mark as temporary feedback
-      selectable: false,
-      evented: false
+      opacity: 0.5
     })
+    
+    // Mark as system object
+    markAsSystemObject(this.feedbackPath, SystemObjectType.TOOL_FEEDBACK)
     
     this.canvas.add(this.feedbackPath)
     this.canvas.renderAll()

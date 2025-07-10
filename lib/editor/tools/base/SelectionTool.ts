@@ -9,6 +9,8 @@ import { useObjectRegistryStore } from '@/store/objectRegistryStore'
 import { useToolOptionsStore } from '@/store/toolOptionsStore'
 import { selectionStyle } from '../utils/selectionRenderer'
 import type { LayerAwareSelectionManager } from '@/lib/editor/selection/LayerAwareSelectionManager'
+import { markAsSystemObject } from '@/lib/editor/utils/systemObjects'
+import { SystemObjectType } from '@/types/fabric'
 
 // Selection tool state interface - use type instead of interface for index signature
 type SelectionToolState = {
@@ -163,11 +165,12 @@ export abstract class SelectionTool extends BaseTool {
         fill: 'transparent',
         stroke: '#007AFF',
         strokeWidth: 2,
-        strokeDashArray: [5, 5],
-        selectable: false,
-        evented: false,
-        excludeFromExport: true
+        strokeDashArray: [5, 5]
       })
+      
+      // Mark as system object
+      markAsSystemObject(this.objectHighlight, SystemObjectType.TOOL_FEEDBACK)
+      
       this.canvas.add(this.objectHighlight)
     }
     

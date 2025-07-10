@@ -29,7 +29,5 @@ export const selectionStyle = {
   stroke: '#0066ff',
   strokeWidth: 1,
   strokeDashArray: [5, 5],
-  selectable: false,
-  evented: false,
   strokeUniform: true,
 } 

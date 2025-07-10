@@ -1,6 +1,8 @@
 import type { Canvas, FabricObject } from 'fabric'
 import { Path, Group } from 'fabric'
 import type { SelectionManager, SelectionBounds } from './SelectionManager'
+import { markAsSystemObject } from '@/lib/editor/utils/systemObjects'
+import { SystemObjectType } from '@/types/fabric'
 
 /**
  * SelectionRenderer - Handles visual rendering of selections
@@ -128,28 +130,21 @@ export class SelectionRenderer {
       stroke: 'black',
       strokeWidth: 1,
       strokeDashArray: [5, 5],
-      strokeDashOffset: -this.animationOffset,
-      selectable: false,
-      evented: false,
-      excludeFromExport: true
+      strokeDashOffset: -this.animationOffset
     })
     
     // Add white background stroke for visibility
     const backgroundPath = new Path(pathData, {
       fill: '',
       stroke: 'white',
-      strokeWidth: 3,
-      selectable: false,
-      evented: false,
-      excludeFromExport: true
+      strokeWidth: 3
     })
     
     // Group them together
-    const group = new Group([backgroundPath, path], {
-      selectable: false,
-      evented: false,
-      excludeFromExport: true
-    })
+    const group = new Group([backgroundPath, path])
+    
+    // Mark as system object
+    markAsSystemObject(group, SystemObjectType.SELECTION_OVERLAY)
     
     return group
   }

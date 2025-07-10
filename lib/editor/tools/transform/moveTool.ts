@@ -1,9 +1,11 @@
 import { Move } from 'lucide-react'
 import { TOOL_IDS } from '@/constants'
 import type { Canvas, FabricObject } from 'fabric'
+import { ActiveSelection } from 'fabric'
 import { BaseTool } from '../base/BaseTool'
 import { createToolState } from '../utils/toolState'
 import { TransformCommand } from '@/lib/editor/commands/canvas'
+import { isSystemObject, filterOutSystemObjects } from '@/lib/editor/utils/systemObjects'
 
 // Move tool state
 type MoveToolState = {
@@ -70,6 +72,15 @@ class MoveTool extends BaseTool {
       this.handleObjectModified(e as { target: FabricObject })
     })
     
+    // Filter out system objects from selections
+    this.addCanvasEvent('selection:created', (e: unknown) => {
+      this.filterSystemObjectsFromSelection(e as { selected: FabricObject[] })
+    })
+    
+    this.addCanvasEvent('selection:updated', (e: unknown) => {
+      this.filterSystemObjectsFromSelection(e as { selected: FabricObject[] })
+    })
+    
     // Subscribe to option changes
     this.subscribeToToolOptions(() => {
       this.updateObjectSelectability(canvas)
@@ -100,6 +111,9 @@ class MoveTool extends BaseTool {
    */
   private updateObjectSelectability(canvas: Canvas): void {
     canvas.forEachObject((obj) => {
+      // Skip system objects like selection overlays
+      if (isSystemObject(obj)) return
+      
       // Always make objects selectable when Move tool is active
       obj.selectable = true
       obj.evented = true
@@ -116,6 +130,9 @@ class MoveTool extends BaseTool {
     const showTransform = this.showTransform
     
     canvas.forEachObject((obj) => {
+      // Skip system objects like selection overlays
+      if (isSystemObject(obj)) return
+      
       // Control visibility of transform handles
       obj.hasControls = showTransform
       obj.hasBorders = showTransform
@@ -128,7 +145,7 @@ class MoveTool extends BaseTool {
     
     // Update active object if any
     const activeObject = canvas.getActiveObject()
-    if (activeObject) {
+    if (activeObject && !isSystemObject(activeObject)) {
       activeObject.hasControls = showTransform
       activeObject.hasBorders = showTransform
       activeObject.lockRotation = false
@@ -144,6 +161,9 @@ class MoveTool extends BaseTool {
     
     this.track('mouseDown', () => {
       if (e.target && this.canvas) {
+        // Don't select system objects
+        if (isSystemObject(e.target)) return
+        
         // Auto-select the clicked object
         this.canvas.setActiveObject(e.target)
         this.state.set('lastActiveObject', e.target)
@@ -198,6 +218,40 @@ class MoveTool extends BaseTool {
       this.state.set('isDragging', false)
       this.state.set('initialTransform', null)
     })
+  }
+  
+  /**
+   * Filter system objects from selection
+   * This prevents selection overlays and other system objects from being selected
+   */
+  private filterSystemObjectsFromSelection(e: { selected: FabricObject[] }): void {
+    if (!this.canvas || !e.selected || e.selected.length === 0) return
+    
+    // Filter out any objects marked as system objects
+    const validObjects = filterOutSystemObjects(e.selected)
+    
+    // If all objects were filtered out, clear the selection
+    if (validObjects.length === 0) {
+      this.canvas.discardActiveObject()
+      this.canvas.renderAll()
+    } 
+    // If some objects were filtered out, update the selection
+    else if (validObjects.length !== e.selected.length) {
+      this.canvas.discardActiveObject()
+      
+      // Re-select only the valid objects
+      if (validObjects.length === 1) {
+        this.canvas.setActiveObject(validObjects[0])
+      } else {
+        // Create a new active selection with the valid objects
+        const activeSelection = new ActiveSelection(validObjects, {
+          canvas: this.canvas
+        })
+        this.canvas.setActiveObject(activeSelection)
+      }
+      
+      this.canvas.renderAll()
+    }
   }
 }
 

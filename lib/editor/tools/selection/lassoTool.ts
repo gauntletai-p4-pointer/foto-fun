@@ -8,6 +8,8 @@ import { useCanvasStore } from '@/store/canvasStore'
 import { useSelectionStore } from '@/store/selectionStore'
 import { useHistoryStore } from '@/store/historyStore'
 import { CreateSelectionCommand } from '@/lib/editor/commands/selection'
+import { markAsSystemObject } from '@/lib/editor/utils/systemObjects'
+import { SystemObjectType } from '@/types/fabric'
 
 /**
  * Lasso Tool - Creates freehand selections
@@ -78,11 +80,11 @@ class LassoTool extends SelectionTool {
     
     this.feedbackPath = new Path(pathData, {
       ...selectionStyle,
-      fill: '',
-      excludeFromExport: true,  // Mark as temporary feedback
-      selectable: false,
-      evented: false
+      fill: ''
     })
+    
+    // Mark as system object
+    markAsSystemObject(this.feedbackPath, SystemObjectType.TOOL_FEEDBACK)
     
     this.canvas.add(this.feedbackPath)
     this.canvas.renderAll()
@@ -126,9 +128,11 @@ class LassoTool extends SelectionTool {
     
     // Create final selection path with all points
     this.finalPath = new Path(closedPathData, {
-      ...selectionStyle,
-      excludeFromExport: true  // This is temporary for selection creation
+      ...selectionStyle
     })
+    
+    // Mark as system object
+    markAsSystemObject(this.finalPath, SystemObjectType.TEMPORARY)
     
     // Get selection manager
     const canvasStore = useCanvasStore.getState()

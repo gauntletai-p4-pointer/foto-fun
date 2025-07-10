@@ -31,14 +31,26 @@ class MarqueeEllipseTool extends SelectionTool {
     if (!this.canvas) return
     
     const startPoint = this.state.get('startPoint')
-    if (!startPoint) return
+    const currentPoint = this.state.get('currentPoint')
+    if (!startPoint || !currentPoint) return
     
-    // Create initial ellipse
+    // Get initial dimensions
+    const dimensions = this.getConstrainedDimensions()
+    
+    // Calculate center and radii (same as updateFeedback)
+    const centerX = dimensions.x + dimensions.width / 2
+    const centerY = dimensions.y + dimensions.height / 2
+    const rx = Math.max(1, dimensions.width / 2)  // Ensure minimum size
+    const ry = Math.max(1, dimensions.height / 2)  // Ensure minimum size
+    
+    // Create initial ellipse - position at center of drag area
     this.feedbackEllipse = new Ellipse({
-      left: startPoint.x,
-      top: startPoint.y,
-      rx: 0,
-      ry: 0,
+      left: centerX,
+      top: centerY,
+      rx: rx,
+      ry: ry,
+      originX: 'center',  // Position from center
+      originY: 'center',  // Position from center
       ...selectionStyle
     })
     
@@ -60,15 +72,6 @@ class MarqueeEllipseTool extends SelectionTool {
     const rx = dimensions.width / 2
     const ry = dimensions.height / 2
     
-    // Debug logging
-    console.log('[MarqueeEllipseTool] updateFeedback:', {
-      dimensions,
-      centerX,
-      centerY,
-      rx,
-      ry
-    })
-    
     this.feedbackEllipse.set({
       left: centerX,
       top: centerY,
@@ -83,86 +86,89 @@ class MarqueeEllipseTool extends SelectionTool {
    * Finalize the selection
    */
   protected finalizeSelection(): void {
-    if (!this.canvas || !this.feedbackEllipse) return
+    if (!this.canvas || !this.state.get('startPoint') || !this.state.get('currentPoint')) return
     
-    // Only keep the selection if it has a minimum size
-    const minSize = 2
+    // Get dimensions from constrained dimensions (like rectangular marquee)
+    const dimensions = this.getConstrainedDimensions()
     
-    // For Ellipse objects, we need to check rx and ry (radii), not width/height
-    const rx = this.feedbackEllipse.rx ?? 0
-    const ry = this.feedbackEllipse.ry ?? 0
+    // Skip if too small
+    if (dimensions.width < 5 || dimensions.height < 5) {
+      // Remove feedback if too small
+      if (this.feedbackEllipse) {
+        this.canvas.remove(this.feedbackEllipse)
+        this.feedbackEllipse = null
+      }
+      return
+    }
+    
+    // Calculate ellipse parameters based on dimensions
+    const cx = dimensions.x + dimensions.width / 2
+    const cy = dimensions.y + dimensions.height / 2
+    const rx = dimensions.width / 2
+    const ry = dimensions.height / 2
     
     // Debug logging
     console.log('[MarqueeEllipseTool] finalizeSelection:', {
-      rx,
-      ry,
-      minSize,
-      willRemove: rx < minSize || ry < minSize
+      dimensions,
+      willCreate: true,
+      ellipseParams: { cx, cy, rx, ry },
+      feedbackBounds: this.feedbackEllipse ? this.feedbackEllipse.getBoundingRect() : null
     })
     
-    if (rx < minSize || ry < minSize) {
-      // Too small, remove it
-      this.canvas.remove(this.feedbackEllipse)
-    } else {
-      // Get selection manager
-      const canvasStore = useCanvasStore.getState()
-      const selectionManager = canvasStore.selectionManager
-      
-      if (!selectionManager) {
-        console.error('Selection system not initialized')
+    // Get selection manager
+    const canvasStore = useCanvasStore.getState()
+    const selectionManager = canvasStore.selectionManager
+    
+    if (!selectionManager) {
+      console.error('Selection system not initialized')
+      if (this.feedbackEllipse) {
         this.canvas.remove(this.feedbackEllipse)
-        return
       }
-      
-      // Get ellipse parameters
-      const bounds = this.feedbackEllipse.getBoundingRect()
-      const cx = bounds.left + bounds.width / 2
-      const cy = bounds.top + bounds.height / 2
-      const rx = bounds.width / 2
-      const ry = bounds.height / 2
-      
-      // Get selection mode (new, add, subtract, intersect)
-      const mode = this.selectionMode
-      
-      // Create the selection - the base SelectionTool has already set up
-      // the correct selection mode (object vs global) in the selection manager
-      selectionManager.createEllipse(
-        cx,
-        cy,
-        rx,
-        ry,
-        mode === 'new' ? 'replace' : mode
-      )
-      
-      // If in object mode, the LayerAwareSelectionManager will automatically
-      // clip the selection to object bounds and store it as an object selection
-      
-      // Record command for undo/redo
-      const selection = selectionManager.getSelection()
-      if (selection) {
-        const command = new CreateSelectionCommand(selectionManager, selection, mode === 'new' ? 'replace' : mode)
-        this.historyStore.executeCommand(command)
-        
-        // Update selection store
-        this.selectionStore.updateSelectionState(true, {
-          x: bounds.left,
-          y: bounds.top,
-          width: bounds.width,
-          height: bounds.height
-        })
-        
-        // Start rendering the selection with marching ants
-        const { selectionRenderer } = canvasStore
-        if (selectionRenderer) {
-          selectionRenderer.startRendering()
-        }
-      }
-      
-      // Remove the temporary feedback ellipse
-      this.canvas.remove(this.feedbackEllipse)
+      return
     }
     
-    this.feedbackEllipse = null
+    // Get selection mode (new, add, subtract, intersect)
+    const mode = this.selectionMode
+    
+    // Create the selection - the base SelectionTool has already set up
+    // the correct selection mode (object vs global) in the selection manager
+    selectionManager.createEllipse(
+      cx,
+      cy,
+      rx,
+      ry,
+      mode === 'new' ? 'replace' : mode
+    )
+    
+    // If in object mode, the LayerAwareSelectionManager will automatically
+    // clip the selection to object bounds and store it as an object selection
+    
+    // Record command for undo/redo
+    const selection = selectionManager.getSelection()
+    if (selection) {
+      const command = new CreateSelectionCommand(selectionManager, selection, mode === 'new' ? 'replace' : mode)
+      this.historyStore.executeCommand(command)
+      
+      // Update selection store
+      this.selectionStore.updateSelectionState(true, {
+        x: dimensions.x,
+        y: dimensions.y,
+        width: dimensions.width,
+        height: dimensions.height
+      })
+      
+      // Start rendering the selection with marching ants
+      const { selectionRenderer } = canvasStore
+      if (selectionRenderer) {
+        selectionRenderer.startRendering()
+      }
+    }
+    
+    // Remove the temporary feedback ellipse
+    if (this.feedbackEllipse) {
+      this.canvas.remove(this.feedbackEllipse)
+      this.feedbackEllipse = null
+    }
   }
   
   /**
