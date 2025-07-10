@@ -5,8 +5,6 @@ import { Rect } from 'fabric'
 import { SelectionTool } from '../base/SelectionTool'
 import { selectionStyle } from '../utils/selectionRenderer'
 import { useCanvasStore } from '@/store/canvasStore'
-import { useSelectionStore } from '@/store/selectionStore'
-import { useHistoryStore } from '@/store/historyStore'
 import { CreateRectangleSelectionCommand } from '@/lib/editor/commands/selection'
 
 /**
@@ -95,10 +93,6 @@ class MarqueeRectTool extends SelectionTool {
       }
       return
     }
-    
-    // Check if we're in object mode
-    const isObjectMode = this.state.get('isObjectMode')
-    const targetObjectId = this.state.get('targetObjectId')
     
     // Get selection mode (new, add, subtract, intersect)
     const mode = this.selectionMode

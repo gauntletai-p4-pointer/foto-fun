@@ -5,6 +5,8 @@
  * They cannot be selected, exported, or manipulated by users.
  */
 
+/* eslint-disable @typescript-eslint/no-unused-vars */
+
 import type { Canvas, FabricObject } from 'fabric'
 import { Rect, Path, Group, ActiveSelection } from 'fabric'
 import { markAsSystemObject, isSystemObject, filterOutSystemObjects } from './systemObjects'
@@ -101,9 +103,9 @@ function clearAllSelectionOverlays(canvas: Canvas) {
   const objectsToRemove: FabricObject[] = []
   
   canvas.forEachObject((obj) => {
-    const fabricObj = obj as FabricObject
-    if (isSystemObject(fabricObj) && 
-        (fabricObj as any).systemObjectType === SystemObjectType.SELECTION_OVERLAY) {
+          const fabricObj = obj as FabricObject
+      if (isSystemObject(fabricObj) && 
+          (fabricObj as FabricObject & { systemObjectType?: SystemObjectType }).systemObjectType === SystemObjectType.SELECTION_OVERLAY) {
       objectsToRemove.push(fabricObj)
     }
   })

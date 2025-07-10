@@ -105,10 +105,11 @@ export class SelectionManager {
         pathData = path.path
       } else if (Array.isArray(path.path)) {
         // Convert path commands array to SVG path string
-        pathData = this.pathCommandsToString(path.path as any)
+        pathData = this.pathCommandsToString(path.path as Array<[string, ...number[]]>)
       } else {
         // Try to get from _element if it exists (for loaded SVG paths)
-        const pathElement = (path as any)._element
+        const pathWithElement = path as Path & { _element?: SVGPathElement }
+        const pathElement = pathWithElement._element
         if (pathElement && pathElement.getAttribute) {
           pathData = pathElement.getAttribute('d') || ''
         } else {
@@ -128,7 +129,7 @@ export class SelectionManager {
   /**
    * Convert Fabric path commands array to SVG path string
    */
-  private pathCommandsToString(pathCommands: any[]): string {
+  private pathCommandsToString(pathCommands: Array<[string, ...number[]]>): string {
     if (!Array.isArray(pathCommands)) return ''
     
     return pathCommands.map(cmd => {

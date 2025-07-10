@@ -6,6 +6,14 @@ import { adapterRegistry } from '../adapters/registry'
 import { openai } from '@/lib/ai/providers'
 import type { BaseToolAdapter } from '../adapters/base'
 
+// Type for status updates
+type StatusUpdate = {
+  type: string
+  message: string
+  details?: string
+  timestamp: string
+}
+
 // Route analysis schema for determining execution strategy
 const routeAnalysisSchema = z.object({
   requestType: z.enum([
@@ -28,12 +36,7 @@ export class MasterRoutingAgent {
   description = 'Pure router that analyzes requests and delegates to appropriate execution strategy'
   
   private context: AgentContext
-  private statusUpdates: Array<{
-    type: string
-    message: string
-    details?: string
-    timestamp: string
-  }> = []
+  private statusUpdates: Array<StatusUpdate> = []
   
   constructor(context: AgentContext) {
     this.context = context
@@ -94,7 +97,7 @@ export class MasterRoutingAgent {
       if (result.results.length > 0) {
         // Merge our status updates with any existing ones
         const firstResult = result.results[0]
-        const existingStatusUpdates = (firstResult.data as { statusUpdates?: typeof this.statusUpdates })?.statusUpdates || []
+        const existingStatusUpdates = (firstResult.data as { statusUpdates?: StatusUpdate[] })?.statusUpdates || []
         
         firstResult.data = {
           ...(firstResult.data as Record<string, unknown>),
@@ -306,7 +309,7 @@ Analyze the request and provide:
     // Merge status updates from sequential agent
     if (result.results.length > 0) {
       const firstResult = result.results[0]
-      const sequentialStatusUpdates = (firstResult.data as { statusUpdates?: typeof this.statusUpdates })?.statusUpdates || []
+      const sequentialStatusUpdates = (firstResult.data as { statusUpdates?: StatusUpdate[] })?.statusUpdates || []
       
               // Combine our routing updates with sequential agent updates
         firstResult.data = {

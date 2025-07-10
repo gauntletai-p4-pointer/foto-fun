@@ -1,14 +1,12 @@
 import React from 'react'
 import { useCanvasStore } from '@/store/canvasStore'
 import { useLayerStore } from '@/store/layerStore'
-import { useObjectRegistryStore } from '@/store/objectRegistryStore'
 import { LayerAwareSelectionManager } from '@/lib/editor/selection/LayerAwareSelectionManager'
 import { Target, Layers } from 'lucide-react'
 
 export const SelectionOptions: React.FC = () => {
   const { selectionManager } = useCanvasStore()
   const { layers } = useLayerStore()
-  const objectRegistry = useObjectRegistryStore()
   
   if (!selectionManager || !(selectionManager instanceof LayerAwareSelectionManager)) {
     return null

@@ -23,9 +23,11 @@ interface HueOutput {
   affectedImages: number
 }
 
-// Define filter type
-interface ImageFilter {
+// Define filter type that extends the base filter
+type ExtendedFilter = {
   type?: string
+  _isHueRotation?: boolean
+  _isHueTest?: boolean
   [key: string]: unknown
 }
 
@@ -91,15 +93,16 @@ NEVER ask for exact values - always interpret the user's intent and choose an ap
       } else {
         const beforeCount = img.filters.length
         img.filters = img.filters.filter((f) => {
-          const filterType = (f as any)?.type || f.constructor.name
+          const filter = f as unknown as ExtendedFilter
+          const filterType = filter?.type || f.constructor.name
           console.log(`    - Checking filter type: ${filterType}`)
           // Remove ColorMatrix filters that were used for hue rotation
           // We identify them by checking if they have the hue rotation marker
-          if (filterType === 'ColorMatrix' && (f as any)._isHueRotation) {
+          if (filterType === 'ColorMatrix' && filter._isHueRotation) {
             return false
           }
           // Remove test brightness filters from debugging
-          if (filterType === 'Brightness' && (f as any)._isHueTest) {
+          if (filterType === 'Brightness' && filter._isHueTest) {
             return false
           }
           return filterType !== 'HueRotation'
@@ -121,7 +124,7 @@ NEVER ask for exact values - always interpret the user's intent and choose an ap
           })
           
           console.log(`    - Created HueRotation filter:`, hueFilter)
-          console.log(`    - Filter type:`, (hueFilter as any)?.type || hueFilter.constructor.name)
+          console.log(`    - Filter type:`, (hueFilter as unknown as ExtendedFilter)?.type || hueFilter.constructor.name)
           
           img.filters.push(hueFilter)
           console.log(`    - Added HueRotation filter, total filters now: ${img.filters.length}`)
@@ -161,10 +164,10 @@ NEVER ask for exact values - always interpret the user's intent and choose an ap
           })
           
           // Mark this filter as a hue rotation filter for identification
-          ;(colorMatrixFilter as any)._isHueRotation = true
+          ;(colorMatrixFilter as unknown as ExtendedFilter)._isHueRotation = true
           
           console.log(`    - Created ColorMatrix filter for hue rotation`)
-          console.log(`    - Filter type:`, (colorMatrixFilter as any)?.type || colorMatrixFilter.constructor.name)
+          console.log(`    - Filter type:`, (colorMatrixFilter as unknown as ExtendedFilter)?.type || colorMatrixFilter.constructor.name)
           
           img.filters.push(colorMatrixFilter)
           console.log(`    - Added ColorMatrix filter, total filters now: ${img.filters.length}`)
@@ -179,7 +182,7 @@ NEVER ask for exact values - always interpret the user's intent and choose an ap
         const testBrightness = new filters.Brightness({
           brightness: 0.1 // Slight brightness increase to test if filters work
         })
-        ;(testBrightness as any)._isHueTest = true
+        ;(testBrightness as unknown as ExtendedFilter)._isHueTest = true
         img.filters.push(testBrightness)
         console.log(`    - Added test brightness filter for debugging`)
       }
@@ -190,7 +193,7 @@ NEVER ask for exact values - always interpret the user's intent and choose an ap
       
       // Log all filters for debugging
       img.filters.forEach((filter, i) => {
-        const filterType = (filter as any)?.type || filter.constructor.name
+        const filterType = (filter as unknown as ExtendedFilter)?.type || filter.constructor.name
         console.log(`      Filter ${i}: ${filterType}`)
       })
     })

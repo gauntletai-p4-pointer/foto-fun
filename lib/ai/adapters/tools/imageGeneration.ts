@@ -3,6 +3,7 @@ import { BaseToolAdapter } from '../base'
 import type { Canvas } from 'fabric'
 import * as fabric from 'fabric'
 import { useLayerStore } from '@/store/layerStore'
+import type { BaseTool } from '@/lib/editor/tools/base/BaseTool'
 
 // Input schema for AI SDK v5
 const imageGenerationInputSchema = z.object({
@@ -55,7 +56,7 @@ Be specific in your descriptions for better results.`
   
   // We don't need a canvas tool reference since this is an AI-Native Tool
   get tool() {
-    return null as any // Not applicable for AI-Native Tools
+    return null as unknown as BaseTool // Not applicable for AI-Native Tools
   }
   
   async execute(params: ImageGenerationInput, context: { canvas: Canvas }): Promise<ImageGenerationOutput> {
@@ -356,7 +357,7 @@ Be specific in your descriptions for better results.`
   /**
    * Check if the adapter can execute (API configured)
    */
-  canExecute(canvas: Canvas): boolean {
+  canExecute(): boolean {
     // For simplicity, return true - server will handle API key validation
     return true
   }
@@ -366,13 +367,14 @@ Be specific in your descriptions for better results.`
    * On the server, this tool calls our API route directly
    */
   toAITool(): unknown {
-    // Import the tool function only on the server
+    // Dynamic import only on the server
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { tool } = require('ai')
     
     return tool({
       description: this.description,
       inputSchema: this.inputSchema,
-      execute: async (args: any) => {
+      execute: async (args: ImageGenerationInput) => {
         console.log('[ImageGenerationAdapter] Server-side tool execution with args:', args)
         
         try {
@@ -413,7 +415,7 @@ Be specific in your descriptions for better results.`
   /**
    * Generate preview for approval system (not implemented for generation)
    */
-  async generatePreview(params: ImageGenerationInput): Promise<{ before: string; after: string }> {
+  async generatePreview(): Promise<{ before: string; after: string }> {
     // For image generation, we can't provide a meaningful preview
     // Return empty images - the actual generation will happen on execute
     return {

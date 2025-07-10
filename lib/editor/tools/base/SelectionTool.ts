@@ -1,17 +1,15 @@
-import { Canvas, Path, TPointerEventInfo, Rect, IText, Textbox, type FabricObject } from 'fabric'
+import { Canvas, Path, TPointerEventInfo, Rect, type FabricObject } from 'fabric'
 import { BaseTool } from './BaseTool'
 import { createToolState } from '../utils/toolState'
 import { useSelectionStore } from '@/store/selectionStore'
 import { useCanvasStore } from '@/store/canvasStore'
 import { useHistoryStore } from '@/store/historyStore'
-import { useToolOptionsStore } from '@/store/toolOptionsStore'
 import { markAsSystemObject } from '@/lib/editor/utils/systemObjects'
 import { SystemObjectType } from '@/types/fabric'
 import { useObjectRegistryStore } from '@/store/objectRegistryStore'
 import { ClearSelectionCommand } from '@/lib/editor/commands/selection'
 import { constrainProportions, drawFromCenter, type Point } from '../utils/constraints'
 import type { LayerAwareSelectionManager } from '@/lib/editor/selection/LayerAwareSelectionManager'
-import { selectionStyle } from '../utils/selectionRenderer'
 
 // Selection tool state interface - use type instead of interface for index signature
 type SelectionToolState = {
@@ -147,7 +145,7 @@ export abstract class SelectionTool extends BaseTool {
     window.addEventListener('keyup', this.boundHandleKeyUp)
     
     // Subscribe to tool options changes
-    this.subscribeToToolOptions((options) => {
+    this.subscribeToToolOptions(() => {
       // React to option changes if needed
     })
   }
@@ -284,7 +282,7 @@ export abstract class SelectionTool extends BaseTool {
           }
           
           // Visual feedback for object selection mode
-          this.showObjectSelectionMode(targetObject)
+          this.showObjectSelectionMode()
         } else if (selectionTarget === 'auto') {
           // In auto mode, if no object clicked, use canvas mode
           const selectionManager = this.canvasStore.selectionManager as LayerAwareSelectionManager
@@ -323,7 +321,7 @@ export abstract class SelectionTool extends BaseTool {
   /**
    * Show visual indicator for object selection mode
    */
-  protected showObjectSelectionMode(object: FabricObject): void {
+  protected showObjectSelectionMode(): void {
     // The object highlight already provides visual feedback
     // Additional UI feedback will be added in the options bar
   }

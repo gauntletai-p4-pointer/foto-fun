@@ -27,10 +27,10 @@ class ServerReplicateClient {
   async run(
     model: string,
     options: {
-      input: Record<string, any>
+      input: Record<string, unknown>
       webhook?: string
     }
-  ): Promise<any> {
+  ): Promise<unknown> {
     try {
       console.log(`[ServerReplicateClient] Running model: ${model}`)
       console.log(`[ServerReplicateClient] Input:`, options.input)
@@ -120,28 +120,29 @@ class ServerReplicateClient {
       
       console.log(`[ServerReplicateClient] Final output:`, output)
       return output
-    } catch (error: any) {
+    } catch (error) {
       console.error('[ServerReplicateClient] Error running model:', error)
+      const err = error as Error & { message?: string; code?: string }
       
       // Parse common error types
-      if (error.message?.includes('rate limit')) {
-        throw new AIQuotaExceededError('replicate', error.message)
+      if (err.message?.includes('rate limit')) {
+        throw new AIQuotaExceededError('replicate', err.message)
       }
       
-      if (error.message?.includes('payment') || error.message?.includes('credits')) {
-        throw new AIQuotaExceededError('replicate', error.message)
+      if (err.message?.includes('payment') || err.message?.includes('credits')) {
+        throw new AIQuotaExceededError('replicate', err.message)
       }
       
-      if (error.message?.includes('unavailable') || error.message?.includes('timeout')) {
-        throw new AIServiceUnavailableError('replicate', error.message)
+      if (err.message?.includes('unavailable') || err.message?.includes('timeout')) {
+        throw new AIServiceUnavailableError('replicate', err.message)
       }
       
       // Generic AI service error
       throw new AIServiceError(
-        error.message || 'Unknown error from Replicate API',
+        err.message || 'Unknown error from Replicate API',
         'replicate',
-        error.code,
-        error
+        err.code,
+        err
       )
     }
   }
@@ -149,17 +150,18 @@ class ServerReplicateClient {
   /**
    * Get model information
    */
-  async getModel(model: string): Promise<any> {
+  async getModel(model: string): Promise<unknown> {
     try {
       const [owner, name] = model.split('/')
       return await this.client.models.get(owner, name)
-    } catch (error: any) {
+    } catch (error) {
+      const err = error as Error & { message?: string; code?: string }
       console.error('[ServerReplicateClient] Error getting model info:', error)
       throw new AIServiceError(
-        `Failed to get model info: ${error.message}`,
+        `Failed to get model info: ${err.message}`,
         'replicate',
-        error.code,
-        error
+        err.code,
+        err
       )
     }
   }

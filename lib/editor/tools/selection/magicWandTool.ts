@@ -7,7 +7,6 @@ import { createToolState } from '../utils/toolState'
 import { selectionStyle } from '../utils/selectionRenderer'
 import { useCanvasStore } from '@/store/canvasStore'
 import { useSelectionStore } from '@/store/selectionStore'
-import { useHistoryStore } from '@/store/historyStore'
 import { CreateSelectionCommand } from '@/lib/editor/commands/selection'
 import { useObjectRegistryStore } from '@/store/objectRegistryStore'
 import { LayerAwareSelectionManager } from '@/lib/editor/selection/LayerAwareSelectionManager'
@@ -132,13 +131,14 @@ class MagicWandTool extends BaseTool {
    */
   private createColorSelection(x: number, y: number, imageData: ImageData, targetObjectId: string | null, isObjectMode: boolean): void {
     // Get clicked pixel color
-    const index = (y * imageData.width + x) * 4
-    const targetColor = {
-      r: imageData.data[index],
-      g: imageData.data[index + 1],
-      b: imageData.data[index + 2],
-      a: imageData.data[index + 3]
-    }
+    // const index = (y * imageData.width + x) * 4
+    // TODO: Use targetColor for actual color-based selection with flood fill
+    // const targetColor = {
+    //   r: imageData.data[index],
+    //   g: imageData.data[index + 1],
+    //   b: imageData.data[index + 2],
+    //   a: imageData.data[index + 3]
+    // }
     
     // For demonstration, create a simple rectangular selection
     // In a real implementation, this would use flood fill to find connected pixels

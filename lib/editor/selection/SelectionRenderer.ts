@@ -1,6 +1,6 @@
 import type { Canvas, FabricObject } from 'fabric'
 import { Path, Group } from 'fabric'
-import type { SelectionManager, SelectionBounds, PixelSelection } from './SelectionManager'
+import type { SelectionManager, PixelSelection } from './SelectionManager'
 import { markAsSystemObject } from '@/lib/editor/utils/systemObjects'
 import { SystemObjectType } from '@/types/fabric'
 

@@ -95,7 +95,7 @@ export function EnhancedAIChat() {
       )
       setInput('')
     }
-  }, [input, isLoading, sendMessage, fabricCanvas, hasContent, agentMode])
+  }, [input, isLoading, sendMessage, fabricCanvas, hasContent, agentMode, isCanvasReady])
 
   const handleApprovalDecision = (decision: ApprovalDecision) => {
     console.log('Approval decision:', decision)
