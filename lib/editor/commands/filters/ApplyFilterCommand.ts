@@ -168,6 +168,21 @@ export class ApplyFilterCommand extends Command {
           opaque: false
         })
       
+      case 'colormatrix':
+      case 'colortemperature':
+        // Color temperature uses ColorMatrix filter
+        if (this.filterParams.temperature !== undefined) {
+          const tempAdjust = this.filterParams.temperature / 100
+          const matrix = [
+            1 + tempAdjust * 0.2, 0, 0, 0, 0,    // Red channel
+            0, 1, 0, 0, 0,                       // Green channel (unchanged)
+            0, 0, 1 - tempAdjust * 0.2, 0, 0,    // Blue channel
+            0, 0, 0, 1, 0                        // Alpha channel
+          ]
+          return new filters.ColorMatrix({ matrix })
+        }
+        throw new Error('Temperature parameter required for color temperature filter')
+      
       default:
         throw new Error(`Unsupported filter: ${this.filterName}`)
     }

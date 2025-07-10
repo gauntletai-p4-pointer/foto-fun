@@ -123,7 +123,8 @@ export const useDocumentStore = create<DocumentStore>((set, get) => ({
                 selectable: true,
                 evented: true,
                 id: imageId,
-                layerId: backgroundLayer.id
+                layerId: backgroundLayer.id,
+                centeredRotation: true  // Ensure rotation happens around center
               })
               
               canvasStore.fabricCanvas!.add(fabricImg)
@@ -237,7 +238,8 @@ export const useDocumentStore = create<DocumentStore>((set, get) => ({
                 selectable: true,
                 evented: true,
                 id: imageId,
-                layerId: insertedLayer.id
+                layerId: insertedLayer.id,
+                centeredRotation: true  // Ensure rotation happens around center
               })
               
               console.log('[DocumentStore] Adding fabricImg to canvas...')

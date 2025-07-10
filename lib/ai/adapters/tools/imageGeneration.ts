@@ -192,7 +192,8 @@ Be specific in your descriptions for better results. The generated image will be
         selectable: true,
         evented: true,
         id: imageId,
-        layerId: newLayer.id
+        layerId: newLayer.id,
+        centeredRotation: true  // Ensure rotation happens around center
       })
       
       // Add the image to canvas

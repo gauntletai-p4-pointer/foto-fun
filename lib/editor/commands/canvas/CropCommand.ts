@@ -81,7 +81,8 @@ export class CropCommand extends Command {
           // Create fabric image from cropped image
           const fabricImage = new FabricImage(croppedImage, {
             left: 0,
-            top: 0
+            top: 0,
+            centeredRotation: true  // Ensure rotation happens around center
           })
           
           // Add the cropped image to the canvas (keeping original canvas size)

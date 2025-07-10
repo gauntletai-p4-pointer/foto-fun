@@ -72,6 +72,17 @@ export abstract class BaseFilterTool extends BaseTool {
         'blur': { type: 'Blur', param: 'blur' },
       }
       
+      // Check for color temperature filter (ColorMatrix with specific properties)
+      if (filterName === 'colorMatrix') {
+        if (filterType === 'ColorMatrix' && (filter as any).matrix) {
+          // Extract temperature from the matrix
+          // The red channel adjustment is at index 0: 1 + tempAdjust * 0.2
+          const redAdjust = (filter as any).matrix[0] - 1
+          const temperature = Math.round((redAdjust / 0.2) * 100)
+          return { temperature }
+        }
+      }
+      
       if (filterTypeMap[filterName] && filterType === filterTypeMap[filterName].type) {
         const paramName = filterTypeMap[filterName].param
         const filterValue = (filter as any)[paramName]
@@ -170,6 +181,21 @@ export abstract class BaseFilterTool extends BaseTool {
             'sepia': 'Sepia',
             'invert': 'Invert',
             'sharpen': 'Convolute'
+          }
+          
+          // For color temperature (colorMatrix), check for ColorMatrix type
+          if (filterName === 'colorMatrix') {
+            // Remove ColorMatrix filters that are used for color temperature
+            // We identify them by checking if they have the specific matrix pattern
+            if (filterType === 'ColorMatrix' && (filter as any).matrix) {
+              const matrix = (filter as any).matrix
+              // Check if this is a color temperature matrix (red and blue channels adjusted oppositely)
+              const redAdjust = matrix[0] - 1
+              const blueAdjust = 1 - matrix[10]
+              // If both adjustments are roughly equal (within tolerance), it's likely a color temp filter
+              return Math.abs(redAdjust - blueAdjust) < 0.01 // Return false to remove color temp filters
+            }
+            return true // Keep non-ColorMatrix filters
           }
           
           return filterType !== filterTypeMap[filterName]

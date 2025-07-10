@@ -63,7 +63,28 @@ export class ModifyCommand extends Command {
   }
   
   async execute(): Promise<void> {
+    console.log('[ModifyCommand] Executing with properties:', this.newProperties)
+    console.log('[ModifyCommand] Object before modification:', {
+      type: this.object.type,
+      angle: this.object.angle,
+      left: this.object.left,
+      top: this.object.top,
+      centeredRotation: this.object.centeredRotation,
+      originX: this.object.originX,
+      originY: this.object.originY
+    })
+    
     this.object.set(this.newProperties)
+    
+    console.log('[ModifyCommand] Object after modification:', {
+      type: this.object.type,
+      angle: this.object.angle,
+      left: this.object.left,
+      top: this.object.top,
+      centeredRotation: this.object.centeredRotation,
+      originX: this.object.originX,
+      originY: this.object.originY
+    })
     
     // If we're setting filters, we need to apply them
     if ('filters' in this.newProperties && 'applyFilters' in this.object) {

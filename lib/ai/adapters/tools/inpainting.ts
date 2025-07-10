@@ -214,7 +214,15 @@ export class InpaintingAdapter extends BaseToolAdapter<InpaintInput, InpaintOutp
     const newLayer = layerStore.addLayer({ name: layerName, type: 'image' })
     
     const imageId = `inpainted_${uuidv4()}`
-    img.set({ left, top, selectable: true, evented: true, id: imageId, layerId: newLayer.id })
+    img.set({ 
+      left, 
+      top, 
+      selectable: true, 
+      evented: true, 
+      id: imageId, 
+      layerId: newLayer.id,
+      centeredRotation: true  // Ensure rotation happens around center
+    })
     
     canvas.add(img)
     canvas.setActiveObject(img)

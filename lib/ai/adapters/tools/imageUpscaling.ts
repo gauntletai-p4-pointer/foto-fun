@@ -264,7 +264,8 @@ The user will then be shown a review modal to compare the original and upscaled 
           scaleY: originalImage.scaleY,
           angle: originalImage.angle,
           selectable: originalImage.selectable,
-          evented: originalImage.evented
+          evented: originalImage.evented,
+          centeredRotation: true  // Ensure rotation happens around center
         })
         
         // Remove original and add upscaled
@@ -316,7 +317,8 @@ The user will then be shown a review modal to compare the original and upscaled 
         left: canvasWidth * 0.6, // Position to the right
         top: canvasHeight * 0.1,
         selectable: true,
-        evented: true
+        evented: true,
+        centeredRotation: true  // Ensure rotation happens around center
       })
       
       // Add to canvas

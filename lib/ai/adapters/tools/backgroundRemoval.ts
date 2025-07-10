@@ -782,7 +782,8 @@ The user will then be shown a review modal to compare the original and processed
         scaleY: (originalImage as any).scaleY,
         angle: (originalImage as any).angle,
         selectable: (originalImage as any).selectable,
-        evented: (originalImage as any).evented
+        evented: (originalImage as any).evented,
+        centeredRotation: true  // Ensure rotation happens around center
       })
       
       console.log('[BackgroundRemovalAdapter] Removing original image and adding processed image')
@@ -879,7 +880,8 @@ The user will then be shown a review modal to compare the original and processed
         left: canvasWidth * 0.6, // Position to the right
         top: canvasHeight * 0.1,
         selectable: true,
-        evented: true
+        evented: true,
+        centeredRotation: true  // Ensure rotation happens around center
       })
       
       console.log('[BackgroundRemovalAdapter] Adding processed image to canvas')
