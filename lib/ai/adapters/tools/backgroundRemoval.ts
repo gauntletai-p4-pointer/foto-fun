@@ -509,37 +509,143 @@ The user will then be shown a review modal to compare the original and processed
    */
   private async applyInPlace(originalUrl: string, processedUrl: string, canvas: Canvas): Promise<void> {
     try {
+      console.log('[BackgroundRemovalAdapter] Starting applyInPlace operation')
+      console.log('[BackgroundRemovalAdapter] Original URL prefix:', originalUrl?.substring(0, 50) + '...')
+      console.log('[BackgroundRemovalAdapter] Processed URL prefix:', processedUrl?.substring(0, 50) + '...')
+      
       const { useCanvasStore } = await import('@/store/canvasStore')
       const canvasStore = useCanvasStore.getState()
       
-      // Find the original image object and replace it
+      // Find the original image object using multiple strategies
       const objects = canvas.getObjects()
-      const originalImage = objects.find(obj => 
-        obj.type === 'image' && (obj as any).getSrc?.() === originalUrl
-      )
+      console.log('[BackgroundRemovalAdapter] Canvas has', objects.length, 'objects')
       
-      if (originalImage) {
-        // Load the processed image
-        const fabric = await import('fabric')
-        const processedImg = await fabric.Image.fromURL(processedUrl, { crossOrigin: 'anonymous' })
+      const imageObjects = objects.filter(obj => obj.type === 'image')
+      console.log('[BackgroundRemovalAdapter] Found', imageObjects.length, 'image objects')
+      
+      let originalImage: any = null
+      
+      // Strategy 1: Try exact URL match
+      originalImage = imageObjects.find(obj => {
+        const objSrc = (obj as any).getSrc?.()
+        return objSrc === originalUrl
+      })
+      
+      if (!originalImage) {
+        console.log('[BackgroundRemovalAdapter] Exact URL match failed, trying fuzzy matching')
         
-        // Copy position and properties from original
-        processedImg.set({
-          left: originalImage.left,
-          top: originalImage.top,
-          scaleX: originalImage.scaleX,
-          scaleY: originalImage.scaleY,
-          angle: originalImage.angle,
-          selectable: originalImage.selectable,
-          evented: originalImage.evented
+        // Strategy 2: Try fuzzy matching for data URLs (compare significant parts)
+        originalImage = imageObjects.find(obj => {
+          const objSrc = (obj as any).getSrc?.()
+          if (!objSrc || !originalUrl) return false
+          
+          // For data URLs, compare the base64 data part
+          if (objSrc.startsWith('data:') && originalUrl.startsWith('data:')) {
+            const objBase64 = objSrc.split(';base64,')[1]
+            const origBase64 = originalUrl.split(';base64,')[1]
+            if (objBase64 && origBase64) {
+              // Compare first 100 characters of base64 (should be enough to identify)
+              return objBase64.substring(0, 100) === origBase64.substring(0, 100)
+            }
+          }
+          return false
+        })
+      }
+      
+      if (!originalImage) {
+        console.log('[BackgroundRemovalAdapter] Fuzzy matching failed, using first image object')
+        // Strategy 3: Fallback to the first image object (if only one image)
+        if (imageObjects.length === 1) {
+          originalImage = imageObjects[0]
+        } else if (imageObjects.length > 1) {
+          // Try to find the most recently modified image or selected image
+          const selectedObjects = canvas.getActiveObjects()
+          const selectedImages = selectedObjects.filter(obj => obj.type === 'image')
+          if (selectedImages.length > 0) {
+            originalImage = selectedImages[0]
+          } else {
+            // Just use the first image as fallback
+            originalImage = imageObjects[0]
+          }
+        }
+      }
+      
+      if (!originalImage) {
+        console.error('[BackgroundRemovalAdapter] Could not find original image to replace')
+        alert('Could not find the original image to replace. Please try using "Accept Both" instead.')
+        
+        // Close the review modal anyway
+        if (canvasStore.setReviewModal) {
+          canvasStore.setReviewModal(null)
+        }
+        return
+      }
+      
+      console.log('[BackgroundRemovalAdapter] Found original image, proceeding with replacement')
+      console.log('[BackgroundRemovalAdapter] Original image properties:', {
+        type: originalImage.type,
+        left: originalImage.left,
+        top: originalImage.top,
+        width: originalImage.width,
+        height: originalImage.height,
+        scaleX: originalImage.scaleX,
+        scaleY: originalImage.scaleY,
+        angle: originalImage.angle
+      })
+      
+      // Load the processed image
+      const fabric = await import('fabric')
+      
+      // Load the processed image using a more direct approach
+      let processedImg: any
+      try {
+        console.log('[BackgroundRemovalAdapter] Loading processed image...')
+        
+        // Create image element first
+        const imgElement = new Image()
+        imgElement.crossOrigin = 'anonymous'
+        
+        // Load the image
+        await new Promise((resolve, reject) => {
+          imgElement.onload = resolve
+          imgElement.onerror = reject
+          imgElement.src = processedUrl
         })
         
-        // Remove original and add processed
-        canvas.remove(originalImage)
-        canvas.add(processedImg)
-        canvas.setActiveObject(processedImg)
-        canvas.renderAll()
+        // Create fabric image from loaded element
+        processedImg = new fabric.Image(imgElement)
+        console.log('[BackgroundRemovalAdapter] Successfully loaded processed image')
+      } catch (loadError) {
+        console.error('[BackgroundRemovalAdapter] Error loading processed image:', loadError)
+        alert('Failed to load the processed image. Please try again.')
+        
+        // Close the review modal
+        if (canvasStore.setReviewModal) {
+          canvasStore.setReviewModal(null)
+        }
+        return
       }
+      
+      // Copy position and properties from original
+      processedImg.set({
+        left: originalImage.left,
+        top: originalImage.top,
+        scaleX: originalImage.scaleX,
+        scaleY: originalImage.scaleY,
+        angle: originalImage.angle,
+        selectable: originalImage.selectable,
+        evented: originalImage.evented
+      })
+      
+      console.log('[BackgroundRemovalAdapter] Removing original image and adding processed image')
+      
+      // Remove original and add processed
+      canvas.remove(originalImage)
+      canvas.add(processedImg)
+      canvas.setActiveObject(processedImg)
+      canvas.renderAll()
+      
+      console.log('[BackgroundRemovalAdapter] Successfully applied processed image in place')
       
       // Close the review modal
       if (canvasStore.setReviewModal) {
@@ -548,6 +654,18 @@ The user will then be shown a review modal to compare the original and processed
       
     } catch (error) {
       console.error('[BackgroundRemovalAdapter] Error applying in place:', error)
+      alert('An error occurred while applying the processed image. Please try again.')
+      
+      // Try to close the modal even if there was an error
+      try {
+        const { useCanvasStore } = await import('@/store/canvasStore')
+        const canvasStore = useCanvasStore.getState()
+        if (canvasStore.setReviewModal) {
+          canvasStore.setReviewModal(null)
+        }
+      } catch (modalError) {
+        console.error('[BackgroundRemovalAdapter] Error closing modal after failure:', modalError)
+      }
     }
   }
   
@@ -568,12 +686,42 @@ The user will then be shown a review modal to compare the original and processed
    */
   private async acceptBoth(originalUrl: string, processedUrl: string, canvas: Canvas): Promise<void> {
     try {
+      console.log('[BackgroundRemovalAdapter] Starting acceptBoth operation')
+      
       const { useCanvasStore } = await import('@/store/canvasStore')
       const canvasStore = useCanvasStore.getState()
       
       // Load the processed image
       const fabric = await import('fabric')
-      const processedImg = await fabric.Image.fromURL(processedUrl, { crossOrigin: 'anonymous' })
+      
+      let processedImg: any
+      try {
+        console.log('[BackgroundRemovalAdapter] Loading processed image for acceptBoth...')
+        
+        // Create image element first
+        const imgElement = new Image()
+        imgElement.crossOrigin = 'anonymous'
+        
+        // Load the image
+        await new Promise((resolve, reject) => {
+          imgElement.onload = resolve
+          imgElement.onerror = reject
+          imgElement.src = processedUrl
+        })
+        
+        // Create fabric image from loaded element
+        processedImg = new fabric.Image(imgElement)
+        console.log('[BackgroundRemovalAdapter] Successfully loaded processed image for acceptBoth')
+      } catch (loadError) {
+        console.error('[BackgroundRemovalAdapter] Error loading processed image for acceptBoth:', loadError)
+        alert('Failed to load the processed image. Please try again.')
+        
+        // Close the review modal
+        if (canvasStore.setReviewModal) {
+          canvasStore.setReviewModal(null)
+        }
+        return
+      }
       
       // Position it next to the original
       const canvasWidth = canvas.getWidth()
@@ -586,10 +734,14 @@ The user will then be shown a review modal to compare the original and processed
         evented: true
       })
       
+      console.log('[BackgroundRemovalAdapter] Adding processed image to canvas')
+      
       // Add to canvas
       canvas.add(processedImg)
       canvas.setActiveObject(processedImg)
       canvas.renderAll()
+      
+      console.log('[BackgroundRemovalAdapter] Successfully added both images')
       
       // Close the review modal
       if (canvasStore.setReviewModal) {
@@ -598,6 +750,18 @@ The user will then be shown a review modal to compare the original and processed
       
     } catch (error) {
       console.error('[BackgroundRemovalAdapter] Error accepting both:', error)
+      alert('An error occurred while adding the processed image. Please try again.')
+      
+      // Try to close the modal even if there was an error
+      try {
+        const { useCanvasStore } = await import('@/store/canvasStore')
+        const canvasStore = useCanvasStore.getState()
+        if (canvasStore.setReviewModal) {
+          canvasStore.setReviewModal(null)
+        }
+      } catch (modalError) {
+        console.error('[BackgroundRemovalAdapter] Error closing modal after acceptBoth failure:', modalError)
+      }
     }
   }
   
