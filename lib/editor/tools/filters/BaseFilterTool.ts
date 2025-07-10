@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { BaseTool } from '../base/BaseTool'
 import type { Canvas } from 'fabric'
 import { FilterPipeline } from '../../filters/FilterPipeline'

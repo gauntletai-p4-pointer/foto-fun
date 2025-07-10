@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { z } from 'zod'
 import { BaseToolAdapter } from '../base'
 import { hueTool } from '@/lib/editor/tools/adjustments/hueTool'

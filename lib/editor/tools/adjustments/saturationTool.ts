@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars */
 import { Palette } from 'lucide-react'
 import { TOOL_IDS } from '@/constants'
 import { BaseFilterTool } from '../filters/BaseFilterTool'

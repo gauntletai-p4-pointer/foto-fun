@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import { SelectionAwareFilter } from '../SelectionAwareFilter'
 
 /**
@@ -36,7 +37,7 @@ export class SharpenFilter extends SelectionAwareFilter {
     g: number,
     b: number,
     a: number,
-    filterParams: { strength: number }
+    _filterParams: { strength: number }
   ): Promise<[number, number, number, number]> {
     // Single pixel processing not applicable for sharpen
     // Return unchanged - actual sharpening is done in applyFilter

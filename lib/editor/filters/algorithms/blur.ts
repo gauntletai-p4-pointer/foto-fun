@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import { SelectionAwareFilter } from '../SelectionAwareFilter'
 
 /**
@@ -43,7 +44,7 @@ export class BlurFilter extends SelectionAwareFilter {
     g: number,
     b: number,
     a: number,
-    filterParams: { radius: number }
+    _filterParams: { radius: number }
   ): Promise<[number, number, number, number]> {
     // Single pixel processing not applicable for blur
     // Return unchanged - actual blur is done in applyFilter
@@ -133,8 +134,8 @@ export function applyBlur(
   const passes = 3
   
   // Create temporary buffer for blur operations
-  let temp = new Uint8ClampedArray(pixelData.length)
-  let current = result
+  const temp = new Uint8ClampedArray(pixelData.length)
+  const current = result
   
   for (let pass = 0; pass < passes; pass++) {
     // Horizontal pass

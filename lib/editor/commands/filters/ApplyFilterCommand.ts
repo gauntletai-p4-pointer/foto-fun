@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { Command } from '../base'
 import { ModifyCommand } from '../canvas/ModifyCommand'
 import { ApplyFilterToSelectionCommand } from './ApplyFilterToSelectionCommand'

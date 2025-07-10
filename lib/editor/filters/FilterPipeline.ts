@@ -1,4 +1,5 @@
-import type { Canvas, FabricObject } from 'fabric'
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import type { Canvas } from 'fabric'
 import { FabricImage } from 'fabric'
 import type { LayerAwareSelectionManager } from '../selection/LayerAwareSelectionManager'
 import { SelectionAwareFilter } from './SelectionAwareFilter'
@@ -202,14 +203,14 @@ export class FilterPipeline {
   private async createCustomFilter(filterName: string): Promise<SelectionAwareFilter | null> {
     // Dynamically import the appropriate filter
     try {
-      const module = await import(`./algorithms/${filterName.toLowerCase()}`)
+      const filterModule = await import(`./algorithms/${filterName.toLowerCase()}`)
       
       // Capitalize first letter for class name
       const className = filterName.charAt(0).toUpperCase() + filterName.slice(1).toLowerCase() + 'Filter'
-      const FilterClass = module[className] || module.default
+      const FilterClass = filterModule[className] || filterModule.default
       
       if (!FilterClass) {
-        console.warn(`Filter class ${className} not found in module`, module)
+        console.warn(`Filter class ${className} not found in module`, filterModule)
         return null
       }
       

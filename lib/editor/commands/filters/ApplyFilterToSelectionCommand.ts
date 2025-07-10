@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { Command } from '../base'
 import type { Canvas } from 'fabric'
 import { FabricImage } from 'fabric'
@@ -59,7 +60,6 @@ export class ApplyFilterToSelectionCommand extends Command {
       
       // Draw image to temp canvas
       ctx.save()
-      const matrix = image.calcTransformMatrix()
       ctx.setTransform(1, 0, 0, 1, 0, 0)
       
       // Draw the image element
@@ -73,13 +73,6 @@ export class ApplyFilterToSelectionCommand extends Command {
       
       // Get original image data
       const originalData = ctx.getImageData(0, 0, bounds.width, bounds.height)
-      
-      // Clone original data for filtering
-      const dataToFilter = new ImageData(
-        new Uint8ClampedArray(originalData.data),
-        originalData.width,
-        originalData.height
-      )
       
       // Apply filter using the pipeline
       await this.filterPipeline.applyFilter(this.filterName, this.filterParams, [image])

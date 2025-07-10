@@ -213,6 +213,31 @@ export function AIChat() {
         console.log('[AIChat] Extracted toolName:', toolName)
         console.log('[AIChat] Extracted args:', args)
         
+        // SPECIAL HANDLING: Cost approval requests (server-side only tool)
+        if (toolName === 'requestCostApproval') {
+          console.log('[AIChat] === COST APPROVAL REQUEST DETECTED ===')
+          console.log('[AIChat] Cost approval args:', args)
+          
+          // This tool should only run on server-side and return UI-displayable results
+          // The client doesn't execute this - it just gets the server response
+          // Return the cost approval data as-is for UI display
+          const costApprovalArgs = args as {
+            toolName: string
+            operation: string
+            estimatedCost: number
+            details: string
+          }
+          
+          return {
+            type: 'cost-approval-required',
+            toolName: costApprovalArgs.toolName,
+            operation: costApprovalArgs.operation,
+            estimatedCost: costApprovalArgs.estimatedCost,
+            details: costApprovalArgs.details,
+            message: `This operation will use ${costApprovalArgs.toolName} and cost approximately $${costApprovalArgs.estimatedCost.toFixed(3)}. ${costApprovalArgs.details}`
+          }
+        }
+        
         // SPECIAL HANDLING: If this is the agent workflow tool, check for approval required
         if (toolName === 'executeAgentWorkflow') {
           console.log('[AIChat] === AGENT WORKFLOW TOOL DETECTED ===')

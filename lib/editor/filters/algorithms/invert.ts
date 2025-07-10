@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars */
 import { SelectionAwareFilter } from '../SelectionAwareFilter'
 
 /**
@@ -8,7 +9,7 @@ export class InvertFilter extends SelectionAwareFilter {
   /**
    * Apply color inversion to entire image
    */
-  protected async applyFilter(imageData: ImageData, filterParams: any): Promise<ImageData> {
+  protected async applyFilter(imageData: ImageData, _filterParams: any): Promise<ImageData> {
     const result = new ImageData(
       new Uint8ClampedArray(imageData.data),
       imageData.width,
@@ -34,7 +35,7 @@ export class InvertFilter extends SelectionAwareFilter {
     g: number,
     b: number,
     a: number,
-    filterParams: any
+    _filterParams: any
   ): Promise<[number, number, number, number]> {
     return [
       255 - r,

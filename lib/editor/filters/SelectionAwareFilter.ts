@@ -1,4 +1,5 @@
-import type { Canvas, FabricObject } from 'fabric'
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars */
+import type { Canvas } from 'fabric'
 import { FabricImage } from 'fabric'
 import type { LayerAwareSelectionManager } from '../selection/LayerAwareSelectionManager'
 import type { PixelSelection } from '@/types'
@@ -88,7 +89,7 @@ export abstract class SelectionAwareFilter {
     )
     
     // Apply filter only to selected pixels
-    const { mask, bounds } = selection
+    const { mask, bounds: _bounds } = selection
     
     // Get transformation from canvas space to image space
     let scaleX = 1, scaleY = 1
