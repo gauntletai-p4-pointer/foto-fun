@@ -28,6 +28,7 @@ export class CreateSelectionCommand extends Command {
   async execute(): Promise<void> {
     // Save current selection if any
     const current = this.selectionManager.getSelection()
+    
     if (current) {
       // Clone the current selection
       const canvas = document.createElement('canvas')

@@ -7,7 +7,7 @@ import { selectionStyle } from '../utils/selectionRenderer'
 import { useCanvasStore } from '@/store/canvasStore'
 import { useSelectionStore } from '@/store/selectionStore'
 import { useHistoryStore } from '@/store/historyStore'
-import { CreateSelectionCommand } from '@/lib/editor/commands/selection'
+import { CreateRectangleSelectionCommand } from '@/lib/editor/commands/selection'
 
 /**
  * Rectangular Marquee Tool - Creates rectangular selections
@@ -103,25 +103,23 @@ class MarqueeRectTool extends SelectionTool {
     // Get selection mode (new, add, subtract, intersect)
     const mode = this.selectionMode
     
-    // Create the selection - the base SelectionTool has already set up
-    // the correct selection mode (object vs global) in the selection manager
-    selectionManager.createRectangle(
-      x, 
-      y, 
-      width, 
-      height, 
+    // Create a command that will handle the selection creation
+    const command = new CreateRectangleSelectionCommand(
+      selectionManager,
+      x,
+      y,
+      width,
+      height,
       mode === 'new' ? 'replace' : mode
     )
     
-    // If in object mode, the LayerAwareSelectionManager will automatically
-    // clip the selection to object bounds and store it as an object selection
+    // Execute the command - this will create the selection and save undo state
+    this.historyStore.executeCommand(command)
     
-    // Record command for undo/redo
+    // Check if selection was created successfully
     const selection = selectionManager.getSelection()
+    
     if (selection) {
-      const command = new CreateSelectionCommand(selectionManager, selection, mode === 'new' ? 'replace' : mode)
-      this.historyStore.executeCommand(command)
-      
       // Update selection store
       this.selectionStore.updateSelectionState(true, { x, y, width, height })
       

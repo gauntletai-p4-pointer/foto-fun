@@ -27,7 +27,10 @@ export class SelectionRenderer {
    * Start rendering the selection
    */
   startRendering(): void {
-    if (this.isAnimating) return
+    if (this.isAnimating) {
+      // Stop and restart to ensure we're showing the latest selection
+      this.stopRendering()
+    }
     
     this.isAnimating = true
     
@@ -69,10 +72,14 @@ export class SelectionRenderer {
     this.clearSelectionDisplay()
     
     const selection = this.selectionManager.getSelection()
-    if (!selection) return
+    
+    if (!selection) {
+      return
+    }
     
     // Create marching ants path
     const overlay = this.createMarchingAntsPath(selection.bounds)
+    
     if (overlay) {
       this.selectionOverlay = overlay
       this.canvas.add(overlay)
@@ -115,6 +122,11 @@ export class SelectionRenderer {
    * Create marching ants path from selection bounds
    */
   private createMarchingAntsPath(bounds: SelectionBounds): Group | null {
+    // Validate bounds
+    if (bounds.width <= 0 || bounds.height <= 0) {
+      return null
+    }
+    
     // For now, create a simple rectangle path
     // In a full implementation, this would trace the actual selection outline
     const pathData = `
