@@ -114,21 +114,17 @@ NEVER ask for exact values - always interpret the user's intent and choose an ap
       if (!imageWithFilters.filters) {
         imageWithFilters.filters = []
       } else {
-        const beforeCount = img.filters.length
-        img.filters = img.filters.filter((f) => {
+        const beforeCount = (img as any).filters?.length || 0
+        ;(img as any).filters = ((img as any).filters || []).filter((f: any) => {
           const filter = f as unknown as ExtendedFilter
           const filterType = filter?.type || f.constructor.name
           console.log(`    - Checking filter type: ${filterType}`)
           // Remove ColorMatrix filters that were used for hue rotation
-          // We identify them by checking if they have the hue rotation marker
-          if (filterType === 'ColorMatrix' && filter._isHueRotation) {
-            return false
-          }
-          // Remove test brightness filters from debugging
-          if (filterType === 'Brightness' && filter._isHueTest) {
-            return false
-          }
-          return filterType !== 'HueRotation'
+          const isHueRotation = filterType === 'ColorMatrix' && filter._isHueRotation
+          const isHueTest = filterType === 'Brightness' && filter._isHueTest
+          const shouldRemove = isHueRotation || isHueTest
+          console.log(`    - ${shouldRemove ? 'Removing' : 'Keeping'} filter: ${filterType}`)
+          return !shouldRemove
         })
         const afterCount = imageWithFilters.filters.length
         console.log(`    - Removed ${beforeCount - afterCount} existing hue filters`)
@@ -206,16 +202,15 @@ NEVER ask for exact values - always interpret the user's intent and choose an ap
           brightness: 0.1 // Slight brightness increase to test if filters work
         })
         ;(testBrightness as unknown as ExtendedFilter)._isHueTest = true
-        img.filters.push(testBrightness)
+        ;(img as any).filters.push(testBrightness)
         console.log(`    - Added test brightness filter for debugging`)
       }
       
-      imageWithFilters.applyFilters()
-      console.log(`    - Filters applied successfully`)
-      console.log(`    - Final filter count: ${imageWithFilters.filters.length}`)
+      // Apply the filters
+      ;(img as any).applyFilters()
       
       // Log all filters for debugging
-      img.filters.forEach((filter, i) => {
+      ;((img as any).filters || []).forEach((filter: any, i: number) => {
         const filterType = (filter as unknown as ExtendedFilter)?.type || filter.constructor.name
         console.log(`      Filter ${i}: ${filterType}`)
       })

@@ -6,6 +6,9 @@ import { useSelectionStore } from '@/store/selectionStore'
 import { useCanvasStore } from '@/store/canvasStore'
 import { useHistoryStore } from '@/store/historyStore'
 import { markAsSystemObject } from '@/lib/editor/utils/systemObjects'
+import { useObjectRegistryStore } from '@/store/objectRegistryStore'
+import { ClearSelectionCommand } from '@/lib/editor/commands/selection'
+import { SystemObjectType } from '@/types/fabric'
 import { constrainProportions, drawFromCenter, type Point } from '../utils/constraints'
 import type { LayerAwareSelectionManager } from '@/lib/editor/selection/LayerAwareSelectionManager'
 
@@ -254,14 +257,20 @@ export abstract class SelectionTool extends BaseTool {
 
     // Track performance
     this.track('mouseDown', () => {
-      // Clear previous selection when starting a new selection
-      this.clearPreviousSelection()
+      // Get current selection target and handle 'auto' mode
+      if (this.selectionTarget === 'auto') {
+        // TODO: Implement auto mode logic
+        // For now, default to global selection
+      }
+      
+      // TODO: Re-implement clearPreviousSelection if needed
+      // this.clearPreviousSelection()
       
       // Use Fabric's getPointer method to get the correct transformed coordinates
       const pointer = this.canvas!.getPointer(e.e)
       const point = { x: pointer.x, y: pointer.y }
       
-      // Determine target object based on selection target mode
+      // Determine if this is an object selection (layered workflow)
       const selectionTarget = this.selectionTarget
       let targetObjectId: string | null = null
       let isObjectMode = false
