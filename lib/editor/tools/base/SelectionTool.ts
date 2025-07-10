@@ -1,16 +1,17 @@
+import { Canvas, Path, TPointerEventInfo, Rect, IText, Textbox, type FabricObject } from 'fabric'
 import { BaseTool } from './BaseTool'
-import type { Canvas, TPointerEventInfo, FabricObject } from 'fabric'
-import { Path, Rect } from 'fabric'
 import { createToolState } from '../utils/toolState'
-import { constrainProportions, drawFromCenter, type Point } from '../utils/constraints'
 import { useSelectionStore } from '@/store/selectionStore'
 import { useCanvasStore } from '@/store/canvasStore'
-import { useObjectRegistryStore } from '@/store/objectRegistryStore'
+import { useHistoryStore } from '@/store/historyStore'
 import { useToolOptionsStore } from '@/store/toolOptionsStore'
-import { selectionStyle } from '../utils/selectionRenderer'
-import type { LayerAwareSelectionManager } from '@/lib/editor/selection/LayerAwareSelectionManager'
 import { markAsSystemObject } from '@/lib/editor/utils/systemObjects'
 import { SystemObjectType } from '@/types/fabric'
+import { useObjectRegistryStore } from '@/store/objectRegistryStore'
+import { ClearSelectionCommand } from '@/lib/editor/commands/selection'
+import { constrainProportions, drawFromCenter, type Point } from '../utils/constraints'
+import type { LayerAwareSelectionManager } from '@/lib/editor/selection/LayerAwareSelectionManager'
+import { selectionStyle } from '../utils/selectionRenderer'
 
 // Selection tool state interface - use type instead of interface for index signature
 type SelectionToolState = {
@@ -23,6 +24,7 @@ type SelectionToolState = {
   // Object-aware selection
   targetObjectId: string | null
   isObjectMode: boolean
+  potentialClearClick: Point | null
 }
 
 /**
@@ -39,7 +41,8 @@ export abstract class SelectionTool extends BaseTool {
     shiftPressed: false,
     altPressed: false,
     targetObjectId: null,
-    isObjectMode: false
+    isObjectMode: false,
+    potentialClearClick: null
   })
   
   // Store reference
@@ -83,22 +86,69 @@ export abstract class SelectionTool extends BaseTool {
     const canvasStore = useCanvasStore.getState()
     canvasStore.setObjectSelection(false)
     
-    // Mouse event handlers
-    this.addCanvasEvent('mouse:down', (e: unknown) => this.handleMouseDown(e as TPointerEventInfo<MouseEvent>))
-    this.addCanvasEvent('mouse:move', (e: unknown) => this.handleMouseMove(e as TPointerEventInfo<MouseEvent>))
-    this.addCanvasEvent('mouse:up', () => this.handleMouseUp())
+    // Add event handlers
+    this.addCanvasEvent('mouse:move', (e: unknown) => this.handleHover(e as TPointerEventInfo<MouseEvent>))
     
-    // Add hover handler for object highlighting
-    this.addCanvasEvent('mouse:move:before', (e: unknown) => this.handleHover(e as TPointerEventInfo<MouseEvent>))
+    // Mouse event handlers for selection operations
+    this.addCanvasEvent('mouse:down', (e: unknown) => {
+      const event = e as TPointerEventInfo<MouseEvent>
+      const pointer = canvas.getPointer(event.e)
+      
+      // Check if clicking on empty area (no object at click point)
+      const objectRegistry = useObjectRegistryStore.getState()
+      const targetObject = objectRegistry.getTopObjectAtPixel(pointer.x, pointer.y)
+      
+      // If no object at click point and not starting a new selection operation
+      if (!targetObject && this.selectionTarget === 'auto' && canvasStore.selectionManager?.hasSelection()) {
+        // Check if this is a simple click (not a drag operation)
+        // We'll verify this in mouse:up by checking if mouse hasn't moved much
+        this.state.set('potentialClearClick', { x: event.e.clientX, y: event.e.clientY })
+      }
+      
+      // Handle normal mouse down for selection
+      this.handleMouseDown(event)
+    })
     
-    // Keyboard event listeners for modifiers
-    document.addEventListener('keydown', this.boundHandleKeyDown)
-    document.addEventListener('keyup', this.boundHandleKeyUp)
+    this.addCanvasEvent('mouse:move', (e: unknown) => {
+      const event = e as TPointerEventInfo<MouseEvent>
+      // Handle hover for object highlighting
+      this.handleHover(event)
+      // Handle mouse move for selection dragging
+      this.handleMouseMove(event)
+    })
+    
+    this.addCanvasEvent('mouse:up', (e: unknown) => {
+      const event = e as TPointerEventInfo<MouseEvent>
+      const potentialClear = this.state.get('potentialClearClick')
+      
+      if (potentialClear) {
+        // Check if mouse hasn't moved much (allow 5px tolerance)
+        const distance = Math.sqrt(
+          Math.pow(event.e.clientX - potentialClear.x, 2) + 
+          Math.pow(event.e.clientY - potentialClear.y, 2)
+        )
+        
+        if (distance < 5) {
+          // This was a click, not a drag - clear the selection
+          const command = new ClearSelectionCommand(canvasStore.selectionManager!)
+          useHistoryStore.getState().executeCommand(command)
+          useSelectionStore.getState().updateSelectionState(false)
+        }
+        
+        this.state.set('potentialClearClick', null)
+      }
+      
+      // Handle normal mouse up
+      this.handleMouseUp()
+    })
+    
+    // Add keyboard event handlers
+    window.addEventListener('keydown', this.boundHandleKeyDown)
+    window.addEventListener('keyup', this.boundHandleKeyUp)
     
     // Subscribe to tool options changes
     this.subscribeToToolOptions((options) => {
       // React to option changes if needed
-      console.log(`${this.id} options updated:`, options)
     })
   }
   
