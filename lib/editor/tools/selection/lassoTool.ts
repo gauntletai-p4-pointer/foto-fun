@@ -2,8 +2,7 @@ import { Lasso } from 'lucide-react'
 import Konva from 'konva'
 import { TOOL_IDS } from '@/constants'
 import { BaseTool } from '../base/BaseTool'
-import type { ToolEvent, Point, Selection } from '@/lib/editor/canvas/types'
-import { SelectionCreatedEvent } from '@/lib/events/canvas/ToolEvents'
+import type { ToolEvent, Point } from '@/lib/editor/canvas/types'
 
 /**
  * Lasso Tool - Creates freehand selections
@@ -110,7 +109,7 @@ export class LassoTool extends BaseTool {
     }
   }
   
-  async onMouseUp(event: ToolEvent): Promise<void> {
+  async onMouseUp(_event: ToolEvent): Promise<void> {
     if (!this.isSelecting || !this.selectionPath || !this.selectionLayer || this.points.length < 3) {
       // Need at least 3 points for a valid selection
       this.cleanupSelection()

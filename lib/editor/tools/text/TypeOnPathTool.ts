@@ -2,7 +2,7 @@ import { Type } from 'lucide-react'
 import Konva from 'konva'
 import { TOOL_IDS } from '@/constants'
 import { BaseTextTool } from '../base/BaseTextTool'
-import type { ToolEvent, Point, CanvasObject } from '@/lib/editor/canvas/types'
+import type { ToolEvent, CanvasObject } from '@/lib/editor/canvas/types'
 
 /**
  * Type on Path Tool - Allows text to follow the curve of a path
@@ -140,8 +140,8 @@ export class TypeOnPathTool extends BaseTextTool {
     const fontFamily = this.getOption('fontFamily') as string
     const fontSize = this.getOption('fontSize') as number
     const color = this.getOption('color') as string
-    const bold = this.getOption('bold') as boolean
-    const italic = this.getOption('italic') as boolean
+    // const bold = this.getOption('bold') as boolean
+    // const italic = this.getOption('italic') as boolean
     const underline = this.getOption('underline') as boolean
     
     if (this.selectedPath) {

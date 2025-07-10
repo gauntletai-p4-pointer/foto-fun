@@ -12,8 +12,16 @@ export interface CanvasStateSnapshot {
     objects: Array<{
       id: string
       type: 'image' | 'text' | 'shape' | 'path' | 'group' | 'verticalText'
-      transform: any
-      data: any
+      transform: {
+        x: number
+        y: number
+        scaleX: number
+        scaleY: number
+        rotation: number
+        skewX: number
+        skewY: number
+      }
+      data: HTMLImageElement | string | Record<string, unknown> | undefined
       visible: boolean
       locked: boolean
       opacity: number
@@ -22,7 +30,7 @@ export interface CanvasStateSnapshot {
   }>
   selection: {
     type: string
-    data: any
+    data: unknown
   } | null
   activeLayerId: string | null
   backgroundColor: string
@@ -196,7 +204,7 @@ export abstract class TransactionalCommand extends Command {
           objectIds: snapshot.selection.data.objectIds
         })
       } else {
-        canvas.setSelection(snapshot.selection.data as any)
+        canvas.setSelection(snapshot.selection.data as Parameters<typeof canvas.setSelection>[0])
       }
     } else {
       canvas.setSelection(null)

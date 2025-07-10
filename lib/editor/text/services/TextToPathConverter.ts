@@ -1,5 +1,5 @@
 import opentype from 'opentype.js'
-import type { Font, Glyph, Path } from 'opentype.js'
+import type { Font, Glyph } from 'opentype.js'
 
 export interface TextOptions {
   fontFamily: string

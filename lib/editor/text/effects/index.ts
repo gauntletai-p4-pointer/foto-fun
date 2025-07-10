@@ -139,4 +139,8 @@ export class KonvaTextLayerStyles {
 }
 
 // Re-export the Konva version as the default TextLayerStyles for components
-export { KonvaTextLayerStyles as TextLayerStyles } 
+export { KonvaTextLayerStyles as TextLayerStyles }
+
+// Export enhanced implementations
+export * from './EnhancedTextWarp'
+export * from './EnhancedLayerStyles' 

@@ -325,7 +325,6 @@ export abstract class BaseTextTool extends BaseTool {
    */
   protected async commitText(): Promise<void> {
     const currentText = this.state.get('currentText')
-    const originalText = this.state.get('originalText')
     
     if (!currentText || !this.textarea || this.state.get('isCommitting')) return
     

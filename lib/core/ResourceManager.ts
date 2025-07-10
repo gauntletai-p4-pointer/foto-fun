@@ -318,10 +318,10 @@ export function useResourceManager(): ResourceManager {
 }
 
 // Decorators
-export function AutoDispose(target: any, propertyKey: string): void {
-  const originalMethod = target[propertyKey]
+export function AutoDispose<T extends Record<string, unknown>>(target: T, propertyKey: string): void {
+  const originalMethod = target[propertyKey] as (...args: unknown[]) => Promise<unknown>
   
-  target[propertyKey] = async function(this: any, ...args: unknown[]) {
+  target[propertyKey] = async function(this: T, ...args: unknown[]) {
     const resourceManager = new ResourceManager()
     
     try {

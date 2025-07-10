@@ -31,7 +31,7 @@ export class DocumentLoadedEvent extends Event {
     return null
   }
   
-  canApply(_: unknown): boolean {
+  canApply(): boolean {
     return true
   }
   
@@ -69,7 +69,7 @@ export class DocumentSavedEvent extends Event {
     return null
   }
   
-  canApply(_: unknown): boolean {
+  canApply(): boolean {
     return true
   }
   
@@ -114,7 +114,7 @@ export class DocumentCreatedEvent extends Event {
     return null
   }
   
-  canApply(_: unknown): boolean {
+  canApply(): boolean {
     return true
   }
   
@@ -164,7 +164,7 @@ export class CanvasResizedEvent extends Event {
     )
   }
   
-  canApply(_: unknown): boolean {
+  canApply(): boolean {
     return true
   }
   
@@ -210,7 +210,7 @@ export class CanvasBackgroundChangedEvent extends Event {
     )
   }
   
-  canApply(_: unknown): boolean {
+  canApply(): boolean {
     return true
   }
   
@@ -258,7 +258,7 @@ export class ViewportChangedEvent extends Event {
     )
   }
   
-  canApply(_: unknown): boolean {
+  canApply(): boolean {
     return true
   }
   

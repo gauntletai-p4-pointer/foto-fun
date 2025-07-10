@@ -2,7 +2,6 @@ import { BaseStore } from '../base/BaseStore'
 import { EventStore } from '@/lib/events/core/EventStore'
 import { Event } from '@/lib/events/core/Event'
 import { TypedEventBus } from '@/lib/events/core/TypedEventBus'
-import type { CanvasObject } from '@/lib/editor/canvas/types'
 import type { TextEffects } from '@/lib/editor/text/effects'
 
 // Text store state
@@ -33,7 +32,7 @@ export interface TextStoreState {
   presets: Array<{
     id: string
     name: string
-    style: Record<string, any>
+    style: Record<string, string | number | boolean>
     effects?: TextEffects
   }>
 }
@@ -232,7 +231,7 @@ export class EventTextStore extends BaseStore<TextStoreState> {
   }
   
   // Helper methods
-  getActiveTextStyle(): Record<string, any> {
+  getActiveTextStyle(): Record<string, string | number> {
     return this.getState().defaultStyle
   }
   

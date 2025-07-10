@@ -104,7 +104,7 @@ export class QuickSelectionTool extends BaseTool {
     this.selectionLayer.batchDraw()
   }
   
-  async onMouseUp(event: ToolEvent): Promise<void> {
+  async onMouseUp(_event: ToolEvent): Promise<void> {
     if (!this.isSelecting || !this.selectionLayer) return
     
     this.isSelecting = false

@@ -2,7 +2,7 @@ import type { ComponentType } from 'react'
 import { BaseTool } from '../base/BaseTool'
 import { createToolState } from '../utils/toolState'
 import type { BaseAITool } from '@/lib/ai/tools/base'
-import { getCanvasStore } from '@/lib/store/canvas'
+// import { getCanvasStore } from '@/lib/store/canvas' - not used
 import { getToolStore } from '@/lib/store/tools'
 import { TOOL_IDS } from '@/constants'
 

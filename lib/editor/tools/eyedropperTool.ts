@@ -54,7 +54,6 @@ export class EyedropperTool extends BaseTool {
   }
   
   onMouseMove(event: ToolEvent): void {
-    const canvas = this.getCanvas()
     
     // Update magnifier position and content
     if (this.previewDiv && this.magnifierCanvas && this.magnifierCtx) {
@@ -239,7 +238,7 @@ export class EyedropperTool extends BaseTool {
   /**
    * Sample color at point
    */
-  private sampleColor(point: Point, _updateStore = true): { hex: string; rgb: { r: number; g: number; b: number; a: number } } | null {
+  private sampleColor(point: Point): { hex: string; rgb: { r: number; g: number; b: number; a: number } } | null {
     const canvas = this.getCanvas()
     const sampleSize = this.getSampleSize()
     

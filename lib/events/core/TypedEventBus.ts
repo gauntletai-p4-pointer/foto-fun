@@ -97,7 +97,7 @@ export interface EventRegistry {
   // Text events
   'text.created': {
     textId: string
-    style?: Record<string, any>
+    style?: Record<string, unknown>
   }
   'text.selected': {
     textId: string
@@ -114,12 +114,12 @@ export interface EventRegistry {
   }
   'text.style.changed': {
     textId?: string
-    style: Record<string, any>
+    style: Record<string, unknown>
     setAsDefault?: boolean
   }
   'text.effects.applied': {
     textId: string
-    effects: Record<string, any>
+    effects: Record<string, unknown>
   }
   'text.effects.removed': {
     textId: string
@@ -129,13 +129,40 @@ export interface EventRegistry {
   }
   'text.preset.saved': {
     name: string
-    style: Record<string, any>
-    effects?: Record<string, any>
+    style: Record<string, unknown>
+    effects?: Record<string, unknown>
   }
   'text.warped': {
     textId: string
     warpStyle: string
-    warpOptions: Record<string, any>
+    warpOptions: Record<string, unknown>
+  }
+  
+  // Layer styles events
+  'layer.styles.applied': {
+    objectId: string
+    styles: Record<string, unknown>
+  }
+  'layer.styles.updated': {
+    groupId: string
+    styleType: string
+    newStyle: unknown
+  }
+  
+  // Drawing events
+  'drawing.started': {
+    toolId: string
+    point: { x: number; y: number; pressure?: number }
+    options: Record<string, unknown>
+  }
+  'drawing.completed': {
+    toolId: string
+    pathId: string
+    bounds: { x: number; y: number; width: number; height: number }
+  }
+  'drawing.options.changed': {
+    toolId: string
+    options: Record<string, unknown>
   }
   
     // Tool events
@@ -196,7 +223,7 @@ export interface EventRegistry {
  * Type-safe event bus for application-wide event handling
  */
 export class TypedEventBus {
-  private handlers = new Map<keyof EventRegistry, Set<Function>>()
+  private handlers = new Map<keyof EventRegistry, Set<(data: unknown) => void>>()
   
   /**
    * Subscribe to an event type
@@ -209,11 +236,11 @@ export class TypedEventBus {
       this.handlers.set(event, new Set())
     }
     
-    this.handlers.get(event)!.add(handler as Function)
+    this.handlers.get(event)!.add(handler as (data: unknown) => void)
     
     // Return unsubscribe function
     return () => {
-      this.handlers.get(event)?.delete(handler as Function)
+      this.handlers.get(event)?.delete(handler as (data: unknown) => void)
     }
   }
   
@@ -239,7 +266,7 @@ export class TypedEventBus {
     event: K,
     handler: (data: EventRegistry[K] & { timestamp: number }) => void
   ): void {
-    this.handlers.get(event)?.delete(handler as Function)
+    this.handlers.get(event)?.delete(handler as (data: unknown) => void)
   }
   
   /**

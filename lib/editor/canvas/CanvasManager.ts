@@ -9,7 +9,11 @@ import type {
   Point,
   Rect,
   Filter,
-  BlendMode,
+  BlendMode
+} from './types'
+import {
+  serializeCanvasObject,
+  serializeCanvasObjects
 } from './types'
 import { EventStore } from '@/lib/events/core/EventStore'
 import { ExecutionContext } from '@/lib/events/execution/ExecutionContext'
@@ -281,10 +285,10 @@ export class CanvasManager implements ICanvasManager {
     layer.objects.push(object)
     layer.konvaLayer.draw()
     
-    // Emit event
+    // Emit event - events store the full object internally but serialize for storage
     this.eventStore.append(new ObjectAddedEvent(
       this.stage.id(),
-      { ...object, node: undefined } as CanvasObject, // Remove node reference for serialization
+      object, // Pass full object, event will handle serialization
       targetLayerId,
       { source: 'user' }
     ))
@@ -304,7 +308,7 @@ export class CanvasManager implements ICanvasManager {
         // Emit event
         this.eventStore.append(new ObjectRemovedEvent(
           this.stage.id(),
-          { ...object, node: undefined },
+          object,
           { source: 'user' }
         ))
         
@@ -313,42 +317,7 @@ export class CanvasManager implements ICanvasManager {
     }
   }
   
-  async updateObject(objectId: string, updates: Partial<CanvasObject>): Promise<void> {
-    for (const layer of this._state.layers) {
-      const object = layer.objects.find(o => o.id === objectId)
-      if (object) {
-        // Capture previous state
-        const previousState = { ...object }
-        
-        // Update object properties
-        Object.assign(object, updates)
-        
-        // Update Konva node
-        if (updates.transform) {
-          object.node.setAttrs(updates.transform)
-        }
-        if (updates.opacity !== undefined) {
-          object.node.opacity(updates.opacity)
-        }
-        if (updates.visible !== undefined) {
-          object.node.visible(updates.visible)
-        }
-        
-        layer.konvaLayer.draw()
-        
-        // Emit event
-        this.eventStore.append(new ObjectModifiedEvent(
-          this.stage.id(),
-          { ...object, node: undefined },
-          { ...previousState, node: undefined },
-          updates,
-          { source: 'user' }
-        ))
-        
-        break
-      }
-    }
-  }
+
   
   // Selection operations
   setSelection(selection: Selection | null): void {
@@ -655,7 +624,7 @@ export class CanvasManager implements ICanvasManager {
         },
         node: image,
         layerId: activeLayer.id,
-        data: canvas
+        data: { canvasElement: canvas, type: 'canvas' } as Record<string, unknown>
       }
       
       activeLayer.konvaLayer.add(image)
@@ -666,14 +635,14 @@ export class CanvasManager implements ICanvasManager {
       if (this.executionContext) {
         this.executionContext.emit(new ObjectAddedEvent(
           this.stage.id(),
-          { ...canvasObject, node: undefined },
+          canvasObject,
           activeLayer.id,
           this.executionContext.getMetadata()
         ))
       } else {
         this.eventStore.append(new ObjectAddedEvent(
           this.stage.id(),
-          { ...canvasObject, node: undefined },
+          canvasObject,
           activeLayer.id,
           { source: 'user' }
         ))
@@ -699,17 +668,17 @@ export class CanvasManager implements ICanvasManager {
       switch (filter.type) {
         case 'brightness':
           imageNode.filters([Konva.Filters.Brighten])
-          imageNode.brightness(filter.params.value / 100)
+          imageNode.brightness((Number(filter.params.value) || 0) / 100)
           break
           
         case 'contrast':
           imageNode.filters([Konva.Filters.Contrast])
-          imageNode.contrast(filter.params.value)
+          imageNode.contrast(Number(filter.params.value) || 0)
           break
           
         case 'blur':
           imageNode.filters([Konva.Filters.Blur])
-          imageNode.blurRadius(filter.params.radius)
+          imageNode.blurRadius(Number(filter.params.radius) || 0)
           break
           
         case 'grayscale':
@@ -726,34 +695,34 @@ export class CanvasManager implements ICanvasManager {
           
         case 'hue':
           imageNode.filters([Konva.Filters.HSL])
-          imageNode.hue(filter.params.value)
+          imageNode.hue(Number(filter.params.value) || 0)
           break
           
         case 'saturation':
           imageNode.filters([Konva.Filters.HSL])
-          imageNode.saturation(filter.params.value)
+          imageNode.saturation(Number(filter.params.value) || 0)
           break
           
         case 'pixelate':
           imageNode.filters([Konva.Filters.Pixelate])
-          imageNode.pixelSize(filter.params.size || 8)
+          imageNode.pixelSize(Number(filter.params.size) || 8)
           break
           
         case 'noise':
           imageNode.filters([Konva.Filters.Noise])
-          imageNode.noise(filter.params.amount || 0.5)
+          imageNode.noise(Number(filter.params.amount) || 0.5)
           break
           
         case 'emboss':
           imageNode.filters([Konva.Filters.Emboss])
-          imageNode.embossStrength(filter.params.strength || 0.5)
-          imageNode.embossWhiteLevel(filter.params.whiteLevel || 0.5)
-          imageNode.embossDirection(filter.params.direction || 'top-left')
+          imageNode.embossStrength(Number(filter.params.strength) || 0.5)
+          imageNode.embossWhiteLevel(Number(filter.params.whiteLevel) || 0.5)
+          imageNode.embossDirection(String(filter.params.direction) || 'top-left')
           break
           
         case 'enhance':
           imageNode.filters([Konva.Filters.Enhance])
-          imageNode.enhance(filter.params.value || 0.1)
+          imageNode.enhance(Number(filter.params.value) || 0.1)
           break
           
         default:
@@ -768,13 +737,13 @@ export class CanvasManager implements ICanvasManager {
       }
       
       // Emit event
-      const event = new ObjectModifiedEvent(
-        this.stage.id(),
-        { ...obj, node: undefined },
-        { ...obj, node: undefined },
-        { filters: [filter] },
-        this.executionContext?.getMetadata() || { source: 'user' }
-      )
+              const event = new ObjectModifiedEvent(
+          this.stage.id(),
+          obj,
+          { ...obj },
+          { filters: [filter] },
+          this.executionContext?.getMetadata() || { source: 'user' }
+        )
       
       if (this.executionContext) {
         await this.executionContext.emit(event)
@@ -848,8 +817,8 @@ export class CanvasManager implements ICanvasManager {
       // Emit event
       const event = new ObjectModifiedEvent(
         this.stage.id(),
-        { ...obj, node: undefined },
-        { ...obj, transform: previousTransform, node: undefined },
+        obj,
+        previousTransform,
         { transform: obj.transform },
         this.executionContext?.getMetadata() || { source: 'user' }
       )
@@ -888,8 +857,8 @@ export class CanvasManager implements ICanvasManager {
       // Emit event
       const event = new ObjectModifiedEvent(
         this.stage.id(),
-        { ...obj, node: undefined },
-        { ...obj, transform: previousTransform, node: undefined },
+        obj,
+        previousTransform,
         { transform: obj.transform },
         this.executionContext?.getMetadata() || { source: 'user' }
       )
@@ -1132,5 +1101,319 @@ export class CanvasManager implements ICanvasManager {
     })
     
     this.selectionRenderer.startRendering()
+  }
+
+  serializeSelection(): any {
+    if (!this.state.selection) return null
+    
+    if (this.state.selection.type === 'objects') {
+      const selectedObjects = this.getSelectedObjects()
+      return {
+        type: 'objects',
+        objects: serializeCanvasObjects(selectedObjects),
+        bounds: this.getSelectionBounds()
+      }
+    }
+    
+    return {
+      type: this.state.selection.type,
+      data: (this.state.selection as any).data
+    }
+  }
+
+  deserializeSelection(data: any): void {
+    if (!data) {
+      this.clearSelection()
+      return
+    }
+    
+    if (data.type === 'objects' && data.objects) {
+      // Find objects by ID and select them
+      const objectIds = data.objects.map((obj: any) => obj.id)
+      const objects = this.findObjectsByIds(objectIds)
+      if (objects.length > 0) {
+        this.selectObjects(objects.map(obj => obj.id))
+      }
+    } else {
+      // Handle pixel-based selections
+      if (data.type === 'pixel' && data.data) {
+        this._state.selection = {
+          type: 'pixel',
+          bounds: data.bounds || { x: 0, y: 0, width: 0, height: 0 },
+          mask: data.data
+        }
+        // SelectionManager will handle restoring the pixel selection
+        if (data.data && this.selectionManager) {
+          this.selectionManager.restoreSelection(data.data, data.bounds)
+        }
+      } else {
+        // Other selection types
+        this._state.selection = data as Selection
+      }
+    }
+  }
+
+  private createCanvasObjectFromDataURL(dataURL: string): CanvasObject {
+    const id = `canvas-${Date.now()}`
+    const image = new Konva.Image({
+      id,
+      image: new Image() // Placeholder, will be loaded
+    })
+    
+    // Store dataURL in a way that doesn't conflict with HTMLCanvasElement
+    const canvasData = { dataURL, type: 'canvas-export' }
+    
+    const canvasObject: CanvasObject = {
+      id,
+      type: 'image',
+      name: 'Canvas Export',
+      visible: true,
+      locked: false,
+      opacity: 1,
+      blendMode: 'normal',
+      transform: {
+        x: 0,
+        y: 0,
+        scaleX: 1,
+        scaleY: 1,
+        rotation: 0,
+        skewX: 0,
+        skewY: 0
+      },
+      node: image,
+      data: canvasData as Record<string, unknown>,
+      layerId: this._state.activeLayerId || ''
+    }
+    
+    // Load the image
+    const img = new Image()
+    img.onload = () => {
+      image.image(img)
+      this.renderAll()
+    }
+    img.src = dataURL
+    
+    return canvasObject
+  }
+
+  private applyFiltersToNode(node: Konva.Node, filters: Array<{ type: string; params: any }>): void {
+    if (!(node instanceof Konva.Image)) return
+    
+    const imageNode = node as Konva.Image
+    const filterFuncs: any[] = []
+    
+    filters.forEach(filter => {
+      switch (filter.type) {
+        case 'brightness':
+          imageNode.brightness((filter.params.value || 0) / 100)
+          filterFuncs.push(Konva.Filters.Brighten)
+          break
+          
+        case 'contrast':
+          imageNode.contrast(Number(filter.params.value) || 0)
+          filterFuncs.push(Konva.Filters.Contrast)
+          break
+          
+        case 'blur':
+          imageNode.blurRadius(Number(filter.params.radius) || 0)
+          filterFuncs.push(Konva.Filters.Blur)
+          break
+          
+        case 'grayscale':
+          filterFuncs.push(Konva.Filters.Grayscale)
+          break
+          
+        case 'sepia':
+          filterFuncs.push(Konva.Filters.Sepia)
+          break
+          
+        case 'invert':
+          filterFuncs.push(Konva.Filters.Invert)
+          break
+          
+        case 'hue':
+          imageNode.hue(Number(filter.params.value) || 0)
+          filterFuncs.push(Konva.Filters.HSL)
+          break
+          
+        case 'saturation':
+          imageNode.saturation(Number(filter.params.value) || 0)
+          filterFuncs.push(Konva.Filters.HSL)
+          break
+          
+        case 'pixelate':
+          imageNode.pixelSize(Number(filter.params.size) || 8)
+          filterFuncs.push(Konva.Filters.Pixelate)
+          break
+          
+        case 'noise':
+          imageNode.noise(Number(filter.params.amount) || 0.5)
+          filterFuncs.push(Konva.Filters.Noise)
+          break
+          
+        case 'emboss':
+          imageNode.embossStrength(Number(filter.params.strength) || 0.5)
+          imageNode.embossWhiteLevel(Number(filter.params.whiteLevel) || 0.5)
+          imageNode.embossDirection(String(filter.params.direction) || 'top-left')
+          filterFuncs.push(Konva.Filters.Emboss)
+          break
+          
+        case 'enhance':
+          imageNode.enhance(Number(filter.params.value) || 0.1)
+          filterFuncs.push(Konva.Filters.Enhance)
+          break
+      }
+    })
+    
+    if (filterFuncs.length > 0) {
+      imageNode.filters(filterFuncs)
+      imageNode.cache()
+    }
+  }
+
+  toJSON(): any {
+    return {
+      dimensions: { 
+        width: this._state.width,
+        height: this._state.height
+      },
+      backgroundColor: this._state.backgroundColor,
+      layers: this._state.layers.map(layer => ({
+        ...layer,
+        objects: serializeCanvasObjects(layer.objects)
+      })),
+      activeLayerId: this._state.activeLayerId,
+      metadata: {} // Add metadata support if needed
+    }
+  }
+
+  getObjectById(id: string): CanvasObject | null {
+    for (const layer of this.state.layers) {
+      const object = layer.objects.find(obj => obj.id === id)
+      if (object) return object
+    }
+    return null
+  }
+
+  async updateObject(id: string, updates: Partial<CanvasObject>): Promise<void> {
+    const object = this.getObjectById(id)
+    if (!object) return
+    
+    // Apply updates
+    Object.assign(object, updates)
+    
+    // Update Konva node if transform changed
+    if (updates.transform && object.node) {
+      object.node.setAttrs({
+        x: object.transform.x,
+        y: object.transform.y,
+        scaleX: object.transform.scaleX,
+        scaleY: object.transform.scaleY,
+        rotation: object.transform.rotation,
+        skewX: object.transform.skewX,
+        skewY: object.transform.skewY
+      })
+    }
+    
+    // Update visibility
+    if (updates.visible !== undefined && object.node) {
+      object.node.visible(updates.visible)
+    }
+    
+    // Update opacity
+    if (updates.opacity !== undefined && object.node) {
+      object.node.opacity(updates.opacity)
+    }
+    
+    this.renderAll()
+    
+    // Emit event
+    this.typedEventBus.emit('canvas.object.modified', {
+      canvasId: this.id,
+      objectId: id,
+      previousState: {},
+      newState: updates
+    })
+  }
+
+  getSelectionData(): any {
+    if (!this._state.selection) return null
+    
+    if (this._state.selection.type === 'objects') {
+      const objects = this.getSelectedObjects()
+      return {
+        type: 'objects',
+        objects: serializeCanvasObjects(objects),
+        count: objects.length,
+        bounds: this.getSelectionBounds()
+      }
+    }
+    
+    return {
+      type: this._state.selection.type,
+      data: (this._state.selection as any).data
+    }
+  }
+
+  /**
+   * Get bounds of current selection
+   */
+  private getSelectionBounds(): Rect | null {
+    if (!this._state.selection) return null
+    
+    if (this._state.selection.type === 'objects') {
+      const objects = this.getSelectedObjects()
+      if (objects.length === 0) return null
+      
+      let minX = Infinity, minY = Infinity
+      let maxX = -Infinity, maxY = -Infinity
+      
+      objects.forEach(obj => {
+        if (obj.node) {
+          const box = obj.node.getClientRect()
+          minX = Math.min(minX, box.x)
+          minY = Math.min(minY, box.y)
+          maxX = Math.max(maxX, box.x + box.width)
+          maxY = Math.max(maxY, box.y + box.height)
+        }
+      })
+      
+      return {
+        x: minX,
+        y: minY,
+        width: maxX - minX,
+        height: maxY - minY
+      }
+    }
+    
+    // For other selection types, use their bounds
+    if ('bounds' in this._state.selection) {
+      return this._state.selection.bounds
+    }
+    
+    return null
+  }
+
+  /**
+   * Find multiple objects by their IDs
+   */
+  private findObjectsByIds(ids: string[]): CanvasObject[] {
+    const objects: CanvasObject[] = []
+    
+    for (const id of ids) {
+      const obj = this.findObject(id)
+      if (obj) {
+        objects.push(obj)
+      }
+    }
+    
+    return objects
+  }
+
+  /**
+   * Render all layers
+   */
+  private renderAll(): void {
+    this.stage.batchDraw()
   }
 } 

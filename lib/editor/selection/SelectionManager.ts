@@ -199,9 +199,6 @@ export class SelectionManager {
    * Apply selection mode (replace, add, subtract, intersect)
    */
   private applySelectionMode(newMask: ImageData, bounds: SelectionBounds, mode: SelectionMode): void {
-    const previousSelection = this.selection ? { ...this.selection } : null
-    const previousId = this.selectionId
-    
     if (mode === 'replace' || !this.selection) {
       this.selection = { mask: newMask, bounds }
       this.selectionId = nanoid()
@@ -584,7 +581,6 @@ export class SelectionManager {
    */
   clear(): void {
     const hadSelection = this.selection !== null
-    const previousId = this.selectionId
     
     if (hadSelection && this.selection) {
       const previousCanvasSelection: Selection = {

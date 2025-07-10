@@ -5,7 +5,7 @@
 export class ServiceContainer {
   private static instance: ServiceContainer | null = null
   private services = new Map<string, unknown>()
-  private factories = new Map<string, ServiceFactory<unknown>>()
+  protected factories = new Map<string, ServiceFactory<unknown>>()
   private singletons = new Map<string, unknown>()
   
   // Service metadata for debugging
@@ -213,7 +213,7 @@ export class ScopedContainer {
     
     if (metadata?.lifecycle === 'scoped') {
       // Create scoped instance
-      const factory = (this.parent as any).factories.get(token) as ServiceFactory<T> | undefined
+      const factory = (this.parent as ServiceContainer).factories.get(token) as ServiceFactory<T> | undefined
       if (!factory) {
         throw new ServiceNotFoundError(token)
       }
@@ -229,8 +229,8 @@ export class ScopedContainer {
   dispose(): void {
     // Clean up scoped instances
     this.scopedInstances.forEach((instance) => {
-      if (instance && typeof (instance as any).dispose === 'function') {
-        (instance as any).dispose()
+      if (instance && typeof (instance as { dispose?: () => void }).dispose === 'function') {
+        (instance as { dispose: () => void }).dispose()
       }
     })
     this.scopedInstances.clear()

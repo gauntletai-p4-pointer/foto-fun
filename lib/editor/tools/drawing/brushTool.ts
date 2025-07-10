@@ -101,7 +101,7 @@ export class BrushTool extends BaseTool {
     this.lastPoint = newPoint
   }
   
-  onMouseUp(event: ToolEvent): void {
+  onMouseUp(_event: ToolEvent): void {
     if (!this.isDrawing || !this.currentStroke || !this.drawingLayer) return
     
     this.isDrawing = false

@@ -4,6 +4,22 @@ import { Event } from '@/lib/events/core/Event'
 import { TypedEventBus } from '@/lib/events/core/TypedEventBus'
 import type { Tool } from '@/lib/editor/canvas/types'
 
+// Re-export types that components expect
+export type OptionType = 'slider' | 'checkbox' | 'dropdown' | 'number' | 'button-group' | 'color'
+
+export interface ToolOption<T = unknown> {
+  id: string
+  type: OptionType
+  label: string
+  value: T
+  props?: Record<string, unknown> // Type-specific props (min, max, options, etc.)
+}
+
+export interface ToolOptionsConfig {
+  toolId: string
+  options: ToolOption<string | number | boolean>[]
+}
+
 // Tool state
 export interface ToolState {
   // Tool registry
@@ -15,8 +31,8 @@ export interface ToolState {
   previousTool: Tool | null
   
   // Tool options
-  toolOptions: Map<string, Record<string, any>>
-  defaultOptions: Map<string, Record<string, any>>
+  toolOptions: Map<string, Record<string, string | number | boolean>>
+  defaultOptions: Map<string, Record<string, string | number | boolean>>
   
   // Tool state
   isToolLocked: boolean
@@ -146,7 +162,7 @@ export class EventToolStore extends BaseStore<ToolState> {
       newTools.set(tool.id, tool)
       
       const newToolsByCategory = new Map(state.toolsByCategory)
-      const categoryTools = newToolsByCategory.get(category) || []
+      const categoryTools = newToolsByCategory.get(category) ?? []
       if (!categoryTools.find(t => t.id === tool.id)) {
         newToolsByCategory.set(category, [...categoryTools, tool])
       }
@@ -160,9 +176,36 @@ export class EventToolStore extends BaseStore<ToolState> {
   }
   
   /**
+   * Register tool options configuration
+   */
+  registerToolOptions(config: ToolOptionsConfig): void {
+    // Store the options configuration
+    const options: Record<string, string | number | boolean> = {}
+    config.options.forEach(opt => {
+      options[opt.id] = opt.value
+    })
+    
+    this.setState(state => {
+      const newToolOptions = new Map(state.toolOptions)
+      newToolOptions.set(config.toolId, options)
+      
+      const newDefaultOptions = new Map(state.defaultOptions)
+      if (!newDefaultOptions.has(config.toolId)) {
+        newDefaultOptions.set(config.toolId, options)
+      }
+      
+      return {
+        ...state,
+        toolOptions: newToolOptions,
+        defaultOptions: newDefaultOptions
+      }
+    })
+  }
+  
+  /**
    * Set default options for a tool
    */
-  setDefaultOptions(toolId: string, options: Record<string, any>): void {
+  setDefaultOptions(toolId: string, options: Record<string, string | number | boolean>): void {
     this.setState(state => {
       const newDefaults = new Map(state.defaultOptions)
       newDefaults.set(toolId, options)
@@ -184,9 +227,81 @@ export class EventToolStore extends BaseStore<ToolState> {
   /**
    * Get tool options with defaults
    */
-  getToolOptions(toolId: string): Record<string, any> {
+  getToolOptions(toolId: string): Record<string, string | number | boolean> {
     const state = this.getState()
     return state.toolOptions.get(toolId) || state.defaultOptions.get(toolId) || {}
+  }
+  
+  /**
+   * Activate a tool
+   */
+  async activateTool(toolId: string): Promise<void> {
+    const tool = this.getState().tools.get(toolId)
+    if (!tool) {
+      console.warn(`Tool ${toolId} not found`)
+      return
+    }
+    
+    // Emit tool activation event
+    this.typedEventBus.emit('tool.activated', { 
+      toolId, 
+      previousToolId: this.getState().activeTool?.id || null 
+    })
+  }
+  
+  /**
+   * Deactivate current tool (switches to move tool)
+   */
+  async deactivateTool(): Promise<void> {
+    const moveToolId = 'move'
+    const moveTool = this.getState().tools.get(moveToolId)
+    if (moveTool) {
+      await this.activateTool(moveToolId)
+    }
+  }
+  
+  /**
+   * Update a tool option
+   */
+  updateOption(toolId: string, optionId: string, value: unknown): void {
+    const currentOptions = this.getState().toolOptions.get(toolId) || {}
+    const previousValue = currentOptions[optionId]
+    
+    this.typedEventBus.emit('tool.option.changed', {
+      toolId,
+      optionId,
+      optionKey: optionId,
+      value,
+      previousValue
+    })
+  }
+  
+  /**
+   * Get active tool
+   */
+  getActiveTool(): Tool | null {
+    return this.getState().activeTool
+  }
+  
+  /**
+   * Get a specific tool
+   */
+  getTool(toolId: string): Tool | undefined {
+    return this.getState().tools.get(toolId)
+  }
+  
+  /**
+   * Get tools by category
+   */
+  getToolsByCategory(category: string): Tool[] {
+    return this.getState().toolsByCategory.get(category) || []
+  }
+  
+  /**
+   * Get all tools
+   */
+  getAllTools(): Tool[] {
+    return Array.from(this.getState().tools.values())
   }
   
   /**

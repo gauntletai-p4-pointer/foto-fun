@@ -15,7 +15,6 @@ export class ReorderLayersCommand extends Command {
   }
   
   async execute(): Promise<void> {
-    const layerStore = getLayerStore()
     // TODO: Implement reorderLayers method on EventLayerStore
     console.warn('ReorderLayersCommand: reorderLayers method not yet implemented on EventLayerStore')
   }

@@ -1,87 +1,103 @@
 'use client'
 
-import { CanvasObject } from '@/lib/editor/canvas/types'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Checkbox } from '@/components/ui/checkbox'
-import Konva from 'konva'
+import { useService } from '@/lib/core/ServiceContainer'
+import { useStore } from '@/lib/store/base/BaseStore'
+import { EventTextStore } from '@/lib/store/text/EventTextStore'
+import { EventSelectionStore } from '@/lib/store/selection/EventSelectionStore'
+import { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
+import { getMetadataValue } from '@/lib/editor/canvas/types'
 
-interface JustificationOptionsProps {
-  textObject: CanvasObject | null
-  onChange: (property: string, value: unknown) => void
-}
+const WORD_SPACING_OPTIONS = [
+  { value: 'normal', label: 'Normal' },
+  { value: 'tight', label: 'Tight (-10%)' },
+  { value: 'loose', label: 'Loose (+10%)' },
+  { value: 'very-tight', label: 'Very Tight (-20%)' },
+  { value: 'very-loose', label: 'Very Loose (+20%)' },
+]
 
-export function JustificationOptions({ textObject, onChange }: JustificationOptionsProps) {
-  if (!textObject || (textObject.type !== 'text' && textObject.type !== 'verticalText')) {
-    return null
-  }
+export function JustificationOptions() {
+  const textStore = useService<EventTextStore>('TextStore')
+  const selectionStore = useService<EventSelectionStore>('SelectionStore')
+  const canvasManager = useService<CanvasManager>('CanvasManager')
   
-  const textNode = textObject.node as Konva.Text
-  if (!textNode) return null
+  const textState = useStore(textStore)
+  const selectionState = useStore(selectionStore)
   
-  // Custom justification properties from metadata
-  const justifyLastLine = textObject.metadata?.justifyLastLine || false
-  const wordSpacing = textObject.metadata?.wordSpacing || 'normal'
-  const hyphenation = textObject.metadata?.hyphenation || false
+  // Get selected text objects
+  const selectedTextObjects = Array.from(selectionState.selectedObjectIds)
+    .map(id => canvasManager.getObjectById(id))
+    .filter(obj => obj && obj.type === 'text')
+  
+  // Get current values from first selected text object
+  const firstTextObject = selectedTextObjects[0]
+  const justifyLastLine = firstTextObject ? getMetadataValue(firstTextObject, 'justifyLastLine', false) : false
+  const wordSpacing = firstTextObject ? getMetadataValue(firstTextObject, 'wordSpacing', 'normal') : 'normal'
+  const hyphenation = firstTextObject ? getMetadataValue(firstTextObject, 'hyphenation', false) : false
   
   const handleJustifyLastLineChange = (checked: boolean) => {
-    const metadata = textObject.metadata || {}
-    metadata.justifyLastLine = checked
-    onChange('metadata', metadata)
+    selectedTextObjects.forEach(obj => {
+      if (!obj) return
+      canvasManager.updateObject(obj.id, {
+        metadata: { ...obj.metadata, justifyLastLine: checked }
+      })
+    })
   }
   
   const handleWordSpacingChange = (value: string) => {
-    const metadata = textObject.metadata || {}
-    metadata.wordSpacing = value
-    onChange('metadata', metadata)
+    selectedTextObjects.forEach(obj => {
+      if (!obj) return
+      canvasManager.updateObject(obj.id, {
+        metadata: { ...obj.metadata, wordSpacing: value }
+      })
+    })
   }
   
   const handleHyphenationChange = (checked: boolean) => {
-    const metadata = textObject.metadata || {}
-    metadata.hyphenation = checked
-    onChange('metadata', metadata)
-  }
-  
-  // Only show these options when text is justified
-  const isJustified = textNode.align() === 'justify'
-  
-  if (!isJustified) {
-    return null
+    selectedTextObjects.forEach(obj => {
+      if (!obj) return
+      canvasManager.updateObject(obj.id, {
+        metadata: { ...obj.metadata, hyphenation: checked }
+      })
+    })
   }
   
   return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <Label className="text-sm font-medium">Justification</Label>
-      </div>
+    <div className="space-y-4">
+      <h3 className="text-sm font-medium">Justification</h3>
       
       {/* Justify Last Line */}
       <div className="flex items-center space-x-2">
         <Checkbox
           id="justify-last-line"
-          checked={justifyLastLine}
+          checked={!!justifyLastLine}
           onCheckedChange={handleJustifyLastLineChange}
+          disabled={selectedTextObjects.length === 0}
         />
-        <Label
-          htmlFor="justify-last-line"
-          className="text-xs font-normal cursor-pointer"
-        >
+        <Label htmlFor="justify-last-line" className="text-xs">
           Justify last line
         </Label>
       </div>
       
       {/* Word Spacing */}
       <div className="space-y-2">
-        <Label className="text-xs">Word Spacing</Label>
-        <Select value={wordSpacing} onValueChange={handleWordSpacingChange}>
-          <SelectTrigger className="h-8">
+        <Label htmlFor="word-spacing" className="text-xs">Word Spacing</Label>
+        <Select 
+          value={String(wordSpacing)} 
+          onValueChange={handleWordSpacingChange}
+          disabled={selectedTextObjects.length === 0}
+        >
+          <SelectTrigger id="word-spacing" className="h-8">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="tight">Tight</SelectItem>
-            <SelectItem value="normal">Normal</SelectItem>
-            <SelectItem value="loose">Loose</SelectItem>
-            <SelectItem value="very-loose">Very Loose</SelectItem>
+            {WORD_SPACING_OPTIONS.map(option => (
+              <SelectItem key={option.value} value={option.value}>
+                {option.label}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </div>
@@ -90,14 +106,12 @@ export function JustificationOptions({ textObject, onChange }: JustificationOpti
       <div className="flex items-center space-x-2">
         <Checkbox
           id="hyphenation"
-          checked={hyphenation}
+          checked={!!hyphenation}
           onCheckedChange={handleHyphenationChange}
+          disabled={selectedTextObjects.length === 0}
         />
-        <Label
-          htmlFor="hyphenation"
-          className="text-xs font-normal cursor-pointer"
-        >
-          Enable hyphenation
+        <Label htmlFor="hyphenation" className="text-xs">
+          Hyphenation
         </Label>
       </div>
     </div>

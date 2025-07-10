@@ -121,7 +121,7 @@ export class TextWarp {
    * Convert text to path data
    * In production, this would use proper font metrics and glyph conversion
    */
-  private static textToPath(text: string, fontSize: number, fontFamily: string): string | null {
+  private static textToPath(text: string, fontSize: number, _fontFamily: string): string | null {
     // Simplified implementation - creates a baseline path
     // In production, would use canvas measureText or font library
     const estimatedWidth = text.length * fontSize * 0.6

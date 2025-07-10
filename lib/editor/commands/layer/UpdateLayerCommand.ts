@@ -4,10 +4,10 @@ import type { TypedEventBus } from '@/lib/events/core/TypedEventBus'
 
 export class UpdateLayerCommand extends Command {
   private layerId: string
-  private updates: Record<string, any>
+  private updates: Record<string, unknown>
   private typedEventBus: TypedEventBus
   
-  constructor(layerId: string, updates: Record<string, any>) {
+  constructor(layerId: string, updates: Record<string, unknown>) {
     super(`Update layer`)
     this.layerId = layerId
     this.updates = updates

@@ -12,6 +12,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Loader2 } from 'lucide-react'
 import { ImageGenerationAdapter } from '@/lib/ai/adapters/tools/imageGeneration'
+import type { CanvasContext } from '@/lib/ai/tools/canvas-bridge'
 // Toast notifications - TODO: implement proper toast system
 
 const COMMON_DIMENSIONS = [
@@ -85,11 +86,19 @@ export function ImageGenerationDialog() {
           height,
           steps,
         },
-        { 
+        {
           canvas: canvasManager,
           targetImages: [],
-          targetingMode: 'auto-single' 
-        }
+          targetingMode: 'auto-single',
+          dimensions: {
+            width: canvasManager.getWidth(),
+            height: canvasManager.getHeight()
+          },
+          selection: {
+            type: 'none' as const,
+            data: undefined
+          }
+        } as unknown as CanvasContext
       )
       
       if (result.success) {

@@ -27,7 +27,7 @@ export class RemoveObjectCommand extends Command {
     // Emit object added event to restore
     this.typedEventBus.emit('canvas.object.added', {
       canvasId: 'main', // TODO: Get actual canvas ID
-      object: this.object as any,
+      object: this.object,
       layerId: this.layerId
     })
   }

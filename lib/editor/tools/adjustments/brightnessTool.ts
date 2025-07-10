@@ -20,7 +20,7 @@ export class BrightnessTool extends WebGLFilterTool {
     return 'brightness'
   }
   
-  protected getDefaultParams(): Record<string, any> {
+  protected getDefaultParams(): Record<string, number> {
     return {
       adjustment: 0 // -100 to 100 percentage
     }
@@ -30,7 +30,7 @@ export class BrightnessTool extends WebGLFilterTool {
    * Convert UI percentage to WebGL range
    * UI uses -100 to 100, WebGL uses -1 to 1
    */
-  protected convertOptionsToWebGLParams(options: Record<string, unknown>): Record<string, any> {
+  protected convertOptionsToWebGLParams(options: Record<string, unknown>): Record<string, number> {
     const adjustment = (options.adjustment as number) || 0
     return {
       amount: adjustment / 100

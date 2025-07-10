@@ -20,7 +20,7 @@ export abstract class KonvaTool implements Tool {
     this.setupTool()
   }
   
-  onDeactivate(canvas: CanvasManager): void {
+  onDeactivate(_canvas: CanvasManager): void {
     this.cleanupTool()
     this.isActive = false
     this.canvas = null
@@ -31,23 +31,23 @@ export abstract class KonvaTool implements Tool {
   protected abstract cleanupTool(): void
   
   // Default event handlers (override as needed)
-  onMouseDown?(event: ToolEvent): void {
+  onMouseDown?(_event: ToolEvent): void {
     // Override in subclasses
   }
   
-  onMouseMove?(event: ToolEvent): void {
+  onMouseMove?(_event: ToolEvent): void {
     // Override in subclasses
   }
   
-  onMouseUp?(event: ToolEvent): void {
+  onMouseUp?(_event: ToolEvent): void {
     // Override in subclasses
   }
   
-  onKeyDown?(event: KeyboardEvent): void {
+  onKeyDown?(_event: KeyboardEvent): void {
     // Override in subclasses
   }
   
-  onKeyUp?(event: KeyboardEvent): void {
+  onKeyUp?(_event: KeyboardEvent): void {
     // Override in subclasses
   }
   

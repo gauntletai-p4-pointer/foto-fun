@@ -60,7 +60,7 @@ export class MagicWandTool extends BaseTool {
       // Get tool options
       const tolerance = (this.getOption('tolerance') as number) || 32
       const contiguous = (this.getOption('contiguous') as boolean) !== false
-      const sampleAllLayers = (this.getOption('sampleAllLayers') as boolean) || false
+      // const sampleAllLayers = (this.getOption('sampleAllLayers') as boolean) || false
       
       // Get image data from canvas
       const imageData = canvas.getImageData()

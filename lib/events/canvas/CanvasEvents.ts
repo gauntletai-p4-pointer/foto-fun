@@ -1,5 +1,6 @@
 import { CanvasEvent } from '../core/Event'
-import type { CanvasObject } from '@/lib/editor/canvas/types'
+import type { CanvasObject, Transform, BlendMode } from '@/lib/editor/canvas/types'
+import type Konva from 'konva'
 
 /**
  * Canvas state interface for event application
@@ -442,16 +443,16 @@ export class KonvaObjectAddedEvent extends CanvasEvent {
     // Create new CanvasObject
     const newObject: CanvasObject = {
       id: this.objectId,
-      type: this.objectType as any,
+      type: this.objectType as CanvasObject['type'],
       name: this.objectData.name as string || this.objectType,
       visible: this.objectData.visible as boolean ?? true,
       locked: this.objectData.locked as boolean ?? false,
       opacity: this.objectData.opacity as number ?? 1,
-      blendMode: (this.objectData.blendMode as any) || 'normal',
-      transform: this.objectData.transform as any || {
+      blendMode: (this.objectData.blendMode as BlendMode) || 'normal',
+      transform: this.objectData.transform as Transform || {
         x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0, skewX: 0, skewY: 0
       },
-      node: null as any, // Will be set by the canvas manager
+      node: null as unknown as Konva.Node, // Will be set by the canvas manager
       layerId: this.layerId,
       data: this.objectData.data
     }

@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { tool } from 'ai'
 import { BaseToolAdapter } from '../base'
 import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
+import type { CanvasObject } from '@/lib/editor/canvas/types'
 import type { Tool } from '@/types'
 
 export interface AnalyzeCanvasInput {
@@ -63,7 +64,7 @@ Use this when you need to understand what's currently on the canvas.`
     
     try {
       // Get basic canvas info
-      const objects: any[] = []
+      const objects: CanvasObject[] = []
       canvas.state.layers.forEach(layer => {
         objects.push(...layer.objects)
       })

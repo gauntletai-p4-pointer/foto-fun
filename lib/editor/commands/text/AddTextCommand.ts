@@ -13,14 +13,14 @@ export class AddTextCommand extends Command {
   private textObject: CanvasObject | null = null
   private position: { x: number; y: number }
   private text: string
-  private style: Record<string, any>
+  private style: Record<string, string | number | boolean>
   private typedEventBus: TypedEventBus
   
   constructor(
     canvasManager: CanvasManager,
     text: string,
     position: { x: number; y: number },
-    style: Record<string, any> = {}
+    style: Record<string, string | number | boolean> = {}
   ) {
     super('Add text')
     this.canvasManager = canvasManager
@@ -49,7 +49,7 @@ export class AddTextCommand extends Command {
         skewX: 0,
         skewY: 0
       },
-      node: null as any, // Will be created by canvas manager
+      node: undefined!, // Will be created by canvas manager
       layerId: this.canvasManager.state.activeLayerId || this.canvasManager.state.layers[0].id,
       data: this.text,
       style: {
@@ -65,7 +65,7 @@ export class AddTextCommand extends Command {
     
     // Emit event
     this.typedEventBus.emit('canvas.object.added', {
-      canvasId: (this.canvasManager as any).id || 'main',
+      canvasId: this.canvasManager.konvaStage.id() || 'main',
       object: this.textObject,
       layerId: this.textObject.layerId
     })
@@ -78,7 +78,7 @@ export class AddTextCommand extends Command {
     
     // Emit event
     this.typedEventBus.emit('canvas.object.removed', {
-      canvasId: (this.canvasManager as any).id || 'main',
+      canvasId: this.canvasManager.konvaStage.id() || 'main',
       objectId: this.textObject.id
     })
   }

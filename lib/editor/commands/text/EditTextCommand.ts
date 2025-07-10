@@ -38,7 +38,7 @@ export class EditTextCommand extends Command {
     // Emit event for state tracking
     const eventBus = getTypedEventBus()
     eventBus.emit('canvas.object.modified', {
-      canvasId: (canvas as any).id || 'main',
+      canvasId: canvas.konvaStage.id() || 'main',
       objectId: textObject.id,
       previousState: { data: this.oldText },
       newState: { data: this.newText }
@@ -65,7 +65,7 @@ export class EditTextCommand extends Command {
     // Emit event for state tracking
     const eventBus = getTypedEventBus()
     eventBus.emit('canvas.object.modified', {
-      canvasId: (canvas as any).id || 'main',
+      canvasId: canvas.konvaStage.id() || 'main',
       objectId: textObject.id,
       previousState: { data: this.newText },
       newState: { data: this.oldText }

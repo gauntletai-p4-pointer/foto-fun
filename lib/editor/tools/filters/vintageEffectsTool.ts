@@ -75,7 +75,7 @@ export class VintageEffectsTool extends WebGLFilterTool {
     }
   }
   
-  protected convertOptionsToWebGLParams(options: Record<string, unknown>): Record<string, any> {
+  protected convertOptionsToWebGLParams(options: Record<string, unknown>): Record<string, number | string | boolean> {
     // Most vintage effects don't have parameters
     // But we store effect type for metadata
     return {

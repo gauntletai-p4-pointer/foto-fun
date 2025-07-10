@@ -34,7 +34,7 @@ export class LayerCreatedEvent extends LayerEvent {
     return new LayerRemovedEvent(this.layer.id, this.layer, this.metadata)
   }
   
-  canApply(_: unknown): boolean {
+  canApply(): boolean {
     return true
   }
   
@@ -70,7 +70,7 @@ export class LayerRemovedEvent extends LayerEvent {
     return new LayerCreatedEvent(this.layer, this.metadata)
   }
   
-  canApply(_: unknown): boolean {
+  canApply(): boolean {
     return true
   }
   
@@ -113,7 +113,7 @@ export class LayerModifiedEvent extends LayerEvent {
     )
   }
   
-  canApply(_: unknown): boolean {
+  canApply(): boolean {
     return true
   }
   
@@ -158,7 +158,7 @@ export class LayersReorderedEvent extends Event {
     )
   }
   
-  canApply(_: unknown): boolean {
+  canApply(): boolean {
     return true
   }
   
@@ -202,7 +202,7 @@ export class ActiveLayerChangedEvent extends Event {
     )
   }
   
-  canApply(_: unknown): boolean {
+  canApply(): boolean {
     return true
   }
   
@@ -249,7 +249,7 @@ export class LayerVisibilityChangedEvent extends LayerEvent {
     )
   }
   
-  canApply(_: unknown): boolean {
+  canApply(): boolean {
     return true
   }
   
@@ -293,7 +293,7 @@ export class LayerOpacityChangedEvent extends LayerEvent {
     )
   }
   
-  canApply(_: unknown): boolean {
+  canApply(): boolean {
     return true
   }
   
@@ -337,7 +337,7 @@ export class LayerBlendModeChangedEvent extends LayerEvent {
     )
   }
   
-  canApply(_: unknown): boolean {
+  canApply(): boolean {
     return true
   }
   

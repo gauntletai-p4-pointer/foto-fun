@@ -266,7 +266,7 @@ export class TextLayerStyles {
   /**
    * Store effect data in text object metadata
    */
-  private static storeEffectData(textObject: TextObject, effectType: string, data: any): void {
+  private static storeEffectData(textObject: TextObject, effectType: string, data: DropShadowOptions | StrokeOptions | GlowOptions | GradientOptions): void {
     textObject.metadata = textObject.metadata || {}
     textObject.metadata.textEffects = textObject.metadata.textEffects || {}
     textObject.metadata.textEffects[effectType] = data

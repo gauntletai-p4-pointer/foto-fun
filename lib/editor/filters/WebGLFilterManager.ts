@@ -8,11 +8,11 @@ import { EventStore } from '@/lib/events/core/EventStore'
 import { TypedEventBus } from '@/lib/events/core/TypedEventBus'
 import { ResourceManager } from '@/lib/core/ResourceManager'
 import type { ExecutionContext } from '@/lib/events/execution/ExecutionContext'
-import { FilterAppliedEvent } from '@/lib/events/canvas/ToolEvents'
+// import { FilterAppliedEvent } from '@/lib/events/canvas/ToolEvents' - not used
 
 // WebGLImageFilter doesn't have types, so we'll define them
 interface WebGLImageFilterInstance {
-  addFilter(name: string, ...args: any[]): WebGLImageFilterInstance
+  addFilter(name: string, ...args: (string | number)[]): WebGLImageFilterInstance
   reset(): WebGLImageFilterInstance
   apply(image: HTMLImageElement | HTMLCanvasElement): HTMLCanvasElement
   destroy(): void
@@ -80,8 +80,8 @@ export class WebGLFilterManager {
   async applyFilter(
     imageNode: Konva.Image,
     filterType: string,
-    params: Record<string, any>,
-    executionContext?: ExecutionContext
+    params: Record<string, number | string | boolean>,
+    _executionContext?: ExecutionContext
   ): Promise<void> {
     if (!this.isInitialized) {
       await this.initialize()
@@ -120,7 +120,7 @@ export class WebGLFilterManager {
   async processWithWebGL(
     source: HTMLImageElement | HTMLCanvasElement,
     filterType: string,
-    params: Record<string, any>
+    params: Record<string, number | string | boolean>
   ): Promise<HTMLCanvasElement> {
     if (!this.webglFilter) {
       throw new Error('WebGL filter not initialized')
@@ -142,7 +142,7 @@ export class WebGLFilterManager {
   private addFilterToChain(
     instance: WebGLImageFilterInstance,
     filterType: string,
-    params: Record<string, any>
+    params: Record<string, number | string | boolean>
   ): void {
     switch (filterType) {
       case 'brightness':

@@ -62,7 +62,7 @@ export class ModifyCommand extends Command {
     // Capture old properties with deep cloning
     this.oldProperties = {}
     for (const key in properties) {
-      const value = (object as any)[key]
+      const value = (object as Record<string, unknown>)[key]
       this.oldProperties[key] = deepClone(value)
     }
   }

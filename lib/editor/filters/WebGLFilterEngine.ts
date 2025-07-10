@@ -9,7 +9,7 @@ import type { Filter } from '../canvas/types'
 
 // WebGLImageFilter doesn't have types, so we'll define them
 interface WebGLImageFilterInstance {
-  addFilter(name: string, ...args: any[]): WebGLImageFilterInstance
+  addFilter(name: string, ...args: (string | number)[]): WebGLImageFilterInstance
   reset(): WebGLImageFilterInstance
   apply(image: HTMLImageElement | HTMLCanvasElement): HTMLCanvasElement
   destroy(): void
@@ -221,8 +221,8 @@ export class WebGLFilterEngine {
    * Create a custom filter using raw shader code
    */
   async createCustomFilter(
-    vertexShader: string,
-    fragmentShader: string
+    _vertexShader: string,
+    _fragmentShader: string
   ): Promise<(source: HTMLImageElement | HTMLCanvasElement) => HTMLCanvasElement> {
     // This would require extending WebGLImageFilter
     // For now, we'll use the built-in filters

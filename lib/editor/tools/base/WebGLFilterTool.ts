@@ -11,16 +11,16 @@ import type Konva from 'konva'
 export abstract class WebGLFilterTool extends BaseTool {
   protected filterManager: WebGLFilterManager | null = null
   protected isApplying = false
-  protected lastAppliedParams: Record<string, any> | null = null
+  protected lastAppliedParams: Record<string, number | string | boolean> | null = null
   
   // Abstract methods that subclasses must implement
   protected abstract getFilterType(): string
-  protected abstract getDefaultParams(): Record<string, any>
-  protected abstract convertOptionsToWebGLParams(options: Record<string, unknown>): Record<string, any>
+  protected abstract getDefaultParams(): Record<string, number | string | boolean>
+  protected abstract convertOptionsToWebGLParams(options: Record<string, unknown>): Record<string, number | string | boolean>
   
   protected setupTool(): void {
     // Get WebGLFilterManager from DI container
-    const container = (window as any).__serviceContainer
+    const container = (window as Window & { __serviceContainer?: { get: (name: string) => unknown } }).__serviceContainer
     if (!container) {
       console.error('[WebGLFilterTool] Service container not found')
       return
@@ -44,7 +44,7 @@ export abstract class WebGLFilterTool extends BaseTool {
     this.lastAppliedParams = null
   }
   
-  protected onOptionChange(key: string, value: unknown): void {
+  protected onOptionChange(_key: string, _value: unknown): void {
     // Apply filter when any option changes
     if (!this.isApplying) {
       this.applyFilter()
@@ -103,7 +103,7 @@ export abstract class WebGLFilterTool extends BaseTool {
    */
   private async applyFilterToImage(
     obj: CanvasObject,
-    params: Record<string, any>
+    params: Record<string, number | string | boolean>
   ): Promise<void> {
     if (!this.filterManager) return
     
@@ -252,7 +252,7 @@ export abstract class WebGLFilterTool extends BaseTool {
   /**
    * Support for AI operations with specific targets
    */
-  async applyWithContext(params: Record<string, any>, targetObjects?: CanvasObject[]): Promise<void> {
+  async applyWithContext(params: Record<string, unknown>, targetObjects?: CanvasObject[]): Promise<void> {
     if (targetObjects) {
       // Apply to specific objects (AI workflow)
       for (const obj of targetObjects) {

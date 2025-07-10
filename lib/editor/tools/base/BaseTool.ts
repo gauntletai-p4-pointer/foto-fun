@@ -116,7 +116,7 @@ export abstract class BaseTool implements Tool {
     id: string,
     target: EventTarget,
     event: K,
-    handler: (ev: WindowEventMap[K]) => any,
+    handler: (ev: WindowEventMap[K]) => void,
     options?: AddEventListenerOptions
   ): void {
     this.getResourceManager().registerEventListener(id, target, event, handler, options)

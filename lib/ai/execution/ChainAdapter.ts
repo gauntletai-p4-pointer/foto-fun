@@ -11,7 +11,7 @@ import { EventStore } from '@/lib/events/core/EventStore'
 // Define the schema for a chain step
 const ChainStepSchema = z.object({
   tool: z.string().describe('The name of the tool to execute'),
-  params: z.any().describe('Parameters to pass to the tool'),
+  params: z.record(z.unknown()).describe('Parameters to pass to the tool'),
   continueOnError: z.boolean().optional().describe('Whether to continue if this step fails')
 })
 
@@ -92,7 +92,7 @@ export class ChainAdapter extends BaseToolAdapter<ExecuteChainInput, ExecuteChai
   /**
    * Execute the tool chain
    */
-  async execute(params: ExecuteChainInput, context?: any): Promise<ExecuteChainOutput> {
+  async execute(params: ExecuteChainInput, context?: { canvas?: unknown }): Promise<ExecuteChainOutput> {
     try {
       console.log('[ChainAdapter] Executing chain with steps:', params.steps)
       

@@ -18,6 +18,7 @@ async function initialize() {
 }
 
 import type { CanvasContext } from '@/lib/ai/tools/canvas-bridge'
+import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
 
 export async function POST(req: Request) {
   const { messages, canvasContext, aiSettings, approvedPlan } = await req.json()
@@ -364,16 +365,26 @@ async function executeMultiStepWorkflow(
     getHeight: () => contextData.dimensions.height,
     getObjects: () => [],
     toJSON: () => ({}),
-    loadFromJSON: (data: unknown, callback: () => void) => { callback() },
-    renderAll: () => {},
-    toDataURL: () => {
-      // Return a placeholder data URL for server-side
-      return 'data:image/png;base64,placeholder'
+    loadFromJSON: (data: unknown, callback: () => void) => {
+      // Mock implementation
+      callback()
     },
-    canvas: null as any,
+    renderAll: () => {
+      // Mock implementation
+    },
+    toDataURL: () => {
+      // Return a mock data URL
+      return 'data:image/png;base64,mock'
+    },
+    canvas: null as unknown as CanvasManager,
     targetImages: [],
-    targetingMode: 'auto-single'
-  } as CanvasContext // Canvas context with minimal implementation for server-side
+    targetingMode: 'auto-single' as const,
+    dimensions: contextData.dimensions,
+    selection: {
+      type: 'none' as const,
+      data: undefined
+    }
+  } as unknown as CanvasContext // Canvas context with minimal implementation for server-side
   
   // Create agent context with user preferences from AI settings
   const agentContext: AgentContext & {
@@ -384,9 +395,9 @@ async function executeMultiStepWorkflow(
       canvasScreenshot?: string
     }
   } = {
-    canvas: mockCanvas as any,
+    canvas: mockCanvas as unknown as CanvasManager,
     conversation: messages,
-    workflowMemory: new WorkflowMemory(mockCanvas as any),
+    workflowMemory: new WorkflowMemory(mockCanvas as unknown as CanvasManager),
     userPreferences: {
       autoApprovalThreshold: aiSettings?.autoApproveThreshold ?? 1.0, // Default to 100% if not provided (requires manual approval)
       maxAutonomousSteps: 10,

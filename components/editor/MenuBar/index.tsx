@@ -168,7 +168,7 @@ export function MenuBar() {
             <DropdownMenuContent align="start" className="w-56">
               <DropdownMenuItem 
                 onClick={handleUndo}
-                disabled={!canUndo()}
+                disabled={!canUndo}
               >
                 <Undo className="mr-2 h-4 w-4" />
                 Undo
@@ -176,7 +176,7 @@ export function MenuBar() {
               </DropdownMenuItem>
               <DropdownMenuItem 
                 onClick={handleRedo}
-                disabled={!canRedo()}
+                disabled={!canRedo}
               >
                 <Redo className="mr-2 h-4 w-4" />
                 Redo

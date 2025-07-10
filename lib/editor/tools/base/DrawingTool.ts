@@ -1,11 +1,11 @@
 import { BaseTool } from './BaseTool'
-import type { CanvasManager, ToolEvent, Point } from '@/lib/editor/canvas/types'
+import type { ToolEvent, Point } from '@/lib/editor/canvas/types'
 import Konva from 'konva'
 import { createToolState } from '../utils/toolState'
 // Tool option type
 export interface ToolOption {
   id: string
-  value: any
+  value: unknown
 }
 import { nanoid } from 'nanoid'
 import { getTypedEventBus } from '@/lib/events/core/TypedEventBus'
@@ -115,7 +115,7 @@ export abstract class DrawingTool extends BaseTool {
   /**
    * Handle mouse up - finish drawing
    */
-  onMouseUp(event: ToolEvent): void {
+  onMouseUp(_event: ToolEvent): void {
     if (!this.canvas || !this.state.get('isDrawing')) return
     
     this.track('endStroke', () => {
@@ -150,7 +150,7 @@ export abstract class DrawingTool extends BaseTool {
   /**
    * Begin a new stroke
    */
-  protected beginStroke(point: Point, event: ToolEvent): void {
+  protected beginStroke(point: Point): void {
     const previewLayer = this.state.get('previewLayer')
     if (!previewLayer) return
     
@@ -174,7 +174,7 @@ export abstract class DrawingTool extends BaseTool {
   /**
    * Update the current stroke
    */
-  protected updateStroke(point: Point, event: ToolEvent): void {
+  protected updateStroke(): void {
     const currentStroke = this.state.get('currentStroke')
     const previewLayer = this.state.get('previewLayer')
     if (!currentStroke || !previewLayer) return
@@ -220,7 +220,7 @@ export abstract class DrawingTool extends BaseTool {
         skewX: 0,
         skewY: 0
       },
-      node: null as any,
+      node: null!,
       layerId: this.canvas.state.activeLayerId || this.canvas.state.layers[0].id,
       data: pathData,
       style: {
@@ -237,7 +237,7 @@ export abstract class DrawingTool extends BaseTool {
     // Emit event
     const eventBus = getTypedEventBus()
     eventBus.emit('canvas.object.added', {
-      canvasId: (this.canvas as any).id || 'main',
+      canvasId: this.canvas.konvaStage.id() || 'main',
       object: pathObject,
       layerId: pathObject.layerId
     })

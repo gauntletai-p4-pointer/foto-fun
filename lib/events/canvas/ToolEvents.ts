@@ -254,7 +254,7 @@ export class StrokeAddedEvent extends Event {
     }
   }
 
-  canApply(_: CanvasObjectState): boolean {
+  canApply(): boolean {
     return true
   }
 
@@ -379,7 +379,7 @@ export class ImageGeneratedEvent extends Event {
     }
   }
 
-  canApply(_: CanvasObjectState): boolean {
+  canApply(): boolean {
     return true
   }
 
@@ -417,7 +417,7 @@ export class GenerationFailedEvent extends Event {
     return currentState
   }
 
-  canApply(_: CanvasObjectState): boolean {
+  canApply(): boolean {
     return true
   }
 
@@ -505,7 +505,7 @@ export class CanvasCroppedEvent extends Event {
     }
   }
 
-  canApply(_: CanvasObjectState): boolean {
+  canApply(): boolean {
     return true
   }
 
@@ -547,7 +547,7 @@ export class ToolActivatedEvent extends Event {
     return currentState
   }
 
-  canApply(_: unknown): boolean {
+  canApply(): boolean {
     return true
   }
 
@@ -582,7 +582,7 @@ export class ToolOptionChangedEvent extends Event {
     return currentState
   }
 
-  canApply(_: unknown): boolean {
+  canApply(): boolean {
     return true
   }
 

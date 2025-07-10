@@ -1,5 +1,6 @@
 import { nanoid } from 'nanoid'
-import type { CanvasManager, CanvasObject } from '@/lib/editor/canvas/types'
+import type { CanvasObject } from '@/lib/editor/canvas/types'
+import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
 import { EventStore } from '../core/EventStore'
 import { Event } from '../core/Event'
 import { SelectionSnapshot, SelectionSnapshotFactory } from '@/lib/ai/execution/SelectionSnapshot'
@@ -13,7 +14,7 @@ interface ToolExecution {
   startTime: number
   endTime?: number
   params: Record<string, unknown>
-  result?: any
+  result?: unknown
   error?: string
   status: 'running' | 'completed' | 'failed'
 }
@@ -57,7 +58,7 @@ export class ExecutionContext {
     this.eventStore = eventStore
     this.canvasId = canvasId
     this.workflowId = workflowId
-    this.source = (metadata?.source as any) || 'system'
+    this.source = (metadata?.source as ExecutionContext['source']) || 'system'
     this.parentContextId = metadata?.parentContextId as string
     
     // Create empty selection snapshot for now
@@ -81,7 +82,7 @@ export class ExecutionContext {
   /**
    * Get target objects based on the locked selection
    */
-  getTargetObjects(canvas: any): CanvasObject[] {
+  getTargetObjects(canvas: CanvasManager): CanvasObject[] {
     return this.selectionSnapshot.getValidObjects(canvas)
   }
   
@@ -114,7 +115,7 @@ export class ExecutionContext {
   /**
    * Complete tool execution
    */
-  completeTool(toolId: string, success: boolean, result?: any): void {
+  completeTool(toolId: string, success: boolean, result?: unknown): void {
     const execution = this.toolExecutions.get(toolId)
     if (execution) {
       execution.endTime = Date.now()
@@ -145,7 +146,7 @@ export class ExecutionContext {
   /**
    * Fail the workflow
    */
-  failWorkflow(error: string): void {
+  failWorkflow(_error: string): void {
     this.workflowStatus = 'failed'
   }
   
@@ -225,13 +226,31 @@ export class ExecutionContext {
   /**
    * Get canvas context for tool execution
    */
-  getCanvasContext(canvas: any): CanvasContext {
+  getCanvasContext(canvas: CanvasManager): CanvasContext {
     const targetImages = this.getTargetImages()
+    const selection = canvas.state.selection
+    
+    // Determine targeting mode based on selection and image count
+    let targetingMode: CanvasContext['targetingMode'] = 'none'
+    if (targetImages.length > 0) {
+      if (selection?.type === 'objects' && this.selectionSnapshot.objectIds.size > 0) {
+        targetingMode = 'selection'
+      } else if (targetImages.length === 1) {
+        targetingMode = 'auto-single'
+      } else {
+        targetingMode = 'all'
+      }
+    }
     
     return {
-      canvas: canvas as any, // Type compatibility layer
-      targetImages: targetImages as any[], // Type cast for compatibility
-      targetingMode: targetImages.length === 1 ? 'auto-single' : 'selection'
+      canvas,
+      targetImages,
+      targetingMode,
+      dimensions: {
+        width: canvas.state.width,
+        height: canvas.state.height
+      },
+      selection
     }
   }
   
@@ -271,7 +290,7 @@ export class ExecutionContextFactory {
    * Create context from current canvas state
    */
   static fromCanvas(
-    canvas: any,
+    canvas: CanvasManager,
     eventStore: EventStore,
     source: ExecutionContext['source'],
     options: {
@@ -295,7 +314,7 @@ export class ExecutionContextFactory {
    * Create context with specific selection
    */
   static fromSelection(
-    canvas: any,
+    canvas: CanvasManager,
     objects: CanvasObject[],
     eventStore: EventStore,
     source: ExecutionContext['source'],
@@ -320,7 +339,7 @@ export class ExecutionContextFactory {
    * Create context from existing snapshot
    */
   static fromSnapshot(
-    canvas: any,
+    canvas: CanvasManager,
     selectionSnapshot: SelectionSnapshot,
     eventStore: EventStore,
     source: ExecutionContext['source'],

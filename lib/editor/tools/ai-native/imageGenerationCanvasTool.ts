@@ -209,7 +209,7 @@ export class ImageGenerationTool extends BaseTool {
         // Object added event
         await this.executionContext.emit(new ObjectAddedEvent(
           'canvas',
-          { ...canvasObject, node: undefined } as any,
+          { ...canvasObject, node: undefined },
           activeLayer.id,
           this.executionContext.getMetadata()
         ))

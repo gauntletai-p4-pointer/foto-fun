@@ -19,7 +19,7 @@ export class AddObjectCommand extends Command {
     // Emit object added event
     this.typedEventBus.emit('canvas.object.added', {
       canvasId: 'main', // TODO: Get actual canvas ID
-      object: this.object as any,
+      object: this.object,
       layerId: this.layerId
     })
   }

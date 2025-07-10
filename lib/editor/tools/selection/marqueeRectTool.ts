@@ -2,8 +2,7 @@ import { Square } from 'lucide-react'
 import Konva from 'konva'
 import { TOOL_IDS } from '@/constants'
 import { BaseTool } from '../base/BaseTool'
-import type { ToolEvent, Point, Selection } from '@/lib/editor/canvas/types'
-import { SelectionCreatedEvent } from '@/lib/events/canvas/ToolEvents'
+import type { ToolEvent, Point } from '@/lib/editor/canvas/types'
 
 /**
  * Rectangular Marquee Tool - Creates rectangular selections

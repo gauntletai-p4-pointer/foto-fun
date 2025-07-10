@@ -215,7 +215,7 @@ class HistoryUndoEvent extends Event {
     )
   }
   
-  apply(state: any): any {
+  apply(state: unknown): unknown {
     return state // No state change, just tracking
   }
   
@@ -254,7 +254,7 @@ class HistoryRedoEvent extends Event {
     )
   }
   
-  apply(state: any): any {
+  apply(state: unknown): unknown {
     return state // No state change, just tracking
   }
   

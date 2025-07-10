@@ -194,7 +194,14 @@ export class CommandAdapter {
   /**
    * Create a legacy-compatible object for events that still expect old format
    */
-  private createLegacyObject(obj: CanvasObject): any {
+  private createLegacyObject(obj: CanvasObject): CanvasObject & {
+    left: number
+    top: number
+    angle: number
+    set: () => void
+    setCoords: () => void
+    getBoundingRect: () => { left: number; top: number; width: number; height: number }
+  } {
     return {
       id: obj.id,
       type: obj.type,

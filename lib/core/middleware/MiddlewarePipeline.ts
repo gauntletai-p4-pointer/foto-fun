@@ -108,11 +108,12 @@ export class MiddlewarePipeline<TContext> {
 /**
  * Common middleware implementations
  */
-export namespace CommonMiddleware {
+// Using CommonMiddleware as an object instead of namespace to avoid lint error
+export const CommonMiddleware = {
   /**
    * Logging middleware
    */
-  export function logging<T extends { name?: string }>(
+  logging<T extends { name?: string }>(
     logger: (message: string, context: T) => void = console.log
   ): Middleware<T> {
     return async (context, next) => {
@@ -131,12 +132,12 @@ export namespace CommonMiddleware {
         throw error
       }
     }
-  }
+  },
   
   /**
    * Error handling middleware
    */
-  export function errorHandler<T>(
+  errorHandler<T>(
     handler: (error: Error, context: T) => void | Promise<void>
   ): Middleware<T> {
     return async (context, next) => {
@@ -147,12 +148,12 @@ export namespace CommonMiddleware {
         throw error
       }
     }
-  }
+  },
   
   /**
    * Retry middleware
    */
-  export function retry<T>(
+  retry<T>(
     maxAttempts: number = 3,
     delay: number = 1000,
     shouldRetry: (error: Error) => boolean = () => true
@@ -178,12 +179,12 @@ export namespace CommonMiddleware {
       
       throw lastError!
     }
-  }
+  },
   
   /**
    * Timeout middleware
    */
-  export function timeout<T>(ms: number): Middleware<T> {
+  timeout<T>(ms: number): Middleware<T> {
     return async (context, next) => {
       const timeoutPromise = new Promise<never>((_, reject) => {
         setTimeout(() => reject(new Error(`Operation timed out after ${ms}ms`)), ms)
@@ -191,24 +192,24 @@ export namespace CommonMiddleware {
       
       await Promise.race([next(), timeoutPromise])
     }
-  }
+  },
   
   /**
    * Validation middleware
    */
-  export function validation<T>(
+  validation<T>(
     validate: (context: T) => void | Promise<void>
   ): Middleware<T> {
     return async (context, next) => {
       await validate(context)
       await next()
     }
-  }
+  },
   
   /**
    * Performance tracking middleware
    */
-  export function performance<T extends { metrics?: Record<string, number> }>(
+  performance<T extends { metrics?: Record<string, number> }>(
     metricName: string = 'duration'
   ): Middleware<T> {
     return async (context, next) => {
@@ -226,13 +227,13 @@ export namespace CommonMiddleware {
         context.metrics[metricName] = duration
       }
     }
-  }
+  },
   
   /**
    * Caching middleware
    */
-  export function cache<T extends { cacheKey?: string; cached?: boolean }>(
-    cacheStore: Map<string, any>,
+  cache<T extends { cacheKey?: string; cached?: boolean }>(
+    cacheStore: Map<string, unknown>,
     keyGenerator: (context: T) => string
   ): Middleware<T> {
     return async (context, next) => {

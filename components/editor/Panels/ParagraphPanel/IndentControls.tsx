@@ -1,144 +1,157 @@
 'use client'
 
-import { CanvasObject } from '@/lib/editor/canvas/types'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
-import { IndentIncrease, IndentDecrease } from 'lucide-react'
-import Konva from 'konva'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { useService } from '@/lib/core/ServiceContainer'
+import { useStore } from '@/lib/store/base/BaseStore'
+import { EventTextStore } from '@/lib/store/text/EventTextStore'
+import { EventSelectionStore } from '@/lib/store/selection/EventSelectionStore'
+import { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
+import { getMetadataValue } from '@/lib/editor/canvas/types'
 
-interface IndentControlsProps {
-  textObject: CanvasObject | null
-  onChange: (property: string, value: unknown) => void
-}
-
-export function IndentControls({ textObject, onChange }: IndentControlsProps) {
-  if (!textObject || (textObject.type !== 'text' && textObject.type !== 'verticalText')) {
-    return null
-  }
+export function IndentControls() {
+  const textStore = useService<EventTextStore>('TextStore')
+  const selectionStore = useService<EventSelectionStore>('SelectionStore')
+  const canvasManager = useService<CanvasManager>('CanvasManager')
   
-  const textNode = textObject.node as Konva.Text
-  if (!textNode) return null
+  const textState = useStore(textStore)
+  const selectionState = useStore(selectionStore)
   
-  // Get indent values from metadata
-  const leftIndent = textObject.metadata?.leftIndent || 0
-  const rightIndent = textObject.metadata?.rightIndent || 0
-  const firstLineIndent = textObject.metadata?.firstLineIndent || 0
+  // Get selected text objects
+  const selectedTextObjects = Array.from(selectionState.selectedObjectIds)
+    .map(id => canvasManager.getObjectById(id))
+    .filter(obj => obj && obj.type === 'text')
+  
+  // Get current indentation values from first selected text object
+  const firstTextObject = selectedTextObjects[0]
+  const leftIndent = firstTextObject ? getMetadataValue(firstTextObject, 'leftIndent', 0) : 0
+  const rightIndent = firstTextObject ? getMetadataValue(firstTextObject, 'rightIndent', 0) : 0
+  const firstLineIndent = firstTextObject ? getMetadataValue(firstTextObject, 'firstLineIndent', 0) : 0
   
   const handleIndentChange = (type: 'left' | 'right' | 'firstLine', value: number) => {
-    // Update metadata with custom indent properties
-    const metadata = textObject.metadata || {}
-    if (type === 'left') {
-      metadata.leftIndent = value
-      // Also update padding for visual effect
-      onChange('padding', value)
-    } else if (type === 'right') {
-      metadata.rightIndent = value
-    } else if (type === 'firstLine') {
-      metadata.firstLineIndent = value
-    }
-    onChange('metadata', metadata)
+    selectedTextObjects.forEach(obj => {
+      if (!obj) return
+      
+      const updates: Record<string, number> = {}
+      if (type === 'left') updates.leftIndent = value
+      if (type === 'right') updates.rightIndent = value
+      if (type === 'firstLine') updates.firstLineIndent = value
+      
+      canvasManager.updateObject(obj.id, {
+        metadata: { ...obj.metadata, ...updates }
+      })
+    })
   }
   
   const adjustIndent = (type: 'left' | 'right' | 'firstLine', delta: number) => {
-    const current = type === 'left' ? leftIndent : 
-                   type === 'right' ? rightIndent : firstLineIndent
-    const newValue = Math.max(0, current + delta)
+    const current = type === 'left' ? leftIndent : type === 'right' ? rightIndent : firstLineIndent
+    const newValue = Math.max(0, Number(current) + delta)
     handleIndentChange(type, newValue)
   }
   
   return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <Label className="text-sm font-medium">Indentation</Label>
-      </div>
+    <div className="space-y-4">
+      <h3 className="text-sm font-medium">Indentation</h3>
       
       {/* Left Indent */}
-      <div className="flex items-center gap-2">
-        <Label className="text-xs w-20">Left:</Label>
-        <div className="flex items-center gap-1 flex-1">
+      <div className="space-y-2">
+        <Label htmlFor="left-indent" className="text-xs">Left Indent</Label>
+        <div className="flex gap-1">
           <Button
             size="icon"
             variant="outline"
-            className="h-6 w-6"
+            className="h-8 w-8"
             onClick={() => adjustIndent('left', -10)}
+            disabled={selectedTextObjects.length === 0}
           >
-            <IndentDecrease className="h-3 w-3" />
+            <ChevronLeft className="h-3 w-3" />
           </Button>
           <Input
+            id="left-indent"
             type="number"
+            min="0"
             value={leftIndent}
             onChange={(e) => handleIndentChange('left', Number(e.target.value))}
-            className="h-6 text-xs flex-1"
-            min={0}
+            className="h-8 text-xs"
+            disabled={selectedTextObjects.length === 0}
           />
           <Button
             size="icon"
             variant="outline"
-            className="h-6 w-6"
+            className="h-8 w-8"
             onClick={() => adjustIndent('left', 10)}
+            disabled={selectedTextObjects.length === 0}
           >
-            <IndentIncrease className="h-3 w-3" />
+            <ChevronRight className="h-3 w-3" />
           </Button>
         </div>
       </div>
       
       {/* Right Indent */}
-      <div className="flex items-center gap-2">
-        <Label className="text-xs w-20">Right:</Label>
-        <div className="flex items-center gap-1 flex-1">
+      <div className="space-y-2">
+        <Label htmlFor="right-indent" className="text-xs">Right Indent</Label>
+        <div className="flex gap-1">
           <Button
             size="icon"
             variant="outline"
-            className="h-6 w-6"
+            className="h-8 w-8"
             onClick={() => adjustIndent('right', -10)}
+            disabled={selectedTextObjects.length === 0}
           >
-            <IndentDecrease className="h-3 w-3" />
+            <ChevronLeft className="h-3 w-3" />
           </Button>
           <Input
+            id="right-indent"
             type="number"
+            min="0"
             value={rightIndent}
             onChange={(e) => handleIndentChange('right', Number(e.target.value))}
-            className="h-6 text-xs flex-1"
-            min={0}
+            className="h-8 text-xs"
+            disabled={selectedTextObjects.length === 0}
           />
           <Button
             size="icon"
             variant="outline"
-            className="h-6 w-6"
+            className="h-8 w-8"
             onClick={() => adjustIndent('right', 10)}
+            disabled={selectedTextObjects.length === 0}
           >
-            <IndentIncrease className="h-3 w-3" />
+            <ChevronRight className="h-3 w-3" />
           </Button>
         </div>
       </div>
       
       {/* First Line Indent */}
-      <div className="flex items-center gap-2">
-        <Label className="text-xs w-20">First Line:</Label>
-        <div className="flex items-center gap-1 flex-1">
+      <div className="space-y-2">
+        <Label htmlFor="first-line-indent" className="text-xs">First Line</Label>
+        <div className="flex gap-1">
           <Button
             size="icon"
             variant="outline"
-            className="h-6 w-6"
+            className="h-8 w-8"
             onClick={() => adjustIndent('firstLine', -10)}
+            disabled={selectedTextObjects.length === 0}
           >
-            <IndentDecrease className="h-3 w-3" />
+            <ChevronLeft className="h-3 w-3" />
           </Button>
           <Input
+            id="first-line-indent"
             type="number"
             value={firstLineIndent}
             onChange={(e) => handleIndentChange('firstLine', Number(e.target.value))}
-            className="h-6 text-xs flex-1"
-            min={0}
+            className="h-8 text-xs"
+            disabled={selectedTextObjects.length === 0}
           />
           <Button
             size="icon"
             variant="outline"
-            className="h-6 w-6"
+            className="h-8 w-8"
             onClick={() => adjustIndent('firstLine', 10)}
+            disabled={selectedTextObjects.length === 0}
           >
-            <IndentIncrease className="h-3 w-3" />
+            <ChevronRight className="h-3 w-3" />
           </Button>
         </div>
       </div>
