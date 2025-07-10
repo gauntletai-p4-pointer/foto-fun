@@ -4,7 +4,10 @@ import { serverReplicateClient } from '@/lib/ai/server/replicateClient'
 
 // Input validation schema - Bria remove-background parameters
 const removeBackgroundSchema = z.object({
-  image: z.string().url('Valid image URL is required')
+  image: z.string().min(1, 'Image data is required').refine(
+    (value) => value.startsWith('data:image/') || value.startsWith('http://') || value.startsWith('https://'),
+    'Must be a valid image URL or data URL'
+  )
 })
 
 // Using Bria remove-background model
