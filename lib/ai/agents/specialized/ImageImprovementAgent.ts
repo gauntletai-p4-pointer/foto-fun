@@ -5,7 +5,7 @@ import type { AgentContext, AgentResult } from '../types'
 
 /**
  * Image Improvement Agent using AI SDK v5 Multi-Step Tool Usage pattern
- * Uses computer vision to analyze and plan iterative improvements
+ * Implements evaluator-optimizer pattern for iterative improvements
  */
 export class ImageImprovementAgent {
   name = 'image-improvement'
@@ -18,15 +18,51 @@ export class ImageImprovementAgent {
     timestamp: string
   }> = []
   
+  private iterationContext: {
+    originalRequest: string
+    iterationCount: number
+    previousAdjustments: Array<{ tool: string; params: unknown }>
+    lastEvaluation?: { score: number; feedback: string }
+  } = {
+    originalRequest: '',
+    iterationCount: 0,
+    previousAdjustments: []
+  }
+  
   /**
    * Execute image improvement workflow using multi-step tool usage
    */
-  async execute(request: string, context: AgentContext): Promise<AgentResult> {
+  async execute(request: string, context: AgentContext & {
+    iterationData?: {
+      iterationCount: number
+      previousAdjustments: Array<{ tool: string; params: unknown }>
+      lastEvaluation?: { score: number; feedback: string }
+      canvasScreenshot?: string // Canvas screenshot from client
+    }
+  }): Promise<AgentResult> {
     this.statusUpdates = [] // Clear previous updates
     
+    // Initialize or update iteration context
+    if (context.iterationData) {
+      this.iterationContext = {
+        originalRequest: this.iterationContext.originalRequest || request,
+        ...context.iterationData
+      }
+    } else {
+      this.iterationContext = {
+        originalRequest: request,
+        iterationCount: 0,
+        previousAdjustments: [],
+        lastEvaluation: undefined
+      }
+    }
+    
     // Add initial status
-    this.addStatusUpdate('analyzing-request', 'Analyzing your request', 
-      `Understanding: "${request}"`)
+    this.addStatusUpdate('analyzing-request', 
+      this.iterationContext.iterationCount > 0 ? 'Continuing improvements' : 'Analyzing your request', 
+      this.iterationContext.iterationCount > 0 
+        ? `Iteration ${this.iterationContext.iterationCount + 1}/3`
+        : `Understanding: "${request}"`)
     
     try {
       // Execute multi-step workflow with tools
@@ -37,15 +73,23 @@ export class ImageImprovementAgent {
           captureScreenshot: tool({
             description: 'Capture the current canvas as a screenshot for analysis',
             inputSchema: z.object({
-              purpose: z.string().describe('Why we need the screenshot')
+              purpose: z.string().describe('Why we need the screenshot'),
+              iterationContext: z.object({
+                iterationCount: z.number(),
+                isEvaluation: z.boolean()
+              }).optional()
             }),
-            execute: async ({ purpose }) => {
+            execute: async ({ purpose, iterationContext }) => {
               this.addStatusUpdate('screenshot', 'Capturing canvas screenshot', purpose)
-              // In production, client provides the actual screenshot
+              
+              // Use provided screenshot if available (from client), otherwise placeholder
+              const screenshot = context.iterationData?.canvasScreenshot || 'data:image/png;base64,placeholder'
+              
               return {
-                screenshot: 'data:image/png;base64,placeholder',
+                screenshot,
                 dimensions: context.canvasAnalysis.dimensions,
-                hasContent: context.canvasAnalysis.hasContent
+                hasContent: context.canvasAnalysis.hasContent,
+                iterationInfo: iterationContext
               }
             }
           }),
@@ -56,9 +100,13 @@ export class ImageImprovementAgent {
             inputSchema: z.object({
               screenshot: z.string().describe('Base64 screenshot'),
               request: z.string().describe('What the user wants to improve'),
-              analysisType: z.enum(['initial', 'evaluation']).default('initial')
+              analysisType: z.enum(['initial', 'evaluation']).default('initial'),
+              previousAdjustments: z.array(z.object({
+                tool: z.string(),
+                params: z.any()
+              })).optional()
             }),
-            execute: async ({ screenshot, request: userRequest, analysisType }) => {
+            execute: async ({ screenshot, request: userRequest, analysisType, previousAdjustments }) => {
               this.addStatusUpdate('vision-analysis', 'Analyzing with computer vision', 
                 `${analysisType === 'initial' ? 'Identifying improvements' : 'Evaluating results'}`)
               
@@ -80,7 +128,12 @@ Provide specific recommendations with exact values:
 - Any other specific improvements needed`
                           : `Evaluate if the improvements meet: "${userRequest}"
                           
-Rate success from 0-1 and identify any remaining issues.`
+Previous adjustments applied:
+${previousAdjustments?.map(adj => `- ${adj.tool}: ${JSON.stringify(adj.params)}`).join('\n') || 'None'}
+
+Rate success from 0-1 and identify any remaining issues.
+If goals are met, explain why.
+If not met, suggest NEW adjustments (don't repeat previous ones).`
                       },
                       {
                         type: 'image',
@@ -91,7 +144,7 @@ Rate success from 0-1 and identify any remaining issues.`
                   temperature: 0.3
                 })
                 
-                return { analysis, analysisType }
+                return { analysis, analysisType, previousAdjustments }
               } catch {
                 return {
                   analysis: 'Recommend: brightness +15%, contrast +10, saturation +8%',
@@ -107,47 +160,52 @@ Rate success from 0-1 and identify any remaining issues.`
             description: 'Create a specific improvement plan based on vision analysis',
             inputSchema: z.object({
               analysis: z.string().describe('Vision analysis results'),
-              request: z.string().describe('Original request')
+              request: z.string().describe('Original request'),
+              previousAdjustments: z.array(z.object({
+                tool: z.string(),
+                params: z.any()
+              })).optional()
             }),
-            execute: async ({ analysis }) => {
+            execute: async ({ analysis, previousAdjustments }) => {
               this.addStatusUpdate('planning', 'Creating improvement plan', 
                 'Based on AI vision analysis')
               
               const steps = []
+              const usedTools = new Set(previousAdjustments?.map(adj => adj.tool) || [])
               
-              // Parse analysis for specific adjustments
-              const brightnessMatch = analysis.match(/brightness.*?(\d+)%?/i)
-              if (brightnessMatch) {
+              // Parse analysis for specific adjustments, avoiding duplicates
+              const brightnessMatch = analysis.match(/brightness.*?([+-]?\d+)%?/i)
+              if (brightnessMatch && !usedTools.has('adjustBrightness')) {
                 steps.push({
                   toolName: 'adjustBrightness',
                   params: { adjustment: parseInt(brightnessMatch[1]) },
-                  description: `Increase brightness by ${brightnessMatch[1]}%`,
+                  description: `Adjust brightness by ${brightnessMatch[1]}%`,
                   confidence: 0.9
                 })
               }
               
-              const contrastMatch = analysis.match(/contrast.*?(\d+)/i)
-              if (contrastMatch) {
+              const contrastMatch = analysis.match(/contrast.*?([+-]?\d+)/i)
+              if (contrastMatch && !usedTools.has('adjustContrast')) {
                 steps.push({
                   toolName: 'adjustContrast',
                   params: { adjustment: parseInt(contrastMatch[1]) },
-                  description: `Enhance contrast by ${contrastMatch[1]} points`,
+                  description: `Adjust contrast by ${contrastMatch[1]} points`,
                   confidence: 0.85
                 })
               }
               
-              const saturationMatch = analysis.match(/saturation.*?(\d+)%?/i)
-              if (saturationMatch) {
+              const saturationMatch = analysis.match(/saturation.*?([+-]?\d+)%?/i)
+              if (saturationMatch && !usedTools.has('adjustSaturation')) {
                 steps.push({
                   toolName: 'adjustSaturation',
                   params: { adjustment: parseInt(saturationMatch[1]) },
-                  description: `Boost saturation by ${saturationMatch[1]}%`,
+                  description: `Adjust saturation by ${saturationMatch[1]}%`,
                   confidence: 0.8
                 })
               }
               
               // Default plan if no specific adjustments found
-              if (steps.length === 0) {
+              if (steps.length === 0 && (!previousAdjustments || previousAdjustments.length === 0)) {
                 steps.push({
                   toolName: 'adjustBrightness',
                   params: { adjustment: 10 },
@@ -159,7 +217,44 @@ Rate success from 0-1 and identify any remaining issues.`
               return {
                 steps,
                 totalSteps: steps.length,
-                confidence: steps.reduce((sum, s) => sum + s.confidence, 0) / steps.length
+                confidence: steps.length > 0 ? steps.reduce((sum, s) => sum + s.confidence, 0) / steps.length : 0,
+                previousAdjustments
+              }
+            }
+          }),
+          
+          // Evaluate results and decide next action
+          evaluateAndDecide: tool({
+            description: 'Evaluate the current results and decide whether to continue iterating',
+            inputSchema: z.object({
+              evaluation: z.string().describe('Evaluation analysis from vision'),
+              score: z.number().min(0).max(1).describe('Success score from evaluation'),
+              iterationCount: z.number(),
+              maxIterations: z.number().default(3)
+            }),
+            execute: async ({ evaluation, score, iterationCount, maxIterations = 3 }) => {
+              this.addStatusUpdate('evaluation', 'Evaluating results', 
+                `Score: ${(score * 100).toFixed(0)}%`)
+              
+              // Store evaluation in context
+              this.iterationContext.lastEvaluation = {
+                score,
+                feedback: evaluation
+              }
+              
+              const goalsMet = score >= 0.85
+              const canContinue = iterationCount < maxIterations
+              
+              return {
+                goalsMet,
+                canContinue,
+                shouldContinue: !goalsMet && canContinue,
+                reason: goalsMet 
+                  ? 'Image improvements successfully achieved the desired results'
+                  : canContinue 
+                    ? `Iteration ${iterationCount}/${maxIterations}: Further improvements needed`
+                    : 'Maximum iterations reached',
+                evaluation
               }
             }
           }),
@@ -181,20 +276,37 @@ Rate success from 0-1 and identify any remaining issues.`
             // No execute function - invoking this terminates the agent
           })
         },
-        stopWhen: stepCountIs(6), // Max 6 steps
-        system: `You are an expert photo editor using computer vision to improve images.
+        stopWhen: stepCountIs(15), // Increased to support iterations
+        system: `You are an expert photo editor using computer vision to improve images iteratively.
         
-Your workflow:
-1. Use captureScreenshot to get the canvas image
-2. Use analyzeWithVision to analyze it with computer vision
-3. Use createPlan to create specific improvements
-4. Use provideExecutionPlan to return the final plan
+Your workflow implements the evaluator-optimizer pattern:
 
-IMPORTANT: When calling provideExecutionPlan, include the vision analysis results in the visionInsights parameter.
-Be specific with adjustment values based on the vision analysis.`,
+INITIAL ITERATION:
+1. Use captureScreenshot to get the canvas image
+2. Use analyzeWithVision with analysisType='initial' to analyze it
+3. Use createPlan to create specific improvements
+4. Use provideExecutionPlan to return the plan for approval
+
+AFTER EXECUTION (when called again with iteration context):
+1. Use captureScreenshot to get the updated canvas
+2. Use analyzeWithVision with analysisType='evaluation' to evaluate results
+3. Use evaluateAndDecide to determine if goals are met
+4. If NOT met and can continue:
+   - Use createPlan with previousAdjustments to create NEW improvements
+   - Use provideExecutionPlan to return the new plan
+5. If goals ARE met or max iterations reached:
+   - Use provideExecutionPlan with empty steps to signal completion
+
+IMPORTANT: 
+- Track previousAdjustments to avoid repeating the same changes
+- Include iteration context in all relevant tool calls
+- Be specific with adjustment values based on vision analysis
+- Include the vision analysis results in the visionInsights parameter`,
         prompt: `Improve this image based on: "${request}"
         
-Canvas: ${context.canvasAnalysis.dimensions.width}x${context.canvasAnalysis.dimensions.height}, has content: ${context.canvasAnalysis.hasContent}`,
+Canvas: ${context.canvasAnalysis.dimensions.width}x${context.canvasAnalysis.dimensions.height}, has content: ${context.canvasAnalysis.hasContent}
+Iteration: ${this.iterationContext.iterationCount}
+Previous adjustments: ${this.iterationContext.previousAdjustments.length}`,
         onStepFinish: ({ toolCalls: stepToolCalls }) => {
           // Log progress
           stepToolCalls?.forEach(tc => {
@@ -282,7 +394,12 @@ Canvas: ${context.canvasAnalysis.dimensions.width}x${context.canvasAnalysis.dime
                 threshold
               },
               supportsIteration: true,
-              maxIterations: 3
+              maxIterations: 3,
+              iterationContext: {
+                currentIteration: this.iterationContext.iterationCount + 1,
+                previousAdjustments: this.iterationContext.previousAdjustments,
+                lastEvaluation: this.iterationContext.lastEvaluation
+              }
             },
             confidence: plan.confidence
           }],

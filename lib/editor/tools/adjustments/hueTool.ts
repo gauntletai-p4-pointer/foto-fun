@@ -1,30 +1,15 @@
 import { Palette } from 'lucide-react'
+import Konva from 'konva'
 import { TOOL_IDS } from '@/constants'
 import { BaseTool } from '../base/BaseTool'
-import { createToolState } from '../utils/toolState'
-import * as fabric from 'fabric'
-import type { Canvas } from 'fabric'
-
-// Define filter type
-interface ImageFilter {
-  type?: string
-  [key: string]: unknown
-}
-
-/**
- * Hue Tool State
- */
-type HueState = {
-  rotation: number
-  isAdjusting: boolean
-  previousFilters: Map<string, ImageFilter[]>
-}
+import type { CanvasObject } from '@/lib/editor/canvas/types'
+import { FilterAppliedEvent } from '@/lib/events/canvas/ToolEvents'
 
 /**
  * Hue Tool - Rotate image colors on the color wheel
- * Uses Fabric.js HueRotation filter
+ * Konva implementation with HSL filter
  */
-class HueTool extends BaseTool {
+export class HueTool extends BaseTool {
   // Tool identification
   id = TOOL_IDS.HUE
   name = 'Hue'
@@ -32,94 +17,181 @@ class HueTool extends BaseTool {
   cursor = 'default'
   shortcut = undefined // No default shortcut
   
-  // Tool state
-  private state = createToolState<HueState>({
-    rotation: 0,
-    isAdjusting: false,
-    previousFilters: new Map()
-  })
+  // Track current rotation
+  private currentRotation = 0
+  private isAdjusting = false
   
-  /**
-   * Tool setup
-   */
   protected setupTool(): void {
-    // Subscribe to tool options
-    this.subscribeToToolOptions((options) => {
-      const rotation = options.find(opt => opt.id === 'hue')?.value
-      if (rotation !== undefined && typeof rotation === 'number') {
-        this.track('adjustHue', () => {
-          this.applyHue(rotation)
-        })
+    const canvas = this.getCanvas()
+    
+    // Check for existing hue adjustments
+    const selection = canvas.state.selection
+    if (selection?.type === 'objects') {
+      const firstObject = this.findObject(selection.objectIds[0])
+      if (firstObject && firstObject.type === 'image') {
+        const imageNode = firstObject.node as Konva.Image
+        const filters = imageNode.filters() || []
+        if (filters.includes(Konva.Filters.HSL)) {
+          // Get current hue value
+          const hue = imageNode.hue() || 0
+          this.currentRotation = hue
+          this.setOption('hue', hue)
+        }
       }
-    })
+    }
     
-    // Apply initial value if any
-    const currentRotation = this.toolOptionsStore.getOptionValue<number>(this.id, 'hue')
-    if (currentRotation !== undefined && currentRotation !== 0) {
-      this.applyHue(currentRotation)
+    // Set default rotation
+    this.setOption('hue', this.currentRotation)
+  }
+  
+  protected cleanupTool(): void {
+    // Reset state but keep filters applied
+    this.isAdjusting = false
+  }
+  
+  protected onOptionChange(key: string, value: unknown): void {
+    if (key === 'hue' && typeof value === 'number') {
+      this.applyHue(value)
     }
   }
   
   /**
-   * Apply hue rotation to all images on canvas
+   * Apply hue rotation
    */
-  private applyHue(rotation: number): void {
-    if (!this.canvas) return
+  async applyHue(rotation: number): Promise<void> {
+    if (this.isAdjusting) return
     
-    this.state.set('rotation', rotation)
+    this.isAdjusting = true
     
-    // Get target images using selection-aware method
-    const images = this.getTargetImages()
+    try {
+      const targets = this.getTargetObjects()
+      
+      if (targets.length === 0) {
+        console.warn('[HueTool] No images to adjust')
+        return
+      }
+      
+      const targetIds: string[] = []
+      
+      for (const target of targets) {
+        if (target.type === 'image') {
+          await this.applyHueToImage(target, rotation)
+          targetIds.push(target.id)
+        }
+      }
+      
+      // Emit event if in ExecutionContext
+      if (this.executionContext && targetIds.length > 0) {
+        await this.executionContext.emit(new FilterAppliedEvent(
+          'canvas',
+          'hue',
+          { hue: rotation },
+          targetIds,
+          this.executionContext.getMetadata()
+        ))
+      }
+      
+      this.currentRotation = rotation
+    } finally {
+      this.isAdjusting = false
+    }
+  }
+  
+  /**
+   * Apply hue to a specific image object
+   */
+  private async applyHueToImage(obj: CanvasObject, rotation: number): Promise<void> {
+    const imageNode = obj.node as Konva.Image
     
-    if (images.length === 0) {
-      console.warn('No images found to adjust hue')
-      return
+    // Cache the image for filter application
+    imageNode.cache()
+    
+    // Set up HSL filter
+    const filters = imageNode.filters() || []
+    if (!filters.includes(Konva.Filters.HSL)) {
+      filters.push(Konva.Filters.HSL)
+      imageNode.filters(filters)
     }
     
-    // Use the base class filter management
-    this.executeWithGuard('isAdjusting', async () => {
-      await this.applyImageFilters(
-        images,
-        'HueRotation',
-        () => {
-          if (rotation !== 0) {
-            // Fabric.js HueRotation expects rotation in radians (0 to 2π)
-            // Convert degrees to radians
-            const rotationRadians = (rotation * Math.PI) / 180
-            return new fabric.filters.HueRotation({
-              rotation: rotationRadians
-            })
+    // Apply hue rotation (Konva expects degrees 0-360)
+    // Normalize the rotation to 0-360 range
+    const normalizedRotation = ((rotation % 360) + 360) % 360
+    imageNode.hue(normalizedRotation)
+    
+    // Redraw
+    const layer = this.findLayerForObject(obj)
+    if (layer) {
+      layer.konvaLayer.batchDraw()
+    }
+  }
+  
+  /**
+   * Get target objects based on selection or all images
+   */
+  private getTargetObjects(): CanvasObject[] {
+    const canvas = this.getCanvas()
+    const selection = canvas.state.selection
+    
+    if (selection?.type === 'objects') {
+      // Apply to selected objects
+      return selection.objectIds
+        .map(id => this.findObject(id))
+        .filter((obj): obj is CanvasObject => obj !== null && obj.type === 'image')
+    } else if (selection?.type === 'rectangle' || selection?.type === 'ellipse' || selection?.type === 'pixel') {
+      // For pixel selections, we'd need different handling
+      console.warn('[HueTool] Pixel-based selections not yet implemented')
+      return []
+    } else {
+      // Apply to all images
+      const allImages: CanvasObject[] = []
+      for (const layer of canvas.state.layers) {
+        for (const obj of layer.objects) {
+          if (obj.type === 'image' && !obj.locked && obj.visible) {
+            allImages.push(obj)
           }
-          return null
-        },
-        `Rotate hue by ${rotation}°`
-      )
-    })
+        }
+      }
+      return allImages
+    }
   }
   
   /**
-   * Tool cleanup
+   * Find an object by ID
    */
-  protected cleanup(): void {
-    // Don't reset the hue value - let it persist
-    // The user can manually reset or use undo if they want to remove the effect
-    
-    // Clear stored filters (but don't remove applied filters)
-    this.state.get('previousFilters').clear()
-    
-    // Reset only the internal state, not the actual hue
-    this.state.setState({
-      isAdjusting: false,
-      previousFilters: new Map()
-    })
+  private findObject(objectId: string): CanvasObject | null {
+    const canvas = this.getCanvas()
+    for (const layer of canvas.state.layers) {
+      const obj = layer.objects.find(o => o.id === objectId)
+      if (obj) return obj
+    }
+    return null
   }
   
   /**
-   * Required: Activation
+   * Find the layer containing an object
    */
-  onActivate(canvas: Canvas): void {
-    // Call parent implementation which sets up the tool
-    super.onActivate(canvas)
+  private findLayerForObject(obj: CanvasObject) {
+    const canvas = this.getCanvas()
+    return canvas.state.layers.find(layer => 
+      layer.objects.some(o => o.id === obj.id)
+    )
+  }
+  
+  /**
+   * Apply hue for AI operations with selection context
+   */
+  async applyWithContext(rotation: number, targetObjects?: CanvasObject[]): Promise<void> {
+    if (targetObjects) {
+      // Apply to specific objects
+      for (const obj of targetObjects) {
+        if (obj.type === 'image') {
+          await this.applyHueToImage(obj, rotation)
+        }
+      }
+    } else {
+      // Use normal apply
+      await this.applyHue(rotation)
+    }
   }
 }
 

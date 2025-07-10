@@ -1,19 +1,15 @@
 import { Lasso } from 'lucide-react'
+import Konva from 'konva'
 import { TOOL_IDS } from '@/constants'
-import type { Canvas, TPointerEventInfo } from 'fabric'
-import { Path } from 'fabric'
-import { SelectionTool } from '../base/SelectionTool'
-import { selectionStyle } from '../utils/selectionRenderer'
-import { useCanvasStore } from '@/store/canvasStore'
-import { useSelectionStore } from '@/store/selectionStore'
-import { useHistoryStore } from '@/store/historyStore'
-import { CreateSelectionCommand } from '@/lib/editor/commands/selection'
+import { BaseTool } from '../base/BaseTool'
+import type { ToolEvent, Point, Selection } from '@/lib/editor/canvas/types'
+import { SelectionCreatedEvent } from '@/lib/events/canvas/ToolEvents'
 
 /**
  * Lasso Tool - Creates freehand selections
- * Extends SelectionTool for consistent selection behavior
+ * Konva implementation with pixel-aware selection and path smoothing
  */
-class LassoTool extends SelectionTool {
+export class LassoTool extends BaseTool {
   // Tool identification
   id = TOOL_IDS.LASSO
   name = 'Lasso Tool'
@@ -21,197 +17,286 @@ class LassoTool extends SelectionTool {
   cursor = 'crosshair'
   shortcut = 'L'
   
-  // Tool-specific state
-  private points: { x: number; y: number }[] = []
-  private feedbackPath: Path | null = null
-  private finalPath: Path | null = null
+  // Selection state
+  private isSelecting = false
+  private points: Point[] = []
+  private selectionPath: Konva.Line | null = null
+  private selectionLayer: Konva.Layer | null = null
+  private minDistance = 3 // Minimum distance between points for smoothing
   
-  /**
-   * Override handleMouseDown to initialize points
-   */
-  protected handleMouseDown(e: TPointerEventInfo<MouseEvent>): void {
-    super.handleMouseDown(e)
+  protected setupTool(): void {
+    const canvas = this.getCanvas()
     
-    // Use Fabric's getPointer method to get the correct transformed coordinates
-    const pointer = this.canvas!.getPointer(e.e)
+    // Create a dedicated layer for selection visualization
+    this.selectionLayer = new Konva.Layer()
+    canvas.konvaStage.add(this.selectionLayer)
     
-    // Initialize points array with the start point
-    this.points = [{ x: pointer.x, y: pointer.y }]
+    // Move selection layer to top
+    this.selectionLayer.moveToTop()
   }
   
-  /**
-   * Create visual feedback (path)
-   */
-  protected createFeedback(): void {
-    // For lasso, we create feedback on first drag
-  }
-  
-  /**
-   * Update visual feedback during selection
-   */
-  protected updateFeedback(): void {
-    if (!this.canvas) return
-    
-    const currentPoint = this.state.get('currentPoint')
-    if (!currentPoint) return
-    
-    // Add point to path
-    this.points.push(currentPoint)
-    
-    // Create path data from points
-    const pathData = this.createPathData(this.points)
-    
-    // Update or create feedback path
-    if (this.feedbackPath) {
-      this.canvas.remove(this.feedbackPath)
-    }
-    
-    this.feedbackPath = new Path(pathData, {
-      ...selectionStyle,
-      fill: ''
-    })
-    
-    this.canvas.add(this.feedbackPath)
-    this.canvas.renderAll()
-  }
-  
-  /**
-   * Create SVG path data from points
-   */
-  private createPathData(points: { x: number; y: number }[]): string {
-    if (points.length < 2) return ''
-    
-    let pathData = `M ${points[0].x} ${points[0].y}`
-    
-    for (let i = 1; i < points.length; i++) {
-      pathData += ` L ${points[i].x} ${points[i].y}`
-    }
-    
-    return pathData
-  }
-  
-  /**
-   * Finalize the selection
-   */
-  protected finalizeSelection(): void {
-    if (!this.canvas || this.points.length < 3) {
-      // Need at least 3 points for a valid selection
-      if (this.feedbackPath && this.canvas) {
-        this.canvas.remove(this.feedbackPath)
-      }
-      return
-    }
-    
-    // Close the path
-    const closedPathData = this.createPathData(this.points) + ' Z'
-    
-    // Remove feedback path
-    if (this.feedbackPath) {
-      this.canvas.remove(this.feedbackPath)
-    }
-    
-    // Create final selection path
-    this.finalPath = new Path(closedPathData, {
-      ...selectionStyle
-    })
-    
-    // Get selection manager and mode
-    const canvasStore = useCanvasStore.getState()
-    const selectionStore = useSelectionStore.getState()
-    const historyStore = useHistoryStore.getState()
-    
-    if (!canvasStore.selectionManager || !canvasStore.selectionRenderer) {
-      console.error('Selection system not initialized')
-      return
-    }
-    
-    // Add the path temporarily to get bounds and render it
-    this.canvas.add(this.finalPath)
-    const bounds = this.finalPath.getBoundingRect()
-    
-    // Create a temporary canvas to generate the selection mask
-    const tempCanvas = document.createElement('canvas')
-    tempCanvas.width = this.canvas.getWidth()
-    tempCanvas.height = this.canvas.getHeight()
-    const tempCtx = tempCanvas.getContext('2d')!
-    
-    // Render the path to get its pixels
-    tempCtx.save()
-    tempCtx.translate(this.finalPath.left || 0, this.finalPath.top || 0)
-    if (this.finalPath.angle) {
-      tempCtx.rotate((this.finalPath.angle * Math.PI) / 180)
-    }
-    tempCtx.scale(this.finalPath.scaleX || 1, this.finalPath.scaleY || 1)
-    
-    // Draw the path filled
-    const path2D = new Path2D(closedPathData)
-    tempCtx.fillStyle = 'white'
-    tempCtx.fill(path2D)
-    tempCtx.restore()
-    
-    // Get the pixel data
-    const imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height)
-    
-    // Convert to selection mask (white pixels become selected)
-    for (let i = 0; i < imageData.data.length; i += 4) {
-      // Use the red channel (since we drew in white) as the selection mask
-      imageData.data[i + 3] = imageData.data[i]
-    }
-    
-    // Create the selection command
-    const command = new CreateSelectionCommand(
-      canvasStore.selectionManager,
-      {
-        mask: imageData,
-        bounds: {
-          x: bounds.left,
-          y: bounds.top,
-          width: bounds.width,
-          height: bounds.height
-        }
-      },
-      selectionStore.mode
-    )
-    
-    // Execute the command through history
-    historyStore.executeCommand(command)
-    
-    // Update selection state
-    selectionStore.updateSelectionState(true, {
-      x: bounds.left,
-      y: bounds.top,
-      width: bounds.width,
-      height: bounds.height
-    })
-    
-    // Remove the temporary path
-    this.canvas.remove(this.finalPath)
-    
-    // Start rendering the selection
-    canvasStore.selectionRenderer.startRendering()
-    
-    // Reset for next selection
-    this.points = []
-    this.feedbackPath = null
-    this.finalPath = null
-  }
-  
-  /**
-   * Override cleanup
-   */
-  protected cleanup(canvas: Canvas): void {
-    // Clean up feedback path if exists
-    if (this.feedbackPath && canvas.contains(this.feedbackPath)) {
-      canvas.remove(this.feedbackPath)
+  protected cleanupTool(): void {
+    // Clean up selection layer
+    if (this.selectionLayer) {
+      this.selectionLayer.destroy()
+      this.selectionLayer = null
     }
     
     // Reset state
+    this.isSelecting = false
     this.points = []
-    this.feedbackPath = null
-    this.finalPath = null
+    this.selectionPath = null
+  }
+  
+  onMouseDown(event: ToolEvent): void {
+    if (!this.selectionLayer) return
     
-    // Call parent cleanup
-    super.cleanup(canvas)
+    this.isSelecting = true
+    this.points = [{ x: event.point.x, y: event.point.y }]
+    
+    // Create initial path
+    this.selectionPath = new Konva.Line({
+      points: [event.point.x, event.point.y],
+      stroke: '#000000',
+      strokeWidth: 1,
+      dash: [4, 4],
+      closed: false,
+      tension: 0.3, // Add smoothing
+      lineCap: 'round',
+      lineJoin: 'round'
+    })
+    
+    // Add white background stroke for visibility
+    const bgPath = new Konva.Line({
+      points: [event.point.x, event.point.y],
+      stroke: '#ffffff',
+      strokeWidth: 3,
+      closed: false,
+      tension: 0.3,
+      lineCap: 'round',
+      lineJoin: 'round'
+    })
+    
+    this.selectionLayer.add(bgPath)
+    this.selectionLayer.add(this.selectionPath)
+  }
+  
+  onMouseMove(event: ToolEvent): void {
+    if (!this.isSelecting || !this.selectionPath || !this.selectionLayer) return
+    
+    const lastPoint = this.points[this.points.length - 1]
+    const currentPoint = { x: event.point.x, y: event.point.y }
+    
+    // Only add point if it's far enough from the last one (smoothing)
+    const distance = Math.sqrt(
+      Math.pow(currentPoint.x - lastPoint.x, 2) + 
+      Math.pow(currentPoint.y - lastPoint.y, 2)
+    )
+    
+    if (distance >= this.minDistance) {
+      this.points.push(currentPoint)
+      
+      // Update path points
+      const flatPoints = this.points.flatMap(p => [p.x, p.y])
+      this.selectionPath.points(flatPoints)
+      
+      // Update background path
+      const bgPath = this.selectionLayer.children[0] as Konva.Line
+      if (bgPath) {
+        bgPath.points(flatPoints)
+      }
+      
+      this.selectionLayer.batchDraw()
+    }
+  }
+  
+  async onMouseUp(event: ToolEvent): Promise<void> {
+    if (!this.isSelecting || !this.selectionPath || !this.selectionLayer || this.points.length < 3) {
+      // Need at least 3 points for a valid selection
+      this.cleanupSelection()
+      return
+    }
+    
+    this.isSelecting = false
+    
+    // Close the path
+    this.selectionPath.closed(true)
+    const bgPath = this.selectionLayer.children[0] as Konva.Line
+    if (bgPath) {
+      bgPath.closed(true)
+    }
+    this.selectionLayer.batchDraw()
+    
+    // Create selection from path
+    const canvas = this.getCanvas()
+    
+    // Get bounding box of the path
+    const bounds = this.selectionPath.getClientRect()
+    
+    // Create a temporary canvas to render the path as a mask
+    const tempCanvas = document.createElement('canvas')
+    tempCanvas.width = canvas.state.width
+    tempCanvas.height = canvas.state.height
+    const tempCtx = tempCanvas.getContext('2d', { willReadFrequently: true })!
+    
+    // Create path2D from points
+    const path2D = new Path2D()
+    path2D.moveTo(this.points[0].x, this.points[0].y)
+    
+    // Use quadratic curves for smooth path
+    for (let i = 1; i < this.points.length - 1; i++) {
+      const xc = (this.points[i].x + this.points[i + 1].x) / 2
+      const yc = (this.points[i].y + this.points[i + 1].y) / 2
+      path2D.quadraticCurveTo(this.points[i].x, this.points[i].y, xc, yc)
+    }
+    
+    // Last point
+    const lastPoint = this.points[this.points.length - 1]
+    path2D.quadraticCurveTo(lastPoint.x, lastPoint.y, this.points[0].x, this.points[0].y)
+    path2D.closePath()
+    
+    // Fill the path to create mask
+    tempCtx.fillStyle = 'white'
+    tempCtx.fill(path2D)
+    
+    // Get the image data for the mask
+    const imageData = tempCtx.getImageData(
+      bounds.x,
+      bounds.y,
+      bounds.width,
+      bounds.height
+    )
+    
+    // Create pixel-aware selection
+    const selection: Selection = {
+      type: 'pixel',
+      bounds: {
+        x: bounds.x,
+        y: bounds.y,
+        width: bounds.width,
+        height: bounds.height
+      },
+      mask: imageData
+    }
+    
+    // Set selection on canvas
+    canvas.setSelection(selection)
+    
+    // Emit event if in ExecutionContext
+    if (this.executionContext) {
+      await this.executionContext.emit(new SelectionCreatedEvent(
+        'canvas',
+        selection,
+        this.executionContext.getMetadata()
+      ))
+    }
+    
+    // Clean up visual feedback
+    this.cleanupSelection()
+  }
+  
+  onKeyDown(event: KeyboardEvent): void {
+    // Cancel selection on Escape
+    if (event.key === 'Escape' && this.isSelecting) {
+      this.cleanupSelection()
+      this.isSelecting = false
+    }
+  }
+  
+  /**
+   * Clean up selection visualization
+   */
+  private cleanupSelection(): void {
+    if (this.selectionLayer) {
+      this.selectionLayer.destroyChildren()
+      this.selectionLayer.batchDraw()
+    }
+    
+    this.points = []
+    this.selectionPath = null
+  }
+  
+  /**
+   * Apply selection with magnetic lasso option
+   */
+  async applyWithContext(
+    points: Point[],
+    options?: { magnetic?: boolean; tolerance?: number }
+  ): Promise<void> {
+    if (points.length < 3) {
+      console.warn('[LassoTool] Need at least 3 points for selection')
+      return
+    }
+    
+    this.points = points
+    
+    if (options?.magnetic) {
+      // TODO: Implement magnetic lasso edge detection
+      console.log('[LassoTool] Magnetic lasso not yet implemented')
+    }
+    
+    // Create selection from provided points
+    const canvas = this.getCanvas()
+    
+    // Calculate bounds
+    let minX = Infinity, minY = Infinity
+    let maxX = -Infinity, maxY = -Infinity
+    
+    for (const point of points) {
+      minX = Math.min(minX, point.x)
+      minY = Math.min(minY, point.y)
+      maxX = Math.max(maxX, point.x)
+      maxY = Math.max(maxY, point.y)
+    }
+    
+    const bounds = {
+      x: minX,
+      y: minY,
+      width: maxX - minX,
+      height: maxY - minY
+    }
+    
+    // Create mask from points
+    const tempCanvas = document.createElement('canvas')
+    tempCanvas.width = bounds.width
+    tempCanvas.height = bounds.height
+    const tempCtx = tempCanvas.getContext('2d', { willReadFrequently: true })!
+    
+    // Translate to local coordinates
+    tempCtx.translate(-bounds.x, -bounds.y)
+    
+    // Create path
+    const path2D = new Path2D()
+    path2D.moveTo(points[0].x, points[0].y)
+    
+    for (let i = 1; i < points.length; i++) {
+      path2D.lineTo(points[i].x, points[i].y)
+    }
+    path2D.closePath()
+    
+    // Fill to create mask
+    tempCtx.fillStyle = 'white'
+    tempCtx.fill(path2D)
+    
+    const imageData = tempCtx.getImageData(0, 0, bounds.width, bounds.height)
+    
+    // Create selection
+    const selection: Selection = {
+      type: 'pixel',
+      bounds,
+      mask: imageData
+    }
+    
+    canvas.setSelection(selection)
+    
+    // Emit event if in ExecutionContext
+    if (this.executionContext) {
+      await this.executionContext.emit(new SelectionCreatedEvent(
+        'canvas',
+        selection,
+        this.executionContext.getMetadata()
+      ))
+    }
   }
 }
 

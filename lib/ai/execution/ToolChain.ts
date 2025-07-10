@@ -6,6 +6,7 @@ import { useCanvasStore } from '@/store/canvasStore'
 import { useToolStore } from '@/store/toolStore'
 import { useHistoryStore } from '@/store/historyStore'
 import type { ICommand } from '@/lib/editor/commands/base/Command'
+import { CompositeCommand } from '@/lib/editor/commands/base/CompositeCommand'
 import type { FabricObject } from 'fabric'
 import { selectionContext } from './SelectionContext'
 import { SelectionSnapshot, SelectionSnapshotFactory, SelectionValidator } from './SelectionSnapshot'
@@ -63,16 +64,15 @@ export interface ChainOptions {
  * ToolChain - Executes multiple tools in sequence with consistent context
  * 
  * Key features:
- * - Locks target images at chain creation
- * - Preserves tool state across executions
- * - Handles errors with optional continuation
- * - Integrates with undo/redo system
- * - Provides progress feedback
+ * - Locks target images at chain start
+ * - Prevents selection changes during execution
+ * - Groups all operations as a single undo/redo unit
+ * - Maintains selection scope throughout chain
  */
-export class ToolChain implements ICommand {
+export class ToolChain {
   readonly id: string
   readonly timestamp: number
-  description: string // Made mutable for fromSteps
+  private _description: string // Made mutable for fromSteps
   
   // Static flag to indicate chain execution context
   static isExecutingChain = false
@@ -87,9 +87,12 @@ export class ToolChain implements ICommand {
   private selectionSnapshot: SelectionSnapshot | null = null
   private selectionScopeId: string | null = null
   
-  // For undo/redo
-  private canvasStateBeforeExecution: string | null = null
+  // For state restoration
   private originalToolId: string | null = null
+  
+  // Track commands executed during the chain
+  private executedCommands: ICommand[] = []
+  private compositeCommand: CompositeCommand | null = null
   
   // For selection preservation
   private originalSelection: FabricObject[] | null = null
@@ -97,7 +100,7 @@ export class ToolChain implements ICommand {
   constructor(options: ChainOptions = {}) {
     this.id = nanoid()
     this.timestamp = Date.now()
-    this.description = 'Tool Chain Execution'
+    this._description = 'Tool Chain Execution'
     this.options = options
     
     // Capture initial context
@@ -172,7 +175,7 @@ export class ToolChain implements ICommand {
   static fromSteps(steps: ChainStep[], options?: ChainOptions): ToolChain {
     const chain = new ToolChain(options)
     chain.steps = steps
-    chain.description = `Execute ${steps.length} tools: ${steps.map(s => s.tool).join(', ')}`
+    chain._description = `Execute ${steps.length} tools: ${steps.map(s => s.tool).join(', ')}`
     return chain
   }
   
@@ -203,18 +206,42 @@ export class ToolChain implements ICommand {
       this.originalToolId = useToolStore.getState().activeTool || null
     }
     
-    // Save canvas state for undo
-    if (this.options.captureCheckpoints !== false) {
-      const canvas = useCanvasStore.getState().fabricCanvas
-      if (canvas) {
-        this.canvasStateBeforeExecution = JSON.stringify(canvas.toJSON())
-      }
-    }
+    // Create a composite command for this chain
+    this.compositeCommand = new CompositeCommand(this._description)
     
     // Set chain execution flag and activate selection scope
     ToolChain.isExecutingChain = true
     if (this.selectionScopeId) {
       selectionContext.setActiveScope(this.selectionScopeId)
+    }
+    
+    // Store the current executeCommand function to intercept commands
+    const historyStore = useHistoryStore.getState()
+    const originalExecuteCommand = historyStore.executeCommand.bind(historyStore)
+    
+    // Track if we're in the middle of adding our composite command
+    let addingComposite = false
+    
+    // Override executeCommand to capture commands during chain execution
+    historyStore.executeCommand = async (command: ICommand) => {
+      // If this is our composite command being added, let it through
+      if (addingComposite && command === this.compositeCommand) {
+        return originalExecuteCommand(command)
+      }
+      
+      // Otherwise, capture the command and execute it directly
+      console.log(`[ToolChain ${this.id}] Intercepting command: ${command.description}`)
+      this.executedCommands.push(command)
+      
+      // Add to composite command
+      if (this.compositeCommand) {
+        this.compositeCommand.addCommand(command)
+      }
+      
+      // Execute directly without adding to history
+      if (command.canExecute()) {
+        await command.execute()
+      }
     }
     
     try {
@@ -301,6 +328,27 @@ export class ToolChain implements ICommand {
       // Clean up selection before clearing flags
       this.cleanupSelection()
       
+      // Restore the original executeCommand function
+      historyStore.executeCommand = originalExecuteCommand
+      
+      // Add the composite command to history if we executed any commands
+      if (this.compositeCommand && this.executedCommands.length > 0) {
+        console.log(`[ToolChain ${this.id}] Adding composite command with ${this.executedCommands.length} sub-commands to history`)
+        
+        // Ensure the composite command has the right description
+        const toolNames = [...new Set(this.steps.map(s => s.tool))]
+        const description = toolNames.length > 3 
+          ? `Execute ${this.executedCommands.length} operations`
+          : `Execute ${toolNames.join(', ')}`
+        this.compositeCommand = new CompositeCommand(description, this.executedCommands)
+        
+        addingComposite = true
+        await historyStore.executeCommand(this.compositeCommand)
+        addingComposite = false
+      } else if (this.executedCommands.length === 0) {
+        console.warn(`[ToolChain ${this.id}] No commands were executed during chain execution`)
+      }
+      
       // Always clear the flag and scope
       ToolChain.isExecutingChain = false
       selectionContext.setActiveScope(null)
@@ -330,7 +378,7 @@ export class ToolChain implements ICommand {
   }
   
   /**
-   * Clean up canvas selection after chain execution
+   * Clean up selection state
    */
   private cleanupSelection(): void {
     const canvas = useCanvasStore.getState().fabricCanvas
@@ -470,73 +518,10 @@ export class ToolChain implements ICommand {
   }
   
   /**
-   * Undo the entire chain execution
+   * Get description for history
    */
-  async undo(): Promise<void> {
-    if (!this.canvasStateBeforeExecution) {
-      console.warn(`[ToolChain ${this.id}] No checkpoint available for undo`)
-      return
-    }
-    
-    const canvas = useCanvasStore.getState().fabricCanvas
-    if (!canvas) {
-      throw new Error('No canvas available for undo')
-    }
-    
-    console.log(`[ToolChain ${this.id}] Undoing chain execution`)
-    
-    // Clear any active selection before restoring
-    canvas.discardActiveObject()
-    
-    // Restore canvas state
-    await new Promise<void>((resolve) => {
-      canvas.loadFromJSON(this.canvasStateBeforeExecution!, () => {
-        canvas.renderAll()
-        resolve()
-      })
-    })
-    
-    // Ensure selection is cleared after restore
-    canvas.discardActiveObject()
-    canvas.requestRenderAll()
-    
-    // Restore tool state if needed
-    if (this.options.preserveToolState && this.originalToolId) {
-      const toolStore = useToolStore.getState()
-      const toolsArray = Array.from(toolStore.tools.values())
-      const originalTool = toolsArray.find(t => t.id === this.originalToolId)
-      if (originalTool) {
-        toolStore.setActiveTool(originalTool.id)
-      }
-    }
-  }
-  
-  /**
-   * Redo the chain execution
-   */
-  async redo(): Promise<void> {
-    // Clear any active selection before re-executing
-    const canvas = useCanvasStore.getState().fabricCanvas
-    if (canvas) {
-      canvas.discardActiveObject()
-      canvas.requestRenderAll()
-    }
-    
-    await this.execute()
-  }
-  
-  /**
-   * Check if the chain can be executed
-   */
-  canExecute(): boolean {
-    return this.steps.length > 0 && !!useCanvasStore.getState().fabricCanvas
-  }
-  
-  /**
-   * Check if the chain can be undone
-   */
-  canUndo(): boolean {
-    return !!this.canvasStateBeforeExecution
+  get description(): string {
+    return this._description
   }
   
   /**
@@ -612,12 +597,8 @@ export async function executeToolChain(
 ): Promise<ChainResult> {
   const chain = ToolChain.fromSteps(steps, options)
   
-  // Execute through history store if undo/redo is needed
-  if (options?.captureCheckpoints !== false) {
-    await useHistoryStore.getState().executeCommand(chain)
-  } else {
-    await chain.execute()
-  }
+  // Execute directly - CompositeCommand will be added to history internally
+  await chain.execute()
   
   return chain.getResults()
 } 

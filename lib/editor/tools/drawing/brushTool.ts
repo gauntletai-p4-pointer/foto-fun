@@ -1,174 +1,222 @@
-import { Brush } from 'lucide-react'
-import { TOOL_IDS } from '@/constants'
-import type { Canvas, FabricObject, Path } from 'fabric'
-import { PencilBrush } from 'fabric'
-import { DrawingTool } from '../base/DrawingTool'
-import type { ToolOption } from '@/store/toolOptionsStore'
-import type { CustomFabricObjectProps } from '@/types'
-import { LayerAwareMixin } from '../utils/layerAware'
-import { useHistoryStore } from '@/store/historyStore'
-import { AddObjectCommand } from '@/lib/editor/commands/canvas'
-import { useLayerStore } from '@/store/layerStore'
+import Konva from 'konva'
+import { FaPaintBrush } from 'react-icons/fa'
+import { BaseTool } from '../base/BaseTool'
+import type { ToolEvent } from '@/lib/editor/canvas/types'
 
 /**
- * Brush Tool - Freehand drawing tool
- * Extends DrawingTool for consistent drawing behavior
+ * Pixel-aware brush tool for painting on canvas
+ * Supports pressure sensitivity, opacity, and various brush modes
  */
-class BrushTool extends DrawingTool {
-  // Tool identification
-  id = TOOL_IDS.BRUSH
+export class BrushTool extends BaseTool {
+  id = 'brush'
   name = 'Brush Tool'
-  icon = Brush
+  icon = FaPaintBrush
   cursor = 'crosshair'
   shortcut = 'B'
   
-  // Tool properties
-  protected strokeColor = '#000000'
-  protected strokeWidth = 10
-  protected opacity = 100
+  // Drawing state
+  private isDrawing = false
+  private lastPoint: { x: number; y: number } | null = null
+  private currentStroke: Konva.Line | null = null
+  private drawingLayer: Konva.Layer | null = null
   
-  // Brush-specific properties
-  private smoothing = true
-  private brush: PencilBrush | null = null
+  // Brush settings
+  private brushSize = 10
+  private brushOpacity = 1
+  private brushColor = '#000000'
+  private brushHardness = 0.8
+  private pressureSensitivity = 0.5
   
-  /**
-   * Tool setup - enable drawing mode
-   */
-  protected setupTool(canvas: Canvas): void {
-    // Check if we can draw on the active layer
-    if (!LayerAwareMixin.canDrawOnActiveLayer()) {
-      console.warn('Cannot draw on locked or hidden layer')
-      return
+  protected setupTool(): void {
+    const canvas = this.getCanvas()
+    
+    // Create a dedicated drawing layer for real-time performance
+    this.drawingLayer = new Konva.Layer()
+    canvas.stage.add(this.drawingLayer)
+    
+    // Set initial brush options
+    this.brushSize = this.getOption('size') || 10
+    this.brushOpacity = this.getOption('opacity') || 1
+    this.brushColor = this.getOption('color') || '#000000'
+    this.brushHardness = this.getOption('hardness') || 0.8
+    this.pressureSensitivity = this.getOption('pressureSensitivity') || 0.5
+  }
+  
+  protected cleanupTool(): void {
+    // Clean up drawing layer
+    if (this.drawingLayer) {
+      this.drawingLayer.destroy()
+      this.drawingLayer = null
     }
     
-    // Enable Fabric.js drawing mode
-    canvas.isDrawingMode = true
-    canvas.selection = false
+    // Reset state
+    this.isDrawing = false
+    this.lastPoint = null
+    this.currentStroke = null
+  }
+  
+  onMouseDown(event: ToolEvent): void {
+    if (!this.drawingLayer) return
     
-    // Create and configure brush
-    this.brush = new PencilBrush(canvas)
-    this.updateBrushSettings()
-    canvas.freeDrawingBrush = this.brush
+    this.isDrawing = true
+    this.lastPoint = { x: event.point.x, y: event.point.y }
     
-    // Subscribe to option changes
-    this.subscribeToToolOptions((options) => {
-      this.updateToolProperties(options)
-      this.updateBrushSettings()
+    // Create a new stroke
+    this.currentStroke = new Konva.Line({
+      points: [event.point.x, event.point.y],
+      stroke: this.brushColor,
+      strokeWidth: this.calculateBrushSize(event.pressure),
+      lineCap: 'round',
+      lineJoin: 'round',
+      opacity: this.brushOpacity,
+      globalCompositeOperation: 'source-over',
+      tension: 0.5,
+      // Custom attributes for our brush
+      perfectDrawEnabled: false, // Performance optimization
+      shadowForStrokeEnabled: false // Performance optimization
     })
     
-    // Listen for path creation to record commands
-    this.addCanvasEvent('path:created', (e: unknown) => {
-      const event = e as { path: Path }
-      this.handlePathCreated(event.path)
-    })
+    this.drawingLayer.add(this.currentStroke)
+    this.drawingLayer.batchDraw()
+  }
+  
+  onMouseMove(event: ToolEvent): void {
+    if (!this.isDrawing || !this.currentStroke || !this.drawingLayer) return
     
-    canvas.renderAll()
+    const newPoint = { x: event.point.x, y: event.point.y }
+    
+    // Add points to the current stroke
+    const points = this.currentStroke.points()
+    points.push(newPoint.x, newPoint.y)
+    this.currentStroke.points(points)
+    
+    // Adjust stroke width based on pressure if available
+    if (event.pressure !== undefined && this.pressureSensitivity > 0) {
+      this.currentStroke.strokeWidth(this.calculateBrushSize(event.pressure))
+    }
+    
+    // Batch draw for performance
+    this.drawingLayer.batchDraw()
+    
+    this.lastPoint = newPoint
+  }
+  
+  onMouseUp(event: ToolEvent): void {
+    if (!this.isDrawing || !this.currentStroke || !this.drawingLayer) return
+    
+    this.isDrawing = false
+    
+    // Finalize the stroke
+    this.finalizeStroke()
+    
+    // Reset state
+    this.lastPoint = null
+    this.currentStroke = null
   }
   
   /**
-   * Tool cleanup - disable drawing mode
+   * Calculate brush size based on pressure
    */
-  protected cleanup(canvas: Canvas): void {
-    // Disable drawing mode
-    canvas.isDrawingMode = false
-    canvas.selection = true
+  private calculateBrushSize(pressure?: number): number {
+    if (pressure === undefined || this.pressureSensitivity === 0) {
+      return this.brushSize
+    }
     
-    // Clear brush
-    canvas.freeDrawingBrush = undefined
-    this.brush = null
-    
-    canvas.renderAll()
+    // Apply pressure sensitivity
+    const pressureMultiplier = 0.5 + (pressure * 0.5 * this.pressureSensitivity)
+    return this.brushSize * pressureMultiplier
   }
   
   /**
-   * Update brush settings
+   * Finalize the current stroke and merge it with the active layer
    */
-  private updateBrushSettings(): void {
-    if (!this.brush || !this.canvas) return
+  private async finalizeStroke(): Promise<void> {
+    if (!this.currentStroke || !this.drawingLayer) return
     
-    this.brush.width = this.strokeWidth
-    this.brush.color = this.hexToRgba(this.strokeColor, this.opacity / 100)
-    this.brush.decimate = this.smoothing ? 1 : 0
-  }
-  
-  /**
-   * Handle path creation - record command and add to layer
-   */
-  private handlePathCreated(path: Path): void {
-    if (!this.canvas) return
+    const canvas = this.getCanvas()
+    const activeLayer = canvas.getActiveLayer()
     
-    this.track('pathCreated', () => {
-      try {
-        // The path is already on the canvas from Fabric's drawing mode
-        // Just add it to the layer system and create command
-        
-        // This will add layer information to the existing path
-        const layerStore = useLayerStore.getState()
-        layerStore.addObjectToActiveLayer(path as FabricObject)
-        
-        // Create and execute command for history
-        const pathWithProps = path as Path & CustomFabricObjectProps
-        const layerId = pathWithProps.layerId
-        const command = new AddObjectCommand(this.canvas!, path as FabricObject, layerId)
-        useHistoryStore.getState().executeCommand(command)
-        
-        console.log('Brush stroke created:', {
-          pathData: path.path,
-          color: this.strokeColor,
-          width: this.strokeWidth,
-          opacity: this.opacity,
-          layerId: layerId
-        })
-      } catch (error) {
-        console.error('Error creating brush stroke:', error)
-      }
-    })
+    if (!activeLayer) return
+    
+    // Convert the stroke to pixels and merge with the active layer
+    // This is where we'd implement the actual pixel manipulation
+    // For now, we'll move the stroke to the active layer
+    this.currentStroke.remove()
+    activeLayer.konvaLayer.add(this.currentStroke)
+    activeLayer.konvaLayer.batchDraw()
+    
+    // Emit event for history
+    await canvas.addObject({
+      type: 'path',
+      node: this.currentStroke
+    }, activeLayer.id)
   }
   
-  /**
-   * Update tool properties from options
-   */
-  protected updateToolProperties(options: ToolOption[]): void {
-    options.forEach(option => {
-      switch (option.id) {
-        case 'color':
-          this.strokeColor = option.value as string
-          break
-        case 'size':
-          this.strokeWidth = option.value as number
-          break
-        case 'opacity':
-          this.opacity = option.value as number
-          break
-        case 'smoothing':
-          this.smoothing = option.value as boolean
-          break
-      }
-    })
+  protected onOptionChange(key: string, value: any): void {
+    switch (key) {
+      case 'size':
+        this.brushSize = value
+        break
+      case 'opacity':
+        this.brushOpacity = value
+        break
+      case 'color':
+        this.brushColor = value
+        break
+      case 'hardness':
+        this.brushHardness = value
+        break
+      case 'pressureSensitivity':
+        this.pressureSensitivity = value
+        break
+    }
   }
   
-  // Override DrawingTool methods since we use Fabric's drawing mode
-  protected beginStroke(): void {
-    // Not used - Fabric handles drawing
-  }
-  
-  protected updateStroke(): void {
-    // Not used - Fabric handles drawing
-  }
-  
-  protected finalizeStroke(): void {
-    // Not used - Fabric handles drawing
-  }
-  
-  /**
-   * Helper to convert hex color to rgba
-   */
-  private hexToRgba(hex: string, alpha: number): string {
-    const r = parseInt(hex.slice(1, 3), 16)
-    const g = parseInt(hex.slice(3, 5), 16)
-    const b = parseInt(hex.slice(5, 7), 16)
-    return `rgba(${r}, ${g}, ${b}, ${alpha})`
-  }
+  // Tool options configuration
+  static options = [
+    {
+      id: 'size',
+      type: 'slider',
+      label: 'Size',
+      min: 1,
+      max: 200,
+      default: 10,
+      step: 1
+    },
+    {
+      id: 'opacity',
+      type: 'slider',
+      label: 'Opacity',
+      min: 0,
+      max: 1,
+      default: 1,
+      step: 0.01
+    },
+    {
+      id: 'color',
+      type: 'color',
+      label: 'Color',
+      default: '#000000'
+    },
+    {
+      id: 'hardness',
+      type: 'slider',
+      label: 'Hardness',
+      min: 0,
+      max: 1,
+      default: 0.8,
+      step: 0.01
+    },
+    {
+      id: 'pressureSensitivity',
+      type: 'slider',
+      label: 'Pressure Sensitivity',
+      min: 0,
+      max: 1,
+      default: 0.5,
+      step: 0.01
+    }
+  ]
 }
 
 // Export singleton instance

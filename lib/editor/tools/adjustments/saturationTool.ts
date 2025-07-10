@@ -1,29 +1,15 @@
 import { Droplet } from 'lucide-react'
+import Konva from 'konva'
 import { TOOL_IDS } from '@/constants'
 import { BaseTool } from '../base/BaseTool'
-import { createToolState } from '../utils/toolState'
-import * as fabric from 'fabric'
-
-// Define filter type
-interface ImageFilter {
-  type?: string
-  [key: string]: unknown
-}
-
-/**
- * Saturation Tool State
- */
-type SaturationState = {
-  adjustment: number
-  isAdjusting: boolean
-  previousFilters: Map<string, ImageFilter[]>
-}
+import type { CanvasObject } from '@/lib/editor/canvas/types'
+import { FilterAppliedEvent } from '@/lib/events/canvas/ToolEvents'
 
 /**
  * Saturation Tool - Adjust image color saturation
- * Uses Fabric.js saturation filter
+ * Konva implementation with HSL manipulation
  */
-class SaturationTool extends BaseTool {
+export class SaturationTool extends BaseTool {
   // Tool identification
   id = TOOL_IDS.SATURATION
   name = 'Saturation'
@@ -31,85 +17,179 @@ class SaturationTool extends BaseTool {
   cursor = 'default'
   shortcut = undefined // No default shortcut
   
-  // Tool state
-  private state = createToolState<SaturationState>({
-    adjustment: 0,
-    isAdjusting: false,
-    previousFilters: new Map()
-  })
+  // Track current adjustment
+  private currentAdjustment = 0
+  private isAdjusting = false
   
-  /**
-   * Tool setup
-   */
   protected setupTool(): void {
-    // Subscribe to tool options
-    this.subscribeToToolOptions((options) => {
-      const adjustment = options.find(opt => opt.id === 'adjustment')?.value
-      if (adjustment !== undefined && typeof adjustment === 'number') {
-        this.track('adjustSaturation', () => {
-          this.applySaturation(adjustment)
-        })
+    const canvas = this.getCanvas()
+    
+    // Check for existing saturation adjustments
+    const selection = canvas.state.selection
+    if (selection?.type === 'objects') {
+      const firstObject = this.findObject(selection.objectIds[0])
+      if (firstObject && firstObject.type === 'image') {
+        const imageNode = firstObject.node as Konva.Image
+        const filters = imageNode.filters() || []
+        if (filters.includes(Konva.Filters.HSL)) {
+          // Get current saturation value
+          const saturation = imageNode.saturation() || 0
+          this.currentAdjustment = saturation
+          this.setOption('adjustment', saturation)
+        }
       }
-    })
+    }
     
-    // Apply initial value if any
-    const currentAdjustment = this.toolOptionsStore.getOptionValue<number>(this.id, 'adjustment')
-    if (currentAdjustment !== undefined && currentAdjustment !== 0) {
-      this.applySaturation(currentAdjustment)
+    // Set default adjustment
+    this.setOption('adjustment', this.currentAdjustment)
+  }
+  
+  protected cleanupTool(): void {
+    // Reset state but keep filters applied
+    this.isAdjusting = false
+  }
+  
+  protected onOptionChange(key: string, value: unknown): void {
+    if (key === 'adjustment' && typeof value === 'number') {
+      this.applySaturation(value)
     }
   }
   
   /**
-   * Apply saturation adjustment to all images on canvas
+   * Apply saturation adjustment
    */
-  private applySaturation(adjustment: number): void {
-    if (!this.canvas) return
+  async applySaturation(adjustment: number): Promise<void> {
+    if (this.isAdjusting) return
     
-    this.state.set('adjustment', adjustment)
+    this.isAdjusting = true
     
-    // Get target images using selection-aware method
-    const images = this.getTargetImages()
+    try {
+      const targets = this.getTargetObjects()
+      
+      if (targets.length === 0) {
+        console.warn('[SaturationTool] No images to adjust')
+        return
+      }
+      
+      const targetIds: string[] = []
+      
+      for (const target of targets) {
+        if (target.type === 'image') {
+          await this.applySaturationToImage(target, adjustment)
+          targetIds.push(target.id)
+        }
+      }
+      
+      // Emit event if in ExecutionContext
+      if (this.executionContext && targetIds.length > 0) {
+        await this.executionContext.emit(new FilterAppliedEvent(
+          'canvas',
+          'saturation',
+          { saturation: adjustment },
+          targetIds,
+          this.executionContext.getMetadata()
+        ))
+      }
+      
+      this.currentAdjustment = adjustment
+    } finally {
+      this.isAdjusting = false
+    }
+  }
+  
+  /**
+   * Apply saturation to a specific image object
+   */
+  private async applySaturationToImage(obj: CanvasObject, adjustment: number): Promise<void> {
+    const imageNode = obj.node as Konva.Image
     
-    if (images.length === 0) {
-      console.warn('No images found to adjust saturation')
-      return
+    // Cache the image for filter application
+    imageNode.cache()
+    
+    // Set up HSL filter
+    const filters = imageNode.filters() || []
+    if (!filters.includes(Konva.Filters.HSL)) {
+      filters.push(Konva.Filters.HSL)
+      imageNode.filters(filters)
     }
     
-    // Use the base class filter management
-    this.executeWithGuard('isAdjusting', async () => {
-      await this.applyImageFilters(
-        images,
-        'Saturation',
-        () => {
-          if (adjustment !== 0) {
-            // Fabric.js saturation value is between -1 and 1
-            const saturationValue = adjustment / 100
-            return new fabric.filters.Saturation({
-              saturation: saturationValue
-            })
+    // Apply saturation (Konva expects -100 to 100 range)
+    imageNode.saturation(adjustment)
+    
+    // Redraw
+    const layer = this.findLayerForObject(obj)
+    if (layer) {
+      layer.konvaLayer.batchDraw()
+    }
+  }
+  
+  /**
+   * Get target objects based on selection or all images
+   */
+  private getTargetObjects(): CanvasObject[] {
+    const canvas = this.getCanvas()
+    const selection = canvas.state.selection
+    
+    if (selection?.type === 'objects') {
+      // Apply to selected objects
+      return selection.objectIds
+        .map(id => this.findObject(id))
+        .filter((obj): obj is CanvasObject => obj !== null && obj.type === 'image')
+    } else if (selection?.type === 'rectangle' || selection?.type === 'ellipse' || selection?.type === 'pixel') {
+      // For pixel selections, we'd need different handling
+      console.warn('[SaturationTool] Pixel-based selections not yet implemented')
+      return []
+    } else {
+      // Apply to all images
+      const allImages: CanvasObject[] = []
+      for (const layer of canvas.state.layers) {
+        for (const obj of layer.objects) {
+          if (obj.type === 'image' && !obj.locked && obj.visible) {
+            allImages.push(obj)
           }
-          return null
-        },
-        `Adjust saturation to ${adjustment}%`
-      )
-    })
+        }
+      }
+      return allImages
+    }
   }
   
   /**
-   * Tool cleanup
+   * Find an object by ID
    */
-  protected cleanup(): void {
-    // Don't reset the adjustment value - let it persist
-    // The user can manually reset or use undo if they want to remove the effect
-    
-    // Clear stored filters (but don't remove applied filters)
-    this.state.get('previousFilters').clear()
-    
-    // Reset only the internal state, not the actual adjustment
-    this.state.setState({
-      isAdjusting: false,
-      previousFilters: new Map()
-    })
+  private findObject(objectId: string): CanvasObject | null {
+    const canvas = this.getCanvas()
+    for (const layer of canvas.state.layers) {
+      const obj = layer.objects.find(o => o.id === objectId)
+      if (obj) return obj
+    }
+    return null
+  }
+  
+  /**
+   * Find the layer containing an object
+   */
+  private findLayerForObject(obj: CanvasObject) {
+    const canvas = this.getCanvas()
+    return canvas.state.layers.find(layer => 
+      layer.objects.some(o => o.id === obj.id)
+    )
+  }
+  
+  /**
+   * Apply saturation for AI operations with selection context
+   */
+  async applyWithContext(adjustment: number, targetObjects?: CanvasObject[]): Promise<void> {
+    if (targetObjects) {
+      // Apply to specific objects
+      for (const obj of targetObjects) {
+        if (obj.type === 'image') {
+          await this.applySaturationToImage(obj, adjustment)
+        }
+      }
+    } else {
+      // Use normal apply
+      await this.applySaturation(adjustment)
+    }
   }
 }
 

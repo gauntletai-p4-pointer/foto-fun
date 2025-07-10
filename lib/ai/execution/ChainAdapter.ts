@@ -100,9 +100,8 @@ export class ChainAdapter extends BaseToolAdapter<ExecuteChainInput, ExecuteChai
         }
       )
       
-      // Execute through history store for undo/redo support
-      const { useHistoryStore } = await import('@/store/historyStore')
-      await useHistoryStore.getState().executeCommand(chain)
+      // Execute the chain directly - CompositeCommand will be added to history internally
+      await chain.execute()
       
       // Get results
       const results = chain.getResults()

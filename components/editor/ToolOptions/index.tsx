@@ -1,28 +1,30 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useToolStore } from '@/store/toolStore'
-import { useToolOptionsStore, defaultToolOptions } from '@/store/toolOptionsStore'
+import { useService } from '@/lib/core/AppInitializer'
+import { useStore } from '@/lib/store/base/BaseStore'
+import { EventToolStore, ToolOption } from '@/lib/store/tools/EventToolStore'
 import { OptionCheckbox } from './OptionCheckbox'
 import { OptionNumber } from './OptionNumber'
 import { OptionButtonGroup } from './OptionButtonGroup'
 import { OptionSlider } from './OptionSlider'
 import { OptionColor } from './OptionColor'
 import { OptionDropdown } from './OptionDropdown'
-import type { ToolOption } from '@/store/toolOptionsStore'
 import { TOOL_IDS } from '@/constants'
+import { defaultToolOptions } from './defaultToolOptions'
 
 export function ToolOptions() {
-  const activeTool = useToolStore((state) => state.activeTool)
-  const { getToolOptions, updateOption, registerToolOptions } = useToolOptionsStore()
+  const toolStore = useService<EventToolStore>('ToolStore')
+  const toolState = useStore(toolStore)
+  const activeTool = toolStore.getActiveTool()
   const [modifiers, setModifiers] = useState({ shift: false, alt: false })
   
   // Register default options on mount
   useEffect(() => {
     Object.values(defaultToolOptions).forEach(config => {
-      registerToolOptions(config)
+      toolStore.registerToolOptions(config)
     })
-  }, [registerToolOptions])
+  }, [toolStore])
   
   // Track modifier keys
   useEffect(() => {
@@ -51,15 +53,15 @@ export function ToolOptions() {
   
   if (!activeTool) return null
   
-  const options = getToolOptions(activeTool)
+  const options = toolStore.getToolOptions(activeTool.id)
   if (!options || options.length === 0) return null
   
   const handleOptionChange = (optionId: string, value: unknown) => {
-    updateOption(activeTool, optionId, value)
+    toolStore.updateOption(activeTool.id, optionId, value)
   }
   
   const renderOption = (option: ToolOption) => {
-    const key = `${activeTool}-${option.id}`
+    const key = `${activeTool.id}-${option.id}`
     
     switch (option.type) {
       case 'checkbox':
@@ -122,7 +124,7 @@ export function ToolOptions() {
   }
   
   // Show modifier hints for marquee tool
-  const showModifierHints = activeTool === TOOL_IDS.MARQUEE_RECT
+  const showModifierHints = activeTool.id === TOOL_IDS.MARQUEE_RECT
   
   return (
     <div className="flex items-center gap-6 px-4">

@@ -327,13 +327,22 @@ CRITICAL: Never attempt to use any editing tools if hasContent is false. Always 
 async function executeMultiStepWorkflow(
   request: string,
   messages: UIMessage[], 
-  canvasContext: { dimensions: { width: number; height: number }; hasContent: boolean; objectCount?: number }, 
+  canvasContext: { 
+    dimensions: { width: number; height: number }; 
+    hasContent: boolean; 
+    objectCount?: number;
+    canvasScreenshot?: string; // Add screenshot support
+  }, 
   aiSettings: { autoApproveThreshold?: number; showConfidenceScores?: boolean; showApprovalDecisions?: boolean },
-  iterationCount: number = 0
+  iterationCount: number = 0,
+  previousAdjustments: Array<{ tool: string; params: unknown }> = [],
+  lastEvaluation?: { score: number; feedback: string }
 ) {
   console.log('[Agent] === EXECUTING MULTI-STEP WORKFLOW ===')
   console.log('[Agent] Request:', request)
   console.log('[Agent] Iteration:', iterationCount)
+  console.log('[Agent] Previous adjustments:', previousAdjustments.length)
+  console.log('[Agent] Has screenshot:', !!canvasContext.canvasScreenshot)
   
   // Check if we've hit the iteration limit
   if (iterationCount >= 3) {
@@ -365,7 +374,14 @@ async function executeMultiStepWorkflow(
   } as unknown as Canvas
   
   // Create agent context with user preferences from AI settings
-  const agentContext: AgentContext = {
+  const agentContext: AgentContext & {
+    iterationData?: {
+      iterationCount: number
+      previousAdjustments: Array<{ tool: string; params: unknown }>
+      lastEvaluation?: { score: number; feedback: string }
+      canvasScreenshot?: string
+    }
+  } = {
     canvas: mockCanvas,
     conversation: messages,
     workflowMemory: new WorkflowMemory(mockCanvas),
@@ -380,7 +396,16 @@ async function executeMultiStepWorkflow(
       hasContent: contextData.hasContent,
       objectCount: contextData.objectCount,
       lastAnalyzedAt: Date.now()
-    }
+    },
+    // Include iteration data if this is not the first iteration
+    ...(iterationCount > 0 || previousAdjustments.length > 0 ? {
+      iterationData: {
+        iterationCount,
+        previousAdjustments,
+        lastEvaluation,
+        canvasScreenshot: canvasContext.canvasScreenshot
+      }
+    } : {})
   }
   
   // Create master routing agent
@@ -433,6 +458,7 @@ async function executeMultiStepWorkflow(
         agentType: string
         totalSteps: number
         reasoning: string
+        visionInsights?: string
       }
       
       // Extract agent status
@@ -449,6 +475,13 @@ async function executeMultiStepWorkflow(
         details?: string
         timestamp: string
       }>) || []
+      
+      // Extract iteration context
+      const iterationContext = resultData.iterationContext as {
+        currentIteration: number
+        previousAdjustments: Array<{ tool: string; params: unknown }>
+        lastEvaluation?: { score: number; feedback: string }
+      } | undefined
       
       console.log('[Agent] Extracted execution plan:', {
         toolExecutionsCount: toolExecutions.length,
@@ -474,6 +507,7 @@ async function executeMultiStepWorkflow(
           agentStatus,
           statusUpdates,
           toolExecutions, // Include the plan for approval dialog
+          iterationContext, // Include iteration context
           message: `Approval required: Confidence (${Math.round(agentStatus.confidence * 100)}%) is below threshold (${Math.round(agentStatus.threshold * 100)}%)`
         }
       }
@@ -485,6 +519,7 @@ async function executeMultiStepWorkflow(
         agentStatus,
         statusUpdates,
         toolExecutions,
+        iterationContext, // Include iteration context
         message: workflow.description || `Ready to execute ${toolExecutions.length} improvements`
       }
     }

@@ -103,10 +103,13 @@ export function useToolCallHandler({
           }>
           originalRequest?: string
           message?: string
+          iterationCount?: number
+          previousAdjustments?: Array<{ tool: string; params: unknown }>
         }
         
         if (planData.type === 'execute-approved-plan' && planData.toolExecutions) {
           console.log('[AIChat] Executing approved plan tools:', planData.toolExecutions)
+          console.log('[AIChat] Iteration count:', planData.iterationCount)
           
           // If there are multiple tools, use executeToolChain for proper selection management
           if (planData.toolExecutions.length > 1) {
@@ -131,16 +134,35 @@ export function useToolCallHandler({
               
               console.log('[AIChat] Tool chain completed successfully:', chainResult)
               
-              // After executing all tools, get the updated canvas state
+              // After executing all tools, capture the updated canvas state
               const currentState = useCanvasStore.getState()
+              let canvasScreenshot: string | undefined
+              
+              if (currentState.fabricCanvas) {
+                // Capture screenshot for evaluation
+                canvasScreenshot = currentState.fabricCanvas.toDataURL({
+                  format: 'png',
+                  quality: 0.8,
+                  multiplier: 1
+                })
+                console.log('[AIChat] Captured post-execution screenshot')
+              }
+              
               const updatedCanvasContext = currentState.fabricCanvas ? {
                 dimensions: {
                   width: currentState.fabricCanvas.getWidth(),
                   height: currentState.fabricCanvas.getHeight()
                 },
                 hasContent: currentState.hasContent(),
-                objectCount: currentState.fabricCanvas.getObjects().length
+                objectCount: currentState.fabricCanvas.getObjects().length,
+                canvasScreenshot
               } : null
+              
+              // Track adjustments for iteration context
+              const currentAdjustments = planData.toolExecutions.map(exec => ({
+                tool: exec.toolName,
+                params: exec.params
+              }))
               
               return {
                 success: true,
@@ -148,7 +170,12 @@ export function useToolCallHandler({
                 results: chainResult,
                 updatedCanvasContext,
                 originalRequest: planData.originalRequest,
-                continueWorkflow: true
+                continueWorkflow: true,
+                iterationCount: planData.iterationCount || 1,
+                previousAdjustments: [
+                  ...(planData.previousAdjustments || []),
+                  ...currentAdjustments
+                ]
               }
             } catch (error) {
               console.error('[AIChat] Tool chain execution failed:', error)
@@ -182,16 +209,35 @@ export function useToolCallHandler({
               }
             }
             
-            // After executing all tools, get the updated canvas state
+            // After executing all tools, capture the updated canvas state
             const currentState = useCanvasStore.getState()
+            let canvasScreenshot: string | undefined
+            
+            if (currentState.fabricCanvas) {
+              // Capture screenshot for evaluation
+              canvasScreenshot = currentState.fabricCanvas.toDataURL({
+                format: 'png',
+                quality: 0.8,
+                multiplier: 1
+              })
+              console.log('[AIChat] Captured post-execution screenshot')
+            }
+            
             const updatedCanvasContext = currentState.fabricCanvas ? {
               dimensions: {
                 width: currentState.fabricCanvas.getWidth(),
                 height: currentState.fabricCanvas.getHeight()
               },
               hasContent: currentState.hasContent(),
-              objectCount: currentState.fabricCanvas.getObjects().length
+              objectCount: currentState.fabricCanvas.getObjects().length,
+              canvasScreenshot
             } : null
+            
+            // Track adjustments for iteration context
+            const currentAdjustments = planData.toolExecutions.map(exec => ({
+              tool: exec.toolName,
+              params: exec.params
+            }))
             
             return {
               success: true,
@@ -199,7 +245,12 @@ export function useToolCallHandler({
               results,
               updatedCanvasContext,
               originalRequest: planData.originalRequest,
-              continueWorkflow: true
+              continueWorkflow: true,
+              iterationCount: planData.iterationCount || 1,
+              previousAdjustments: [
+                ...(planData.previousAdjustments || []),
+                ...currentAdjustments
+              ]
             }
           }
         }
@@ -251,6 +302,11 @@ export function useToolCallHandler({
             confidence?: number
           }>
           message?: string
+          iterationContext?: {
+            currentIteration: number
+            previousAdjustments: Array<{ tool: string; params: unknown }>
+            lastEvaluation?: { score: number; feedback: string }
+          }
         }
         console.log('[AIChat] Agent result:', agentResult)
         
@@ -290,7 +346,8 @@ export function useToolCallHandler({
             workflow: agentResult.workflow,
             agentStatus: agentResult.agentStatus,
             statusUpdates: agentResult.statusUpdates || [],
-            toolExecutions: agentResult.toolExecutions
+            toolExecutions: agentResult.toolExecutions,
+            iterationContext: agentResult.iterationContext
           }
         }
         
@@ -328,7 +385,8 @@ export function useToolCallHandler({
                 agentWorkflow: true,
                 workflow: agentResult.workflow,
                 agentStatus: agentResult.agentStatus,
-                statusUpdates: agentResult.statusUpdates || []
+                statusUpdates: agentResult.statusUpdates || [],
+                iterationContext: agentResult.iterationContext
               }
             } catch (error) {
               console.error('[AIChat] Tool chain execution failed:', error)
@@ -339,7 +397,8 @@ export function useToolCallHandler({
                 agentWorkflow: true,
                 workflow: agentResult.workflow,
                 agentStatus: agentResult.agentStatus,
-                statusUpdates: agentResult.statusUpdates || []
+                statusUpdates: agentResult.statusUpdates || [],
+                iterationContext: agentResult.iterationContext
               }
             }
           } else {
@@ -373,7 +432,8 @@ export function useToolCallHandler({
               agentWorkflow: true,
               workflow: agentResult.workflow,
               agentStatus: agentResult.agentStatus,
-              statusUpdates: agentResult.statusUpdates || []
+              statusUpdates: agentResult.statusUpdates || [],
+              iterationContext: agentResult.iterationContext
             }
           }
         }

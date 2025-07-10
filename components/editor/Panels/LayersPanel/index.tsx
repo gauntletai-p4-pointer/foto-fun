@@ -1,7 +1,9 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useLayerStore } from '@/store/layerStore'
+import { useService } from '@/lib/core/AppInitializer'
+import { useStore } from '@/lib/store/base/BaseStore'
+import { EventLayerStore } from '@/lib/store/layers/EventLayerStore'
 import { useHistoryStore } from '@/store/historyStore'
 import { 
   Eye, 
@@ -35,7 +37,8 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
-import type { Layer, LayerType, BlendMode } from '@/types'
+import type { Layer } from '@/lib/editor/canvas/types'
+import type { BlendMode } from '@/types'
 import { 
   CreateLayerCommand,
   RemoveLayerCommand,
@@ -44,13 +47,16 @@ import {
   DuplicateLayerCommand
 } from '@/lib/editor/commands/layer'
 
-// Icons for different layer types
-const layerTypeIcons: Record<LayerType, React.ComponentType<{ className?: string }>> = {
-  image: ImageIcon,
+// Icons for different layer types - mapping new types to icons
+const layerTypeIcons: Record<string, React.ComponentType<{ className?: string }>> = {
+  raster: ImageIcon,
+  vector: Square,
   text: Type,
-  shape: Square,
   adjustment: Palette,
-  group: Layers
+  group: Layers,
+  // Legacy mappings for commands
+  image: ImageIcon,
+  shape: Square
 }
 
 // Blend modes for dropdown
@@ -76,32 +82,27 @@ const blendModes: { value: BlendMode; label: string }[] = [
 interface LayerItemProps {
   layer: Layer
   isActive: boolean
+  layerStore: EventLayerStore
   onDragStart: (e: React.DragEvent, layer: Layer) => void
   onDragOver: (e: React.DragEvent) => void
   onDrop: (e: React.DragEvent, targetLayer: Layer) => void
 }
 
-function LayerItem({ layer, isActive, onDragStart, onDragOver, onDrop }: LayerItemProps) {
-  const { 
-    updateLayer, 
-    toggleLayerVisibility, 
-    setActiveLayer
-  } = useLayerStore()
+function LayerItem({ layer, isActive, layerStore, onDragStart, onDragOver, onDrop }: LayerItemProps) {
   const { executeCommand } = useHistoryStore()
   
   const Icon = layerTypeIcons[layer.type]
   
   const handleVisibilityToggle = (e: React.MouseEvent) => {
     e.stopPropagation()
-    toggleLayerVisibility(layer.id)
+    // TODO: Update to use TypedEventBus for layer visibility changes
     executeCommand(new UpdateLayerCommand(layer.id, { visible: !layer.visible }))
   }
   
   const handleLockToggle = (e: React.MouseEvent) => {
     e.stopPropagation()
-    const newLocked = !layer.locked
-    updateLayer(layer.id, { locked: newLocked })
-    executeCommand(new UpdateLayerCommand(layer.id, { locked: newLocked }))
+    // TODO: Update to use TypedEventBus for layer lock changes
+    executeCommand(new UpdateLayerCommand(layer.id, { locked: !layer.locked }))
   }
   
   const handleDuplicate = () => {
@@ -112,13 +113,17 @@ function LayerItem({ layer, isActive, onDragStart, onDragOver, onDrop }: LayerIt
     executeCommand(new RemoveLayerCommand(layer.id))
   }
   
+  const handleClick = () => {
+    layerStore.setActiveLayer(layer.id)
+  }
+  
   return (
     <div
       draggable={!layer.locked}
       onDragStart={(e) => onDragStart(e, layer)}
       onDragOver={onDragOver}
       onDrop={(e) => onDrop(e, layer)}
-      onClick={() => setActiveLayer(layer.id)}
+      onClick={handleClick}
       className={cn(
         "group flex items-center gap-2 p-2 rounded-md cursor-pointer transition-colors",
         isActive ? "bg-primary/10 text-primary" : "hover:bg-foreground/5",
@@ -195,19 +200,16 @@ function LayerItem({ layer, isActive, onDragStart, onDragOver, onDrop }: LayerIt
 }
 
 export function LayersPanel() {
-  const { 
-    layers, 
-    activeLayerId, 
-    getActiveLayer,
-    reorderLayers,
-    setLayerOpacity,
-    setLayerBlendMode
-  } = useLayerStore()
+  const layerStore = useService<EventLayerStore>('LayerStore')
+  const layerState = useStore(layerStore)
   const { executeCommand } = useHistoryStore()
   
   const [draggedLayer, setDraggedLayer] = useState<Layer | null>(null)
   const [hasInitialized, setHasInitialized] = useState(false)
-  const activeLayer = getActiveLayer()
+  
+  const layers = layerStore.getLayers()
+  const activeLayer = layerStore.getActiveLayer()
+  const activeLayerId = layerState.activeLayerId
   
   // Initialize with a default layer if none exist
   useEffect(() => {
@@ -241,7 +243,7 @@ export function LayersPanel() {
     const toIndex = layers.findIndex(l => l.id === targetLayer.id)
     
     if (fromIndex !== -1 && toIndex !== -1) {
-      reorderLayers(fromIndex, toIndex)
+      // TODO: Update to use TypedEventBus for layer reordering
       executeCommand(new ReorderLayersCommand(fromIndex, toIndex))
     }
     
@@ -256,13 +258,13 @@ export function LayersPanel() {
   
   const handleOpacityChange = (value: number[]) => {
     if (!activeLayer) return
-    setLayerOpacity(activeLayer.id, value[0])
+    // TODO: Update to use TypedEventBus for layer opacity changes
     executeCommand(new UpdateLayerCommand(activeLayer.id, { opacity: value[0] }))
   }
   
   const handleBlendModeChange = (value: BlendMode) => {
     if (!activeLayer) return
-    setLayerBlendMode(activeLayer.id, value)
+    // TODO: Update to use TypedEventBus for layer blend mode changes
     executeCommand(new UpdateLayerCommand(activeLayer.id, { blendMode: value }))
   }
   
@@ -329,6 +331,7 @@ export function LayersPanel() {
                 key={layer.id}
                 layer={layer}
                 isActive={layer.id === activeLayerId}
+                layerStore={layerStore}
                 onDragStart={handleDragStart}
                 onDragOver={handleDragOver}
                 onDrop={handleDrop}

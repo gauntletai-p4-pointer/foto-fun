@@ -1,27 +1,24 @@
 import { z } from 'zod'
 import { FilterToolAdapter } from '../base'
 import { contrastTool } from '@/lib/editor/tools/adjustments/contrastTool'
-import { filters } from 'fabric'
 import type { CanvasContext } from '@/lib/ai/tools/canvas-bridge'
+import type { ExecutionContext } from '@/lib/events/execution/ExecutionContext'
+import { filters } from 'fabric'
 
-// Input schema following AI SDK v5 patterns
+// Define parameter schema
 const contrastParameters = z.object({
-  adjustment: z.number()
-    .min(-100)
-    .max(100)
-    .describe('Contrast adjustment from -100 (flat) to 100 (maximum), where 0 is no change')
+  adjustment: z.number().min(-100).max(100)
+    .describe('Contrast adjustment percentage. Negative values reduce contrast, positive values increase contrast. Range: -100 to +100')
 })
 
+// Define types
 type ContrastInput = z.infer<typeof contrastParameters>
 
-// Output type
 interface ContrastOutput {
   success: boolean
-  previousValue: number
-  newValue: number
-  affectedImages: number
+  adjustment: number
+  message: string
   targetingMode: 'selection' | 'auto-single'
-  message?: string
 }
 
 /**
@@ -75,54 +72,54 @@ Range: -100 (completely flat) to +100 (maximum contrast)`
     })
   }
   
-  async execute(params: ContrastInput, context: CanvasContext): Promise<ContrastOutput> {
-    return this.executeWithCommonPatterns(params, context, async (images) => {
-      // Apply contrast filter to images
-      await this.applyFilterToImages(images, params, context.canvas)
-      
-      console.log('[ContrastToolAdapter] Contrast adjustment applied successfully')
-      
-      // Generate descriptive message
-      let description = ''
-      const magnitude = Math.abs(params.adjustment)
-      
-      if (params.adjustment === 0) {
-        description = 'No change to contrast'
-      } else if (params.adjustment > 0) {
-        // Increased contrast
-        if (magnitude <= 15) {
-          description = 'Slightly enhanced contrast'
-        } else if (magnitude <= 35) {
-          description = 'Moderately increased contrast'
-        } else if (magnitude <= 60) {
-          description = 'Significantly boosted contrast'
+  async execute(params: ContrastInput, context: CanvasContext, executionContext?: ExecutionContext): Promise<ContrastOutput> {
+    return this.executeWithCommonPatterns(
+      params,
+      context,
+      async (images, execContext) => {
+        // Apply the filter with event emission support
+        await this.applyFilterToImages(images, params, context.canvas, execContext)
+        
+        // Generate descriptive message
+        let description = ''
+        const magnitude = Math.abs(params.adjustment)
+        
+        if (params.adjustment > 0) {
+          if (magnitude <= 15) {
+            description = 'Slightly increased contrast'
+          } else if (magnitude <= 35) {
+            description = 'Increased contrast'
+          } else if (magnitude <= 60) {
+            description = 'Significantly increased contrast'
+          } else {
+            description = 'Dramatically increased contrast'
+          }
+        } else if (params.adjustment < 0) {
+          if (magnitude <= 15) {
+            description = 'Slightly reduced contrast'
+          } else if (magnitude <= 35) {
+            description = 'Reduced contrast'
+          } else if (magnitude <= 60) {
+            description = 'Significantly reduced contrast'
+          } else {
+            description = 'Dramatically reduced contrast'
+          }
         } else {
-          description = 'Dramatically intensified contrast'
+          description = 'No contrast change applied'
         }
-      } else {
-        // Decreased contrast
-        if (magnitude <= 15) {
-          description = 'Slightly reduced contrast'
-        } else if (magnitude <= 35) {
-          description = 'Moderately flattened contrast'
-        } else if (magnitude <= 60) {
-          description = 'Significantly reduced contrast'
-        } else {
-          description = 'Made image very flat/washed out'
+        
+        const message = `${description} on ${images.length} image${images.length !== 1 ? 's' : ''} by ${params.adjustment > 0 ? '+' : ''}${params.adjustment}%`
+        
+        return {
+          adjustment: params.adjustment,
+          message
         }
-      }
-      
-      const message = `${description} (${params.adjustment > 0 ? '+' : ''}${params.adjustment}%) on ${images.length} image${images.length !== 1 ? 's' : ''}`
-      
-      return {
-        previousValue: 0, // In a real implementation, we'd track the current contrast
-        newValue: params.adjustment,
-        affectedImages: images.length,
-        message
-      }
-    })
+      },
+      executionContext
+    )
   }
 }
 
-// Export default instance for auto-discovery
-export default ContrastToolAdapter 
+// Export singleton instance
+const contrastAdapter = new ContrastToolAdapter()
+export default contrastAdapter 

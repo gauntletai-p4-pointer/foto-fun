@@ -1,24 +1,55 @@
 'use client'
 
 import { useEffect } from 'react'
-import { useToolStore } from '@/store/toolStore'
+import { useService } from '@/lib/core/AppInitializer'
+import { EventToolStore } from '@/lib/store/tools/EventToolStore'
 import { tools } from '@/lib/editor/tools'
 import { cn } from '@/lib/utils'
 
 export function ToolPalette() {
-  const { activeTool, setActiveTool, registerTools } = useToolStore()
+  const toolStore = useService<EventToolStore>('ToolStore')
+  const activeTool = toolStore.getActiveTool()
   
   // Register tools on mount
   useEffect(() => {
-    registerTools(tools)
-  }, [registerTools])
+    tools.forEach(tool => {
+      // Determine category based on tool ID
+      const category = tool.id.startsWith('ai-') ? 'ai' : 
+                      tool.id.includes('select') || tool.id.includes('marquee') || tool.id.includes('lasso') ? 'selection' :
+                      tool.id.includes('move') || tool.id.includes('rotate') || tool.id.includes('scale') || tool.id.includes('crop') ? 'transform' :
+                      tool.id.includes('brush') || tool.id.includes('eraser') ? 'drawing' :
+                      tool.id.includes('brightness') || tool.id.includes('contrast') || tool.id.includes('saturation') ? 'adjustment' :
+                      'other'
+      
+      // Create a compatible tool object for the new system
+      const compatibleTool = {
+        id: tool.id,
+        name: tool.name,
+        icon: tool.icon,
+        cursor: tool.cursor,
+        group: tool.group,
+        shortcut: tool.shortcut,
+        isImplemented: tool.isImplemented,
+        // Stub methods for now - the actual tool implementation is being handled by another agent
+        onActivate: () => {},
+        onDeactivate: () => {},
+        onMouseDown: () => {},
+        onMouseMove: () => {},
+        onMouseUp: () => {},
+        onKeyDown: () => {},
+        onKeyUp: () => {}
+      }
+      
+      toolStore.registerTool(compatibleTool, category)
+    })
+  }, [toolStore])
   
-  const handleToolClick = (toolId: string, isImplemented: boolean) => {
+  const handleToolClick = async (toolId: string, isImplemented: boolean) => {
     if (!isImplemented) {
       alert('This tool is not implemented yet')
       return
     }
-    setActiveTool(toolId)
+    await toolStore.activateTool(toolId)
   }
   
   // Separate regular tools from AI-native tools
@@ -30,7 +61,7 @@ export function ToolPalette() {
       <div className="grid grid-cols-2 gap-0.5 px-1">
         {regularTools.map((tool) => {
           const Icon = tool.icon
-          const isActive = activeTool === tool.id
+          const isActive = activeTool?.id === tool.id
           const isImplemented = tool.isImplemented
           
           return (
@@ -71,7 +102,7 @@ export function ToolPalette() {
             {/* AI Tools */}
             {aiTools.map((tool) => {
               const Icon = tool.icon
-              const isActive = activeTool === tool.id
+              const isActive = activeTool?.id === tool.id
               const isImplemented = tool.isImplemented
               
               return (

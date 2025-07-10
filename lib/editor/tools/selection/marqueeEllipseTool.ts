@@ -1,19 +1,15 @@
 import { Circle } from 'lucide-react'
+import Konva from 'konva'
 import { TOOL_IDS } from '@/constants'
-import type { Canvas } from 'fabric'
-import { Ellipse } from 'fabric'
-import { SelectionTool } from '../base/SelectionTool'
-import { selectionStyle } from '../utils/selectionRenderer'
-import { useCanvasStore } from '@/store/canvasStore'
-import { useSelectionStore } from '@/store/selectionStore'
-import { useHistoryStore } from '@/store/historyStore'
-import { CreateSelectionCommand } from '@/lib/editor/commands/selection'
+import { BaseTool } from '../base/BaseTool'
+import type { ToolEvent, Point, Selection } from '@/lib/editor/canvas/types'
+import { SelectionCreatedEvent } from '@/lib/events/canvas/ToolEvents'
 
 /**
  * Elliptical Marquee Tool - Creates elliptical selections
- * Extends SelectionTool for consistent selection behavior
+ * Konva implementation with pixel-aware selection
  */
-class MarqueeEllipseTool extends SelectionTool {
+export class MarqueeEllipseTool extends BaseTool {
   // Tool identification
   id = TOOL_IDS.MARQUEE_ELLIPSE
   name = 'Elliptical Marquee Tool'
@@ -21,156 +17,176 @@ class MarqueeEllipseTool extends SelectionTool {
   cursor = 'crosshair'
   shortcut = 'M' // Same as rectangular marquee (cycle between them)
   
-  // Override to use Ellipse instead of Path
-  protected feedbackEllipse: Ellipse | null = null
+  // Selection state
+  private isSelecting = false
+  private startPoint: Point | null = null
+  private selectionEllipse: Konva.Ellipse | null = null
+  private selectionLayer: Konva.Layer | null = null
   
-  /**
-   * Create visual feedback (ellipse)
-   */
-  protected createFeedback(): void {
-    if (!this.canvas) return
+  protected setupTool(): void {
+    const canvas = this.getCanvas()
     
-    const startPoint = this.state.get('startPoint')
-    if (!startPoint) return
+    // Create a dedicated layer for selection visualization
+    this.selectionLayer = new Konva.Layer()
+    canvas.konvaStage.add(this.selectionLayer)
     
-    // Create initial ellipse
-    this.feedbackEllipse = new Ellipse({
-      left: startPoint.x,
-      top: startPoint.y,
-      rx: 0,
-      ry: 0,
-      ...selectionStyle
-    })
-    
-    this.canvas.add(this.feedbackEllipse)
-    this.canvas.renderAll()
+    // Move selection layer to top
+    this.selectionLayer.moveToTop()
   }
   
-  /**
-   * Update visual feedback during selection
-   */
-  protected updateFeedback(): void {
-    if (!this.canvas || !this.feedbackEllipse) return
+  protected cleanupTool(): void {
+    // Clean up selection visualization
+    if (this.selectionEllipse) {
+      this.selectionEllipse.destroy()
+      this.selectionEllipse = null
+    }
     
-    const dimensions = this.getConstrainedDimensions()
+    // Clean up selection layer
+    if (this.selectionLayer) {
+      this.selectionLayer.destroy()
+      this.selectionLayer = null
+    }
     
-    // Calculate center and radii
-    const centerX = dimensions.x + dimensions.width / 2
-    const centerY = dimensions.y + dimensions.height / 2
-    const rx = dimensions.width / 2
-    const ry = dimensions.height / 2
-    
-    this.feedbackEllipse.set({
-      left: centerX,
-      top: centerY,
-      rx: rx,
-      ry: ry
-    })
-    
-    this.canvas.renderAll()
+    // Reset state
+    this.isSelecting = false
+    this.startPoint = null
   }
   
-  /**
-   * Finalize the selection
-   */
-  protected finalizeSelection(): void {
-    if (!this.canvas || !this.feedbackEllipse) return
+  async onMouseDown(event: ToolEvent): Promise<void> {
+    if (!this.selectionLayer) return
     
-    // Only keep the selection if it has a minimum size
+    this.isSelecting = true
+    this.startPoint = { x: event.point.x, y: event.point.y }
+    
+    // Remove any existing selection ellipse
+    if (this.selectionEllipse) {
+      this.selectionEllipse.destroy()
+    }
+    
+    // Create visual feedback
+    this.selectionEllipse = new Konva.Ellipse({
+      x: event.point.x,
+      y: event.point.y,
+      radiusX: 0,
+      radiusY: 0,
+      stroke: '#000000',
+      strokeWidth: 1,
+      dash: [4, 4],
+      fill: 'rgba(0, 0, 0, 0.1)',
+      listening: false // Don't interfere with mouse events
+    })
+    
+    this.selectionLayer.add(this.selectionEllipse)
+    this.selectionLayer.batchDraw()
+  }
+  
+  onMouseMove(event: ToolEvent): void {
+    if (!this.isSelecting || !this.selectionEllipse || !this.startPoint || !this.selectionLayer) return
+    
+    // Calculate bounds
+    const bounds = {
+      x: Math.min(this.startPoint.x, event.point.x),
+      y: Math.min(this.startPoint.y, event.point.y),
+      width: Math.abs(event.point.x - this.startPoint.x),
+      height: Math.abs(event.point.y - this.startPoint.y)
+    }
+    
+    // Calculate center and radii for ellipse
+    const centerX = bounds.x + bounds.width / 2
+    const centerY = bounds.y + bounds.height / 2
+    const radiusX = bounds.width / 2
+    const radiusY = bounds.height / 2
+    
+    // Update visual feedback
+    this.selectionEllipse.setAttrs({
+      x: centerX,
+      y: centerY,
+      radiusX: radiusX,
+      radiusY: radiusY
+    })
+    
+    this.selectionLayer.batchDraw()
+  }
+  
+  async onMouseUp(event: ToolEvent): Promise<void> {
+    if (!this.isSelecting || !this.selectionEllipse || !this.startPoint || !this.selectionLayer) return
+    
+    this.isSelecting = false
+    
+    const canvas = this.getCanvas()
+    const bounds = {
+      x: Math.min(this.startPoint.x, event.point.x),
+      y: Math.min(this.startPoint.y, event.point.y),
+      width: Math.abs(event.point.x - this.startPoint.x),
+      height: Math.abs(event.point.y - this.startPoint.y)
+    }
+    
+    // Only create selection if it has a minimum size
     const minSize = 2
-    
-    if ((this.feedbackEllipse.width ?? 0) < minSize || (this.feedbackEllipse.height ?? 0) < minSize) {
-      // Too small, remove it
-      this.canvas.remove(this.feedbackEllipse)
-    } else {
-      // Get selection manager and mode
-      const canvasStore = useCanvasStore.getState()
-      const selectionStore = useSelectionStore.getState()
-      const historyStore = useHistoryStore.getState()
-      
-      if (!canvasStore.selectionManager || !canvasStore.selectionRenderer) {
-        console.error('Selection system not initialized')
-        this.canvas.remove(this.feedbackEllipse)
-        return
+    if (bounds.width >= minSize && bounds.height >= minSize) {
+      // Create pixel-aware selection
+      const selection: Selection = {
+        type: 'ellipse',
+        bounds,
+        feather: 0,
+        antiAlias: true
       }
       
-      // Get ellipse parameters
-      const bounds = this.feedbackEllipse.getBoundingRect()
-      const cx = bounds.left + bounds.width / 2
-      const cy = bounds.top + bounds.height / 2
-      const rx = bounds.width / 2
-      const ry = bounds.height / 2
+      // Set selection on canvas
+      canvas.setSelection(selection)
       
-      // Create a temporary canvas to generate the selection mask
-      const tempCanvas = document.createElement('canvas')
-      tempCanvas.width = this.canvas.getWidth()
-      tempCanvas.height = this.canvas.getHeight()
-      const tempCtx = tempCanvas.getContext('2d')!
-      
-      // Create image data for the ellipse
-      const imageData = tempCtx.createImageData(tempCanvas.width, tempCanvas.height)
-      
-      // Fill the ellipse area using the ellipse equation
-      for (let y = 0; y < imageData.height; y++) {
-        for (let x = 0; x < imageData.width; x++) {
-          const dx = (x - cx) / rx
-          const dy = (y - cy) / ry
-          
-          if (dx * dx + dy * dy <= 1) {
-            const index = (y * imageData.width + x) * 4
-            imageData.data[index + 3] = 255 // Set alpha to fully selected
-          }
-        }
+      // Emit event if in ExecutionContext
+      if (this.executionContext) {
+        await this.executionContext.emit(new SelectionCreatedEvent(
+          'canvas',
+          selection,
+          this.executionContext.getMetadata()
+        ))
       }
-      
-      // Create the selection command
-      const command = new CreateSelectionCommand(
-        canvasStore.selectionManager,
-        {
-          mask: imageData,
-          bounds: {
-            x: bounds.left,
-            y: bounds.top,
-            width: bounds.width,
-            height: bounds.height
-          }
-        },
-        selectionStore.mode
-      )
-      
-      // Execute the command through history
-      historyStore.executeCommand(command)
-      
-      // Update selection state
-      selectionStore.updateSelectionState(true, {
-        x: bounds.left,
-        y: bounds.top,
-        width: bounds.width,
-        height: bounds.height
-      })
-      
-      // Start rendering the selection
-      canvasStore.selectionRenderer.startRendering()
-      
-      // Remove the temporary feedback ellipse
-      this.canvas.remove(this.feedbackEllipse)
     }
     
-    this.feedbackEllipse = null
+    // Clean up visual feedback
+    this.selectionEllipse.destroy()
+    this.selectionEllipse = null
+    this.selectionLayer.batchDraw()
+    
+    // Reset state
+    this.startPoint = null
   }
   
-  /**
-   * Override cleanup
-   */
-  protected cleanup(canvas: Canvas): void {
-    // Clean up feedback ellipse if exists
-    if (this.feedbackEllipse && canvas.contains(this.feedbackEllipse)) {
-      canvas.remove(this.feedbackEllipse)
-      this.feedbackEllipse = null
+  onKeyDown(event: KeyboardEvent): void {
+    // Handle modifier keys for selection modes
+    if (event.key === 'Shift') {
+      // Add to selection mode
+      this.setOption('mode', 'add')
+    } else if (event.key === 'Alt' || event.key === 'Option') {
+      // Subtract from selection mode  
+      this.setOption('mode', 'subtract')
     }
-    
-    // Call parent cleanup
-    super.cleanup(canvas)
+  }
+  
+  onKeyUp(event: KeyboardEvent): void {
+    // Reset to default mode
+    if (event.key === 'Shift' || event.key === 'Alt' || event.key === 'Option') {
+      this.setOption('mode', 'new')
+    }
+  }
+  
+  protected onOptionChange(key: string, value: unknown): void {
+    if (key === 'mode' && this.selectionEllipse) {
+      // Update visual feedback based on mode
+      switch (value) {
+        case 'add':
+          this.selectionEllipse.stroke('#00ff00')
+          break
+        case 'subtract':
+          this.selectionEllipse.stroke('#ff0000')
+          break
+        default:
+          this.selectionEllipse.stroke('#000000')
+      }
+      this.selectionLayer?.batchDraw()
+    }
   }
 }
 

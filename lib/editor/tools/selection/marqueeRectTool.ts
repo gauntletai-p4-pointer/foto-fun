@@ -1,19 +1,15 @@
 import { Square } from 'lucide-react'
+import Konva from 'konva'
 import { TOOL_IDS } from '@/constants'
-import type { Canvas } from 'fabric'
-import { Rect } from 'fabric'
-import { SelectionTool } from '../base/SelectionTool'
-import { selectionStyle } from '../utils/selectionRenderer'
-import { useCanvasStore } from '@/store/canvasStore'
-import { useSelectionStore } from '@/store/selectionStore'
-import { useHistoryStore } from '@/store/historyStore'
-import { CreateSelectionCommand } from '@/lib/editor/commands/selection'
+import { BaseTool } from '../base/BaseTool'
+import type { ToolEvent, Point, Selection } from '@/lib/editor/canvas/types'
+import { SelectionCreatedEvent } from '@/lib/events/canvas/ToolEvents'
 
 /**
  * Rectangular Marquee Tool - Creates rectangular selections
- * Extends SelectionTool for consistent selection behavior
+ * Konva implementation with pixel-aware selection
  */
-class MarqueeRectTool extends SelectionTool {
+export class MarqueeRectTool extends BaseTool {
   // Tool identification
   id = TOOL_IDS.MARQUEE_RECT
   name = 'Rectangular Marquee Tool'
@@ -21,143 +17,164 @@ class MarqueeRectTool extends SelectionTool {
   cursor = 'crosshair'
   shortcut = 'M'
   
-  // Override to use Rect instead of Path
-  protected feedbackRect: Rect | null = null
+  // Selection state
+  private isSelecting = false
+  private startPoint: Point | null = null
+  private selectionRect: Konva.Rect | null = null
+  private selectionLayer: Konva.Layer | null = null
   
-  /**
-   * Create visual feedback (rectangle)
-   */
-  protected createFeedback(): void {
-    if (!this.canvas) return
+  protected setupTool(): void {
+    const canvas = this.getCanvas()
     
-    const startPoint = this.state.get('startPoint')
-    if (!startPoint) return
+    // Create a dedicated layer for selection visualization
+    this.selectionLayer = new Konva.Layer()
+    canvas.konvaStage.add(this.selectionLayer)
     
-    // Create initial rectangle
-    this.feedbackRect = new Rect({
-      left: startPoint.x,
-      top: startPoint.y,
+    // Move selection layer to top
+    this.selectionLayer.moveToTop()
+  }
+  
+  protected cleanupTool(): void {
+    // Clean up selection visualization
+    if (this.selectionRect) {
+      this.selectionRect.destroy()
+      this.selectionRect = null
+    }
+    
+    // Clean up selection layer
+    if (this.selectionLayer) {
+      this.selectionLayer.destroy()
+      this.selectionLayer = null
+    }
+    
+    // Reset state
+    this.isSelecting = false
+    this.startPoint = null
+  }
+  
+  async onMouseDown(event: ToolEvent): Promise<void> {
+    if (!this.selectionLayer) return
+    
+    this.isSelecting = true
+    this.startPoint = { x: event.point.x, y: event.point.y }
+    
+    // Remove any existing selection rect
+    if (this.selectionRect) {
+      this.selectionRect.destroy()
+    }
+    
+    // Create visual feedback
+    this.selectionRect = new Konva.Rect({
+      x: event.point.x,
+      y: event.point.y,
       width: 0,
       height: 0,
-      ...selectionStyle
+      stroke: '#000000',
+      strokeWidth: 1,
+      dash: [4, 4],
+      fill: 'rgba(0, 0, 0, 0.1)',
+      listening: false // Don't interfere with mouse events
     })
     
-    this.canvas.add(this.feedbackRect)
-    this.canvas.renderAll()
+    this.selectionLayer.add(this.selectionRect)
+    this.selectionLayer.batchDraw()
   }
   
-  /**
-   * Update visual feedback during selection
-   */
-  protected updateFeedback(): void {
-    if (!this.canvas || !this.feedbackRect) return
+  onMouseMove(event: ToolEvent): void {
+    if (!this.isSelecting || !this.selectionRect || !this.startPoint || !this.selectionLayer) return
     
-    const dimensions = this.getConstrainedDimensions()
+    // Calculate bounds
+    const bounds = {
+      x: Math.min(this.startPoint.x, event.point.x),
+      y: Math.min(this.startPoint.y, event.point.y),
+      width: Math.abs(event.point.x - this.startPoint.x),
+      height: Math.abs(event.point.y - this.startPoint.y)
+    }
     
-    this.feedbackRect.set({
-      left: dimensions.x,
-      top: dimensions.y,
-      width: dimensions.width,
-      height: dimensions.height
-    })
-    
-    this.canvas.renderAll()
+    // Update visual feedback
+    this.selectionRect.setAttrs(bounds)
+    this.selectionLayer.batchDraw()
   }
   
-  /**
-   * Finalize the selection
-   */
-  protected finalizeSelection(): void {
-    if (!this.canvas || !this.feedbackRect) return
+  async onMouseUp(event: ToolEvent): Promise<void> {
+    if (!this.isSelecting || !this.selectionRect || !this.startPoint || !this.selectionLayer) return
     
-    // Only keep the selection if it has a minimum size
+    this.isSelecting = false
+    
+    const canvas = this.getCanvas()
+    const bounds = {
+      x: Math.min(this.startPoint.x, event.point.x),
+      y: Math.min(this.startPoint.y, event.point.y),
+      width: Math.abs(event.point.x - this.startPoint.x),
+      height: Math.abs(event.point.y - this.startPoint.y)
+    }
+    
+    // Only create selection if it has a minimum size
     const minSize = 2
-    
-    if ((this.feedbackRect.width ?? 0) < minSize || (this.feedbackRect.height ?? 0) < minSize) {
-      // Too small, remove it
-      this.canvas.remove(this.feedbackRect)
-    } else {
-      // Get selection manager and mode
-      const canvasStore = useCanvasStore.getState()
-      const selectionStore = useSelectionStore.getState()
-      const historyStore = useHistoryStore.getState()
-      
-      if (!canvasStore.selectionManager || !canvasStore.selectionRenderer) {
-        console.error('Selection system not initialized')
-        this.canvas.remove(this.feedbackRect)
-        return
+    if (bounds.width >= minSize && bounds.height >= minSize) {
+      // Create pixel-aware selection
+      const selection: Selection = {
+        type: 'rectangle',
+        bounds,
+        feather: 0,
+        antiAlias: true
       }
       
-      // Get bounds
-      const bounds = this.feedbackRect.getBoundingRect()
+      // Set selection on canvas
+      canvas.setSelection(selection)
       
-      // Create a temporary canvas to generate the selection mask
-      const tempCanvas = document.createElement('canvas')
-      tempCanvas.width = this.canvas.getWidth()
-      tempCanvas.height = this.canvas.getHeight()
-      const tempCtx = tempCanvas.getContext('2d')!
-      
-      // Create image data for the rectangle
-      const imageData = tempCtx.createImageData(tempCanvas.width, tempCanvas.height)
-      
-      // Fill the rectangle area
-      for (let y = Math.floor(bounds.top); y < Math.ceil(bounds.top + bounds.height); y++) {
-        for (let x = Math.floor(bounds.left); x < Math.ceil(bounds.left + bounds.width); x++) {
-          if (x >= 0 && x < imageData.width && y >= 0 && y < imageData.height) {
-            const index = (y * imageData.width + x) * 4
-            imageData.data[index + 3] = 255 // Set alpha to fully selected
-          }
-        }
+      // Emit event if in ExecutionContext
+      if (this.executionContext) {
+        await this.executionContext.emit(new SelectionCreatedEvent(
+          'canvas', // Use a fixed canvas ID for now
+          selection,
+          this.executionContext.getMetadata()
+        ))
       }
-      
-      // Create the selection command
-      const command = new CreateSelectionCommand(
-        canvasStore.selectionManager,
-        {
-          mask: imageData,
-          bounds: {
-            x: bounds.left,
-            y: bounds.top,
-            width: bounds.width,
-            height: bounds.height
-          }
-        },
-        selectionStore.mode
-      )
-      
-      // Execute the command through history
-      historyStore.executeCommand(command)
-      
-      // Update selection state
-      selectionStore.updateSelectionState(true, {
-        x: bounds.left,
-        y: bounds.top,
-        width: bounds.width,
-        height: bounds.height
-      })
-      
-      // Start rendering the selection
-      canvasStore.selectionRenderer.startRendering()
-      
-      // Remove the temporary feedback rectangle
-      this.canvas.remove(this.feedbackRect)
     }
     
-    this.feedbackRect = null
+    // Clean up visual feedback
+    this.selectionRect.destroy()
+    this.selectionRect = null
+    this.selectionLayer.batchDraw()
+    
+    // Reset state
+    this.startPoint = null
   }
   
-  /**
-   * Override cleanup to handle marching ants
-   */
-  protected cleanup(canvas: Canvas): void {
-    // Clean up feedback rect if exists
-    if (this.feedbackRect && canvas.contains(this.feedbackRect)) {
-      canvas.remove(this.feedbackRect)
-      this.feedbackRect = null
+  onKeyDown(event: KeyboardEvent): void {
+    // Handle modifier keys for selection modes
+    if (event.key === 'Shift') {
+      // Add to selection mode
+      this.setOption('mode', 'add')
+    } else if (event.key === 'Alt' || event.key === 'Option') {
+      // Subtract from selection mode  
+      this.setOption('mode', 'subtract')
     }
-    
-    // Call parent cleanup
-    super.cleanup(canvas)
+  }
+  
+  onKeyUp(event: KeyboardEvent): void {
+    // Reset to default mode
+    if (event.key === 'Shift' || event.key === 'Alt' || event.key === 'Option') {
+      this.setOption('mode', 'new')
+    }
+  }
+  
+  protected onOptionChange(key: string, value: unknown): void {
+    if (key === 'mode' && this.selectionRect) {
+      // Update visual feedback based on mode
+      switch (value) {
+        case 'add':
+          this.selectionRect.stroke('#00ff00')
+          break
+        case 'subtract':
+          this.selectionRect.stroke('#ff0000')
+          break
+        default:
+          this.selectionRect.stroke('#000000')
+      }
+      this.selectionLayer?.batchDraw()
+    }
   }
 }
 

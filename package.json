@@ -41,6 +41,7 @@
     "drizzle-orm": "^0.44.2",
     "fabric": "^6.0.0",
     "file-saver": "^2.0.5",
+    "konva": "^9.3.22",
     "lucide-react": "^0.525.0",
     "next": "15.3.5",
     "next-themes": "^0.4.6",

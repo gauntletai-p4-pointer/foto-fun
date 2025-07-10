@@ -1,22 +1,15 @@
 import { Move } from 'lucide-react'
+import Konva from 'konva'
 import { TOOL_IDS } from '@/constants'
-import type { Canvas, FabricObject } from 'fabric'
 import { BaseTool } from '../base/BaseTool'
-import { createToolState } from '../utils/toolState'
-import { TransformCommand } from '@/lib/editor/commands/canvas'
-
-// Move tool state
-type MoveToolState = {
-  isDragging: boolean
-  lastActiveObject: FabricObject | null
-  initialTransform: ReturnType<typeof TransformCommand.captureState> | null
-}
+import type { ToolEvent, Point, CanvasObject, Transform } from '@/lib/editor/canvas/types'
+import { ObjectsTransformedEvent } from '@/lib/events/canvas/ToolEvents'
 
 /**
  * Move Tool - Allows selecting and moving objects on the canvas
- * Migrated to new architecture with proper state management
+ * Konva implementation with proper event emission
  */
-class MoveTool extends BaseTool {
+export class MoveTool extends BaseTool {
   // Tool identification
   id = TOOL_IDS.MOVE
   name = 'Move Tool'
@@ -24,180 +17,293 @@ class MoveTool extends BaseTool {
   cursor = 'move'
   shortcut = 'V'
   
-  // Encapsulated state
-  private state = createToolState<MoveToolState>({
-    isDragging: false,
-    lastActiveObject: null,
-    initialTransform: null
-  })
+  // Drag state
+  private dragState: {
+    target: CanvasObject | null
+    startPos: Point
+    originalTransform: Transform
+    isDragging: boolean
+  } | null = null
   
-  /**
-   * Get auto-select option value
-   */
-  private get autoSelect(): boolean {
-    return this.toolOptionsStore.getOptionValue<boolean>(this.id, 'autoSelect') ?? true
-  }
+  // Selection state
+  private selectionTransformer: Konva.Transformer | null = null
+  private selectedObjects: CanvasObject[] = []
   
-  /**
-   * Get show transform controls option value
-   */
-  private get showTransform(): boolean {
-    return this.toolOptionsStore.getOptionValue<boolean>(this.id, 'showTransform') ?? true
-  }
-  
-  /**
-   * Tool setup - enable selection and configure objects
-   */
-  protected setupTool(canvas: Canvas): void {
-    // Enable object selection
-    canvas.selection = true
+  protected setupTool(): void {
+    const canvas = this.getCanvas()
     
-    // Configure object selectability based on auto-select
-    this.updateObjectSelectability(canvas)
-    
-    // Set up event handlers using BaseTool's event management
-    this.addCanvasEvent('mouse:down', (e: unknown) => {
-      const event = e as { target: FabricObject | null }
-      this.handleMouseDown(event)
-    })
-    
-    this.addCanvasEvent('object:moving', (e: unknown) => {
-      const event = e as { target: FabricObject }
-      this.handleObjectMoving(event)
-    })
-    
-    this.addCanvasEvent('object:modified', (e: unknown) => {
-      this.handleObjectModified(e as { target: FabricObject })
-    })
-    
-    // Subscribe to option changes
-    this.subscribeToToolOptions(() => {
-      this.updateObjectSelectability(canvas)
-      this.updateTransformControls(canvas)
-    })
-    
-    // Update transform controls visibility
-    this.updateTransformControls(canvas)
-    
-    canvas.renderAll()
-  }
-  
-  /**
-   * Tool cleanup - deselect objects
-   */
-  protected cleanup(canvas: Canvas): void {
-    // Deselect any active objects
-    canvas.discardActiveObject()
-    
-    // Reset state
-    this.state.reset()
-    
-    canvas.renderAll()
-  }
-  
-  /**
-   * Update object selectability based on auto-select option
-   */
-  private updateObjectSelectability(canvas: Canvas): void {
-    canvas.forEachObject((obj) => {
-      // Always make objects selectable when Move tool is active
-      obj.selectable = true
-      obj.evented = true
-      
-      // The auto-select option just controls whether clicking automatically selects
-      // It doesn't affect whether objects CAN be selected
-    })
-  }
-  
-  /**
-   * Update transform controls visibility
-   */
-  private updateTransformControls(canvas: Canvas): void {
-    const showTransform = this.showTransform
-    
-    canvas.forEachObject((obj) => {
-      // Control visibility of transform handles
-      obj.hasControls = showTransform
-      obj.hasBorders = showTransform
-      
-      // Ensure rotation is not locked when transform controls are shown
-      if (showTransform) {
-        obj.lockRotation = false
+    // Create transformer for showing selection handles
+    this.selectionTransformer = new Konva.Transformer({
+      enabledAnchors: ['top-left', 'top-center', 'top-right', 'middle-right', 
+                       'middle-left', 'bottom-left', 'bottom-center', 'bottom-right'],
+      boundBoxFunc: (oldBox, newBox) => {
+        // Limit resize to prevent negative dimensions
+        if (newBox.width < 5 || newBox.height < 5) {
+          return oldBox
+        }
+        return newBox
       }
     })
     
-    // Update active object if any
-    const activeObject = canvas.getActiveObject()
-    if (activeObject) {
-      activeObject.hasControls = showTransform
-      activeObject.hasBorders = showTransform
-      activeObject.lockRotation = false
-      canvas.renderAll()
+    // Add transformer to overlay layer
+    const stage = canvas.konvaStage
+    let overlayLayer = stage.findOne('.overlayLayer') as Konva.Layer | undefined
+    
+    if (!overlayLayer) {
+      overlayLayer = new Konva.Layer({ name: 'overlayLayer' })
+      stage.add(overlayLayer)
+    }
+    
+    overlayLayer.add(this.selectionTransformer)
+    
+    // Set default options
+    this.setOption('autoSelect', true)
+    this.setOption('showTransform', true)
+  }
+  
+  protected cleanupTool(): void {
+    // Clean up transformer
+    if (this.selectionTransformer) {
+      this.selectionTransformer.destroy()
+      this.selectionTransformer = null
+    }
+    
+    // Clear selection
+    this.selectedObjects = []
+    
+    // Reset drag state
+    this.dragState = null
+  }
+  
+  async onMouseDown(event: ToolEvent): Promise<void> {
+    const canvas = this.getCanvas()
+    const stage = canvas.konvaStage
+    
+    // Get clicked object
+    const pos = stage.getPointerPosition()
+    if (!pos) return
+    
+    const shape = stage.getIntersection(pos)
+    
+    if (shape) {
+      // Find the canvas object that owns this shape
+      const canvasObject = this.findCanvasObject(shape)
+      
+      if (canvasObject && !canvasObject.locked) {
+        // Start drag operation
+        this.dragState = {
+          target: canvasObject,
+          startPos: event.point,
+          originalTransform: { ...canvasObject.transform },
+          isDragging: false
+        }
+        
+        // Select the object if auto-select is enabled
+        if (this.getOption('autoSelect')) {
+          this.selectObject(canvasObject)
+        }
+        
+        // Change cursor
+        stage.container().style.cursor = 'move'
+      }
+    } else {
+      // Clicked on empty space - deselect
+      this.clearSelection()
+    }
+  }
+  
+  onMouseMove(event: ToolEvent): void {
+    if (!this.dragState || !this.dragState.target) return
+    
+    const canvas = this.getCanvas()
+    
+    // Mark as dragging after first move
+    if (!this.dragState.isDragging) {
+      this.dragState.isDragging = true
+    }
+    
+    // Calculate movement delta
+    const dx = event.point.x - this.dragState.startPos.x
+    const dy = event.point.y - this.dragState.startPos.y
+    
+    // Update object position
+    const newTransform: Transform = {
+      ...this.dragState.originalTransform,
+      x: this.dragState.originalTransform.x + dx,
+      y: this.dragState.originalTransform.y + dy
+    }
+    
+    // Apply transform to the Konva node
+    this.dragState.target.node.setAttrs({
+      x: newTransform.x,
+      y: newTransform.y
+    })
+    
+    // Update transformer if active
+    if (this.selectionTransformer && this.selectedObjects.includes(this.dragState.target)) {
+      this.selectionTransformer.forceUpdate()
+    }
+    
+    // Redraw
+    canvas.konvaStage.batchDraw()
+  }
+  
+  async onMouseUp(event: ToolEvent): Promise<void> {
+    if (!this.dragState || !this.dragState.target || !this.dragState.isDragging) {
+      this.dragState = null
+      return
+    }
+    
+    const canvas = this.getCanvas()
+    
+    // Calculate final transform
+    const dx = event.point.x - this.dragState.startPos.x
+    const dy = event.point.y - this.dragState.startPos.y
+    
+    const finalTransform: Transform = {
+      ...this.dragState.originalTransform,
+      x: this.dragState.originalTransform.x + dx,
+      y: this.dragState.originalTransform.y + dy
+    }
+    
+    // Update the canvas object's transform
+    this.dragState.target.transform = finalTransform
+    
+    // Emit event if in ExecutionContext
+    if (this.executionContext) {
+      await this.executionContext.emit(new ObjectsTransformedEvent(
+        'canvas',
+        [{
+          objectId: this.dragState.target.id,
+          previousTransform: this.dragState.originalTransform,
+          newTransform: finalTransform
+        }],
+        this.executionContext.getMetadata()
+      ))
+    }
+    
+    // Reset cursor
+    canvas.konvaStage.container().style.cursor = this.cursor
+    
+    // Clear drag state
+    this.dragState = null
+  }
+  
+  onKeyDown(event: KeyboardEvent): void {
+    // Delete selected objects
+    if ((event.key === 'Delete' || event.key === 'Backspace') && this.selectedObjects.length > 0) {
+      event.preventDefault()
+      this.deleteSelectedObjects()
+    }
+    
+    // Select all
+    if ((event.metaKey || event.ctrlKey) && event.key === 'a') {
+      event.preventDefault()
+      this.selectAll()
+    }
+  }
+  
+  protected onOptionChange(key: string, value: unknown): void {
+    if (key === 'showTransform' && this.selectionTransformer) {
+      // Show/hide transformer handles
+      this.selectionTransformer.visible(value as boolean)
+      const canvas = this.getCanvas()
+      canvas.konvaStage.batchDraw()
     }
   }
   
   /**
-   * Handle mouse down - auto-select objects if enabled
+   * Find the CanvasObject that owns a Konva node
    */
-  private handleMouseDown(e: { target: FabricObject | null }): void {
-    if (!this.canvas || !this.autoSelect) return
+  private findCanvasObject(node: Konva.Node): CanvasObject | null {
+    const canvas = this.getCanvas()
     
-    this.track('mouseDown', () => {
-      if (e.target && this.canvas) {
-        // Auto-select the clicked object
-        this.canvas.setActiveObject(e.target)
-        this.state.set('lastActiveObject', e.target)
-        
-        // Ensure transform controls are visible on the selected object
-        const showTransform = this.showTransform
-        e.target.hasControls = showTransform
-        e.target.hasBorders = showTransform
-        e.target.lockRotation = false
-        
-        this.canvas.renderAll()
+    // Search through all layers
+    for (const layer of canvas.state.layers) {
+      for (const obj of layer.objects) {
+        if (obj.node === node || (obj.node.findOne && obj.node.findOne((n: Konva.Node) => n === node))) {
+          return obj
+        }
       }
-    })
-  }
-  
-  /**
-   * Handle object moving - track drag state and capture initial transform
-   */
-  private handleObjectMoving(e: { target: FabricObject }): void {
-    // Capture initial state on first move
-    if (!this.state.get('isDragging')) {
-      this.state.set('isDragging', true)
-      this.state.set('initialTransform', TransformCommand.captureState(e.target))
     }
+    
+    return null
   }
   
   /**
-   * Handle object modified - record command for history
+   * Select an object and show transform handles
    */
-  private handleObjectModified(e: { target: FabricObject }): void {
-    if (!this.canvas) return
+  private selectObject(object: CanvasObject): void {
+    if (!this.selectionTransformer) return
     
-    this.trackAsync('objectModified', async () => {
-      const initialTransform = this.state.get('initialTransform')
-      
-      if (initialTransform) {
-        // Capture final state
-        const finalTransform = TransformCommand.captureState(e.target)
-        
-        // Create and execute transform command
-        const command = new TransformCommand(
-          this.canvas!,
-          e.target,
-          initialTransform,
-          finalTransform
-        )
-        
-        await this.executeCommand(command)
+    this.selectedObjects = [object]
+    
+    // Attach transformer to the object's node
+    this.selectionTransformer.nodes([object.node])
+    
+    // Show transformer if enabled
+    const showTransform = this.getOption('showTransform') as boolean
+    this.selectionTransformer.visible(showTransform)
+    
+    const canvas = this.getCanvas()
+    canvas.konvaStage.batchDraw()
+  }
+  
+  /**
+   * Clear selection
+   */
+  private clearSelection(): void {
+    if (!this.selectionTransformer) return
+    
+    this.selectedObjects = []
+    this.selectionTransformer.nodes([])
+    
+    const canvas = this.getCanvas()
+    canvas.konvaStage.batchDraw()
+  }
+  
+  /**
+   * Select all objects
+   */
+  private selectAll(): void {
+    if (!this.selectionTransformer) return
+    
+    const canvas = this.getCanvas()
+    const allObjects: CanvasObject[] = []
+    const allNodes: Konva.Node[] = []
+    
+    // Collect all unlocked objects
+    for (const layer of canvas.state.layers) {
+      if (!layer.locked && layer.visible) {
+        for (const obj of layer.objects) {
+          if (!obj.locked && obj.visible) {
+            allObjects.push(obj)
+            allNodes.push(obj.node)
+          }
+        }
       }
-      
-      // Reset state
-      this.state.set('isDragging', false)
-      this.state.set('initialTransform', null)
-    })
+    }
+    
+    this.selectedObjects = allObjects
+    this.selectionTransformer.nodes(allNodes)
+    
+    const showTransform = this.getOption('showTransform') as boolean
+    this.selectionTransformer.visible(showTransform)
+    
+    canvas.konvaStage.batchDraw()
+  }
+  
+  /**
+   * Delete selected objects
+   */
+  private async deleteSelectedObjects(): Promise<void> {
+    const canvas = this.getCanvas()
+    
+    for (const obj of this.selectedObjects) {
+      await canvas.removeObject(obj.id)
+    }
+    
+    this.clearSelection()
   }
 }
 

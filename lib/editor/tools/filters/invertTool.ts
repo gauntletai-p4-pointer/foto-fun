@@ -1,17 +1,15 @@
-import { BaseTool } from '../base/BaseTool'
-import { TOOL_IDS } from '@/constants'
 import { Contrast } from 'lucide-react'
-import { createToolState } from '../utils/toolState'
-import { filters } from 'fabric'
-import type { Canvas } from 'fabric'
+import Konva from 'konva'
+import { TOOL_IDS } from '@/constants'
+import { BaseTool } from '../base/BaseTool'
+import type { CanvasObject } from '@/lib/editor/canvas/types'
+import { FilterAppliedEvent, FilterRemovedEvent } from '@/lib/events/canvas/ToolEvents'
 
-// Define tool state
-type InvertToolState = {
-  isApplying: boolean
-  isInverted: boolean
-}
-
-class InvertTool extends BaseTool {
+/**
+ * Invert Tool - Invert colors of images
+ * Konva implementation with toggle functionality
+ */
+export class InvertTool extends BaseTool {
   // Tool identification
   id = TOOL_IDS.INVERT
   name = 'Invert'
@@ -19,83 +17,211 @@ class InvertTool extends BaseTool {
   cursor = 'default'
   shortcut = undefined // Access via filters menu
   
-  // Tool state
-  private state = createToolState<InvertToolState>({
-    isApplying: false,
-    isInverted: false
-  })
+  // Track state
+  private isApplying = false
   
-  // Required: Setup tool
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  protected setupTool(canvas: Canvas): void {
-    // Subscribe to action changes
-    this.subscribeToToolOptions(() => {
-      const action = this.getOptionValue<string>('action')
-      
-      if (action === 'toggle') {
-        this.toggleInvert()
-        // Reset the action
-        this.updateOptionSafely('action', null)
-      }
-    })
+  protected setupTool(): void {
+    // Set default action
+    this.setOption('action', null)
   }
   
-  // Required: Cleanup
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  protected cleanup(canvas: Canvas): void {
-    // Don't reset the invert state - let it persist
-    this.state.setState({
-      isApplying: false,
-      isInverted: this.state.get('isInverted')
-    })
+  protected cleanupTool(): void {
+    // Reset state but keep filters applied
+    this.isApplying = false
   }
   
-  private toggleInvert(): void {
-    if (!this.canvas) {
-      console.error('[InvertTool] No canvas available!')
-      return
+  protected onOptionChange(key: string, value: unknown): void {
+    if (key === 'action' && value === 'toggle') {
+      this.toggleInvert()
+      // Reset the action
+      this.setOption('action', null)
     }
+  }
+  
+  /**
+   * Toggle invert on/off
+   */
+  async toggleInvert(): Promise<void> {
+    if (this.isApplying) return
     
-    this.executeWithGuard('isApplying', async () => {
-      const images = this.getTargetImages()
+    this.isApplying = true
+    
+    try {
+      const targets = this.getTargetObjects()
       
-      if (images.length === 0) {
-        console.warn('[InvertTool] No images found to apply invert')
+      if (targets.length === 0) {
+        console.warn('[InvertTool] No images to toggle')
         return
       }
       
       // Check if ANY of the target images already have invert applied
-      // This ensures consistent behavior across multiple selections
-      const hasInvertApplied = images.some(img => {
-        return img.filters?.some((f: unknown) => f instanceof filters.Invert) || false
+      const hasInvertApplied = targets.some(target => {
+        if (target.type === 'image') {
+          const imageNode = target.node as Konva.Image
+          const filters = imageNode.filters() || []
+          return filters.includes(Konva.Filters.Invert)
+        }
+        return false
       })
       
       // If any image has invert, remove from all. Otherwise, add to all.
       const shouldApplyInvert = !hasInvertApplied
       
-      console.log(`[InvertTool] Checking invert state: hasInvert=${hasInvertApplied}, willApply=${shouldApplyInvert}`)
+      console.log(`[InvertTool] Toggling invert: currently=${hasInvertApplied}, willApply=${shouldApplyInvert}`)
       
-      // Apply to all image objects
-      await this.applyImageFilters(
-        images,
-        'Invert',
-        () => shouldApplyInvert ? new filters.Invert() : null,
-        shouldApplyInvert ? 'Apply invert' : 'Remove invert'
-      )
+      const targetIds: string[] = []
       
-      // Update state to reflect the action taken (for UI purposes only)
-      this.state.set('isInverted', shouldApplyInvert)
-    })
+      for (const target of targets) {
+        if (target.type === 'image') {
+          if (shouldApplyInvert) {
+            await this.applyInvertToImage(target)
+          } else {
+            await this.removeInvertFromImage(target)
+          }
+          targetIds.push(target.id)
+        }
+      }
+      
+      // Emit appropriate event if in ExecutionContext
+      if (this.executionContext && targetIds.length > 0) {
+        if (shouldApplyInvert) {
+          await this.executionContext.emit(new FilterAppliedEvent(
+            'canvas',
+            'invert',
+            {},
+            targetIds,
+            this.executionContext.getMetadata()
+          ))
+        } else {
+          await this.executionContext.emit(new FilterRemovedEvent(
+            'canvas',
+            'invert',
+            targetIds,
+            this.executionContext.getMetadata()
+          ))
+        }
+      }
+      
+    } finally {
+      this.isApplying = false
+    }
   }
   
-  // Required: Activation
-  onActivate(canvas: Canvas): void {
-    // Call parent implementation which sets up the tool
-    super.onActivate(canvas)
+  /**
+   * Apply invert to a specific image object
+   */
+  private async applyInvertToImage(obj: CanvasObject): Promise<void> {
+    const imageNode = obj.node as Konva.Image
+    
+    // Cache the image for filter application
+    imageNode.cache()
+    
+    // Set up invert filter
+    const filters = imageNode.filters() || []
+    if (!filters.includes(Konva.Filters.Invert)) {
+      filters.push(Konva.Filters.Invert)
+      imageNode.filters(filters)
+    }
+    
+    // Redraw
+    const layer = this.findLayerForObject(obj)
+    if (layer) {
+      layer.konvaLayer.batchDraw()
+    }
   }
   
-  // Remove duplicate getOptionValue method - use the one from BaseTool
+  /**
+   * Remove invert from a specific image object
+   */
+  private async removeInvertFromImage(obj: CanvasObject): Promise<void> {
+    const imageNode = obj.node as Konva.Image
+    
+    // Remove invert filter
+    const filters = imageNode.filters() || []
+    const newFilters = filters.filter(f => f !== Konva.Filters.Invert)
+    imageNode.filters(newFilters)
+    
+    // Clear cache if no filters remain
+    if (newFilters.length === 0) {
+      imageNode.clearCache()
+    }
+    
+    // Redraw
+    const layer = this.findLayerForObject(obj)
+    if (layer) {
+      layer.konvaLayer.batchDraw()
+    }
+  }
+  
+  /**
+   * Get target objects based on selection or all images
+   */
+  private getTargetObjects(): CanvasObject[] {
+    const canvas = this.getCanvas()
+    const selection = canvas.state.selection
+    
+    if (selection?.type === 'objects') {
+      // Apply to selected objects
+      return selection.objectIds
+        .map(id => this.findObject(id))
+        .filter((obj): obj is CanvasObject => obj !== null && obj.type === 'image')
+    } else {
+      // Apply to all images
+      const allImages: CanvasObject[] = []
+      for (const layer of canvas.state.layers) {
+        for (const obj of layer.objects) {
+          if (obj.type === 'image' && !obj.locked && obj.visible) {
+            allImages.push(obj)
+          }
+        }
+      }
+      return allImages
+    }
+  }
+  
+  /**
+   * Find an object by ID
+   */
+  private findObject(objectId: string): CanvasObject | null {
+    const canvas = this.getCanvas()
+    for (const layer of canvas.state.layers) {
+      const obj = layer.objects.find(o => o.id === objectId)
+      if (obj) return obj
+    }
+    return null
+  }
+  
+  /**
+   * Find the layer containing an object
+   */
+  private findLayerForObject(obj: CanvasObject) {
+    const canvas = this.getCanvas()
+    return canvas.state.layers.find(layer => 
+      layer.objects.some(o => o.id === obj.id)
+    )
+  }
+  
+  /**
+   * Apply invert for AI operations
+   */
+  async applyWithContext(apply: boolean, targetObjects?: CanvasObject[]): Promise<void> {
+    if (targetObjects) {
+      // Apply to specific objects
+      for (const obj of targetObjects) {
+        if (obj.type === 'image') {
+          if (apply) {
+            await this.applyInvertToImage(obj)
+          } else {
+            await this.removeInvertFromImage(obj)
+          }
+        }
+      }
+    } else {
+      // Use toggle for general application
+      await this.toggleInvert()
+    }
+  }
 }
 
-// Export singleton
+// Export singleton instance
 export const invertTool = new InvertTool() 

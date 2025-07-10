@@ -71,29 +71,18 @@
  */
 
 import { Eraser } from 'lucide-react'
+import Konva from 'konva'
 import { TOOL_IDS } from '@/constants'
-import type { Canvas, Path } from 'fabric'
-import { PencilBrush } from 'fabric'
-import { DrawingTool } from '../base/DrawingTool'
-import type { ToolOption } from '@/store/toolOptionsStore'
-import { LayerAwareMixin } from '../utils/layerAware'
+import { BaseTool } from '../base/BaseTool'
+import type { ToolEvent, Point, CanvasObject } from '@/lib/editor/canvas/types'
+import { StrokeAddedEvent } from '@/lib/events/canvas/ToolEvents'
+import { nanoid } from 'nanoid'
 
 /**
- * Custom Eraser Path that renders with destination-out
+ * Eraser Tool - Pixel-based erasing with proper composite operation
+ * Konva implementation that actually erases pixels
  */
-interface EraserPath extends Path {
-  isEraserPath: boolean
-}
-
-/**
- * Eraser Tool - Creates paths that erase when rendered
- * 
- * This implementation:
- * 1. Creates normal paths but marks them as eraser paths
- * 2. Overrides their render method to use destination-out
- * 3. Keeps paths as objects for undo/redo support
- */
-class EraserTool extends DrawingTool {
+export class EraserTool extends BaseTool {
   // Tool identification
   id = TOOL_IDS.ERASER
   name = 'Eraser Tool'
@@ -101,148 +90,157 @@ class EraserTool extends DrawingTool {
   cursor = 'crosshair'
   shortcut = 'E'
   
-  // Tool properties
-  protected strokeColor = 'rgba(0,0,0,1)'
-  protected strokeWidth = 20
-  protected opacity = 100
+  // Erasing state
+  private isErasing = false
+  private eraserLine: Konva.Line | null = null
+  private lastPoint: Point | null = null
+  private currentStrokeId: string | null = null
+  private strokePoints: number[] = []
   
-  // Eraser-specific properties
-  private brush: PencilBrush | null = null
+  protected setupTool(): void {
+    // Set default options
+    this.setOption('size', 20)
+    this.setOption('hardness', 100)
+    this.setOption('opacity', 100)
+  }
   
-  /**
-   * Tool setup - enable eraser mode
-   */
-  protected setupTool(canvas: Canvas): void {
-    // Check if we can draw on the active layer
-    if (!LayerAwareMixin.canDrawOnActiveLayer()) {
-      console.warn('Cannot erase on locked or hidden layer')
+  protected cleanupTool(): void {
+    // Clean up any active stroke
+    if (this.eraserLine) {
+      this.eraserLine.destroy()
+      this.eraserLine = null
+    }
+    
+    // Reset state
+    this.isErasing = false
+    this.lastPoint = null
+    this.currentStrokeId = null
+    this.strokePoints = []
+  }
+  
+  async onMouseDown(event: ToolEvent): Promise<void> {
+    const canvas = this.getCanvas()
+    const activeLayer = canvas.getActiveLayer()
+    
+    if (!activeLayer || activeLayer.locked) {
+      console.warn('Cannot erase on locked or no active layer')
       return
     }
     
-    // Enable drawing mode
-    canvas.isDrawingMode = true
-    canvas.selection = false
+    this.isErasing = true
+    this.lastPoint = { x: event.point.x, y: event.point.y }
+    this.currentStrokeId = nanoid()
+    this.strokePoints = [event.point.x, event.point.y]
     
-    // Create a standard PencilBrush
-    this.brush = new PencilBrush(canvas)
-    this.brush.width = this.strokeWidth
-    this.brush.color = 'rgba(0,0,0,1)' // Black for full erasing
-    
-    // Set as the active brush
-    canvas.freeDrawingBrush = this.brush
-    
-    // Subscribe to option changes
-    this.subscribeToToolOptions((options) => {
-      this.updateToolProperties(options)
-      this.updateBrushSettings()
+    // Create eraser stroke
+    this.eraserLine = new Konva.Line({
+      points: this.strokePoints,
+      stroke: '#000000', // Color doesn't matter with destination-out
+      strokeWidth: this.getOption('size') as number || 20,
+      globalCompositeOperation: 'destination-out',
+      lineCap: 'round',
+      lineJoin: 'round',
+      tension: 0.5,
+      listening: false
     })
     
-    // Listen for path creation
-    this.addCanvasEvent('path:created', (e: unknown) => {
-      const event = e as { path: Path }
-      this.convertToEraserPath(event.path)
-    })
-    
-    canvas.renderAll()
+    // Add to the active layer
+    activeLayer.konvaLayer.add(this.eraserLine)
+    activeLayer.konvaLayer.batchDraw()
   }
   
-  /**
-   * Convert a regular path to an eraser path
-   */
-  private convertToEraserPath(path: Path): void {
-    if (!this.canvas) return
+  onMouseMove(event: ToolEvent): void {
+    if (!this.isErasing || !this.eraserLine || !this.lastPoint) return
     
-    // Mark as eraser path
-    const eraserPath = path as EraserPath
-    eraserPath.isEraserPath = true
+    const canvas = this.getCanvas()
+    const activeLayer = canvas.getActiveLayer()
+    if (!activeLayer) return
     
-    // Make it non-interactive
-    eraserPath.selectable = false
-    eraserPath.evented = false
+    // Add points to the eraser path
+    this.strokePoints.push(event.point.x, event.point.y)
+    this.eraserLine.points(this.strokePoints)
     
-    // Override the _render method to use destination-out
-    const originalRender = eraserPath._render.bind(eraserPath)
-    eraserPath._render = function(ctx: CanvasRenderingContext2D) {
-      // Save current settings
-      const prevOperation = ctx.globalCompositeOperation
-      const prevAlpha = ctx.globalAlpha
-      
-      // Set eraser mode
-      ctx.globalCompositeOperation = 'destination-out'
-      ctx.globalAlpha = 1 // Full opacity for complete erasing
-      
-      // Render the path
-      originalRender(ctx)
-      
-      // Restore settings
-      ctx.globalAlpha = prevAlpha
-      ctx.globalCompositeOperation = prevOperation
+    // Update last point
+    this.lastPoint = { x: event.point.x, y: event.point.y }
+    
+    // Redraw the layer
+    activeLayer.konvaLayer.batchDraw()
+  }
+  
+  async onMouseUp(event: ToolEvent): Promise<void> {
+    if (!this.isErasing || !this.eraserLine || !this.currentStrokeId) return
+    
+    this.isErasing = false
+    
+    const canvas = this.getCanvas()
+    const activeLayer = canvas.getActiveLayer()
+    if (!activeLayer) return
+    
+    // Finalize the stroke
+    this.strokePoints.push(event.point.x, event.point.y)
+    this.eraserLine.points(this.strokePoints)
+    
+    // For proper erasing, we need to flatten the erased content
+    // This is done by caching the layer and redrawing
+    activeLayer.konvaLayer.cache()
+    activeLayer.konvaLayer.drawHit()
+    
+    // Emit event if in ExecutionContext
+    if (this.executionContext) {
+      await this.executionContext.emit(new StrokeAddedEvent(
+        'canvas',
+        this.currentStrokeId,
+        {
+          points: [...this.strokePoints],
+          color: '#000000',
+          width: this.getOption('size') as number || 20,
+          opacity: 1,
+          layerId: activeLayer.id
+        },
+        this.executionContext.getMetadata()
+      ))
     }
     
-    console.log('Eraser path created:', {
-      width: this.strokeWidth
-    })
-    
-    this.canvas.renderAll()
+    // Clean up
+    this.eraserLine = null
+    this.lastPoint = null
+    this.currentStrokeId = null
+    this.strokePoints = []
+  }
+  
+  onKeyDown(event: KeyboardEvent): void {
+    // Handle size adjustment with bracket keys
+    if (event.key === '[') {
+      const currentSize = (this.getOption('size') as number) || 20
+      this.setOption('size', Math.max(1, currentSize - 5))
+    } else if (event.key === ']') {
+      const currentSize = (this.getOption('size') as number) || 20
+      this.setOption('size', Math.min(200, currentSize + 5))
+    }
+  }
+  
+  protected onOptionChange(key: string, value: unknown): void {
+    // Update cursor size preview
+    if (key === 'size' && typeof value === 'number') {
+      // Could update a cursor preview here
+      const canvas = this.getCanvas()
+      canvas.konvaStage.container().style.cursor = `crosshair`
+    }
   }
   
   /**
-   * Tool cleanup - disable eraser mode
+   * Apply eraser to specific objects (for AI operations)
    */
-  protected cleanup(canvas: Canvas): void {
-    // Disable drawing mode
-    canvas.isDrawingMode = false
-    canvas.selection = true
+  async applyToObject(
+    object: CanvasObject,
+    options: { size: number; hardness: number }
+  ): Promise<void> {
+    // For AI operations, we might want to mask parts of an object
+    // This would require creating a clipping mask
+    console.log('Applying eraser to object:', object, options)
     
-    // Clear brush
-    canvas.freeDrawingBrush = undefined
-    this.brush = null
-    
-    // Optionally: Flatten eraser paths into the image
-    // This would require converting all objects to a single image
-    // For now, we keep them as paths for undo/redo support
-    
-    canvas.renderAll()
-  }
-  
-  /**
-   * Update brush settings
-   */
-  private updateBrushSettings(): void {
-    if (!this.brush || !this.canvas) return
-    
-    this.brush.width = this.strokeWidth
-    this.brush.color = 'rgba(0,0,0,1)'
-  }
-  
-  /**
-   * Update tool properties from options
-   */
-  protected updateToolProperties(options: ToolOption[]): void {
-    options.forEach(option => {
-      switch (option.id) {
-        case 'size':
-          this.strokeWidth = option.value as number
-          break
-        case 'opacity':
-          // Opacity is ignored for eraser - always full
-          this.opacity = 100
-          break
-      }
-    })
-  }
-  
-  // Override DrawingTool methods since we use Fabric's drawing mode
-  protected beginStroke(): void {
-    // Not used - Fabric handles drawing
-  }
-  
-  protected updateStroke(): void {
-    // Not used - Fabric handles drawing
-  }
-  
-  protected finalizeStroke(): void {
-    // Not used - Fabric handles drawing
+    // Implementation would depend on the specific requirements
+    // For now, this is a placeholder
   }
 }
 
