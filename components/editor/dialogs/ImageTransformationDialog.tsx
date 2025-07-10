@@ -11,10 +11,14 @@ import { Loader2 } from 'lucide-react'
 import { ImageUpscalingAdapter } from '@/lib/ai/adapters/tools/imageUpscaling'
 import { BackgroundRemovalAdapter } from '@/lib/ai/adapters/tools/backgroundRemoval'
 import { TOOL_IDS } from '@/constants'
+import { Input } from '@/components/ui/input'
+import { InpaintingAdapter } from '@/lib/ai/adapters/tools/inpainting'
+import { Slider } from '@/components/ui/slider'
 
 const TRANSFORMATION_TYPES = [
   { value: 'upscale', label: 'Upscale image' },
   { value: 'remove-background', label: 'Remove background' },
+  { value: 'inpaint', label: 'AI Inpainting' },
 ]
 
 export function ImageTransformationDialog() {
@@ -25,6 +29,10 @@ export function ImageTransformationDialog() {
   
   const [transformationType, setTransformationType] = useState('upscale')
   const [isTransforming, setIsTransforming] = useState(false)
+  const [prompt, setPrompt] = useState('')
+  const [guaidanceScale, setGuaidanceScale] = useState(7.5)
+  const [steps, setSteps] = useState(20)
+  const [negativePrompt, setNegativePrompt] = useState('')
   
   const isOpen = activeAITool?.type === 'ai-image-transformation'
   
@@ -32,6 +40,10 @@ export function ImageTransformationDialog() {
     // Reset form when dialog opens
     if (isOpen) {
       setTransformationType('upscale')
+      setPrompt('')
+      setGuaidanceScale(7.5)
+      setSteps(20)
+      setNegativePrompt('')
     }
   }, [isOpen])
   
@@ -95,6 +107,21 @@ export function ImageTransformationDialog() {
           console.error('Background removal Failed:', result.message || 'Failed to remove background')
           alert(result.message || 'Failed to remove background')
         }
+      } else if (transformationType === 'inpaint') {
+        if (!prompt.trim()) {
+          alert('Please enter a prompt for inpainting.');
+          return;
+        }
+        const adapter = new InpaintingAdapter();
+        const result = await adapter.execute({ prompt, guaidance_scale: guaidanceScale, steps, negative_prompt: negativePrompt }, { canvas: fabricCanvas });
+        if (result.success) {
+          console.log('Inpainting successful');
+          setActiveAITool(null);
+          setActiveTool(TOOL_IDS.MOVE);
+        } else {
+          console.error('Inpainting Failed:', result.message);
+          alert(result.message || 'Failed to perform inpainting');
+        }
       }
     } catch (error) {
       console.error('Image transformation error:', error)
@@ -130,6 +157,31 @@ export function ImageTransformationDialog() {
               </SelectContent>
             </Select>
           </div>
+          {transformationType === 'inpaint' && (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="prompt">Prompt</Label>
+                <Input
+                  id="prompt"
+                  value={prompt}
+                  onChange={(e) => setPrompt(e.target.value)}
+                  placeholder="Describe what to generate"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Guidance Scale ({guaidanceScale})</Label>
+                <Slider min={0} max={20} step={0.5} value={[guaidanceScale]} onValueChange={([v])=>setGuaidanceScale(v)} />
+              </div>
+              <div className="space-y-2">
+                <Label>Steps ({steps})</Label>
+                <Slider min={1} max={50} step={1} value={[steps]} onValueChange={([v])=>setSteps(v)} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="negative-prompt">Negative Prompt (Optional)</Label>
+                <Input id="negative-prompt" value={negativePrompt} onChange={(e)=>setNegativePrompt(e.target.value)} placeholder="What to avoid (e.g., blurry, distorted)" />
+              </div>
+            </div>
+          )}
         </div>
         
         <div className="flex justify-end gap-2">

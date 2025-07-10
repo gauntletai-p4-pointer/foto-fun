@@ -355,8 +355,10 @@ export function AIChat() {
           height: currentState.fabricCanvas.getHeight()
         },
         hasContent: currentState.hasContent(),
-        objectCount: currentState.fabricCanvas.getObjects().length
+        objectCount: currentState.fabricCanvas.getObjects().length,
+        hasSelection: !!currentState.selectionManager?.getSelection()
       } : null
+      console.log('[AIChat] Sending canvasContext:', canvasContext);
       
       sendMessage(
         { text: input },
@@ -389,8 +391,10 @@ export function AIChat() {
           height: currentState.fabricCanvas.getHeight()
         },
         hasContent: currentState.hasContent(),
-        objectCount: currentState.fabricCanvas.getObjects().length
+        objectCount: currentState.fabricCanvas.getObjects().length,
+        hasSelection: !!currentState.selectionManager?.getSelection()
       } : null
+      console.log('[AIChat] Sending canvasContext:', canvasContext);
       
       sendMessage(
         { text: suggestion },

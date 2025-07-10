@@ -106,7 +106,7 @@ export class CanvasToolBridge {
       
       switch (targetArea) {
         case 'whole-image':
-          dataURL = canvas.toDataURL({
+          dataURL = await CanvasToolBridge.getCleanCanvasImage(canvas, {
             format: 'png',
             quality: 1,
             multiplier: 1
@@ -241,6 +241,35 @@ export class CanvasToolBridge {
     }
   }
   
+  /**
+   * Get canvas image without selection overlay
+   */
+  static async getCleanCanvasImage(canvas: Canvas, options?: { format?: 'png' | 'jpeg' | 'webp'; quality?: number; multiplier?: number }): Promise<string> {
+    // Temporarily hide selection overlay to get clean canvas image
+    const canvasStore = useCanvasStore.getState()
+    const selectionRenderer = canvasStore.selectionRenderer
+    
+    let wasRendering = false
+    if (selectionRenderer && selectionRenderer.isRendering()) {
+      wasRendering = true
+      selectionRenderer.stopRendering()
+    }
+    
+    // Get the clean canvas image
+    const imageUrl = canvas.toDataURL({
+      format: options?.format || 'png',
+      quality: options?.quality || 1,
+      multiplier: options?.multiplier || 1
+    })
+    
+    // Restore selection rendering if it was active
+    if (wasRendering && selectionRenderer) {
+      selectionRenderer.startRendering()
+    }
+    
+    return imageUrl
+  }
+
   /**
    * Create a snapshot of current canvas state for undo/redo
    */

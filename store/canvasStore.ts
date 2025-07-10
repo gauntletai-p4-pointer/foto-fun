@@ -36,6 +36,7 @@ interface CanvasStore {
     onApplyInPlace: () => void
     onRejectChange: () => void
     onAcceptBoth: () => void
+    maskImage?: string
   } | null
   
   // Actions
@@ -50,6 +51,7 @@ interface CanvasStore {
     onApplyInPlace: () => void
     onRejectChange: () => void
     onAcceptBoth: () => void
+    maskImage?: string
   } | null) => void
   
   // Zoom actions

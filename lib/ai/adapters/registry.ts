@@ -154,9 +154,11 @@ export async function autoDiscoverAdapters(): Promise<void> {
       const { ImageGenerationAdapter } = await import('./tools/imageGeneration')
       const { ImageUpscalingAdapter } = await import('./tools/imageUpscaling')
       const { BackgroundRemovalAdapter } = await import('./tools/backgroundRemoval')
+      const { InpaintingAdapter } = await import('./tools/inpainting')
       adapterRegistry.register(new ImageGenerationAdapter())
       adapterRegistry.register(new ImageUpscalingAdapter())
       adapterRegistry.register(new BackgroundRemovalAdapter())
+      adapterRegistry.register(new InpaintingAdapter())
       console.log('[AdapterRegistry] Registered Replicate AI-Native Tool adapters')
     } catch (error) {
       console.warn('[AdapterRegistry] Replicate adapters not available (API key not configured):', error)

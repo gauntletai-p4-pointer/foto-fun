@@ -26,6 +26,7 @@ export async function POST(req: Request) {
   console.log('Last message:', messages[messages.length - 1]?.content || 'No content')
   console.log('Canvas context hasContent:', canvasContext?.hasContent)
   console.log('Canvas dimensions:', canvasContext?.dimensions)
+  console.log('[AI Chat API] Received canvasContext:', canvasContext);
   
   // Initialize adapters
   await initialize()
@@ -100,14 +101,16 @@ IMPORTANT DISTINCTION:
 - "improve the image quality" → Use executeAgentWorkflow (needs AI judgment)
 - Simple combinations of clear operations should NOT use executeAgentWorkflow
 
-Canvas: ${canvasContext.dimensions.width}x${canvasContext.dimensions.height}px, has content: ${canvasContext.hasContent}
+Canvas: ${canvasContext.dimensions.width}x${canvasContext.dimensions.height}px, has content: ${canvasContext.hasContent}, has selection: ${canvasContext.hasSelection || false}
 
 Available tools:
 - Canvas editing: ${adapterRegistry.getToolNamesByCategory('canvas-editing').join(', ')}
 - AI-native: ${adapterRegistry.getToolNamesByCategory('ai-native').join(', ')}
 - Complex workflows: executeAgentWorkflow (ONLY for subjective/complex operations)
 
-When using tools, be direct and efficient. Only use executeAgentWorkflow when AI reasoning adds value.`,
+When using tools, be direct and efficient. Only use executeAgentWorkflow when AI reasoning adds value.
+
+For tools requiring selection (like inpaintImage), check if hasSelection is true. If false, do not call them; respond asking the user to select first.`,
   }).toUIMessageStreamResponse()
 }
 

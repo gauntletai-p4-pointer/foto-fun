@@ -136,18 +136,11 @@ class LassoTool extends SelectionTool {
     const tempCtx = tempCanvas.getContext('2d')!
     
     // Render the path to get its pixels
-    tempCtx.save()
-    tempCtx.translate(this.finalPath.left || 0, this.finalPath.top || 0)
-    if (this.finalPath.angle) {
-      tempCtx.rotate((this.finalPath.angle * Math.PI) / 180)
-    }
-    tempCtx.scale(this.finalPath.scaleX || 1, this.finalPath.scaleY || 1)
-    
-    // Draw the path filled
+    // Note: closedPathData already contains absolute coordinates from getPointer()
+    // so we don't need to apply Fabric.js object transformations
     const path2D = new Path2D(closedPathData)
     tempCtx.fillStyle = 'white'
     tempCtx.fill(path2D)
-    tempCtx.restore()
     
     // Get the pixel data
     const imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height)
