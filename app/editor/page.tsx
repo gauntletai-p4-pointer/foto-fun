@@ -10,6 +10,8 @@ import { OptionsBar } from '@/components/editor/OptionsBar'
 import { StatusBar } from '@/components/editor/StatusBar'
 import { NewDocumentDialog } from '@/components/dialogs/NewDocumentDialog'
 import { ImageGenerationDialog } from '@/components/editor/dialogs/ImageGenerationDialog'
+import { ImageTransformationDialog } from '@/components/editor/dialogs/ImageTransformationDialog'
+import { ReviewImageDialog } from '@/components/editor/dialogs/ReviewImageDialog'
 import { useDocumentStore } from '@/store/documentStore'
 import { useToolStore } from '@/store/toolStore'
 import { createClient } from '@/lib/db/supabase/client'
@@ -134,6 +136,8 @@ export default function EditorPage() {
         onOpenChange={setShowNewDocumentDialog}
       />
       <ImageGenerationDialog />
+      <ImageTransformationDialog />
+      <ReviewImageDialog />
     </div>
   )
 } 

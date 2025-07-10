@@ -27,10 +27,30 @@ interface CanvasStore {
     activationType: 'dialog' | 'panel' | 'immediate'
   } | null
   
+  // Review Modal (for image processing results)
+  reviewModal: {
+    isOpen: boolean
+    title: string
+    originalImage: string
+    processedImage: string
+    onApplyInPlace: () => void
+    onRejectChange: () => void
+    onAcceptBoth: () => void
+  } | null
+  
   // Actions
   initCanvas: (element: HTMLCanvasElement, width: number, height: number) => Promise<void>
   disposeCanvas: () => void
   setActiveAITool: (tool: { type: string; tool: any; activationType: 'dialog' | 'panel' | 'immediate' } | null) => void
+  setReviewModal: (modal: {
+    isOpen: boolean
+    title: string
+    originalImage: string
+    processedImage: string
+    onApplyInPlace: () => void
+    onRejectChange: () => void
+    onAcceptBoth: () => void
+  } | null) => void
   
   // Zoom actions
   setZoom: (zoom: number) => void
@@ -92,6 +112,7 @@ export const useCanvasStore = create<CanvasStore>()(
       initializationError: null,
       initializationPromise: null,
       activeAITool: null,
+      reviewModal: null,
       
       // Initialize canvas with proper async handling
       initCanvas: async (element, width, height) => {
@@ -437,6 +458,11 @@ export const useCanvasStore = create<CanvasStore>()(
       // Set active AI tool
       setActiveAITool: (tool) => {
         set({ activeAITool: tool })
+      },
+
+      // Set review modal
+      setReviewModal: (modal) => {
+        set({ reviewModal: modal })
       }
     }),
     {

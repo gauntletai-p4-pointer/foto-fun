@@ -26,6 +26,7 @@ import { grayscaleTool } from './filters/grayscaleTool'
 import { sepiaTool } from './filters/sepiaTool'
 import { invertTool } from './filters/invertTool'
 import { imageGenerationCanvasTool } from './ai-native/imageGenerationCanvasTool'
+import { imageTransformationCanvasTool } from './ai-native/imageTransformationCanvasTool'
 
 // Export all tools
 export const tools: Tool[] = [
@@ -60,6 +61,7 @@ export const tools: Tool[] = [
   invertTool,
   // AI-Native tools
   imageGenerationCanvasTool,
+  imageTransformationCanvasTool,
 ]
 
 // Export individual tools
@@ -94,4 +96,5 @@ export {
   sepiaTool,
   invertTool,
   imageGenerationCanvasTool,
+  imageTransformationCanvasTool,
 } 

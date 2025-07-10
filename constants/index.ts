@@ -70,6 +70,7 @@ export const TOOL_IDS = {
   INVERT: 'invert',
   // AI-Native tools
   AI_IMAGE_GENERATION: 'ai-image-generation',
+  AI_IMAGE_TRANSFORMATION: 'ai-image-transformation',
 } as const
 
 // Tool Groups
