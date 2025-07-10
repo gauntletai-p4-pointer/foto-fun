@@ -1,11 +1,8 @@
 import { Focus } from 'lucide-react'
 import { TOOL_IDS } from '@/constants'
 import type { Canvas } from 'fabric'
-import { FabricImage, filters } from 'fabric'
-import { BaseTool } from '../base/BaseTool'
+import { BaseFilterTool } from './BaseFilterTool'
 import { createToolState } from '../utils/toolState'
-// import { useToolOptionsStore } from '@/store/toolOptionsStore'
-import { ModifyCommand } from '@/lib/editor/commands/canvas'
 
 // Define tool state
 type SharpenToolState = {
@@ -13,7 +10,7 @@ type SharpenToolState = {
   lastSharpen: number
 }
 
-class SharpenTool extends BaseTool {
+class SharpenTool extends BaseFilterTool {
   // Tool identification
   id = TOOL_IDS.SHARPEN
   name = 'Sharpen'
@@ -27,13 +24,23 @@ class SharpenTool extends BaseTool {
     lastSharpen: 0
   })
   
+  // Required: Get filter name
+  protected getFilterName(): string {
+    return 'sharpen'
+  }
+  
+  // Required: Get default params
+  protected getDefaultParams(): any {
+    return { strength: this.state.get('lastSharpen') }
+  }
+  
   // Required: Setup
-  protected setupTool(canvas: Canvas): void {
+  protected setupFilterTool(canvas: Canvas): void {
     // Subscribe to tool options
-    this.subscribeToToolOptions(() => {
+    this.subscribeToToolOptions(async () => {
       const sharpen = this.getOptionValue('sharpen')
       if (typeof sharpen === 'number' && sharpen !== this.state.get('lastSharpen')) {
-        this.applySharpen(canvas, sharpen)
+        await this.applySharpen(sharpen)
         this.state.set('lastSharpen', sharpen)
       }
     })
@@ -41,13 +48,17 @@ class SharpenTool extends BaseTool {
     // Apply initial value if any
     const initialSharpen = this.getOptionValue('sharpen')
     if (typeof initialSharpen === 'number' && initialSharpen !== 0) {
-      this.applySharpen(canvas, initialSharpen)
-      this.state.set('lastSharpen', initialSharpen)
+      this.applySharpen(initialSharpen).then(() => {
+        this.state.set('lastSharpen', initialSharpen)
+      })
     }
+    
+    // Show selection indicator on tool activation
+    this.showSelectionIndicator()
   }
   
   // Required: Cleanup
-  protected cleanup(): void {
+  protected cleanupFilterTool(): void {
     // Don't reset the sharpen - let it persist
     this.state.setState({
       isApplying: false,
@@ -55,60 +66,23 @@ class SharpenTool extends BaseTool {
     })
   }
   
-  private applySharpen(canvas: Canvas, sharpenValue: number): void {
+  // Required: Base cleanup (from BaseTool)
+  protected cleanup(): void {
+    this.cleanupTool()
+  }
+  
+  /**
+   * Apply sharpen filter
+   */
+  private async applySharpen(sharpen: number): Promise<void> {
     if (this.state.get('isApplying')) return
     
     this.state.set('isApplying', true)
+    this.state.set('lastSharpen', sharpen)
     
     try {
-      const objects = canvas.getObjects()
-      
-      // Apply to all image objects
-      objects.forEach((obj) => {
-        if (obj instanceof FabricImage) {
-          // Calculate new filters array
-          const existingFilters = obj.filters?.filter(
-            (f) => {
-              if (f instanceof filters.Convolute) {
-                return f.opaque !== false
-              }
-              return true
-            }
-          ) || []
-          
-          let newFilters: typeof obj.filters
-          if (sharpenValue > 0) {
-            // Sharpen matrix - intensity is controlled by the center value
-            const intensity = 1 + (sharpenValue / 25) // Scale 0-100 to 1-5
-            const sharpenMatrix = [
-              0, -1, 0,
-              -1, intensity, -1,
-              0, -1, 0
-            ]
-            
-            const sharpenFilter = new filters.Convolute({
-              matrix: sharpenMatrix,
-              opaque: false
-            })
-            newFilters = [...existingFilters, sharpenFilter] as typeof obj.filters
-          } else {
-            newFilters = existingFilters as typeof obj.filters
-          }
-          
-          // Create command BEFORE modifying the object
-          const command = new ModifyCommand(
-            canvas,
-            obj,
-            { filters: newFilters },
-            `Apply sharpen: ${sharpenValue}%`
-          )
-          
-          // Execute the command (which will apply the changes and handle applyFilters)
-          this.executeCommand(command)
-        }
-      })
-      
-      canvas.renderAll()
+      // Use the base class applyFilter method
+      await this.applyFilter({ sharpen })
     } finally {
       this.state.set('isApplying', false)
     }

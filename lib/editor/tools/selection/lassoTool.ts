@@ -5,9 +5,9 @@ import { Path } from 'fabric'
 import { SelectionTool } from '../base/SelectionTool'
 import { selectionStyle } from '../utils/selectionRenderer'
 import { useCanvasStore } from '@/store/canvasStore'
-import { useSelectionStore } from '@/store/selectionStore'
-import { useHistoryStore } from '@/store/historyStore'
 import { CreateSelectionCommand } from '@/lib/editor/commands/selection'
+import { markAsSystemObject } from '@/lib/editor/utils/systemObjects'
+import { SystemObjectType } from '@/types/fabric'
 
 /**
  * Lasso Tool - Creates freehand selections
@@ -25,6 +25,8 @@ class LassoTool extends SelectionTool {
   private points: { x: number; y: number }[] = []
   private feedbackPath: Path | null = null
   private finalPath: Path | null = null
+  private lastUpdateTime = 0
+  private updateThrottle = 16 // ~60fps
   
   /**
    * Override handleMouseDown to initialize points
@@ -37,6 +39,7 @@ class LassoTool extends SelectionTool {
     
     // Initialize points array with the start point
     this.points = [{ x: pointer.x, y: pointer.y }]
+    this.lastUpdateTime = 0
   }
   
   /**
@@ -58,10 +61,17 @@ class LassoTool extends SelectionTool {
     // Add point to path
     this.points.push(currentPoint)
     
+    // Throttle visual updates to avoid excessive canvas events
+    const now = Date.now()
+    if (now - this.lastUpdateTime < this.updateThrottle) {
+      return
+    }
+    this.lastUpdateTime = now
+    
     // Create path data from points
     const pathData = this.createPathData(this.points)
     
-    // Update or create feedback path
+    // Update feedback path
     if (this.feedbackPath) {
       this.canvas.remove(this.feedbackPath)
     }
@@ -70,6 +80,9 @@ class LassoTool extends SelectionTool {
       ...selectionStyle,
       fill: ''
     })
+    
+    // Mark as system object
+    markAsSystemObject(this.feedbackPath, SystemObjectType.TOOL_FEEDBACK)
     
     this.canvas.add(this.feedbackPath)
     this.canvas.renderAll()
@@ -102,91 +115,76 @@ class LassoTool extends SelectionTool {
       return
     }
     
-    // Close the path
-    const closedPathData = this.createPathData(this.points) + ' Z'
-    
-    // Remove feedback path
+    // Remove feedback path first
     if (this.feedbackPath) {
       this.canvas.remove(this.feedbackPath)
+      this.feedbackPath = null
     }
     
-    // Create final selection path
+    // Close the path with all collected points
+    const closedPathData = this.createPathData(this.points) + ' Z'
+    
+    // Create final selection path with all points
     this.finalPath = new Path(closedPathData, {
       ...selectionStyle
     })
     
-    // Get selection manager and mode
-    const canvasStore = useCanvasStore.getState()
-    const selectionStore = useSelectionStore.getState()
-    const historyStore = useHistoryStore.getState()
+    // Mark as system object
+    markAsSystemObject(this.finalPath, SystemObjectType.TEMPORARY)
     
-    if (!canvasStore.selectionManager || !canvasStore.selectionRenderer) {
+    // Get selection manager
+    const canvasStore = useCanvasStore.getState()
+    const selectionManager = canvasStore.selectionManager
+    
+    if (!selectionManager) {
       console.error('Selection system not initialized')
       return
     }
     
-    // Add the path temporarily to get bounds and render it
+    // Add the path temporarily to canvas for selection creation
     this.canvas.add(this.finalPath)
-    const bounds = this.finalPath.getBoundingRect()
     
-    // Create a temporary canvas to generate the selection mask
-    const tempCanvas = document.createElement('canvas')
-    tempCanvas.width = this.canvas.getWidth()
-    tempCanvas.height = this.canvas.getHeight()
-    const tempCtx = tempCanvas.getContext('2d')!
+    // Get selection mode (new, add, subtract, intersect)
+    const mode = this.selectionMode
     
-    // Render the path to get its pixels
-    // Note: closedPathData already contains absolute coordinates from getPointer()
-    // so we don't need to apply Fabric.js object transformations
-    const path2D = new Path2D(closedPathData)
-    tempCtx.fillStyle = 'white'
-    tempCtx.fill(path2D)
-    
-    // Get the pixel data
-    const imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height)
-    
-    // Convert to selection mask (white pixels become selected)
-    for (let i = 0; i < imageData.data.length; i += 4) {
-      // Use the red channel (since we drew in white) as the selection mask
-      imageData.data[i + 3] = imageData.data[i]
-    }
-    
-    // Create the selection command
-    const command = new CreateSelectionCommand(
-      canvasStore.selectionManager,
-      {
-        mask: imageData,
-        bounds: {
-          x: bounds.left,
-          y: bounds.top,
-          width: bounds.width,
-          height: bounds.height
-        }
-      },
-      selectionStore.mode
+    // Create the selection from path - the base SelectionTool has already set up
+    // the correct selection mode (object vs global) in the selection manager
+    selectionManager.createFromPath(
+      this.finalPath,
+      mode === 'new' ? 'replace' : mode
     )
     
-    // Execute the command through history
-    historyStore.executeCommand(command)
+    // If in object mode, the LayerAwareSelectionManager will automatically
+    // clip the selection to object bounds and store it as an object selection
     
-    // Update selection state
-    selectionStore.updateSelectionState(true, {
-      x: bounds.left,
-      y: bounds.top,
-      width: bounds.width,
-      height: bounds.height
-    })
+    // Record command for undo/redo
+    const selection = selectionManager.getSelection()
+    if (selection) {
+      const command = new CreateSelectionCommand(selectionManager, selection, mode === 'new' ? 'replace' : mode)
+      this.historyStore.executeCommand(command)
+      
+      // Update selection store
+      const bounds = this.finalPath.getBoundingRect()
+      this.selectionStore.updateSelectionState(true, {
+        x: bounds.left,
+        y: bounds.top,
+        width: bounds.width,
+        height: bounds.height
+      })
+      
+      // Start rendering the selection with marching ants
+      const { selectionRenderer } = canvasStore
+      if (selectionRenderer) {
+        selectionRenderer.startRendering()
+      }
+    }
     
-    // Remove the temporary path
-    this.canvas.remove(this.finalPath)
+    // Clean up
+    if (this.finalPath) this.canvas.remove(this.finalPath)
     
-    // Start rendering the selection
-    canvasStore.selectionRenderer.startRendering()
-    
-    // Reset for next selection
-    this.points = []
     this.feedbackPath = null
     this.finalPath = null
+    this.points = []
   }
   
   /**

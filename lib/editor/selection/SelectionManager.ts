@@ -7,9 +7,15 @@ export interface SelectionBounds {
   height: number
 }
 
+export type SelectionShape = 
+  | { type: 'rectangle'; x: number; y: number; width: number; height: number }
+  | { type: 'ellipse'; cx: number; cy: number; rx: number; ry: number }
+  | { type: 'path'; pathData: string }
+
 export interface PixelSelection {
   mask: ImageData
   bounds: SelectionBounds
+  shape?: SelectionShape  // Optional for backward compatibility
 }
 
 export type SelectionMode = 'replace' | 'add' | 'subtract' | 'intersect'
@@ -89,8 +95,65 @@ export class SelectionManager {
     // Get the pixel data
     const imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height)
     
+    // Get path data if it's a Path object
+    let shape: SelectionShape | undefined
+    if (path.type === 'path' && 'path' in path) {
+      // For Fabric Path objects, use the actual path string
+      // The path property can be either a string or an array of commands
+      let pathData: string
+      if (typeof path.path === 'string') {
+        pathData = path.path
+      } else if (Array.isArray(path.path)) {
+        // Convert path commands array to SVG path string
+        pathData = this.pathCommandsToString(path.path as Array<[string, ...number[]]>)
+      } else {
+        // Try to get from _element if it exists (for loaded SVG paths)
+        const pathWithElement = path as Path & { _element?: SVGPathElement }
+        const pathElement = pathWithElement._element
+        if (pathElement && pathElement.getAttribute) {
+          pathData = pathElement.getAttribute('d') || ''
+        } else {
+          pathData = ''
+        }
+      }
+      
+      if (pathData) {
+        shape = { type: 'path', pathData }
+      }
+    }
+    
     // Apply the selection mode
-    this.applySelectionMode(imageData, bounds, mode)
+    this.applySelectionMode(imageData, bounds, mode, shape)
+  }
+  
+  /**
+   * Convert Fabric path commands array to SVG path string
+   */
+  private pathCommandsToString(pathCommands: Array<[string, ...number[]]>): string {
+    if (!Array.isArray(pathCommands)) return ''
+    
+    return pathCommands.map(cmd => {
+      if (!Array.isArray(cmd) || cmd.length === 0) return ''
+      
+      const command = cmd[0]
+      const args = cmd.slice(1)
+      
+      // Handle different command types
+      switch (command) {
+        case 'M': // moveTo
+        case 'L': // lineTo
+        case 'C': // bezierCurveTo
+        case 'Q': // quadraticCurveTo
+        case 'A': // arc
+        case 'Z': // closePath
+          return `${command} ${args.join(' ')}`
+        case 'H': // horizontal lineTo
+        case 'V': // vertical lineTo
+          return `${command} ${args[0]}`
+        default:
+          return ''
+      }
+    }).join(' ').trim()
   }
   
   /**
@@ -114,7 +177,10 @@ export class SelectionManager {
       }
     }
     
-    this.applySelectionMode(imageData, bounds, mode)
+    // Create shape information
+    const shape: SelectionShape = { type: 'rectangle', x, y, width, height }
+    
+    this.applySelectionMode(imageData, bounds, mode, shape)
   }
   
   /**
@@ -146,15 +212,18 @@ export class SelectionManager {
       }
     }
     
-    this.applySelectionMode(imageData, bounds, mode)
+    // Create shape information
+    const shape: SelectionShape = { type: 'ellipse', cx, cy, rx, ry }
+    
+    this.applySelectionMode(imageData, bounds, mode, shape)
   }
   
   /**
    * Apply selection mode (replace, add, subtract, intersect)
    */
-  private applySelectionMode(newMask: ImageData, bounds: SelectionBounds, mode: SelectionMode): void {
+  private applySelectionMode(newMask: ImageData, bounds: SelectionBounds, mode: SelectionMode, shape?: SelectionShape): void {
     if (mode === 'replace' || !this.selection) {
-      this.selection = { mask: newMask, bounds }
+      this.selection = { mask: newMask, bounds, shape }
       return
     }
     
@@ -181,7 +250,7 @@ export class SelectionManager {
     
     // Update bounds
     const newBounds = this.combineBoounds(this.selection.bounds, bounds, mode)
-    this.selection = { mask: resultMask, bounds: newBounds }
+    this.selection = { mask: resultMask, bounds: newBounds, shape: this.selection.shape }
   }
   
   /**
@@ -410,9 +479,13 @@ export class SelectionManager {
       imageData.data[i] = 255
     }
     
+    // Create shape information for full canvas rectangle
+    const shape: SelectionShape = { type: 'rectangle', x: 0, y: 0, width, height }
+    
     this.selection = {
       mask: imageData,
-      bounds: { x: 0, y: 0, width, height }
+      bounds: { x: 0, y: 0, width, height },
+      shape
     }
   }
   
@@ -474,8 +547,8 @@ export class SelectionManager {
   /**
    * Restore selection from ImageData and bounds
    */
-  restoreSelection(mask: ImageData, bounds: SelectionBounds): void {
-    this.selection = { mask, bounds }
+  restoreSelection(mask: ImageData, bounds: SelectionBounds, shape?: SelectionShape): void {
+    this.selection = { mask, bounds, shape }
   }
   
   /**

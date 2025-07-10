@@ -50,6 +50,8 @@ export function useFileHandler(mode: 'open' | 'insert' = 'open') {
     const file = e.target.files?.[0]
     if (file) {
       handleFile(file)
+      // Reset the input value to allow selecting the same file again
+      e.target.value = ''
     }
   }, [handleFile])
   

@@ -3,8 +3,7 @@ import { BaseToolAdapter } from '../base'
 import type { Canvas } from 'fabric'
 import * as fabric from 'fabric'
 import { useLayerStore } from '@/store/layerStore'
-import { tool } from 'ai'
-import type { Tool } from '@/types'
+import type { BaseTool } from '@/lib/editor/tools/base/BaseTool'
 
 // Input schema for AI SDK v5
 const imageGenerationInputSchema = z.object({
@@ -90,15 +89,9 @@ Be specific in your descriptions for better results. The generated image will be
   
   inputSchema = imageGenerationInputSchema
   
-  // We don't have a canvas tool for AI-Native Tools - create a placeholder
-  get tool(): Tool {
-    return {
-      id: 'ai-image-generation',
-      name: 'AI Image Generation',
-      icon: () => null,
-      cursor: 'default',
-      isImplemented: true
-    }
+  // We don't need a canvas tool reference since this is an AI-Native Tool
+  get tool() {
+    return null as unknown as BaseTool // Not applicable for AI-Native Tools
   }
   
   async execute(params: ImageGenerationInput, context: { canvas: Canvas }): Promise<ImageGenerationOutput> {
@@ -409,6 +402,10 @@ Be specific in your descriptions for better results. The generated image will be
    * On the server, this tool calls our API route directly
    */
   toAITool(): unknown {
+    // Dynamic import only on the server
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { tool } = require('ai')
+    
     return tool({
       description: this.description,
       inputSchema: this.inputSchema,

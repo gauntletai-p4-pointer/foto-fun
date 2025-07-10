@@ -38,7 +38,8 @@ export class ModifySelectionCommand extends Command {
     
     this.previousSelection = {
       mask: clonedMask,
-      bounds: { ...current.bounds }
+      bounds: { ...current.bounds },
+      shape: current.shape  // Preserve shape information
     }
     
     // Apply modification
@@ -60,7 +61,7 @@ export class ModifySelectionCommand extends Command {
   
   async undo(): Promise<void> {
     if (this.previousSelection) {
-      this.selectionManager.restoreSelection(this.previousSelection.mask, this.previousSelection.bounds)
+      this.selectionManager.restoreSelection(this.previousSelection.mask, this.previousSelection.bounds, this.previousSelection.shape)
     }
   }
   
@@ -68,7 +69,7 @@ export class ModifySelectionCommand extends Command {
     // We need to re-execute from the saved state
     if (this.previousSelection) {
       // First restore the previous state
-      this.selectionManager.restoreSelection(this.previousSelection.mask, this.previousSelection.bounds)
+      this.selectionManager.restoreSelection(this.previousSelection.mask, this.previousSelection.bounds, this.previousSelection.shape)
       // Then apply the modification again
       switch (this.modification) {
         case 'expand':

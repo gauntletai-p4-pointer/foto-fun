@@ -1,11 +1,9 @@
 import { Palette } from 'lucide-react'
 import { TOOL_IDS } from '@/constants'
-// import type { Canvas } from 'fabric'
-import { filters } from 'fabric'
-import { BaseTool } from '../base/BaseTool'
+import type { Canvas } from 'fabric'
+import { BaseFilterTool } from './BaseFilterTool'
 import { createToolState } from '../utils/toolState'
 import { useToolOptionsStore } from '@/store/toolOptionsStore'
-// import { ModifyCommand } from '@/lib/editor/commands/canvas'
 
 // Define tool state
 type GrayscaleToolState = {
@@ -13,7 +11,7 @@ type GrayscaleToolState = {
   isGrayscale: boolean
 }
 
-class GrayscaleTool extends BaseTool {
+class GrayscaleTool extends BaseFilterTool {
   // Required properties
   id = TOOL_IDS.GRAYSCALE
   name = 'Grayscale'
@@ -27,22 +25,35 @@ class GrayscaleTool extends BaseTool {
     isGrayscale: false
   })
   
+  // Required: Get filter name
+  protected getFilterName(): string {
+    return 'grayscale'
+  }
+  
+  // Required: Get default params
+  protected getDefaultParams(): any {
+    return {} // Grayscale has no parameters
+  }
+  
   // Required: Setup
-  protected setupTool(): void {
+  protected setupFilterTool(canvas: Canvas): void {
     // Subscribe to tool options
-    this.subscribeToToolOptions(() => {
+    this.subscribeToToolOptions(async () => {
       const action = this.getOptionValue('action')
       
       if (action === 'toggle') {
-        this.toggleGrayscale()
+        await this.toggleGrayscale()
         // Reset the action
         useToolOptionsStore.getState().updateOption(this.id, 'action', null)
       }
     })
+    
+    // Show selection indicator on tool activation
+    this.showSelectionIndicator()
   }
   
   // Required: Cleanup
-  protected cleanup(): void {
+  protected cleanupFilterTool(): void {
     // Don't reset the grayscale state - let it persist
     this.state.setState({
       isApplying: false,
@@ -50,29 +61,41 @@ class GrayscaleTool extends BaseTool {
     })
   }
   
-  private toggleGrayscale(): void {
-    this.executeWithGuard('isApplying', async () => {
-      const newState = !this.state.get('isGrayscale')
-      const images = this.getTargetImages()
-      
-      if (images.length === 0) {
-        console.warn('No images found to apply grayscale')
-        return
-      }
-      
-      // Apply to all image objects
-      await this.applyImageFilters(
-        images,
-        'Grayscale',
-        () => newState ? new filters.Grayscale() : null,
-        newState ? 'Apply grayscale' : 'Remove grayscale'
-      )
-      
-      this.state.set('isGrayscale', newState)
-    })
+  /**
+   * Apply grayscale filter
+   */
+  private async applyGrayscale(): Promise<void> {
+    if (this.state.get('isApplying')) return
+    
+    this.state.set('isApplying', true)
+    
+    try {
+      // Use the base class applyFilter method
+      await this.applyFilter({})
+    } finally {
+      this.state.set('isApplying', false)
+    }
   }
   
-  // Remove duplicate getOptionValue method - use the one from BaseTool
+  // Required: Base cleanup (from BaseTool)
+  protected cleanup(): void {
+    this.cleanupTool()
+  }
+  
+  private async toggleGrayscale(): Promise<void> {
+    if (this.state.get('isApplying')) return
+    
+    this.state.set('isApplying', true)
+    const newState = !this.state.get('isGrayscale')
+    
+    try {
+      // Use the base class applyFilter method
+      await this.applyFilter(this.getDefaultParams())
+      this.state.set('isGrayscale', newState)
+    } finally {
+      this.state.set('isApplying', false)
+    }
+  }
 }
 
 // Export singleton

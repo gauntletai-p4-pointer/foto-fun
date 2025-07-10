@@ -1,16 +1,8 @@
 import { Paintbrush } from 'lucide-react'
 import { TOOL_IDS } from '@/constants'
-import { BaseTool } from '../base/BaseTool'
+import { BaseFilterTool } from '../filters/BaseFilterTool'
 import { createToolState } from '../utils/toolState'
-// import type { FabricObject, Image as FabricImage } from 'fabric'
-import { filters } from 'fabric'
-// import { ModifyCommand } from '@/lib/editor/commands/canvas'
-
-// Define filter type
-interface ImageFilter {
-  type?: string
-  [key: string]: unknown
-}
+import type { Canvas } from 'fabric'
 
 /**
  * Hue Tool State
@@ -18,14 +10,13 @@ interface ImageFilter {
 type HueState = {
   rotation: number
   isAdjusting: boolean
-  previousFilters: Map<string, ImageFilter[]>
 }
 
 /**
  * Hue Tool - Rotate image colors on the color wheel
- * Uses Fabric.js HueRotation filter
+ * Now supports selection-aware filtering
  */
-class HueTool extends BaseTool {
+class HueTool extends BaseFilterTool {
   // Tool identification
   id = TOOL_IDS.HUE
   name = 'Hue'
@@ -36,20 +27,29 @@ class HueTool extends BaseTool {
   // Tool state
   private state = createToolState<HueState>({
     rotation: 0,
-    isAdjusting: false,
-    previousFilters: new Map()
+    isAdjusting: false
   })
+  
+  // Required: Get filter name
+  protected getFilterName(): string {
+    return 'hue'
+  }
+  
+  // Required: Get default params
+  protected getDefaultParams(): any {
+    return { rotation: this.state.get('rotation') }
+  }
   
   /**
    * Tool setup
    */
-  protected setupTool(): void {
+  protected setupFilterTool(canvas: Canvas): void {
     // Subscribe to tool options
-    this.subscribeToToolOptions((options) => {
+    this.subscribeToToolOptions(async (options) => {
       const rotation = options.find(opt => opt.id === 'hue')?.value
       if (rotation !== undefined && typeof rotation === 'number') {
-        this.track('adjustHue', () => {
-          this.applyHue(rotation)
+        await this.track('adjustHue', async () => {
+          await this.applyHue(rotation)
         })
       }
     })
@@ -59,60 +59,42 @@ class HueTool extends BaseTool {
     if (currentRotation !== undefined && currentRotation !== 0) {
       this.applyHue(currentRotation)
     }
+    
+    // Show selection indicator on tool activation
+    this.showSelectionIndicator()
   }
   
   /**
-   * Apply hue rotation to all images on canvas
+   * Apply hue adjustment
    */
-  private applyHue(rotation: number): void {
-    if (!this.canvas) return
+  private async applyHue(adjustment: number): Promise<void> {
+    if (this.state.get('isAdjusting')) return
     
-    this.state.set('rotation', rotation)
+    this.state.set('isAdjusting', true)
+    this.state.set('rotation', adjustment)
     
-    // Get target images using selection-aware method
-    const images = this.getTargetImages()
-    
-    if (images.length === 0) {
-      console.warn('No images found to adjust hue')
-      return
+    try {
+      // Use the base class applyFilter method
+      await this.applyFilter({ rotation: adjustment })
+    } finally {
+      this.state.set('isAdjusting', false)
     }
-    
-    // Use the base class filter management
-    this.executeWithGuard('isAdjusting', async () => {
-      await this.applyImageFilters(
-        images,
-        'HueRotation',
-        () => {
-          if (rotation !== 0) {
-            // Fabric.js HueRotation expects rotation in radians (0 to 2π)
-            // Convert degrees to radians
-            const rotationRadians = (rotation * Math.PI) / 180
-            return new filters.HueRotation({
-              rotation: rotationRadians
-            })
-          }
-          return null
-        },
-        `Rotate hue by ${rotation}°`
-      )
-    })
   }
   
   /**
    * Tool cleanup
    */
-  protected cleanup(): void {
+  protected cleanupFilterTool(): void {
     // Don't reset the hue value - let it persist
-    // The user can manually reset or use undo if they want to remove the effect
-    
-    // Clear stored filters (but don't remove applied filters)
-    this.state.get('previousFilters').clear()
-    
-    // Reset only the internal state, not the actual hue
+    // Reset only the internal state
     this.state.setState({
-      isAdjusting: false,
-      previousFilters: new Map()
+      isAdjusting: false
     })
+  }
+  
+  // Required: Base cleanup (from BaseTool)
+  protected cleanup(): void {
+    this.cleanupTool()
   }
 }
 

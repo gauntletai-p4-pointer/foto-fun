@@ -189,14 +189,61 @@ export class ClipboardManager {
     const selection = this.selectionManager.getSelection()
     if (!selection) return
     
-    // Get background color
-    const bgColor = this.canvas.backgroundColor || '#ffffff'
+    // Get background color - convert to string if it's a gradient/pattern
+    let bgColor = '#ffffff'
+    if (typeof this.canvas.backgroundColor === 'string') {
+      bgColor = this.canvas.backgroundColor
+    }
     
-    // TODO: Implement actual deletion by modifying canvas pixels
-    // For now, just clear the selection
+    // Get the canvas context
+    const ctx = this.canvas.getContext()
+    const canvasWidth = this.canvas.width || 0
+    const canvasHeight = this.canvas.height || 0
+    
+    // Get the current canvas image data
+    const imageData = ctx.getImageData(0, 0, canvasWidth, canvasHeight)
+    
+    // Parse background color
+    const tempCanvas = document.createElement('canvas')
+    const tempCtx = tempCanvas.getContext('2d')!
+    tempCtx.fillStyle = bgColor
+    tempCtx.fillRect(0, 0, 1, 1)
+    const bgData = tempCtx.getImageData(0, 0, 1, 1).data
+    
+    // Fill selected pixels with background color
+    const selectionMask = selection.mask
+    const bounds = selection.bounds
+    
+    for (let y = 0; y < bounds.height; y++) {
+      for (let x = 0; x < bounds.width; x++) {
+        const maskIndex = (y * bounds.width + x) * 4
+        const alpha = selectionMask.data[maskIndex + 3]
+        
+        if (alpha > 0) {
+          const canvasX = Math.floor(bounds.x + x)
+          const canvasY = Math.floor(bounds.y + y)
+          
+          if (canvasX >= 0 && canvasX < canvasWidth && canvasY >= 0 && canvasY < canvasHeight) {
+            const canvasIndex = (canvasY * canvasWidth + canvasX) * 4
+            
+            // Blend with background based on selection alpha
+            const blend = alpha / 255
+            imageData.data[canvasIndex] = Math.round(imageData.data[canvasIndex] * (1 - blend) + bgData[0] * blend)
+            imageData.data[canvasIndex + 1] = Math.round(imageData.data[canvasIndex + 1] * (1 - blend) + bgData[1] * blend)
+            imageData.data[canvasIndex + 2] = Math.round(imageData.data[canvasIndex + 2] * (1 - blend) + bgData[2] * blend)
+          }
+        }
+      }
+    }
+    
+    // Put the modified image data back
+    ctx.putImageData(imageData, 0, 0)
+    
+    // Clear the selection
     this.selectionManager.clear()
     
-    console.log('Delete selection - fill with background:', bgColor)
+    // Update canvas
+    this.canvas.renderAll()
   }
   
   /**

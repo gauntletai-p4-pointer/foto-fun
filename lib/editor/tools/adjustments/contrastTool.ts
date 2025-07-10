@@ -1,16 +1,8 @@
 import { Contrast } from 'lucide-react'
 import { TOOL_IDS } from '@/constants'
-import { BaseTool } from '../base/BaseTool'
+import { BaseFilterTool } from '../filters/BaseFilterTool'
 import { createToolState } from '../utils/toolState'
-import type { FabricObject, Image as FabricImage } from 'fabric'
-import { filters } from 'fabric'
-import { ModifyCommand } from '@/lib/editor/commands/canvas'
-
-// Define filter type
-interface ImageFilter {
-  type?: string
-  [key: string]: unknown
-}
+import type { Canvas } from 'fabric'
 
 /**
  * Contrast Tool State
@@ -18,14 +10,13 @@ interface ImageFilter {
 type ContrastState = {
   adjustment: number
   isAdjusting: boolean
-  previousFilters: Map<string, ImageFilter[]>
 }
 
 /**
  * Contrast Tool - Adjust image contrast
- * Uses Fabric.js contrast filter
+ * Now supports selection-aware filtering
  */
-class ContrastTool extends BaseTool {
+class ContrastTool extends BaseFilterTool {
   // Tool identification
   id = TOOL_IDS.CONTRAST
   name = 'Contrast'
@@ -36,20 +27,29 @@ class ContrastTool extends BaseTool {
   // Tool state
   private state = createToolState<ContrastState>({
     adjustment: 0,
-    isAdjusting: false,
-    previousFilters: new Map()
+    isAdjusting: false
   })
+  
+  // Required: Get filter name
+  protected getFilterName(): string {
+    return 'contrast'
+  }
+  
+  // Required: Get default params
+  protected getDefaultParams(): any {
+    return { adjustment: this.state.get('adjustment') }
+  }
   
   /**
    * Tool setup
    */
-  protected setupTool(): void {
+  protected setupFilterTool(canvas: Canvas): void {
     // Subscribe to tool options
-    this.subscribeToToolOptions((options) => {
+    this.subscribeToToolOptions(async (options) => {
       const adjustment = options.find(opt => opt.id === 'adjustment')?.value
       if (adjustment !== undefined && typeof adjustment === 'number') {
-        this.track('adjustContrast', () => {
-          this.applyContrast(adjustment)
+        await this.track('adjustContrast', async () => {
+          await this.applyContrast(adjustment)
         })
       }
     })
@@ -59,88 +59,24 @@ class ContrastTool extends BaseTool {
     if (currentAdjustment !== undefined && currentAdjustment !== 0) {
       this.applyContrast(currentAdjustment)
     }
+    
+    // Show selection indicator on tool activation
+    this.showSelectionIndicator()
   }
   
   /**
-   * Apply contrast adjustment to all images on canvas
+   * Apply contrast adjustment
    */
-  private applyContrast(adjustment: number): void {
-    if (!this.canvas) return
+  private async applyContrast(adjustment: number): Promise<void> {
+    if (this.state.get('isAdjusting')) return
     
+    this.state.set('isAdjusting', true)
     this.state.set('adjustment', adjustment)
     
-    // Check for active selection first
-    const activeObjects = this.canvas.getActiveObjects()
-    const hasSelection = activeObjects.length > 0
-    
-    // Get target images
-    let images: FabricImage[]
-    if (hasSelection) {
-      // Filter selected objects for images only
-      images = activeObjects.filter(obj => obj.type === 'image') as FabricImage[]
-    } else {
-      // Get all images on canvas
-      const objects = this.canvas.getObjects()
-      images = objects.filter(obj => obj.type === 'image') as FabricImage[]
-    }
-    
-    if (images.length === 0) {
-      console.warn(`No images found ${hasSelection ? 'in selection' : 'on canvas'} to adjust contrast`)
-      return
-    }
-    
-    console.log(`[ContrastTool] Adjusting contrast of ${images.length} image(s) - ${hasSelection ? 'selected only' : 'all images'}`)
-    
-    // Apply contrast filter to each image
-    images.forEach(img => {
-      // Store original filters if not already stored
-      const imgId = (img as FabricObject & { id?: string }).id || img.toString()
-      if (!this.state.get('previousFilters').has(imgId)) {
-        this.state.get('previousFilters').set(imgId, img.filters ? [...img.filters] as unknown as ImageFilter[] : [])
-      }
-      
-      // Remove existing contrast filters
-      if (!img.filters) {
-        img.filters = []
-      } else {
-        img.filters = img.filters.filter((f) => (f as unknown as ImageFilter).type !== 'Contrast')
-      }
-      
-      // Add new contrast filter if adjustment is not 0
-      if (adjustment !== 0) {
-        // Fabric.js contrast value is between -1 and 1
-        const contrastValue = adjustment / 100
-        
-        // Create contrast filter
-        const contrastFilter = new filters.Contrast({
-          contrast: contrastValue
-        })
-        
-        img.filters.push(contrastFilter)
-      }
-      
-      // Apply filters
-      img.applyFilters()
-    })
-    
-    // Render canvas
-    this.canvas.renderAll()
-    
-    // Record command for undo/redo
-    if (!this.state.get('isAdjusting')) {
-      this.state.set('isAdjusting', true)
-      
-      // Create modify command for each image
-      images.forEach(img => {
-        const command = new ModifyCommand(
-          this.canvas!,
-          img as FabricObject,
-          { filters: img.filters },
-          `Adjust contrast to ${adjustment}%`
-        )
-        this.executeCommand(command)
-      })
-      
+    try {
+      // Use the base class applyFilter method
+      await this.applyFilter({ adjustment })
+    } finally {
       this.state.set('isAdjusting', false)
     }
   }
@@ -148,18 +84,17 @@ class ContrastTool extends BaseTool {
   /**
    * Tool cleanup
    */
-  protected cleanup(): void {
+  protected cleanupFilterTool(): void {
     // Don't reset the adjustment value - let it persist
-    // The user can manually reset or use undo if they want to remove the effect
-    
-    // Clear stored filters (but don't remove applied filters)
-    this.state.get('previousFilters').clear()
-    
-    // Reset only the internal state, not the actual adjustment
+    // Reset only the internal state
     this.state.setState({
-      isAdjusting: false,
-      previousFilters: new Map()
+      isAdjusting: false
     })
+  }
+  
+  // Required: Base cleanup (from BaseTool)
+  protected cleanup(): void {
+    this.cleanupTool()
   }
 }
 

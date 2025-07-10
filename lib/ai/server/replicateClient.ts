@@ -1,25 +1,6 @@
 import Replicate from 'replicate'
 import { AIServiceError, AIQuotaExceededError, AIServiceUnavailableError } from '../tools/base'
 
-// Define proper types for Replicate API responses
-type ReplicateOutput = string | string[] | Record<string, unknown> | Promise<unknown>
-
-interface ReplicateRunOptions {
-  input: Record<string, unknown>
-  webhook?: string
-}
-
-interface ModelInfo {
-  owner: string
-  name: string
-  description?: string
-  visibility: string
-  github_url?: string
-  paper_url?: string
-  license_url?: string
-  cover_image_url?: string
-}
-
 /**
  * Server-side Replicate client
  * Uses REPLICATE_API_KEY which is only accessible on the server
@@ -45,8 +26,11 @@ class ServerReplicateClient {
    */
   async run(
     model: string,
-    options: ReplicateRunOptions
-  ): Promise<ReplicateOutput> {
+    options: {
+      input: Record<string, unknown>
+      webhook?: string
+    }
+  ): Promise<unknown> {
     try {
       console.log(`[ServerReplicateClient] Running model: ${model}`)
       console.log(`[ServerReplicateClient] Input:`, options.input)
@@ -64,7 +48,7 @@ class ServerReplicateClient {
         console.log(`[ServerReplicateClient] Output is a Promise, awaiting...`)
         const resolved = await output
         console.log(`[ServerReplicateClient] Resolved output:`, resolved)
-        return resolved as ReplicateOutput
+        return resolved
       }
       
       // Handle array of ReadableStreams (binary image data)
@@ -135,32 +119,30 @@ class ServerReplicateClient {
       }
       
       console.log(`[ServerReplicateClient] Final output:`, output)
-      return output as ReplicateOutput
-    } catch (error: unknown) {
+      return output
+    } catch (error) {
       console.error('[ServerReplicateClient] Error running model:', error)
-      
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-      const errorCode = error instanceof Error && 'code' in error ? (error as { code?: string }).code : undefined
+      const err = error as Error & { message?: string; code?: string }
       
       // Parse common error types
-      if (errorMessage.includes('rate limit')) {
-        throw new AIQuotaExceededError('replicate', errorMessage)
+      if (err.message?.includes('rate limit')) {
+        throw new AIQuotaExceededError('replicate', err.message)
       }
       
-      if (errorMessage.includes('payment') || errorMessage.includes('credits')) {
-        throw new AIQuotaExceededError('replicate', errorMessage)
+      if (err.message?.includes('payment') || err.message?.includes('credits')) {
+        throw new AIQuotaExceededError('replicate', err.message)
       }
       
-      if (errorMessage.includes('unavailable') || errorMessage.includes('timeout')) {
-        throw new AIServiceUnavailableError('replicate', errorMessage)
+      if (err.message?.includes('unavailable') || err.message?.includes('timeout')) {
+        throw new AIServiceUnavailableError('replicate', err.message)
       }
       
       // Generic AI service error
       throw new AIServiceError(
-        errorMessage || 'Unknown error from Replicate API',
+        err.message || 'Unknown error from Replicate API',
         'replicate',
-        errorCode,
-        error
+        err.code,
+        err
       )
     }
   }
@@ -168,22 +150,19 @@ class ServerReplicateClient {
   /**
    * Get model information
    */
-  async getModel(model: string): Promise<ModelInfo> {
+  async getModel(model: string): Promise<unknown> {
     try {
       const [owner, name] = model.split('/')
-      const result = await this.client.models.get(owner, name)
-      return result as ModelInfo
-    } catch (error: unknown) {
+      return await this.client.models.get(owner, name)
+    } catch (error) {
+      const err = error as Error & { message?: string; code?: string }
       console.error('[ServerReplicateClient] Error getting model info:', error)
       
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-      const errorCode = error instanceof Error && 'code' in error ? (error as { code?: string }).code : undefined
-      
       throw new AIServiceError(
-        `Failed to get model info: ${errorMessage}`,
+        `Failed to get model info: ${err.message}`,
         'replicate',
-        errorCode,
-        error
+        err.code,
+        err
       )
     }
   }

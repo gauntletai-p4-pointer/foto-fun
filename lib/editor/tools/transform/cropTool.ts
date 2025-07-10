@@ -6,6 +6,8 @@ import { BaseTool } from '../base/BaseTool'
 import { createToolState } from '../utils/toolState'
 import type { Point } from '../utils/constraints'
 import { CropCommand } from '@/lib/editor/commands/canvas'
+import { markAsSystemObject } from '@/lib/editor/utils/systemObjects'
+import { SystemObjectType } from '@/types/fabric'
 
 // Crop tool state
 type CropToolState = {
@@ -118,10 +120,12 @@ class CropTool extends BaseTool {
           lockScalingX: true,
           lockScalingY: true,
           strokeUniform: true,
-          objectCaching: false,
-          // Exclude from export
-          excludeFromExport: true
+          objectCaching: false
         })
+        
+        // Mark as system object
+        markAsSystemObject(cropRect, SystemObjectType.CROP_OVERLAY)
+        
         this.canvas!.add(cropRect)
         this.state.set('cropRect', cropRect)
       }

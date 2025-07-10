@@ -31,10 +31,9 @@ interface HueOutput {
   targetingMode: 'selection' | 'all-images'
 }
 
-// Type for filter with additional properties
-type FilterWithMarkers = {
+// Define filter type that extends the base filter
+type ExtendedFilter = {
   type?: string
-  constructor: { name: string }
   _isHueRotation?: boolean
   _isHueTest?: boolean
   [key: string]: unknown
@@ -115,10 +114,10 @@ NEVER ask for exact values - always interpret the user's intent and choose an ap
       if (!imageWithFilters.filters) {
         imageWithFilters.filters = []
       } else {
-        const beforeCount = imageWithFilters.filters.length
-        imageWithFilters.filters = imageWithFilters.filters.filter((f: unknown) => {
-          const filter = f as unknown as FilterWithMarkers
-          const filterType = filter.type || filter.constructor.name
+        const beforeCount = img.filters.length
+        img.filters = img.filters.filter((f) => {
+          const filter = f as unknown as ExtendedFilter
+          const filterType = filter?.type || f.constructor.name
           console.log(`    - Checking filter type: ${filterType}`)
           // Remove ColorMatrix filters that were used for hue rotation
           // We identify them by checking if they have the hue rotation marker
@@ -148,7 +147,7 @@ NEVER ask for exact values - always interpret the user's intent and choose an ap
           })
           
           console.log(`    - Created HueRotation filter:`, hueFilter)
-          console.log(`    - Filter type:`, (hueFilter as unknown as FilterWithMarkers).type || hueFilter.constructor.name)
+          console.log(`    - Filter type:`, (hueFilter as unknown as ExtendedFilter)?.type || hueFilter.constructor.name)
           
           imageWithFilters.filters.push(hueFilter)
           console.log(`    - Added HueRotation filter, total filters now: ${imageWithFilters.filters.length}`)
@@ -188,10 +187,10 @@ NEVER ask for exact values - always interpret the user's intent and choose an ap
           })
           
           // Mark this filter as a hue rotation filter for identification
-          ;(colorMatrixFilter as unknown as FilterWithMarkers)._isHueRotation = true
+          ;(colorMatrixFilter as unknown as ExtendedFilter)._isHueRotation = true
           
           console.log(`    - Created ColorMatrix filter for hue rotation`)
-          console.log(`    - Filter type:`, (colorMatrixFilter as unknown as FilterWithMarkers).type || colorMatrixFilter.constructor.name)
+          console.log(`    - Filter type:`, (colorMatrixFilter as unknown as ExtendedFilter)?.type || colorMatrixFilter.constructor.name)
           
           imageWithFilters.filters.push(colorMatrixFilter)
           console.log(`    - Added ColorMatrix filter, total filters now: ${imageWithFilters.filters.length}`)
@@ -206,8 +205,8 @@ NEVER ask for exact values - always interpret the user's intent and choose an ap
         const testBrightness = new filters.Brightness({
           brightness: 0.1 // Slight brightness increase to test if filters work
         })
-        ;(testBrightness as unknown as FilterWithMarkers)._isHueTest = true
-        imageWithFilters.filters.push(testBrightness)
+        ;(testBrightness as unknown as ExtendedFilter)._isHueTest = true
+        img.filters.push(testBrightness)
         console.log(`    - Added test brightness filter for debugging`)
       }
       
@@ -216,11 +215,9 @@ NEVER ask for exact values - always interpret the user's intent and choose an ap
       console.log(`    - Final filter count: ${imageWithFilters.filters.length}`)
       
       // Log all filters for debugging
-      imageWithFilters.filters.forEach((filter, i) => {
-        const filterType = filter.constructor.name
-        const isHueRotation = (filter as unknown as FilterWithMarkers)._isHueRotation
-        const isHueTest = (filter as unknown as FilterWithMarkers)._isHueTest
-        console.log(`      Filter ${i}: ${filterType} (isHueRotation: ${isHueRotation}, isHueTest: ${isHueTest})`)
+      img.filters.forEach((filter, i) => {
+        const filterType = (filter as unknown as ExtendedFilter)?.type || filter.constructor.name
+        console.log(`      Filter ${i}: ${filterType}`)
       })
     })
     

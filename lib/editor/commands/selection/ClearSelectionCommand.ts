@@ -27,17 +27,32 @@ export class ClearSelectionCommand extends Command {
       
       this.previousSelection = {
         mask: clonedMask,
-        bounds: { ...current.bounds }
+        bounds: { ...current.bounds },
+        shape: current.shape  // Preserve shape information
       }
     }
     
     // Clear the selection
     this.selectionManager.clear()
+    
+    // Stop the selection renderer
+    const { useCanvasStore } = await import('@/store/canvasStore')
+    const { selectionRenderer } = useCanvasStore.getState()
+    if (selectionRenderer) {
+      selectionRenderer.stopRendering()
+    }
   }
   
   async undo(): Promise<void> {
     if (this.previousSelection) {
-      this.selectionManager.restoreSelection(this.previousSelection.mask, this.previousSelection.bounds)
+      this.selectionManager.restoreSelection(this.previousSelection.mask, this.previousSelection.bounds, this.previousSelection.shape)
+      
+      // Start the selection renderer
+      const { useCanvasStore } = await import('@/store/canvasStore')
+      const { selectionRenderer } = useCanvasStore.getState()
+      if (selectionRenderer) {
+        selectionRenderer.startRendering()
+      }
     }
   }
   

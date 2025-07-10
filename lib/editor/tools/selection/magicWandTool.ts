@@ -7,8 +7,11 @@ import { createToolState } from '../utils/toolState'
 import { selectionStyle } from '../utils/selectionRenderer'
 import { useCanvasStore } from '@/store/canvasStore'
 import { useSelectionStore } from '@/store/selectionStore'
-import { useHistoryStore } from '@/store/historyStore'
 import { CreateSelectionCommand } from '@/lib/editor/commands/selection'
+import { useObjectRegistryStore } from '@/store/objectRegistryStore'
+import { LayerAwareSelectionManager } from '@/lib/editor/selection/LayerAwareSelectionManager'
+import { markAsSystemObject } from '@/lib/editor/utils/systemObjects'
+import { SystemObjectType } from '@/types/fabric'
 
 // Magic wand tool state - use type instead of interface for index signature
 type MagicWandState = {
@@ -29,6 +32,9 @@ class MagicWandTool extends BaseTool {
   cursor = 'crosshair'
   shortcut = 'W'
   
+  // Store reference
+  protected selectionStore = useSelectionStore.getState()
+  
   // Tool state
   protected state = createToolState<MagicWandState>({
     tolerance: 32,
@@ -41,7 +47,7 @@ class MagicWandTool extends BaseTool {
    */
   protected setupTool(): void {
     // Set up event handlers
-    this.addCanvasEvent('mouse:down', (e: unknown) => this.handleClick(e as TPointerEventInfo<MouseEvent>))
+    this.addCanvasEvent('mouse:down', (e: unknown) => this.handleMouseDown(e as TPointerEventInfo<MouseEvent>))
     
     // Subscribe to tool options
     this.subscribeToToolOptions((options) => {
@@ -63,39 +69,59 @@ class MagicWandTool extends BaseTool {
   }
   
   /**
-   * Handle click to select similar colors
+   * Handle mouse down - create selection based on color
    */
-  private handleClick(e: TPointerEventInfo<MouseEvent>): void {
+  private handleMouseDown(e: TPointerEventInfo<MouseEvent>): void {
     if (!this.canvas) return
     
     // Use Fabric's getPointer method to get the correct transformed coordinates
     const pointer = this.canvas.getPointer(e.e)
+    const x = Math.floor(pointer.x)
+    const y = Math.floor(pointer.y)
     
-    // Track performance
-    this.track('magicWandSelect', () => {
-      // Get canvas image data
-      const ctx = this.canvas!.getContext()
-      const imageData = ctx.getImageData(0, 0, this.canvas!.width!, this.canvas!.height!)
+    // Check if we're in object mode
+    const selectionTarget = this.toolOptionsStore.getOptionValue<string>(this.id, 'selectionTarget') || 'auto'
+    let targetObjectId: string | null = null
+    let isObjectMode = false
+    
+    // Determine target object based on selection target mode
+    if (selectionTarget === 'auto' || selectionTarget === 'object') {
+      const objectRegistry = useObjectRegistryStore.getState()
+      const targetObject = objectRegistry.getTopObjectAtPixel(x, y)
       
-      // Get clicked pixel color
-      const x = Math.floor(pointer.x)
-      const y = Math.floor(pointer.y)
-      const index = (y * imageData.width + x) * 4
-      
-      const targetColor = {
-        r: imageData.data[index],
-        g: imageData.data[index + 1],
-        b: imageData.data[index + 2],
-        a: imageData.data[index + 3]
+      if (targetObject) {
+        targetObjectId = targetObject.get('id') as string
+        isObjectMode = true
+        
+        // Get selection manager and set active object
+        const selectionManager = this.canvasStore.selectionManager as LayerAwareSelectionManager
+        if (selectionManager) {
+          selectionManager.setActiveObject(targetObjectId)
+          selectionManager.setSelectionMode('object')
+        }
+      } else if (selectionTarget === 'auto') {
+        // In auto mode, if no object clicked, use canvas mode
+        const selectionManager = this.canvasStore.selectionManager as LayerAwareSelectionManager
+        if (selectionManager) {
+          selectionManager.setActiveObject(null)
+          selectionManager.setSelectionMode('global')
+        }
       }
-      
-      // Create selection based on color similarity
-      const selection = this.createColorSelection(imageData, targetColor, x, y)
-      
-      if (selection) {
-        this.applySelection(selection)
+    } else if (selectionTarget === 'canvas') {
+      // Canvas mode
+      const selectionManager = this.canvasStore.selectionManager as LayerAwareSelectionManager
+      if (selectionManager) {
+        selectionManager.setActiveObject(null)
+        selectionManager.setSelectionMode('global')
       }
-    })
+    }
+    
+    // Get canvas image data
+    const ctx = this.canvas.getContext()
+    const imageData = ctx.getImageData(0, 0, this.canvas.width!, this.canvas.height!)
+    
+    // Create selection based on color at clicked point
+    this.createColorSelection(x, y, imageData, targetObjectId, isObjectMode)
   }
   
   /**
@@ -103,27 +129,44 @@ class MagicWandTool extends BaseTool {
    * This is a simplified implementation - a real magic wand would use
    * flood fill algorithm for contiguous selection
    */
-  private createColorSelection(
-    imageData: ImageData,
-    targetColor: { r: number; g: number; b: number; a: number },
-    startX: number,
-    startY: number
-  ): Path | null {
+  private createColorSelection(x: number, y: number, imageData: ImageData, targetObjectId: string | null, isObjectMode: boolean): void {
+    // Get clicked pixel color
+    // const index = (y * imageData.width + x) * 4
+    // TODO: Use targetColor for actual color-based selection with flood fill
+    // const targetColor = {
+    //   r: imageData.data[index],
+    //   g: imageData.data[index + 1],
+    //   b: imageData.data[index + 2],
+    //   a: imageData.data[index + 3]
+    // }
+    
     // For demonstration, create a simple rectangular selection
     // In a real implementation, this would use flood fill to find connected pixels
     const bounds = {
-      minX: startX,
-      maxX: startX,
-      minY: startY,
-      maxY: startY
+      minX: x,
+      maxX: x,
+      minY: y,
+      maxY: y
     }
     
     // Simplified: just create a small selection around the click point
     const size = 50
-    bounds.minX = Math.max(0, startX - size)
-    bounds.maxX = Math.min(imageData.width, startX + size)
-    bounds.minY = Math.max(0, startY - size)
-    bounds.maxY = Math.min(imageData.height, startY + size)
+    bounds.minX = Math.max(0, x - size)
+    bounds.maxX = Math.min(imageData.width, x + size)
+    bounds.minY = Math.max(0, y - size)
+    bounds.maxY = Math.min(imageData.height, y + size)
+    
+    // If in object mode, constrain bounds to object bounds
+    if (isObjectMode && targetObjectId) {
+      const objectRegistry = useObjectRegistryStore.getState()
+      const objectBounds = objectRegistry.objectBounds.get(targetObjectId)
+      if (objectBounds) {
+        bounds.minX = Math.max(bounds.minX, objectBounds.x)
+        bounds.maxX = Math.min(bounds.maxX, objectBounds.x + objectBounds.width)
+        bounds.minY = Math.max(bounds.minY, objectBounds.y)
+        bounds.maxY = Math.min(bounds.maxY, objectBounds.y + objectBounds.height)
+      }
+    }
     
     // Create path for selection
     const pathData = `
@@ -134,9 +177,15 @@ class MagicWandTool extends BaseTool {
       Z
     `
     
-    return new Path(pathData, {
+    const selection = new Path(pathData, {
       ...selectionStyle
     })
+    
+    // Mark as system object
+    markAsSystemObject(selection, SystemObjectType.TEMPORARY)
+    
+    // Apply the selection
+    this.applySelection(selection)
   }
   
   /**
@@ -145,71 +194,55 @@ class MagicWandTool extends BaseTool {
   private applySelection(selection: Path): void {
     if (!this.canvas) return
     
-    // Get selection manager and mode
+    // Get selection manager
     const canvasStore = useCanvasStore.getState()
-    const selectionStore = useSelectionStore.getState()
-    const historyStore = useHistoryStore.getState()
+    const selectionManager = canvasStore.selectionManager
     
-    if (!canvasStore.selectionManager || !canvasStore.selectionRenderer) {
+    if (!selectionManager) {
       console.error('Selection system not initialized')
       return
     }
     
-    // Add the path temporarily to get bounds and render it
+    // Get selection mode from tool options
+    const mode = this.toolOptionsStore.getOptionValue<string>(this.id, 'selectionMode') || 'new'
+    
+    // Add the path temporarily to canvas
     this.canvas.add(selection)
-    const bounds = selection.getBoundingRect()
     
-    // Create a temporary canvas to generate the selection mask
-    const tempCanvas = document.createElement('canvas')
-    tempCanvas.width = this.canvas.getWidth()
-    tempCanvas.height = this.canvas.getHeight()
-    const tempCtx = tempCanvas.getContext('2d')!
+    // Create the selection - the selection manager will handle object-aware logic
+    selectionManager.createFromPath(
+      selection,
+      mode === 'new' ? 'replace' : mode as 'add' | 'subtract' | 'intersect'
+    )
     
-    // For magic wand, we would normally use the actual flood fill result
-    // For now, just create a rectangular selection mask
-    const imageData = tempCtx.createImageData(tempCanvas.width, tempCanvas.height)
-    
-    // Fill the rectangular area (simplified for demo)
-    for (let y = Math.floor(bounds.top); y < Math.ceil(bounds.top + bounds.height); y++) {
-      for (let x = Math.floor(bounds.left); x < Math.ceil(bounds.left + bounds.width); x++) {
-        if (x >= 0 && x < imageData.width && y >= 0 && y < imageData.height) {
-          const index = (y * imageData.width + x) * 4
-          imageData.data[index + 3] = 255 // Set alpha to fully selected
-        }
+    // Record command for undo/redo
+    const currentSelection = selectionManager.getSelection()
+    if (currentSelection) {
+      const command = new CreateSelectionCommand(
+        selectionManager, 
+        currentSelection, 
+        mode === 'new' ? 'replace' : mode as 'add' | 'subtract' | 'intersect'
+      )
+      this.historyStore.executeCommand(command)
+      
+      // Update selection store
+      const bounds = selection.getBoundingRect()
+      this.selectionStore.updateSelectionState(true, {
+        x: bounds.left,
+        y: bounds.top,
+        width: bounds.width,
+        height: bounds.height
+      })
+      
+      // Start rendering the selection with marching ants
+      const { selectionRenderer } = canvasStore
+      if (selectionRenderer) {
+        selectionRenderer.startRendering()
       }
     }
     
-    // Create the selection command
-    const command = new CreateSelectionCommand(
-      canvasStore.selectionManager,
-      {
-        mask: imageData,
-        bounds: {
-          x: bounds.left,
-          y: bounds.top,
-          width: bounds.width,
-          height: bounds.height
-        }
-      },
-      selectionStore.mode
-    )
-    
-    // Execute the command through history
-    historyStore.executeCommand(command)
-    
-    // Update selection state
-    selectionStore.updateSelectionState(true, {
-      x: bounds.left,
-      y: bounds.top,
-      width: bounds.width,
-      height: bounds.height
-    })
-    
     // Remove the temporary path
     this.canvas.remove(selection)
-    
-    // Start rendering the selection
-    canvasStore.selectionRenderer.startRendering()
   }
   
   /**

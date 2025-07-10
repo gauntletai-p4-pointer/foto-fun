@@ -1,7 +1,7 @@
 import { Command } from '../base'
 import type { Canvas, FabricObject } from 'fabric'
 import type { ClipboardManager } from '@/lib/editor/clipboard/ClipboardManager'
-import type { SelectionManager } from '@/lib/editor/selection'
+import type { SelectionManager, PixelSelection } from '@/lib/editor/selection'
 
 /**
  * Command to cut selection or objects
@@ -11,8 +11,7 @@ export class CutCommand extends Command {
   private clipboardManager: ClipboardManager
   private selectionManager: SelectionManager
   private deletedObject: FabricObject | null = null
-  private previousSelection: ImageData | null = null
-  private previousBounds: { x: number; y: number; width: number; height: number } | null = null
+  private previousSelection: PixelSelection | null = null
   
   constructor(
     canvas: Canvas,
@@ -35,10 +34,18 @@ export class CutCommand extends Command {
       // Save selection for undo
       const selection = this.selectionManager.getSelection()
       if (selection) {
-        const ctx = document.createElement('canvas').getContext('2d')!
-        this.previousSelection = ctx.createImageData(selection.mask.width, selection.mask.height)
-        this.previousSelection.data.set(selection.mask.data)
-        this.previousBounds = { ...selection.bounds }
+        const canvas = document.createElement('canvas')
+        const ctx = canvas.getContext('2d')!
+        canvas.width = selection.mask.width
+        canvas.height = selection.mask.height
+        const clonedMask = ctx.createImageData(selection.mask.width, selection.mask.height)
+        clonedMask.data.set(selection.mask.data)
+        
+        this.previousSelection = {
+          mask: clonedMask,
+          bounds: { ...selection.bounds },
+          shape: selection.shape  // Preserve shape information
+        }
       }
       
       // Clear the selection
@@ -56,9 +63,13 @@ export class CutCommand extends Command {
   }
   
   async undo(): Promise<void> {
-    if (this.previousSelection && this.previousBounds) {
+    if (this.previousSelection) {
       // Restore the selection
-      this.selectionManager.restoreSelection(this.previousSelection, this.previousBounds)
+      this.selectionManager.restoreSelection(
+        this.previousSelection.mask, 
+        this.previousSelection.bounds,
+        this.previousSelection.shape
+      )
     } else if (this.deletedObject) {
       // Restore the deleted object
       this.canvas.add(this.deletedObject)

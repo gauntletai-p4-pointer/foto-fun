@@ -12,6 +12,7 @@ import type { StoreApi } from 'zustand'
 import type { CustomFabricObjectProps } from '@/types'
 import type { FabricObject, Image as FabricImage } from 'fabric'
 import { ModifyCommand } from '@/lib/editor/commands/canvas'
+import { isSystemObject } from '@/lib/editor/utils/systemObjects'
 
 // Type for event cleanup functions
 type CleanupFunction = () => void
@@ -452,8 +453,8 @@ export abstract class BaseTool implements Tool {
    */
   protected restoreObjectSelectability(canvas: Canvas): void {
     canvas.forEachObject((obj) => {
-      // Don't make background objects selectable
-      if (obj.excludeFromExport) return
+      // Don't make system objects selectable
+      if (isSystemObject(obj)) return
       
       // Restore selectability based on layer lock status
       const objWithProps = obj as FabricObject & CustomFabricObjectProps

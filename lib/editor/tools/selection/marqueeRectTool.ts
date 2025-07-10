@@ -5,9 +5,7 @@ import { Rect } from 'fabric'
 import { SelectionTool } from '../base/SelectionTool'
 import { selectionStyle } from '../utils/selectionRenderer'
 import { useCanvasStore } from '@/store/canvasStore'
-import { useSelectionStore } from '@/store/selectionStore'
-import { useHistoryStore } from '@/store/historyStore'
-import { CreateSelectionCommand } from '@/lib/editor/commands/selection'
+import { CreateRectangleSelectionCommand } from '@/lib/editor/commands/selection'
 
 /**
  * Rectangular Marquee Tool - Creates rectangular selections
@@ -68,82 +66,69 @@ class MarqueeRectTool extends SelectionTool {
    * Finalize the selection
    */
   protected finalizeSelection(): void {
-    if (!this.canvas || !this.feedbackRect) return
+    if (!this.canvas || !this.state.get('startPoint') || !this.state.get('currentPoint')) return
     
-    // Only keep the selection if it has a minimum size
-    const minSize = 2
+    // Get dimensions
+    const { x, y, width, height } = this.getConstrainedDimensions()
     
-    if ((this.feedbackRect.width ?? 0) < minSize || (this.feedbackRect.height ?? 0) < minSize) {
-      // Too small, remove it
-      this.canvas.remove(this.feedbackRect)
-    } else {
-      // Get selection manager and mode
-      const canvasStore = useCanvasStore.getState()
-      const selectionStore = useSelectionStore.getState()
-      const historyStore = useHistoryStore.getState()
-      
-      if (!canvasStore.selectionManager || !canvasStore.selectionRenderer) {
-        console.error('Selection system not initialized')
+    // Skip if too small
+    if (width < 5 || height < 5) {
+      // Remove feedback if too small
+      if (this.feedbackRect) {
         this.canvas.remove(this.feedbackRect)
-        return
+        this.feedbackRect = null
       }
-      
-      // Get bounds
-      const bounds = this.feedbackRect.getBoundingRect()
-      
-      // Create a temporary canvas to generate the selection mask
-      const tempCanvas = document.createElement('canvas')
-      tempCanvas.width = this.canvas.getWidth()
-      tempCanvas.height = this.canvas.getHeight()
-      const tempCtx = tempCanvas.getContext('2d')!
-      
-      // Create image data for the rectangle
-      const imageData = tempCtx.createImageData(tempCanvas.width, tempCanvas.height)
-      
-      // Fill the rectangle area
-      for (let y = Math.floor(bounds.top); y < Math.ceil(bounds.top + bounds.height); y++) {
-        for (let x = Math.floor(bounds.left); x < Math.ceil(bounds.left + bounds.width); x++) {
-          if (x >= 0 && x < imageData.width && y >= 0 && y < imageData.height) {
-            const index = (y * imageData.width + x) * 4
-            imageData.data[index + 3] = 255 // Set alpha to fully selected
-          }
-        }
-      }
-      
-      // Create the selection command
-      const command = new CreateSelectionCommand(
-        canvasStore.selectionManager,
-        {
-          mask: imageData,
-          bounds: {
-            x: bounds.left,
-            y: bounds.top,
-            width: bounds.width,
-            height: bounds.height
-          }
-        },
-        selectionStore.mode
-      )
-      
-      // Execute the command through history
-      historyStore.executeCommand(command)
-      
-      // Update selection state
-      selectionStore.updateSelectionState(true, {
-        x: bounds.left,
-        y: bounds.top,
-        width: bounds.width,
-        height: bounds.height
-      })
-      
-      // Start rendering the selection
-      canvasStore.selectionRenderer.startRendering()
-      
-      // Remove the temporary feedback rectangle
-      this.canvas.remove(this.feedbackRect)
+      return
     }
     
-    this.feedbackRect = null
+    // Get the selection manager from canvas store
+    const canvasStore = useCanvasStore.getState()
+    const selectionManager = canvasStore.selectionManager
+    
+    if (!selectionManager) {
+      // Clean up feedback on error
+      if (this.feedbackRect) {
+        this.canvas.remove(this.feedbackRect)
+        this.feedbackRect = null
+      }
+      return
+    }
+    
+    // Get selection mode (new, add, subtract, intersect)
+    const mode = this.selectionMode
+    
+    // Create a command that will handle the selection creation
+    const command = new CreateRectangleSelectionCommand(
+      selectionManager,
+      x,
+      y,
+      width,
+      height,
+      mode === 'new' ? 'replace' : mode
+    )
+    
+    // Execute the command - this will create the selection and save undo state
+    this.historyStore.executeCommand(command)
+    
+    // Check if selection was created successfully
+    const selection = selectionManager.getSelection()
+    
+    if (selection) {
+      // Update selection store
+      this.selectionStore.updateSelectionState(true, { x, y, width, height })
+      
+      // Start rendering the selection with marching ants
+      const { selectionRenderer } = canvasStore
+      if (selectionRenderer) {
+        selectionRenderer.startRendering()
+      }
+    }
+    
+    // IMPORTANT: Remove the temporary feedback rectangle from canvas
+    if (this.feedbackRect) {
+      this.canvas.remove(this.feedbackRect)
+      this.feedbackRect = null
+    }
   }
   
   /**

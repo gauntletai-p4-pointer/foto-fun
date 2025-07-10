@@ -20,7 +20,8 @@ export class CreateSelectionCommand extends Command {
     this.selectionManager = selectionManager
     this.newSelection = {
       mask: selection.mask,
-      bounds: { ...selection.bounds }
+      bounds: { ...selection.bounds },
+      shape: selection.shape  // Preserve shape information
     }
     this.mode = mode
   }
@@ -28,6 +29,7 @@ export class CreateSelectionCommand extends Command {
   async execute(): Promise<void> {
     // Save current selection if any
     const current = this.selectionManager.getSelection()
+    
     if (current) {
       // Clone the current selection
       const canvas = document.createElement('canvas')
@@ -39,14 +41,15 @@ export class CreateSelectionCommand extends Command {
       
       this.previousSelection = {
         mask: clonedMask,
-        bounds: { ...current.bounds }
+        bounds: { ...current.bounds },
+        shape: current.shape  // Preserve shape information
       }
     }
     
     // Apply the selection based on mode
     if (this.mode === 'replace' || !this.previousSelection) {
       // For replace mode or no existing selection, just set the new selection
-      this.selectionManager.restoreSelection(this.newSelection.mask, this.newSelection.bounds)
+      this.selectionManager.restoreSelection(this.newSelection.mask, this.newSelection.bounds, this.newSelection.shape)
       this.finalSelection = this.newSelection
     } else {
       // For other modes, we need to combine selections
@@ -116,15 +119,21 @@ export class CreateSelectionCommand extends Command {
           break
       }
       
-      this.finalSelection = { mask: resultMask, bounds }
-      this.selectionManager.restoreSelection(resultMask, bounds)
+      this.finalSelection = { 
+        mask: resultMask, 
+        bounds,
+        // For boolean operations, we lose the original shape info
+        // Could implement shape combination in the future
+        shape: undefined  
+      }
+      this.selectionManager.restoreSelection(resultMask, bounds, this.finalSelection.shape)
     }
   }
   
   async undo(): Promise<void> {
     if (this.previousSelection) {
       // Restore previous selection
-      this.selectionManager.restoreSelection(this.previousSelection.mask, this.previousSelection.bounds)
+      this.selectionManager.restoreSelection(this.previousSelection.mask, this.previousSelection.bounds, this.previousSelection.shape)
     } else {
       // Clear selection
       this.selectionManager.clear()
@@ -134,7 +143,7 @@ export class CreateSelectionCommand extends Command {
   async redo(): Promise<void> {
     if (this.finalSelection) {
       // Restore the final calculated selection
-      this.selectionManager.restoreSelection(this.finalSelection.mask, this.finalSelection.bounds)
+      this.selectionManager.restoreSelection(this.finalSelection.mask, this.finalSelection.bounds, this.finalSelection.shape)
     } else {
       // Re-execute
       await this.execute()

@@ -29,7 +29,8 @@ export function Canvas() {
     zoom,
     fabricCanvas,
     selectionManager,
-    clipboardManager
+    clipboardManager,
+    resizeViewport
   } = useCanvasStore()
   
   const { handleDrop, handleDragOver } = useFileHandler('insert')
@@ -217,20 +218,15 @@ export function Canvas() {
   // Handle window resize
   useEffect(() => {
     const handleResize = () => {
-      if (!containerRef.current || !fabricCanvas) return
+      if (!containerRef.current) return
       
-      // Get the canvas wrapper dimensions (accounting for padding)
-      const canvasWrapper = containerRef.current.querySelector('div') as HTMLDivElement
-      if (!canvasWrapper) return
-      
-      const { width, height } = canvasWrapper.getBoundingClientRect()
-      fabricCanvas.setDimensions({ width, height })
-      fabricCanvas.renderAll()
+      const { width, height } = containerRef.current.getBoundingClientRect()
+      resizeViewport(width, height)
     }
     
     window.addEventListener('resize', handleResize)
     return () => window.removeEventListener('resize', handleResize)
-  }, [fabricCanvas])
+  }, [resizeViewport])
   
   return (
     <div 
