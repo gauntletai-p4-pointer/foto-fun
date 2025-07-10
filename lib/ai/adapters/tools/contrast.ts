@@ -20,7 +20,8 @@ interface ContrastOutput {
   previousValue: number
   newValue: number
   affectedImages: number
-  targetingMode: 'selection' | 'all-images'
+  targetingMode: 'selection' | 'all-images' | 'auto-single'
+  message?: string
 }
 
 /**
@@ -81,10 +82,43 @@ Range: -100 (completely flat) to +100 (maximum contrast)`
       
       console.log('[ContrastToolAdapter] Contrast adjustment applied successfully')
       
+      // Generate descriptive message
+      let description = ''
+      const magnitude = Math.abs(params.adjustment)
+      
+      if (params.adjustment === 0) {
+        description = 'No change to contrast'
+      } else if (params.adjustment > 0) {
+        // Increased contrast
+        if (magnitude <= 15) {
+          description = 'Slightly enhanced contrast'
+        } else if (magnitude <= 35) {
+          description = 'Moderately increased contrast'
+        } else if (magnitude <= 60) {
+          description = 'Significantly boosted contrast'
+        } else {
+          description = 'Dramatically intensified contrast'
+        }
+      } else {
+        // Decreased contrast
+        if (magnitude <= 15) {
+          description = 'Slightly reduced contrast'
+        } else if (magnitude <= 35) {
+          description = 'Moderately flattened contrast'
+        } else if (magnitude <= 60) {
+          description = 'Significantly reduced contrast'
+        } else {
+          description = 'Made image very flat/washed out'
+        }
+      }
+      
+      const message = `${description} (${params.adjustment > 0 ? '+' : ''}${params.adjustment}%) on ${images.length} image${images.length !== 1 ? 's' : ''}`
+      
       return {
         previousValue: 0, // In a real implementation, we'd track the current contrast
         newValue: params.adjustment,
-        affectedImages: images.length
+        affectedImages: images.length,
+        message
       }
     })
   }

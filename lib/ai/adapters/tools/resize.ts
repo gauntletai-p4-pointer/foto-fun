@@ -29,7 +29,7 @@ interface ResizeOutput {
   mode: string
   dimensions: { width: number; height: number }
   message: string
-  targetingMode: 'selection' | 'all-images'
+  targetingMode: 'selection' | 'all-images' | 'auto-single'
 }
 
 // Create adapter class
@@ -129,13 +129,47 @@ NEVER ask for exact dimensions - interpret the user's intent.`
         ? { width: params.width, height: params.width }
         : { width: params.width, height: params.height || Math.round(params.width / (context.canvas.getWidth() / context.canvas.getHeight())) }
       
+      console.log('[ResizeToolAdapter] Resize applied successfully')
+      
+      // Generate descriptive message
+      let description = ''
+      
+      if (params.mode === 'percentage') {
+        const scale = params.width // Assuming width and height are the same for percentage mode
+        if (scale === 100) {
+          description = 'No size change'
+        } else if (scale > 100) {
+          description = `Enlarged to ${scale}% of original size`
+        } else {
+          description = `Reduced to ${scale}% of original size`
+        }
+      } else {
+        // Pixels mode
+        const aspectRatio = finalDimensions.width / finalDimensions.height
+        let aspectDescription = ''
+        
+        if (Math.abs(aspectRatio - 1) < 0.01) {
+          aspectDescription = 'square'
+        } else if (aspectRatio > 1.77 && aspectRatio < 1.78) {
+          aspectDescription = '16:9'
+        } else if (aspectRatio > 1.33 && aspectRatio < 1.34) {
+          aspectDescription = '4:3'
+        } else if (aspectRatio > 1) {
+          aspectDescription = 'landscape'
+        } else {
+          aspectDescription = 'portrait'
+        }
+        
+        description = `Resized to ${finalDimensions.width}×${finalDimensions.height}px (${aspectDescription})`
+      }
+      
+      const message = `${description} for ${images.length} image${images.length !== 1 ? 's' : ''}`
+      
       return {
         success: true,
         mode: params.mode,
         dimensions: finalDimensions,
-        message: params.mode === 'percentage' 
-          ? `Resized ${images.length} image(s) to ${params.width}%`
-          : `Resized ${images.length} image(s) to ${finalDimensions.width}x${finalDimensions.height} pixels`,
+        message,
         targetingMode: context.targetingMode
       }
     } catch (error) {

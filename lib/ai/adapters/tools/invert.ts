@@ -16,7 +16,7 @@ interface InvertOutput {
   success: boolean
   enabled: boolean
   message: string
-  targetingMode: 'selection' | 'all-images'
+  targetingMode: 'selection' | 'all-images' | 'auto-single'
 }
 
 // Create adapter class
@@ -91,12 +91,17 @@ Note: The enable parameter is used for intent, but the actual action depends on 
         }
       }
       
+      // Generate descriptive message
+      const description = params.enable
+        ? 'Inverted colors (negative effect)'
+        : 'Restored normal colors'
+      
+      const message = `${description} for ${images.length} image${images.length !== 1 ? 's' : ''}`
+      
       return {
         success: true,
         enabled: params.enable,
-        message: params.enable 
-          ? `Inverted colors of ${images.length} image(s)`
-          : `Restored normal colors to ${images.length} image(s)`,
+        message,
         targetingMode: context.targetingMode
       }
     } catch (error) {

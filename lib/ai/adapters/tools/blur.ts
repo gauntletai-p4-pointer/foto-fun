@@ -16,7 +16,7 @@ interface BlurOutput {
   success: boolean
   amount: number
   message: string
-  targetingMode: 'selection' | 'all-images'
+  targetingMode: 'selection' | 'all-images' | 'auto-single'
 }
 
 // Create adapter class
@@ -69,10 +69,27 @@ Range: 0 (no blur) to 50 (maximum blur)`
       // Apply the blur using the base class helper with selection snapshot
       await this.applyToolOperation(this.tool.id, 'amount', params.amount, context.canvas, selectionSnapshot)
       
+      // Generate descriptive message
+      let description = ''
+      
+      if (params.amount === 0) {
+        description = 'Removed blur effect'
+      } else if (params.amount <= 20) {
+        description = 'Applied subtle blur'
+      } else if (params.amount <= 40) {
+        description = 'Applied moderate blur'
+      } else if (params.amount <= 70) {
+        description = 'Applied strong blur'
+      } else {
+        description = 'Applied heavy blur'
+      }
+      
+      const message = `${description} (${params.amount}% intensity) to ${images.length} image${images.length !== 1 ? 's' : ''}`
+      
       return {
         success: true,
         amount: params.amount,
-        message: `Applied ${params.amount}% blur to ${images.length} image(s)`,
+        message,
         targetingMode: context.targetingMode
       }
     } catch (error) {

@@ -21,7 +21,8 @@ interface BrightnessOutput {
   previousValue: number
   newValue: number
   affectedImages: number
-  targetingMode: 'selection' | 'all-images'
+  targetingMode: 'selection' | 'all-images' | 'auto-single'
+  message?: string
 }
 
 /**
@@ -82,10 +83,28 @@ Range: -100 (completely black) to +100 (completely white)`
       
       console.log('[BrightnessToolAdapter] Brightness adjustment applied successfully')
       
+      // Generate descriptive message based on adjustment
+      const direction = params.adjustment > 0 ? 'increased' : 'decreased'
+      const magnitude = Math.abs(params.adjustment)
+      let description = ''
+      
+      if (magnitude <= 15) {
+        description = 'slightly'
+      } else if (magnitude <= 35) {
+        description = 'moderately'
+      } else if (magnitude <= 60) {
+        description = 'significantly'
+      } else {
+        description = 'dramatically'
+      }
+      
+      const message = `${description.charAt(0).toUpperCase() + description.slice(1)} ${direction} brightness by ${magnitude}% on ${images.length} image${images.length !== 1 ? 's' : ''}`
+      
       return {
         previousValue: 0, // In a real implementation, we'd track the current brightness
         newValue: params.adjustment,
-        affectedImages: images.length
+        affectedImages: images.length,
+        message
       }
     })
   }

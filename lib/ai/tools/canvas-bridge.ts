@@ -11,7 +11,7 @@ export interface CanvasContext extends Omit<ToolExecutionContext, 'canvas' | 'se
   imageData?: ImageData
   selection?: FabricObject[]
   targetImages: FabricImage[]  // Pre-filtered images based on selection
-  targetingMode: 'selection' | 'all-images'  // How targeting was determined
+  targetingMode: 'selection' | 'all-images' | 'auto-single'  // How targeting was determined
   dimensions: {
     width: number
     height: number
@@ -20,6 +20,11 @@ export interface CanvasContext extends Omit<ToolExecutionContext, 'canvas' | 'se
     zoom?: number
     documentName?: string
   }
+  inferenceMetadata?: {
+    autoTargeted: boolean
+    multipleImagesAvailable: boolean
+    userHadSelection: boolean
+  }
 }
 
 /**
@@ -27,6 +32,45 @@ export interface CanvasContext extends Omit<ToolExecutionContext, 'canvas' | 'se
  * Handles canvas state access, image data extraction, and result application
  */
 export class CanvasToolBridge {
+  // Store request-time selection snapshot with actual object references
+  private static requestSelectionSnapshot: { 
+    objectIds: Set<string>, 
+    types: Set<string>,
+    objects: FabricObject[]
+  } | null = null
+  
+  /**
+   * Set the selection snapshot for the current request
+   */
+  static setRequestSelectionSnapshot(snapshot: { 
+    objectIds: string[], 
+    types: string[],
+    _objects?: FabricObject[]
+  } | null): void {
+    if (snapshot) {
+      this.requestSelectionSnapshot = {
+        objectIds: new Set(snapshot.objectIds),
+        types: new Set(snapshot.types),
+        objects: snapshot._objects || []
+      }
+      console.log('[CanvasToolBridge] Set request selection snapshot:', {
+        objectIds: snapshot.objectIds.length,
+        types: Array.from(snapshot.types),
+        objectCount: snapshot._objects?.length || 0
+      })
+    } else {
+      this.requestSelectionSnapshot = null
+    }
+  }
+  
+  /**
+   * Clear the request selection snapshot
+   */
+  static clearRequestSelectionSnapshot(): void {
+    this.requestSelectionSnapshot = null
+    console.log('[CanvasToolBridge] Cleared request selection snapshot')
+  }
+  
   /**
    * Get the current canvas context for tool execution
    * Now includes intelligent image targeting based on user selection
@@ -55,18 +99,57 @@ export class CanvasToolBridge {
     // Get all images on canvas
     const allImages = objects.filter(obj => obj.type === 'image') as FabricImage[]
     
-    // Get selected images (if any)
-    const selectedImages = activeSelection.filter(obj => obj.type === 'image') as FabricImage[]
+    // Check if we have a request-time selection snapshot
+    let targetImages: FabricImage[]
+    let targetingMode: 'selection' | 'all-images' | 'auto-single'
     
-    // Determine target images: prioritize selection, fallback to all images
-    const targetImages = selectedImages.length > 0 ? selectedImages : allImages
-    const targetingMode = selectedImages.length > 0 ? 'selection' : 'all-images'
+    if (this.requestSelectionSnapshot && this.requestSelectionSnapshot.objects.length > 0) {
+      // Use request-time selection snapshot with actual object references
+      console.log('[CanvasToolBridge] Using request-time selection snapshot')
+      
+      // Filter only image objects from the snapshot
+      targetImages = this.requestSelectionSnapshot.objects
+        .filter(obj => obj.type === 'image') as FabricImage[]
+      
+      targetingMode = 'selection'
+      
+      console.log('[CanvasToolBridge] Snapshot targeting:', {
+        snapshotObjects: this.requestSelectionSnapshot.objects.length,
+        matchedImages: targetImages.length
+      })
+    } else {
+      // Fallback to current selection logic
+      console.log('[CanvasToolBridge] No request snapshot, using current selection')
+      
+      // Get selected images (if any)
+      const selectedImages = activeSelection.filter(obj => obj.type === 'image') as FabricImage[]
+      
+      // ENHANCED: Smart targeting logic with auto-selection for single images
+      if (selectedImages.length > 0) {
+        // Explicit selection takes priority
+        targetImages = selectedImages
+        targetingMode = 'selection'
+      } else if (allImages.length === 1) {
+        // Single image on canvas - auto-target it
+        targetImages = allImages
+        targetingMode = 'auto-single'
+        console.log('[CanvasToolBridge] Auto-targeting single image on canvas')
+      } else if (allImages.length > 1) {
+        // Multiple images, no selection - target all
+        targetImages = allImages
+        targetingMode = 'all-images'
+        console.log('[CanvasToolBridge] Multiple images found, targeting all')
+      } else {
+        targetImages = []
+        targetingMode = 'all-images'
+      }
+    }
     
     console.log('[CanvasToolBridge] Image targeting:', {
       totalObjects: objects.length,
       totalImages: allImages.length,
       selectedObjects: activeSelection.length,
-      selectedImages: selectedImages.length,
+      selectedImages: activeSelection.filter(obj => obj.type === 'image').length,
       targetImages: targetImages.length,
       targetingMode
     })
@@ -85,12 +168,17 @@ export class CanvasToolBridge {
         height: fabricCanvas.getHeight()
       },
       metadata: {
-        zoom: useCanvasStore.getState().zoom,
+        zoom: fabricCanvas.getZoom ? fabricCanvas.getZoom() : 1,
         documentName: documentStore.currentDocument?.name
       },
-      canvasStore: useCanvasStore.getState(),
-      documentStore,
-      toolStore: undefined, // Will be injected by tool executor
+      // Add inference metadata to help AI understand targeting
+      inferenceMetadata: {
+        autoTargeted: targetingMode === 'auto-single',
+        multipleImagesAvailable: allImages.length > 1,
+        userHadSelection: this.requestSelectionSnapshot ? 
+          this.requestSelectionSnapshot.objects.length > 0 : 
+          activeSelection.filter(obj => obj.type === 'image').length > 0
+      }
     }
   }
   

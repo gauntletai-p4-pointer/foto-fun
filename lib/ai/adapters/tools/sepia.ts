@@ -18,7 +18,7 @@ interface SepiaOutput {
   success: boolean
   intensity: number
   message: string
-  targetingMode: 'selection' | 'all-images'
+  targetingMode: 'selection' | 'all-images' | 'auto-single'
 }
 
 // Create adapter class
@@ -78,11 +78,31 @@ Range: 0 (no effect) to 100 (full sepia)`
         }
       }
       
+      // Apply the sepia filter using the base class helper with selection snapshot
+      await this.applyToolOperation(this.tool.id, 'intensity', params.intensity, context.canvas, selectionSnapshot)
+      
+      // Generate descriptive message
+      let description = ''
+      
+      if (params.intensity === 0) {
+        description = 'Removed sepia effect'
+      } else if (params.intensity <= 25) {
+        description = 'Applied subtle vintage sepia tone'
+      } else if (params.intensity <= 50) {
+        description = 'Applied moderate sepia effect'
+      } else if (params.intensity <= 75) {
+        description = 'Applied strong antique sepia tone'
+      } else {
+        description = 'Applied full vintage sepia effect'
+      }
+      
+      const message = `${description} (${params.intensity}% intensity) to ${images.length} image${images.length !== 1 ? 's' : ''}`
+      
       return {
+        success: true,
         intensity: params.intensity,
-        message: params.intensity > 0 
-          ? `Applied ${params.intensity}% sepia effect to ${images.length} image(s)`
-          : `Removed sepia effect from ${images.length} image(s)`
+        message,
+        targetingMode: context.targetingMode
       }
     })
   }

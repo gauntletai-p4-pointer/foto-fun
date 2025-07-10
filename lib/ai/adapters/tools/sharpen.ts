@@ -16,7 +16,7 @@ interface SharpenOutput {
   success: boolean
   amount: number
   message: string
-  targetingMode: 'selection' | 'all-images'
+  targetingMode: 'selection' | 'all-images' | 'auto-single'
 }
 
 // Create adapter class
@@ -89,12 +89,29 @@ Range: 0 (no sharpening) to 50 (maximum sharpening)`
         }
       }
       
+      console.log('[SharpenAdapter] Sharpen adjustment applied successfully')
+      
+      // Generate descriptive message
+      let description = ''
+      
+      if (params.amount === 0) {
+        description = 'Removed sharpening'
+      } else if (params.amount <= 20) {
+        description = 'Applied subtle sharpening'
+      } else if (params.amount <= 40) {
+        description = 'Applied moderate sharpening'
+      } else if (params.amount <= 70) {
+        description = 'Applied strong sharpening'
+      } else {
+        description = 'Applied intense sharpening'
+      }
+      
+      const message = `${description} (${params.amount}% intensity) to ${images.length} image${images.length !== 1 ? 's' : ''}`
+      
       return {
         success: true,
         amount: params.amount,
-        message: params.amount > 0 
-          ? `Applied ${params.amount}% sharpening to ${images.length} image(s)`
-          : `Removed sharpening from ${images.length} image(s)`,
+        message,
         targetingMode: context.targetingMode
       }
     } catch (error) {

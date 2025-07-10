@@ -1,11 +1,28 @@
-import { useState, useCallback } from 'react'
-import { Brain, Camera, Eye, Wrench, Zap } from 'lucide-react'
+import { useCallback } from 'react'
 import { useCanvasStore } from '@/store/canvasStore'
 import { ClientToolExecutor } from '@/lib/ai/client/tool-executor'
-import type { WorkflowProgress } from '../WorkflowProgressIndicator'
 
-export function useToolCallHandler(waitForReady: () => Promise<void>) {
-  const [workflowProgress, setWorkflowProgress] = useState<WorkflowProgress | null>(null)
+interface ThinkingStep {
+  id: string
+  type: 'screenshot' | 'vision' | 'planning' | 'executing' | 'complete'
+  message: string
+  timestamp: string
+  isActive: boolean
+}
+
+interface UseToolCallHandlerProps {
+  waitForReady: () => Promise<void>
+  onAgentThinkingStart?: () => void
+  onAgentThinkingEnd?: () => void
+  onAgentThinkingStep?: (step: ThinkingStep) => void
+}
+
+export function useToolCallHandler({ 
+  waitForReady,
+  onAgentThinkingStart,
+  onAgentThinkingEnd,
+  onAgentThinkingStep
+}: UseToolCallHandlerProps) {
   
   const handleToolCall = useCallback(async ({ toolCall }: { toolCall: {
     toolName?: string
@@ -45,17 +62,6 @@ export function useToolCallHandler(waitForReady: () => Promise<void>) {
       if (toolName === 'captureAndEvaluate') {
         console.log('[AIChat] === CAPTURE AND EVALUATE DETECTED ===')
         
-        // Show evaluation progress
-        setWorkflowProgress({
-          currentStep: 'Capturing canvas state',
-          steps: [
-            { id: 'capture', label: 'Capturing canvas state', icon: <Camera className="w-4 h-4" />, status: 'active' },
-            { id: 'analyze', label: 'Analyzing with vision AI', icon: <Eye className="w-4 h-4" />, status: 'pending' },
-            { id: 'evaluate', label: 'Evaluating improvements', icon: <Brain className="w-4 h-4" />, status: 'pending' }
-          ],
-          progress: 33
-        })
-        
         const evalRequest = args as {
           canvasScreenshot?: string
           originalRequest?: string
@@ -72,21 +78,6 @@ export function useToolCallHandler(waitForReady: () => Promise<void>) {
           })
           
           console.log('[AIChat] Captured canvas screenshot, length:', screenshot.length)
-          
-          // Update progress - analyzing
-          setWorkflowProgress(prev => prev ? {
-            ...prev,
-            currentStep: 'Analyzing with vision AI',
-            steps: prev.steps.map(s => 
-              s.id === 'capture' ? { ...s, status: 'completed' } :
-              s.id === 'analyze' ? { ...s, status: 'active' } :
-              s
-            ),
-            progress: 66
-          } : null)
-          
-          // Clear workflow progress before returning (server will evaluate)
-          setTimeout(() => setWorkflowProgress(null), 1000)
           
           // Return the screenshot for server-side evaluation
           return {
@@ -217,90 +208,79 @@ export function useToolCallHandler(waitForReady: () => Promise<void>) {
       if (toolName === 'executeAgentWorkflow') {
         console.log('[AIChat] === AGENT WORKFLOW TOOL DETECTED ===')
         
-        // Show initial workflow progress
-        setWorkflowProgress({
-          currentStep: 'Analyzing your request',
-          steps: [
-            { id: 'analyze', label: 'Analyzing your request', icon: <Brain className="w-4 h-4" />, status: 'active' },
-            { id: 'determine', label: 'Determining best approach', icon: <Zap className="w-4 h-4" />, status: 'pending' },
-            { id: 'plan', label: 'Creating execution plan', icon: <Brain className="w-4 h-4" />, status: 'pending' },
-            { id: 'execute', label: 'Executing improvements', icon: <Wrench className="w-4 h-4" />, status: 'pending' },
-            { id: 'evaluate', label: 'Evaluating results', icon: <Eye className="w-4 h-4" />, status: 'pending' }
-          ],
-          progress: 20
-        })
+        // Start agent thinking
+        onAgentThinkingStart?.()
         
-        // Small delay to show the progress
-        await new Promise(resolve => setTimeout(resolve, 500))
-        
-        // Update progress - determining approach
-        setWorkflowProgress(prev => prev ? {
-          ...prev,
-          currentStep: 'Determining best approach',
-          steps: prev.steps.map(s => 
-            s.id === 'analyze' ? { ...s, status: 'completed' } :
-            s.id === 'determine' ? { ...s, status: 'active' } :
-            s
-          ),
-          progress: 40
-        } : null)
-        
-                  const agentResult = args as {
-            success?: boolean
-            approvalRequired?: boolean
-            step?: {
-              id: string
-              description: string
-              confidence: number
-              threshold: number
-            }
-            workflow?: {
-              description: string
-              steps: Array<{
-                toolName: string
-                params: unknown
-                description: string
-                confidence: number
-              }>
-              agentType: string
-              totalSteps: number
-              reasoning: string
-            }
-            agentStatus?: {
-              confidence: number
-              approvalRequired: boolean
-              threshold: number
-            }
-            toolExecutions?: Array<{ 
+        const agentResult = args as {
+          success?: boolean
+          approvalRequired?: boolean
+          step?: {
+            id: string
+            description: string
+            confidence: number
+            threshold: number
+          }
+          workflow?: {
+            description: string
+            steps: Array<{
               toolName: string
               params: unknown
-              description?: string
-              confidence?: number
+              description: string
+              confidence: number
             }>
-            message?: string
+            agentType: string
+            totalSteps: number
+            reasoning: string
           }
+          agentStatus?: {
+            confidence: number
+            approvalRequired: boolean
+            threshold: number
+          }
+          statusUpdates?: Array<{
+            type: string
+            message: string
+            details?: string
+            timestamp: string
+          }>
+          toolExecutions?: Array<{ 
+            toolName: string
+            params: unknown
+            description?: string
+            confidence?: number
+          }>
+          message?: string
+        }
         console.log('[AIChat] Agent result:', agentResult)
         
-        // Update progress - creating plan
-        setWorkflowProgress(prev => prev ? {
-          ...prev,
-          currentStep: 'Creating execution plan',
-          steps: prev.steps.map(s => 
-            s.id === 'determine' ? { ...s, status: 'completed' } :
-            s.id === 'plan' ? { ...s, status: 'active' } :
-            s
-          ),
-          progress: 60
-        } : null)
+        // Process status updates into thinking steps
+        if (agentResult.statusUpdates) {
+          agentResult.statusUpdates.forEach((update, index) => {
+            const stepType = 
+              update.type === 'screenshot' || update.message.toLowerCase().includes('screenshot') ? 'screenshot' :
+              update.type === 'vision-analysis' || update.message.toLowerCase().includes('vision') || update.message.toLowerCase().includes('analyzing') ? 'vision' :
+              update.type === 'planning' || update.message.toLowerCase().includes('plan') ? 'planning' :
+              update.type === 'executing' || update.message.toLowerCase().includes('execut') ? 'executing' :
+              'planning'
+            
+            onAgentThinkingStep?.({
+              id: `step-${index}`,
+              type: stepType,
+              message: update.message,
+              timestamp: update.timestamp,
+              isActive: false // These are completed steps
+            })
+          })
+        }
+        
+        // End agent thinking when we have a result
+        onAgentThinkingEnd?.()
         
         // Check if approval is required
         if (agentResult.approvalRequired && agentResult.step) {
           console.log('[AIChat] Approval required for agent workflow')
           
-          // Clear workflow progress when approval is needed
-          setWorkflowProgress(null)
-          
-          // Return approval required response
+          // Return approval required response with status updates
           return {
             success: false,
             approvalRequired: true,
@@ -308,6 +288,7 @@ export function useToolCallHandler(waitForReady: () => Promise<void>) {
             step: agentResult.step,
             workflow: agentResult.workflow,
             agentStatus: agentResult.agentStatus,
+            statusUpdates: agentResult.statusUpdates || [],
             toolExecutions: agentResult.toolExecutions
           }
         }
@@ -315,18 +296,6 @@ export function useToolCallHandler(waitForReady: () => Promise<void>) {
         // If no approval required and we have tool executions, execute them
         if (agentResult.success && agentResult.toolExecutions && agentResult.toolExecutions.length > 0) {
           console.log('[AIChat] Agent workflow - auto-executing planned tools:', agentResult.toolExecutions)
-          
-          // Update progress - executing
-          setWorkflowProgress(prev => prev ? {
-            ...prev,
-            currentStep: 'Executing improvements',
-            steps: prev.steps.map(s => 
-              s.id === 'plan' ? { ...s, status: 'completed' } :
-              s.id === 'execute' ? { ...s, status: 'active' } :
-              s
-            ),
-            progress: 80
-          } : null)
           
           // If there are multiple tools, use executeToolChain for proper selection management
           if (agentResult.toolExecutions.length > 1) {
@@ -351,29 +320,25 @@ export function useToolCallHandler(waitForReady: () => Promise<void>) {
               
               console.log('[AIChat] Tool chain completed successfully:', chainResult)
               
-              // Clear workflow progress after execution
-              setWorkflowProgress(null)
-              
               return {
                 success: true,
                 message: agentResult.message || `Executed ${agentResult.toolExecutions.length} tools from agent workflow`,
                 results: chainResult,
                 agentWorkflow: true,
                 workflow: agentResult.workflow,
-                agentStatus: agentResult.agentStatus
+                agentStatus: agentResult.agentStatus,
+                statusUpdates: agentResult.statusUpdates || []
               }
             } catch (error) {
               console.error('[AIChat] Tool chain execution failed:', error)
-              
-              // Clear workflow progress on error
-              setWorkflowProgress(null)
               
               return {
                 success: false,
                 error: error instanceof Error ? error.message : 'Chain execution failed',
                 agentWorkflow: true,
                 workflow: agentResult.workflow,
-                agentStatus: agentResult.agentStatus
+                agentStatus: agentResult.agentStatus,
+                statusUpdates: agentResult.statusUpdates || []
               }
             }
           } else {
@@ -400,16 +365,14 @@ export function useToolCallHandler(waitForReady: () => Promise<void>) {
               }
             }
             
-            // Clear workflow progress after execution
-            setWorkflowProgress(null)
-            
             return {
               success: true,
               message: agentResult.message || `Executed ${results.length} tools from agent workflow`,
               results,
               agentWorkflow: true,
               workflow: agentResult.workflow,
-              agentStatus: agentResult.agentStatus
+              agentStatus: agentResult.agentStatus,
+              statusUpdates: agentResult.statusUpdates || []
             }
           }
         }
@@ -441,7 +404,7 @@ export function useToolCallHandler(waitForReady: () => Promise<void>) {
       console.error('[AIChat] Tool execution error:', error)
       throw error
     }
-  }, [waitForReady])
+  }, [waitForReady, onAgentThinkingStart, onAgentThinkingEnd, onAgentThinkingStep])
   
-  return { handleToolCall, workflowProgress }
+  return { handleToolCall }
 } 

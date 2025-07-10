@@ -215,6 +215,9 @@ export abstract class CanvasToolAdapter<
       console.log(`[${this.constructor.name}] Target images:`, images.length)
       console.log(`[${this.constructor.name}] Targeting mode:`, context.targetingMode)
       
+      // Check multi-object targeting for AI awareness
+      this.checkMultiObjectTargeting(context)
+      
       if (images.length === 0) {
         throw new Error(`No images found to ${this.getActionVerb()}. Please load an image or select images first.`)
       }
@@ -376,10 +379,24 @@ export abstract class CanvasToolAdapter<
   }
   
   /**
-   * Get the action verb for error messages (e.g., "adjust brightness", "apply sepia")
-   * Override this to provide tool-specific action descriptions
+   * Get action verb for error messages
+   * Override in subclasses for better error messages
    */
   protected abstract getActionVerb(): string
+  
+  /**
+   * Check if operation will affect multiple objects without explicit selection
+   * This helps AI provide better feedback to users
+   */
+  protected checkMultiObjectTargeting(context: CanvasContext): void {
+    if (context.targetImages.length > 1 && context.targetingMode === 'all-images') {
+      console.log(`[${this.constructor.name}] Operating on ${context.targetImages.length} images (no selection) - AI should inform user`)
+    } else if (context.targetingMode === 'auto-single') {
+      console.log(`[${this.constructor.name}] Auto-targeting single image on canvas`)
+    } else if (context.targetingMode === 'selection') {
+      console.log(`[${this.constructor.name}] Operating on user's selection of ${context.targetImages.length} images`)
+    }
+  }
   
   /**
    * Common canExecute implementation - checks for images on canvas

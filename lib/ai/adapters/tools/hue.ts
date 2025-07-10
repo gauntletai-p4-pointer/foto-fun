@@ -20,7 +20,8 @@ interface HueOutput {
   previousValue: number
   newValue: number
   affectedImages: number
-  targetingMode: 'selection' | 'all-images'
+  targetingMode: 'selection' | 'all-images' | 'auto-single'
+  message?: string
 }
 
 /**
@@ -89,12 +90,37 @@ NEVER ask for exact values - always interpret the user's intent and choose an ap
     
     console.log('[HueToolAdapter] Hue adjustment applied successfully')
     
+    // Generate descriptive message based on rotation
+    let colorShift = ''
+    const normalizedRotation = ((params.rotation % 360) + 360) % 360 // Normalize to 0-360
+    
+    if (params.rotation === 0) {
+      colorShift = 'No color shift applied'
+    } else if (params.rotation === 180 || params.rotation === -180) {
+      colorShift = 'Shifted to complementary colors'
+    } else if (normalizedRotation >= 345 || normalizedRotation <= 30) {
+      colorShift = 'Shifted colors toward red/orange tones'
+    } else if (normalizedRotation > 30 && normalizedRotation <= 90) {
+      colorShift = 'Shifted colors toward yellow/green tones'
+    } else if (normalizedRotation > 90 && normalizedRotation <= 150) {
+      colorShift = 'Shifted colors toward green/cyan tones'
+    } else if (normalizedRotation > 150 && normalizedRotation <= 210) {
+      colorShift = 'Shifted colors toward cyan/blue tones'
+    } else if (normalizedRotation > 210 && normalizedRotation <= 270) {
+      colorShift = 'Shifted colors toward blue/purple tones'
+    } else {
+      colorShift = 'Shifted colors toward purple/magenta tones'
+    }
+    
+    const message = `${colorShift} (${params.rotation > 0 ? '+' : ''}${params.rotation}°) on ${images.length} image${images.length !== 1 ? 's' : ''}`
+    
     return {
       success: true,
       previousValue: 0, // In a real implementation, we'd track the current hue
       newValue: params.rotation,
       affectedImages: images.length,
-      targetingMode: context.targetingMode
+      targetingMode: context.targetingMode,
+      message
     }
   }
   

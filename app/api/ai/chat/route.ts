@@ -6,7 +6,7 @@ import { MasterRoutingAgent } from '@/lib/ai/agents/MasterRoutingAgent'
 import { WorkflowMemory } from '@/lib/ai/agents/WorkflowMemory'
 import type { AgentContext } from '@/lib/ai/agents/types'
 import { CanvasContextProvider } from '@/lib/ai/canvas/CanvasContext'
-import type { Canvas } from 'fabric'
+import type { Canvas, FabricObject } from 'fabric'
 
 // Initialize on first request
 let adaptersInitialized = false
@@ -18,6 +18,13 @@ async function initialize() {
   }
 }
 
+// Store selection snapshot for this request
+let requestSelectionSnapshot: { 
+  objectIds: string[], 
+  types: string[],
+  _objects?: FabricObject[]
+} | null = null
+
 export async function POST(req: Request) {
   const { messages, canvasContext, aiSettings, approvedPlan } = await req.json()
   
@@ -28,9 +35,22 @@ export async function POST(req: Request) {
   console.log('Canvas context hasContent:', canvasContext?.hasContent)
   console.log('Canvas dimensions:', canvasContext?.dimensions)
   console.log('Has approved plan:', !!approvedPlan)
+  console.log('Selection snapshot:', canvasContext?.selectionSnapshot)
+  
+  // Store selection snapshot for this request
+  requestSelectionSnapshot = canvasContext?.selectionSnapshot || null
   
   // Initialize adapters
   await initialize()
+  
+  // Set selection snapshot for this request
+  const { CanvasToolBridge } = await import('@/lib/ai/tools/canvas-bridge')
+  CanvasToolBridge.setRequestSelectionSnapshot(requestSelectionSnapshot)
+  
+  // Ensure snapshot is cleared after request
+  const clearSnapshot = () => {
+    CanvasToolBridge.clearRequestSelectionSnapshot()
+  }
   
   // Get AI tools from adapter registry
   const aiTools = adapterRegistry.getAITools()
@@ -40,50 +60,51 @@ export async function POST(req: Request) {
   if (approvedPlan && messages[messages.length - 1]?.content?.toLowerCase().includes('approve')) {
     console.log('[Agent] User approved plan, executing tools and continuing workflow')
     
-    // Extract the original request and tool executions
-    const { toolExecutions, originalRequest } = approvedPlan
-    
-    // Return a special tool that will execute the approved plan and continue the workflow
-    return streamText({
-      model: openai('gpt-4o'),
-      messages: convertToModelMessages(messages),
-      tools: {
-        executeApprovedPlan: tool({
-          description: 'Execute the approved plan and continue the workflow',
-          inputSchema: z.object({
-            confirmation: z.string()
-          }),
-          execute: async () => {
-            return {
-              type: 'execute-approved-plan',
-              toolExecutions,
-              originalRequest,
-              message: 'Executing approved plan...',
-              iterationCount: approvedPlan.iterationCount || 1
+    try {
+      // Extract the original request and tool executions
+      const { toolExecutions, originalRequest } = approvedPlan
+      
+      // Return a special tool that will execute the approved plan and continue the workflow
+      return streamText({
+        model: openai('gpt-4o'),
+        messages: convertToModelMessages(messages),
+        tools: {
+          executeApprovedPlan: tool({
+            description: 'Execute the approved plan and continue the workflow',
+            inputSchema: z.object({
+              confirmation: z.string()
+            }),
+            execute: async () => {
+              return {
+                type: 'execute-approved-plan',
+                toolExecutions,
+                originalRequest,
+                message: 'Executing approved plan...',
+                iterationCount: approvedPlan.iterationCount || 1
+              }
             }
-          }
-        }),
-        captureAndEvaluate: tool({
-          description: 'Capture canvas screenshot and evaluate if goals are met',
-          inputSchema: z.object({
-            canvasScreenshot: z.string().describe('Base64 screenshot of current canvas state'),
-            originalRequest: z.string().describe('The original user request'),
-            iterationCount: z.number().describe('Current iteration number')
           }),
-          execute: async ({ canvasScreenshot, originalRequest, iterationCount }) => {
-            console.log('[Agent] Evaluating canvas state with vision model')
-            
-            // Use OpenAI vision to evaluate the result
-            const { generateText } = await import('ai')
-            const evaluation = await generateText({
-              model: openai('gpt-4o'),
-              messages: [
-                {
-                  role: 'user',
-                  content: [
-                    {
-                      type: 'text',
-                      text: `Evaluate if this image meets the user's request: "${originalRequest}"
+          captureAndEvaluate: tool({
+            description: 'Capture canvas screenshot and evaluate if goals are met',
+            inputSchema: z.object({
+              canvasScreenshot: z.string().describe('Base64 screenshot of current canvas state'),
+              originalRequest: z.string().describe('The original user request'),
+              iterationCount: z.number().describe('Current iteration number')
+            }),
+            execute: async ({ canvasScreenshot, originalRequest, iterationCount }) => {
+              console.log('[Agent] Evaluating canvas state with vision model')
+              
+              // Use OpenAI vision to evaluate the result
+              const { generateText } = await import('ai')
+              const evaluation = await generateText({
+                model: openai('gpt-4o'),
+                messages: [
+                  {
+                    role: 'user',
+                    content: [
+                      {
+                        type: 'text',
+                        text: `Evaluate if this image meets the user's request: "${originalRequest}"
                       
 Please analyze:
 1. Has the request been fulfilled?
@@ -92,37 +113,37 @@ Please analyze:
 4. Rate the success from 0-1 (1 being perfect)
 
 Be specific and honest in your evaluation.`
-                    },
-                    {
-                      type: 'image',
-                      image: canvasScreenshot
-                    }
-                  ]
-                }
-              ],
-              temperature: 0.3
-            })
-            
-            const evaluationText = evaluation.text || ''
-            const successMatch = evaluationText.match(/success.*?([0-9.]+)/i)
-            const successScore = successMatch ? parseFloat(successMatch[1]) : 0.5
-            
-            return {
-              type: 'evaluation-result',
-              evaluation: evaluationText,
-              successScore,
-              goalsMet: successScore >= 0.85,
-              iterationCount,
-              shouldContinue: iterationCount < 3 && successScore < 0.85,
-              message: successScore >= 0.85 
-                ? 'Goals successfully achieved!' 
-                : `Current success: ${Math.round(successScore * 100)}%. ${iterationCount < 3 ? 'Further improvements possible.' : 'Maximum iterations reached.'}`
+                      },
+                      {
+                        type: 'image',
+                        image: canvasScreenshot
+                      }
+                    ]
+                  }
+                ],
+                temperature: 0.3
+              })
+              
+              const evaluationText = evaluation.text || ''
+              const successMatch = evaluationText.match(/success.*?([0-9.]+)/i)
+              const successScore = successMatch ? parseFloat(successMatch[1]) : 0.5
+              
+              return {
+                type: 'evaluation-result',
+                evaluation: evaluationText,
+                successScore,
+                goalsMet: successScore >= 0.85,
+                iterationCount,
+                shouldContinue: iterationCount < 3 && successScore < 0.85,
+                message: successScore >= 0.85 
+                  ? 'Goals successfully achieved!' 
+                  : `Current success: ${Math.round(successScore * 100)}%. ${iterationCount < 3 ? 'Further improvements possible.' : 'Maximum iterations reached.'}`
+              }
             }
-          }
-        })
-      },
-      system: `The user has approved the plan. Execute the approved tools by calling executeApprovedPlan.
-      
+          })
+        },
+        system: `The user has approved the plan. Execute the approved tools by calling executeApprovedPlan.
+        
 After execution, you should:
 1. Wait for the tools to complete
 2. Call captureAndEvaluate to analyze the results with vision
@@ -137,31 +158,88 @@ When presenting results:
 
 Original request: ${originalRequest}
 Current iteration: ${approvedPlan.iterationCount || 1}/3`,
-    }).toUIMessageStreamResponse()
+      }).toUIMessageStreamResponse()
+    } finally {
+      clearSnapshot()
+    }
   }
   
-  return streamText({
-    model: openai('gpt-4o'),
-    messages: convertToModelMessages(messages),
-    tools: {
-      // Multi-step workflow tool
-      executeAgentWorkflow: tool({
-        description: 'Execute complex multi-step photo editing workflow when simple tools are not enough',
-        inputSchema: z.object({
-          request: z.string().describe('The user request to execute'),
-          iterationCount: z.number().optional().describe('Current iteration number (for iterative workflows)')
+  try {
+    return streamText({
+      model: openai('gpt-4o'),
+      messages: convertToModelMessages(messages),
+      tools: {
+        // Multi-step workflow tool
+        executeAgentWorkflow: tool({
+          description: 'Execute complex multi-step photo editing workflow when simple tools are not enough',
+          inputSchema: z.object({
+            request: z.string().describe('The user request to execute'),
+            iterationCount: z.number().optional().describe('Current iteration number (for iterative workflows)')
+          }),
+          execute: async ({ request, iterationCount }) => {
+            return await executeMultiStepWorkflow(request, messages, canvasContext, aiSettings, iterationCount)
+          }
         }),
-        execute: async ({ request, iterationCount }) => {
-          return await executeMultiStepWorkflow(request, messages, canvasContext, aiSettings, iterationCount)
+        
+        // All the regular tools
+        ...aiTools
+      },
+      onChunk: ({ chunk }) => {
+        // Stream tool input updates for real-time agent thinking display
+        if (chunk.type === 'tool-input-start' && chunk.toolName === 'executeAgentWorkflow') {
+          console.log('[Agent] Tool input streaming started for agent workflow')
         }
-      }),
-      
-      // All the regular tools
-      ...aiTools
-    },
-    system: `You are FotoFun's AI assistant. You can help with photo editing in several ways:
+        
+        if (chunk.type === 'tool-input-delta') {
+          // Tool input delta chunks have an 'id' property that links to the tool
+          console.log('[Agent] Tool input streaming delta:', chunk.delta)
+        }
+        
+        if (chunk.type === 'tool-call' && chunk.toolName === 'executeAgentWorkflow') {
+          console.log('[Agent] Tool call completed for agent workflow')
+        }
+      },
+      system: `You are FotoFun's AI assistant. You can help with photo editing in several ways:
 
 CANVAS STATE: ${!canvasContext?.hasContent ? '⚠️ The canvas is empty - no image loaded yet!' : `Canvas has content (${canvasContext?.dimensions?.width || 0}x${canvasContext?.dimensions?.height || 0}px)`}
+
+SELECTION SNAPSHOT:
+${canvasContext?.selectionSnapshot ? 
+  canvasContext.selectionSnapshot.isEmpty ? 
+    '⚠️ No objects selected' :
+    `✅ ${canvasContext.selectionSnapshot.objectCount} object(s) selected (${canvasContext.selectionSnapshot.types.join(', ')})` :
+  '⚠️ No selection data available'}
+
+SELECTION RULES:
+1. Single image on canvas → Auto-select and proceed
+2. Multiple objects + selection snapshot → Use only selected objects
+3. Multiple objects + no selection → MUST ask user to select first
+4. Selection snapshot is captured at request time and used for ALL operations
+
+IMPORTANT SELECTION BEHAVIOR:
+- The selection snapshot was captured when the user sent their message
+- ALL operations in this request MUST use only the objects in this snapshot
+- Do NOT attempt to change selection during execution
+- If no selection and multiple objects exist, you MUST ask the user to select objects first
+
+${canvasContext?.singleImageCanvas ? 
+  '✅ Single image canvas - will auto-target the image' : ''}
+${canvasContext?.selectionSnapshot && !canvasContext.selectionSnapshot.isEmpty ? 
+  `✅ User has pre-selected ${canvasContext.selectionSnapshot.objectCount} object(s) - operations will affect only these` : 
+  canvasContext?.objectCount > 1 && (!canvasContext?.selectionSnapshot || canvasContext.selectionSnapshot.isEmpty) ? 
+  '⚠️ Multiple objects with no selection - MUST ask user to select objects first' : ''}
+
+CLARIFICATION APPROACH:
+When there are multiple objects (${canvasContext?.objectCount || 0}) with no selection:
+
+"I see you have ${canvasContext?.objectCount || 'multiple'} objects on the canvas. Please select the ones you'd like me to edit, then let me know what you'd like to do with them.
+
+To select objects:
+- Click on an object to select it
+- Hold Shift and click to select multiple objects
+- Or use Cmd/Ctrl+A to select all
+
+Once you've made your selection, just tell me what you'd like to do!"
 
 ROUTING RULES:
 
@@ -237,7 +315,10 @@ Available tools:
 When using tools, be direct and efficient. Only use executeAgentWorkflow when AI reasoning adds value.
 
 CRITICAL: Never attempt to use any editing tools if hasContent is false. Always check first and guide the user to upload an image.`,
-  }).toUIMessageStreamResponse()
+    }).toUIMessageStreamResponse()
+  } finally {
+    clearSnapshot()
+  }
 }
 
 // Execute multi-step workflow using agent system

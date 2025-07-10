@@ -20,7 +20,7 @@ interface ExposureOutput {
   adjustment: number
   affectedImages: number
   message: string
-  targetingMode: 'selection' | 'all-images'
+  targetingMode: 'selection' | 'all-images' | 'auto-single'
 }
 
 // Create adapter class
@@ -88,11 +88,47 @@ Range: -100 (very dark) to +100 (very bright)`
     console.log('[ExposureToolAdapter] Exposure adjustment applied successfully')
     console.log('[ExposureToolAdapter] Final result: adjustment =', params.adjustment, '%')
     
+    // Generate descriptive message
+    let description = ''
+    const magnitude = Math.abs(params.adjustment)
+    
+    if (params.adjustment === 0) {
+      description = 'No change to exposure'
+    } else if (params.adjustment > 0) {
+      // Increased exposure (overexposed)
+      if (magnitude <= 25) {
+        description = 'Slightly brightened exposure'
+      } else if (magnitude <= 50) {
+        description = 'Moderately increased exposure'
+      } else if (magnitude <= 75) {
+        description = 'Significantly overexposed'
+      } else {
+        description = 'Dramatically blown out exposure'
+      }
+    } else {
+      // Decreased exposure (underexposed)
+      if (magnitude <= 25) {
+        description = 'Slightly darkened exposure'
+      } else if (magnitude <= 50) {
+        description = 'Moderately reduced exposure'
+      } else if (magnitude <= 75) {
+        description = 'Significantly underexposed'
+      } else {
+        description = 'Dramatically darkened exposure'
+      }
+    }
+    
+    // Add stop information if applicable
+    const stops = Math.abs(params.adjustment / 33)
+    const stopInfo = stops >= 0.5 ? ` (~${stops.toFixed(1)} stops)` : ''
+    
+    const message = `${description} (${params.adjustment > 0 ? '+' : ''}${params.adjustment}%${stopInfo}) on ${images.length} image${images.length !== 1 ? 's' : ''}`
+    
     return {
       success: true,
       adjustment: params.adjustment,
       affectedImages: images.length,
-      message: `Adjusted exposure by ${params.adjustment > 0 ? '+' : ''}${params.adjustment}%`,
+      message,
       targetingMode: context.targetingMode
     }
   }

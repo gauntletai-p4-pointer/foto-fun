@@ -20,7 +20,8 @@ interface SaturationOutput {
   previousValue: number
   newValue: number
   affectedImages: number
-  targetingMode: 'selection' | 'all-images'
+  targetingMode: 'selection' | 'all-images' | 'auto-single'
+  message?: string
 }
 
 /**
@@ -99,12 +100,47 @@ NEVER ask for exact values - always interpret the user's intent and choose an ap
     
     console.log('[SaturationToolAdapter] Saturation adjustment applied successfully')
     
+    // Generate descriptive message
+    let description = ''
+    const magnitude = Math.abs(params.adjustment)
+    
+    if (params.adjustment === 0) {
+      description = 'No change to saturation'
+    } else if (params.adjustment === -100) {
+      description = 'Converted to grayscale (removed all color)'
+    } else if (params.adjustment > 0) {
+      // Increased saturation
+      if (magnitude <= 20) {
+        description = 'Slightly enhanced color vibrancy'
+      } else if (magnitude <= 40) {
+        description = 'Moderately increased color intensity'
+      } else if (magnitude <= 70) {
+        description = 'Significantly boosted color saturation'
+      } else {
+        description = 'Dramatically intensified colors'
+      }
+    } else {
+      // Decreased saturation
+      if (magnitude <= 20) {
+        description = 'Slightly muted colors'
+      } else if (magnitude <= 40) {
+        description = 'Moderately desaturated colors'
+      } else if (magnitude <= 70) {
+        description = 'Significantly reduced color intensity'
+      } else {
+        description = 'Nearly removed all color'
+      }
+    }
+    
+    const message = `${description} (${params.adjustment > 0 ? '+' : ''}${params.adjustment}%) on ${images.length} image${images.length !== 1 ? 's' : ''}`
+    
     return {
       success: true,
       previousValue: 0, // In a real implementation, we'd track the current saturation
       newValue: params.adjustment,
       affectedImages: images.length,
-      targetingMode: context.targetingMode
+      targetingMode: context.targetingMode,
+      message
     }
   }
   

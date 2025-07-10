@@ -5,6 +5,59 @@ import { Loader2, Check, X, ChevronDown, ChevronRight } from 'lucide-react'
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
 
+// Define important fields for different tool categories
+const IMPORTANT_FIELDS: Record<string, string[]> = {
+  // Adjustment tools
+  brightness: ['adjustment', 'previousValue', 'newValue', 'affectedImages'],
+  contrast: ['adjustment', 'previousValue', 'newValue', 'affectedImages'],
+  saturation: ['adjustment', 'previousValue', 'newValue', 'affectedImages'],
+  exposure: ['adjustment', 'affectedImages'],
+  hue: ['previousValue', 'newValue', 'affectedImages'],
+  colorTemperature: ['adjustment'],
+  
+  // Transform tools
+  resize: ['mode', 'dimensions', 'scale'],
+  rotate: ['angle'],
+  flip: ['horizontal', 'vertical'],
+  crop: ['newDimensions', 'scale'],
+  
+  // Filter tools
+  blur: ['amount'],
+  sharpen: ['amount'],
+  grayscale: ['enabled'],
+  invert: ['enabled'],
+  sepia: ['intensity'],
+  
+  // Creation tools
+  addText: ['textId', 'bounds'],
+  generateImage: ['imageUrl', 'cost', 'metadata'],
+  
+  // Analysis tools
+  analyzeCanvas: ['analysis'],
+  
+  // Selection tools
+  canvasSelectionManager: ['action', 'selectedCount', 'objectInfo'],
+  
+  // Chain execution
+  executeToolChain: ['chainId', 'results', 'totalTime']
+}
+
+// Helper to determine if a field is important for a tool
+const isImportantField = (toolName: string, fieldName: string): boolean => {
+  // Normalize tool name (remove spaces, lowercase)
+  const normalizedTool = toolName.toLowerCase().replace(/\s+/g, '')
+  
+  // Check if we have specific important fields for this tool
+  const importantFields = IMPORTANT_FIELDS[normalizedTool]
+  if (importantFields) {
+    return importantFields.includes(fieldName)
+  }
+  
+  // For unknown tools, show common important fields
+  const commonImportantFields = ['adjustment', 'amount', 'dimensions', 'angle', 'scale', 'enabled', 'intensity']
+  return commonImportantFields.includes(fieldName)
+}
+
 // Props for the unified display
 interface UnifiedToolDisplayProps {
   toolName: string
@@ -53,6 +106,14 @@ export function UnifiedToolDisplay({
     if (value === null) return 'null'
     if (value === undefined) return 'undefined'
     return JSON.stringify(value, null, 2)
+  }
+  
+  // Format field names nicely
+  const formatFieldName = (key: string): string => {
+    return key
+      .replace(/([A-Z])/g, ' $1')
+      .replace(/^./, str => str.toUpperCase())
+      .trim()
   }
   
   return (
@@ -131,21 +192,99 @@ export function UnifiedToolDisplay({
           )}
           
           {/* Result - show for all successful operations */}
-          {state === 'output-available' && (
+          {state === 'output-available' && output && (
             <div className="space-y-1">
               <p className="text-xs font-medium text-muted-foreground">Result</p>
-              <div className="pl-3">
-                {output && typeof output === 'object' && 'message' in output ? (
-                  <p className="text-xs">{String(output.message)}</p>
-                ) : output && typeof output === 'object' && 'success' in output ? (
-                  <p className="text-xs text-green-600">Operation completed successfully</p>
-                ) : output ? (
-                  <pre className="text-xs font-mono overflow-auto max-h-32">
-                    {formatValue(output)}
-                  </pre>
-                ) : (
-                  <p className="text-xs text-green-600">Operation completed successfully</p>
-                )}
+              <div className="pl-3 space-y-1">
+                {(() => {
+                  // Check for new standardized format
+                  if ('summary' in output && output.summary) {
+                    return (
+                      <>
+                        <p className="text-xs">{String(output.summary)}</p>
+                        {output.details && typeof output.details === 'object' && (
+                          <div className="mt-1 space-y-1">
+                            {Object.entries(output.details).map(([key, value]) => (
+                              <div key={key} className="flex gap-2 text-xs">
+                                <span className="font-medium text-muted-foreground">{formatFieldName(key)}:</span>
+                                <span className="font-mono">
+                                  {typeof value === 'object' && value !== null
+                                    ? JSON.stringify(value, null, 2)
+                                    : formatValue(value)}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </>
+                    )
+                  }
+                  
+                  // Legacy format with message
+                  if ('message' in output && output.message) {
+                    const importantFields: Array<[string, unknown]> = []
+                    
+                    // Collect important fields for this tool
+                    Object.entries(output).forEach(([key, value]) => {
+                      if (key !== 'success' && key !== 'message' && key !== 'targetingMode') {
+                        if (isImportantField(toolName, key)) {
+                          importantFields.push([key, value])
+                        }
+                      }
+                    })
+                    
+                    return (
+                      <>
+                        <p className="text-xs">{String(output.message)}</p>
+                        {importantFields.length > 0 && (
+                          <div className="mt-1 space-y-1">
+                            {importantFields.map(([key, value]) => (
+                              <div key={key} className="flex gap-2 text-xs">
+                                <span className="font-medium text-muted-foreground">{formatFieldName(key)}:</span>
+                                <span className="font-mono">
+                                  {typeof value === 'object' && value !== null
+                                    ? JSON.stringify(value, null, 2)
+                                    : formatValue(value)}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </>
+                    )
+                  }
+                  
+                  // No message field - show important fields only
+                  const importantFields: Array<[string, unknown]> = []
+                  
+                  Object.entries(output).forEach(([key, value]) => {
+                    if (key !== 'success' && key !== 'targetingMode') {
+                      if (isImportantField(toolName, key)) {
+                        importantFields.push([key, value])
+                      }
+                    }
+                  })
+                  
+                  if (importantFields.length > 0) {
+                    return (
+                      <div className="space-y-1">
+                        {importantFields.map(([key, value]) => (
+                          <div key={key} className="flex gap-2 text-xs">
+                            <span className="font-medium text-muted-foreground">{formatFieldName(key)}:</span>
+                            <span className="font-mono">
+                              {typeof value === 'object' && value !== null
+                                ? JSON.stringify(value, null, 2)
+                                : formatValue(value)}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )
+                  }
+                  
+                  // Fallback
+                  return <p className="text-xs text-green-600">Operation completed successfully</p>
+                })()}
               </div>
             </div>
           )}

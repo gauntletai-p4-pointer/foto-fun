@@ -17,7 +17,7 @@ interface FlipOutput {
   horizontal: boolean
   vertical: boolean
   message: string
-  targetingMode: 'selection' | 'all-images'
+  targetingMode: 'selection' | 'all-images' | 'auto-single'
 }
 
 // Create adapter class
@@ -103,13 +103,25 @@ NEVER ask which direction - interpret the user's intent.`
       if (params.horizontal) flips.push('horizontally')
       if (params.vertical) flips.push('vertically')
       
+      // Generate descriptive message
+      let description = ''
+      if (params.horizontal && params.vertical) {
+        description = 'Flipped both horizontally and vertically (180° rotation)'
+      } else if (params.horizontal) {
+        description = 'Flipped horizontally (mirrored)'
+      } else if (params.vertical) {
+        description = 'Flipped vertically (upside down)'
+      } else {
+        description = 'No flip applied'
+      }
+      
+      const message = `${description} for ${images.length} image${images.length !== 1 ? 's' : ''}`
+      
       return {
         success: true,
         horizontal: params.horizontal || false,
         vertical: params.vertical || false,
-        message: flips.length > 0 
-          ? `Flipped ${images.length} image(s) ${flips.join(' and ')}`
-          : 'No flip applied',
+        message,
         targetingMode: context.targetingMode
       }
     } catch (error) {

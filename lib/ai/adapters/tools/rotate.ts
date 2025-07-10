@@ -18,7 +18,7 @@ interface RotateOutput {
   success: boolean
   angle: number
   message: string
-  targetingMode: 'selection' | 'all-images'
+  targetingMode: 'selection' | 'all-images' | 'auto-single'
 }
 
 // Create adapter class
@@ -98,10 +98,33 @@ Range: -360 to +360 degrees`
         }
       }
       
+      // Apply the rotation using the base class helper with selection snapshot
+      await this.applyToolOperation(this.tool.id, 'angle', params.angle, context.canvas, selectionSnapshot)
+      
+      // Generate descriptive message
+      let description = ''
+      const absAngle = Math.abs(params.angle)
+      
+      if (params.angle === 0) {
+        description = 'No rotation applied'
+      } else if (absAngle === 90) {
+        description = `Rotated 90° ${params.angle > 0 ? 'clockwise' : 'counter-clockwise'}`
+      } else if (absAngle === 180) {
+        description = 'Rotated 180° (upside down)'
+      } else if (absAngle === 270) {
+        description = `Rotated 270° ${params.angle > 0 ? 'clockwise' : 'counter-clockwise'}`
+      } else if (absAngle < 45) {
+        description = `Slightly rotated ${absAngle}° ${params.angle > 0 ? 'clockwise' : 'counter-clockwise'}`
+      } else {
+        description = `Rotated ${absAngle}° ${params.angle > 0 ? 'clockwise' : 'counter-clockwise'}`
+      }
+      
+      const message = `${description} for ${images.length} image${images.length !== 1 ? 's' : ''}`
+      
       return {
         success: true,
         angle: params.angle,
-        message: `Rotated ${images.length} image(s) by ${params.angle}° ${params.angle > 0 ? 'clockwise' : 'counter-clockwise'}`,
+        message,
         targetingMode: context.targetingMode
       }
     } catch (error) {

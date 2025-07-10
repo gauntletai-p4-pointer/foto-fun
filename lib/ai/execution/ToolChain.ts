@@ -40,7 +40,7 @@ export interface ChainResult {
   totalTime: number
   context: {
     targetImages: number
-    targetingMode: 'selection' | 'all-images'
+    targetingMode: 'selection' | 'all-images' | 'auto-single'
   }
 }
 

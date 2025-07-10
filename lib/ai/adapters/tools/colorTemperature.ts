@@ -18,7 +18,7 @@ interface ColorTemperatureOutput {
   success: boolean
   adjustment: number
   message: string
-  targetingMode: 'selection' | 'all-images'
+  targetingMode: 'selection' | 'all-images' | 'auto-single'
 }
 
 // Create adapter class
@@ -71,10 +71,42 @@ Range: -100 (very cool/blue) to +100 (very warm/orange)`
       // Apply the color temperature adjustment using the base class helper with selection snapshot
       await this.applyToolOperation(this.tool.id, 'temperature', params.adjustment, context.canvas, selectionSnapshot)
       
+      // Generate descriptive message
+      let description = ''
+      const magnitude = Math.abs(params.adjustment)
+      
+      if (params.adjustment === 0) {
+        description = 'No change to color temperature'
+      } else if (params.adjustment > 0) {
+        // Warmer (toward orange/red)
+        if (magnitude <= 20) {
+          description = 'Slightly warmed color temperature'
+        } else if (magnitude <= 40) {
+          description = 'Moderately warmed tones'
+        } else if (magnitude <= 70) {
+          description = 'Significantly warmed to golden tones'
+        } else {
+          description = 'Dramatically shifted to warm orange/red tones'
+        }
+      } else {
+        // Cooler (toward blue)
+        if (magnitude <= 20) {
+          description = 'Slightly cooled color temperature'
+        } else if (magnitude <= 40) {
+          description = 'Moderately cooled tones'
+        } else if (magnitude <= 70) {
+          description = 'Significantly cooled to blue tones'
+        } else {
+          description = 'Dramatically shifted to cold blue tones'
+        }
+      }
+      
+      const message = `${description} (${params.adjustment > 0 ? '+' : ''}${params.adjustment}%) on ${images.length} image${images.length !== 1 ? 's' : ''}`
+      
       return {
         success: true,
         adjustment: params.adjustment,
-        message: `Adjusted color temperature by ${params.adjustment > 0 ? '+' : ''}${params.adjustment}% (${params.adjustment > 0 ? 'warmer' : 'cooler'})`,
+        message,
         targetingMode: context.targetingMode
       }
     } catch (error) {

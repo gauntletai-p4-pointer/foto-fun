@@ -2,6 +2,8 @@ import { AlertTriangle } from 'lucide-react'
 import { AgentWorkflowDisplay } from '../AgentWorkflowDisplay'
 import { AgentStatusDisplay } from '../AgentStatusDisplay'
 import { UnifiedToolDisplay } from './UnifiedToolDisplay'
+import { EvaluationResultDisplay } from './EvaluationResultDisplay'
+import { useState, useEffect } from 'react'
 
 interface ToolExecution {
   toolName: string
@@ -64,6 +66,8 @@ interface AgentWorkflowOutput {
     details?: string
     timestamp: string
   }>
+  iterationCount?: number
+  maxIterations?: number
 }
 
 interface ToolPartRendererProps {
@@ -93,6 +97,36 @@ export function ToolPartRenderer({
   
   // AI SDK v5 tool part structure
   const toolPart = part
+  
+  // State to track chain step results for re-rendering
+  const [chainStepResults, setChainStepResults] = useState<Record<number, {
+    state: 'input-streaming' | 'input-available' | 'output-available' | 'output-error'
+    output?: Record<string, unknown>
+    error?: string
+  }>>({})
+  
+  // Effect to update step results when chain completes
+  useEffect(() => {
+    if (toolName === 'executeToolChain' && toolPart.state === 'output-available' && toolPart.output) {
+      const chainOutput = toolPart.output as unknown as ExecuteToolChainOutput
+      if (chainOutput?.results) {
+        console.log('[ToolPartRenderer] Chain completed, updating step results')
+        
+        // Build new step results
+        const newStepResults: typeof chainStepResults = {}
+        chainOutput.results.forEach((result, idx) => {
+          newStepResults[idx] = {
+            state: result.success ? 'output-available' : 'output-error',
+            output: result.result as Record<string, unknown> | undefined,
+            error: result.error
+          }
+        })
+        
+        // Update state to trigger re-render
+        setChainStepResults(newStepResults)
+      }
+    }
+  }, [toolName, toolPart.state, toolPart.output])
   
   // Check if this is a cost approval request
   if (toolName === 'requestCostApproval' && toolPart.output) {
@@ -133,6 +167,66 @@ export function ToolPartRenderer({
   const toolOutput = (toolPart.state === 'output-available' || toolPart.state === 'output-error') 
     ? toolPart.output as AgentWorkflowOutput
     : undefined
+  
+  // Extract tool input data for active workflows
+  const toolInput = (toolPart.state === 'input-streaming' || toolPart.state === 'input-available')
+    ? toolPart.input as Record<string, unknown>
+    : undefined
+  
+  // Show active status updates during agent workflow execution
+  if (isAgentExecution && (toolPart.state === 'input-streaming' || toolPart.state === 'input-available')) {
+    // For input-streaming, we show a thinking indicator
+    if (toolPart.state === 'input-streaming') {
+      return (
+        <div className="space-y-2">
+          <div className="p-3 bg-muted/30 rounded-lg border">
+            <div className="flex items-center gap-2">
+              <div className="flex gap-1">
+                <div className="w-2 h-2 bg-primary rounded-full animate-pulse" />
+                <div className="w-2 h-2 bg-primary rounded-full animate-pulse delay-75" />
+                <div className="w-2 h-2 bg-primary rounded-full animate-pulse delay-150" />
+              </div>
+              <span className="text-sm font-medium">Agent is analyzing your request...</span>
+            </div>
+            <div className="mt-2 space-y-1 text-xs text-muted-foreground">
+              <div className="flex items-center gap-2">
+                <div className="w-1 h-1 bg-muted-foreground rounded-full" />
+                <span>Capturing screenshot</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-1 h-1 bg-muted-foreground rounded-full" />
+                <span>Analyzing with computer vision</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-1 h-1 bg-muted-foreground rounded-full" />
+                <span>Creating enhancement plan</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )
+    }
+    
+    // Check if we have status updates in the input (for active workflows)
+    const inputWithStatus = toolInput as { statusUpdates?: Array<{
+      type: string
+      message: string
+      details?: string
+      timestamp: string
+    }> }
+    const activeStatusUpdates = inputWithStatus?.statusUpdates || []
+    
+    if (activeStatusUpdates.length > 0) {
+      return (
+        <div className="space-y-2">
+          <AgentStatusDisplay 
+            statusUpdates={activeStatusUpdates}
+            isActive={true} // Active workflow
+          />
+        </div>
+      )
+    }
+  }
   
   // Handle agent workflow approval required
   if (isAgentExecution && toolOutput?.approvalRequired && toolOutput?.step) {
@@ -218,6 +312,7 @@ export function ToolPartRenderer({
     console.log('[ToolPartRenderer] Has output:', !!chainOutput)
     console.log('[ToolPartRenderer] Output results:', chainOutput?.results)
     console.log('[ToolPartRenderer] Input steps:', chainInput?.steps)
+    console.log('[ToolPartRenderer] Chain step results state:', chainStepResults)
     
     // Determine if chain is completed
     const isChainCompleted = toolPart.state === 'output-available' && chainOutput?.results
@@ -241,17 +336,28 @@ export function ToolPartRenderer({
         {chainInput?.steps && (
           <div className="space-y-2">
             {chainInput.steps.map((step, idx) => {
-              // Get the result for this step if chain is completed
-              const stepResult = isChainCompleted ? chainOutput.results[idx] : undefined
+              // Use state-tracked results if available, otherwise derive from chain output
+              const stepResultFromState = chainStepResults[idx]
+              const stepResultFromOutput = isChainCompleted ? chainOutput.results[idx] : undefined
               
               // Determine the state for this step
               let stepState: 'input-streaming' | 'input-available' | 'output-available' | 'output-error'
-              if (!isChainCompleted) {
+              let stepOutput: Record<string, unknown> | undefined
+              let stepError: string | undefined
+              
+              if (stepResultFromState) {
+                // Use state-tracked result (after chain completion)
+                stepState = stepResultFromState.state
+                stepOutput = stepResultFromState.output
+                stepError = stepResultFromState.error
+              } else if (!isChainCompleted) {
                 // Chain is still running or pending
                 stepState = toolPart.state === 'input-streaming' ? 'input-streaming' : 'input-available'
-              } else if (stepResult) {
-                // Chain is completed, use result status
-                stepState = stepResult.success ? 'output-available' : 'output-error'
+              } else if (stepResultFromOutput) {
+                // Chain just completed, use output result
+                stepState = stepResultFromOutput.success ? 'output-available' : 'output-error'
+                stepOutput = stepResultFromOutput.result as Record<string, unknown> | undefined
+                stepError = stepResultFromOutput.error
               } else {
                 // Fallback (shouldn't happen)
                 stepState = 'input-available'
@@ -260,10 +366,38 @@ export function ToolPartRenderer({
               console.log(`[ToolPartRenderer] Step ${idx} rendering:`, {
                 tool: step.tool,
                 state: stepState,
-                hasResult: !!stepResult,
-                resultSuccess: stepResult?.success,
-                resultData: stepResult?.result
+                hasStateResult: !!stepResultFromState,
+                hasOutputResult: !!stepResultFromOutput,
+                output: stepOutput,
+                error: stepError
               })
+              
+              // Process the output to ensure it has the right structure
+              let processedOutput: Record<string, unknown> | undefined = undefined
+              
+              if (stepState === 'output-available' && (stepOutput || stepResultFromOutput?.result)) {
+                const rawResult = stepOutput || stepResultFromOutput?.result
+                
+                // If result is already an object with success property, use it
+                if (rawResult && typeof rawResult === 'object' && 'success' in rawResult) {
+                  processedOutput = rawResult as Record<string, unknown>
+                } 
+                // Otherwise, wrap it in a standard format
+                else if (rawResult) {
+                  processedOutput = {
+                    success: true,
+                    result: rawResult,
+                    message: `${step.tool} completed`
+                  }
+                }
+                // If no result data but step succeeded, show a success message
+                else {
+                  processedOutput = {
+                    success: true,
+                    message: `${step.tool} completed successfully`
+                  }
+                }
+              }
               
               return (
                 <UnifiedToolDisplay
@@ -271,14 +405,8 @@ export function ToolPartRenderer({
                   toolName={step.tool}
                   state={stepState}
                   input={step.params as Record<string, unknown>}
-                  output={stepResult?.success && stepResult.result ? 
-                    stepResult.result as Record<string, unknown> : 
-                    stepResult?.success ? { 
-                      success: true,
-                      message: `${step.tool} completed successfully`
-                    } : undefined
-                  }
-                  errorText={stepResult?.error}
+                  output={processedOutput}
+                  errorText={stepError}
                   isPartOfChain={true}
                 />
               )
@@ -287,6 +415,32 @@ export function ToolPartRenderer({
         )}
       </div>
     )
+  }
+  
+  // Check if this is the captureAndEvaluate tool
+  if (toolName === 'captureAndEvaluate' && toolPart.state === 'output-available' && toolPart.output) {
+    const evaluationResult = toolPart.output as {
+      type?: string
+      evaluation?: string
+      successScore?: number
+      goalsMet?: boolean
+      iterationCount?: number
+      shouldContinue?: boolean
+      message?: string
+    }
+    
+    if (evaluationResult.type === 'evaluation-result' && evaluationResult.evaluation) {
+      return (
+        <EvaluationResultDisplay
+          evaluation={evaluationResult.evaluation}
+          successScore={evaluationResult.successScore || 0}
+          goalsMet={evaluationResult.goalsMet || false}
+          iterationCount={evaluationResult.iterationCount || 1}
+          shouldContinue={evaluationResult.shouldContinue || false}
+          message={evaluationResult.message || 'Evaluation complete'}
+        />
+      )
+    }
   }
   
   // Default tool rendering using UnifiedToolDisplay

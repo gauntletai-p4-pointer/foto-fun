@@ -16,7 +16,7 @@ interface GrayscaleOutput {
   success: boolean
   enabled: boolean
   message: string
-  targetingMode: 'selection' | 'all-images'
+  targetingMode: 'selection' | 'all-images' | 'auto-single'
 }
 
 // Create adapter class
@@ -51,31 +51,21 @@ Common grayscale requests:
       const { SelectionSnapshotFactory } = await import('@/lib/ai/execution/SelectionSnapshot')
       const selectionSnapshot = SelectionSnapshotFactory.fromObjects(images)
       
-      // Activate the grayscale tool
-      await this.activateTool()
+      // Apply the grayscale using the base class helper with selection snapshot
+      await this.applyToolOperation(this.tool.id, 'action', 'toggle', context.canvas, selectionSnapshot)
       
-      // Set selection snapshot on the tool
-      const { useToolStore } = await import('@/store/toolStore')
-      const tool = useToolStore.getState().getTool(this.tool.id)
-      if (tool && 'setSelectionSnapshot' in tool && typeof tool.setSelectionSnapshot === 'function') {
-        tool.setSelectionSnapshot(selectionSnapshot)
-      }
+      // Generate descriptive message
+      const description = params.enable
+        ? 'Converted to black and white'
+        : 'Restored original colors'
       
-      try {
-        // Trigger the toggle action
-        await this.updateToolOption('action', 'toggle')
-      } finally {
-        // Clear selection snapshot
-        if (tool && 'setSelectionSnapshot' in tool && typeof tool.setSelectionSnapshot === 'function') {
-          tool.setSelectionSnapshot(null)
-        }
-      }
+      const message = `${description} for ${images.length} image${images.length !== 1 ? 's' : ''}`
       
       return {
+        success: true,
         enabled: params.enable,
-        message: params.enable 
-          ? `Converted ${images.length} image(s) to grayscale`
-          : `Restored color to ${images.length} image(s)`
+        message,
+        targetingMode: context.targetingMode
       }
     })
   }

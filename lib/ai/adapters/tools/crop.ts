@@ -23,7 +23,8 @@ interface CropOutput {
     height: number
   }
   scale?: number
-  targetingMode: 'selection' | 'all-images'
+  targetingMode: 'selection' | 'all-images' | 'auto-single'
+  message?: string
 }
 
 /**
@@ -102,6 +103,16 @@ NEVER ask for exact coordinates - calculate them based on the current canvas siz
     // Calculate scale for return value
     const scale = Math.min(canvasWidth / params.width, canvasHeight / params.height)
     
+    // Generate descriptive message
+    const originalSize = `${canvasWidth}x${canvasHeight}`
+    const newSize = `${params.width}x${params.height}`
+    const percentReduction = Math.round((1 - (params.width * params.height) / (canvasWidth * canvasHeight)) * 100)
+    
+    let message = `Cropped canvas from ${originalSize} to ${newSize}`
+    if (percentReduction > 0) {
+      message += ` (${percentReduction}% size reduction)`
+    }
+    
     return {
       success: true,
       newDimensions: {
@@ -109,7 +120,8 @@ NEVER ask for exact coordinates - calculate them based on the current canvas siz
         height: canvas.getHeight()
       },
       scale: scale,
-      targetingMode: context.targetingMode
+      targetingMode: context.targetingMode,
+      message
     }
   }
   

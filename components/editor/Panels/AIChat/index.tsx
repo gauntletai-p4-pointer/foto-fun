@@ -6,11 +6,12 @@ import { useState, useCallback, useRef, useEffect } from 'react'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { useCanvasStore } from '@/store/canvasStore'
 import { useAISettings } from '@/hooks/useAISettings'
+import type { FabricObject } from 'fabric'
 
 // Import extracted components
 import { ChatInput } from './components/ChatInput'
 import { MessageRenderer } from './components/MessageRenderer'
-import { WorkflowProgressIndicator } from './WorkflowProgressIndicator'
+import { AgentThinkingDisplay } from './components/AgentThinkingDisplay'
 import { useToolCallHandler } from './hooks/useToolCallHandler'
 import { getAIToolNames } from './utils/messageParser'
 
@@ -39,15 +40,46 @@ const QUICK_ACTIONS = [
   "Crop to square"
 ]
 
+interface ThinkingStep {
+  id: string
+  type: 'screenshot' | 'vision' | 'planning' | 'executing' | 'complete'
+  message: string
+  timestamp: string
+  isActive: boolean
+}
+
 export function AIChat() {
   const scrollAreaRef = useRef<HTMLDivElement>(null)
   const [toolNames, setToolNames] = useState<string[]>([])
   const [quickActions, setQuickActions] = useState<string[]>([])
+  const [agentThinkingSteps, setAgentThinkingSteps] = useState<ThinkingStep[]>([])
+  const [isAgentThinking, setIsAgentThinking] = useState(false)
   const { waitForReady, hasContent } = useCanvasStore()
   const { settings: aiSettings } = useAISettings()
   
   // Use the custom hook for tool call handling
-  const { handleToolCall, workflowProgress } = useToolCallHandler(waitForReady)
+  const { handleToolCall } = useToolCallHandler({
+    waitForReady,
+    onAgentThinkingStart: () => {
+      setIsAgentThinking(true)
+      setAgentThinkingSteps([])
+    },
+    onAgentThinkingEnd: () => {
+      setIsAgentThinking(false)
+      // Mark all steps as inactive
+      setAgentThinkingSteps(prev => 
+        prev.map(step => ({ ...step, isActive: false }))
+      )
+    },
+    onAgentThinkingStep: (step) => {
+      setAgentThinkingSteps(prev => {
+        // Mark previous steps as inactive
+        const updated = prev.map(s => ({ ...s, isActive: false }))
+        // Add new step as active
+        return [...updated, { ...step, isActive: true }]
+      })
+    }
+  })
   
   // Initialize adapter registry and get tool names
   useEffect(() => {
@@ -104,6 +136,34 @@ export function AIChat() {
     const canvasStore = useCanvasStore.getState()
     const { fabricCanvas } = canvasStore
     
+    // Capture selection snapshot at request time
+    let selectionSnapshot = null
+    if (fabricCanvas) {
+      const activeObjects = fabricCanvas.getActiveObjects()
+      
+      // Create a lightweight snapshot of the selection
+      selectionSnapshot = {
+        objectCount: activeObjects.length,
+        objectIds: activeObjects.map(obj => {
+          // Try to get ID, or generate a temporary one based on object properties
+          const objWithId = obj as FabricObject & { id?: string }
+          const objId = objWithId.id || `${obj.type}_${obj.left}_${obj.top}_${Date.now()}`
+          return objId
+        }),
+        types: Array.from(new Set(activeObjects.map(obj => obj.type || 'unknown'))),
+        isEmpty: activeObjects.length === 0,
+        hasImages: activeObjects.some(obj => obj.type === 'image'),
+        // Store actual object references for this request
+        _objects: activeObjects
+      }
+      
+      console.log('[AIChat] Captured selection snapshot:', {
+        count: selectionSnapshot.objectCount,
+        types: selectionSnapshot.types,
+        isEmpty: selectionSnapshot.isEmpty
+      })
+    }
+    
     // Build canvas context with fresh state
     const canvasContext = fabricCanvas ? {
       dimensions: {
@@ -111,7 +171,30 @@ export function AIChat() {
         height: fabricCanvas.getHeight()
       },
       hasContent: hasContent(),
-      objectCount: fabricCanvas.getObjects().length
+      objectCount: fabricCanvas.getObjects().length,
+      // ADD: Selection state for AI awareness
+      selection: {
+        count: fabricCanvas.getActiveObjects().length,
+        hasImages: fabricCanvas.getActiveObjects().some(obj => obj.type === 'image'),
+        hasText: fabricCanvas.getActiveObjects().some(obj => 
+          obj.type === 'text' || obj.type === 'i-text' || obj.type === 'textbox'
+        ),
+        // For single-object scenarios
+        isSingleImage: fabricCanvas.getActiveObjects().length === 1 && 
+                       fabricCanvas.getActiveObjects()[0].type === 'image'
+      },
+      // ADD: Canvas state hints for smart inference
+      singleImageCanvas: fabricCanvas.getObjects().length === 1 && 
+                         fabricCanvas.getObjects()[0].type === 'image',
+      // ADD: Selection snapshot data for request-time capture
+      selectionSnapshot: selectionSnapshot ? {
+        objectCount: selectionSnapshot.objectCount,
+        objectIds: selectionSnapshot.objectIds,
+        types: selectionSnapshot.types,
+        isEmpty: selectionSnapshot.isEmpty,
+        hasImages: selectionSnapshot.hasImages,
+        _objects: selectionSnapshot._objects
+      } : null
     } : null
     
     // Send message with context in body (matching what the server expects)
@@ -134,6 +217,14 @@ export function AIChat() {
     <div className="flex flex-col h-full bg-background">
       <ScrollArea ref={scrollAreaRef} className="flex-1 px-4">
         <div className="py-4 space-y-4">
+          {/* Agent Thinking Display */}
+          <AgentThinkingDisplay
+            isThinking={isAgentThinking}
+            steps={agentThinkingSteps}
+            autoCollapse={true}
+            className="mb-4"
+          />
+          
           {/* Welcome message */}
           {messages.length === 0 && (
             <div className="text-center py-8">
@@ -160,11 +251,6 @@ export function AIChat() {
             </div>
           )}
           
-          {/* Show workflow progress if active */}
-          {workflowProgress && (
-            <WorkflowProgressIndicator progress={workflowProgress} />
-          )}
-          
           {/* Messages */}
           {messages.map((message) => (
             <MessageRenderer
@@ -178,7 +264,7 @@ export function AIChat() {
           ))}
           
           {/* Loading indicator */}
-          {(status === 'submitted' || status === 'streaming') && !workflowProgress && (
+          {(status === 'submitted' || status === 'streaming') && (
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <div className="w-2 h-2 bg-primary rounded-full animate-pulse" />
               <div className="w-2 h-2 bg-primary rounded-full animate-pulse delay-75" />

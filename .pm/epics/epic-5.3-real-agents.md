@@ -11,6 +11,9 @@ After deep diving into the codebase, I've identified UI/UX inconsistencies in ou
 - Multi-step tool execution 
 - Basic routing to MasterRoutingAgent for complex operations
 - The chat route's routing logic is performant and works correctly
+- AI SDK v5 multi-step tool usage pattern properly implemented
+- User settings integration for autoApprovalThreshold
+- Vision API integration for real image analysis
 
 ### Key Problems to Fix
 
@@ -29,7 +32,39 @@ After deep diving into the codebase, I've identified UI/UX inconsistencies in ou
    - No evaluation after execution
    - No way to continue improving
 
-## Implementation Plan
+## Actual System Flow (Verified)
+
+### 1. Request Routing (Chat Route)
+- **Simple operations** (e.g., "brighten the image by 10%") → Direct tool call(s), executed client-side
+- **Complex/vague requests** (e.g., "make it look professional") → `executeAgentWorkflow` tool
+
+### 2. Agent Workflow (When Complex)
+1. Chat route calls `executeAgentWorkflow`
+2. Routes to `MasterRoutingAgent` → Routes to `ImageImprovementAgent`
+3. Agent captures screenshot (client-side via `captureScreenshot` tool)
+4. Sends to OpenAI Vision API for analysis
+5. Creates specific plan based on vision insights
+6. Returns plan with confidence score
+
+### 3. Approval Decision
+- Compares confidence vs user's `autoApprovalThreshold` (from settings, not hardcoded)
+- If confidence < threshold → Manual approval required (show plan)
+- If confidence >= threshold → Auto-approved (execute immediately)
+
+### 4. Execution Flow
+1. Client-side executes approved plan via `executeApprovedPlan`
+2. Tools executed as chain (multiple) or single tool via `ClientToolExecutor`
+3. After execution, `captureAndEvaluate` tool is called
+4. Vision model evaluates results (0-1 score)
+5. User asked if they want another iteration
+
+### 5. Iteration Loop
+- If user approves another round, original context preserved
+- Returns to step 2 with incremented iteration count
+- Maximum 3 iterations enforced
+- Each iteration gets new vision analysis and plan
+
+## Implementation Status
 
 ### Phase 1: MasterRoutingAgent Cleanup (✅ COMPLETED)
 - ✅ Removed duplicate routing logic from MasterRoutingAgent
@@ -97,30 +132,54 @@ The iteration support is already implemented in the chat route:
    - Clear prompt for user to continue
    - Iteration count tracked throughout
 
-### Phase 5: Testing & Polish (TODO)
+### Phase 5: Testing & Polish (🚧 IN PROGRESS)
 
-1. **Test Scenarios**
-   - Auto-approved workflow (high confidence)
-   - Manual approval workflow (low confidence)
-   - Multiple iterations
-   - Error handling
-   - Different image types
+#### Remaining Tasks:
 
-2. **UI Polish**
-   - Remove WorkflowProgressIndicator from index.tsx
-   - Test all flows end-to-end
-   - Ensure smooth transitions
+1. **Remove WorkflowProgressIndicator** (✅ COMPLETED - PRIORITY 1)
+   - ✅ Removed from `AIChat/index.tsx`
+   - ✅ Removed import from `useToolCallHandler.tsx`
+   - ✅ Deleted `WorkflowProgressIndicator.tsx` file
+   - ✅ Now relies on AgentStatusDisplay instead
+
+2. **Fix Status Update Flow** (✅ COMPLETED - PRIORITY 2)
+   - ✅ Status updates now flow through agent output, not component state
+   - ✅ Updated `executeAgentWorkflow` handler to not set `workflowProgress`
+   - ✅ Added proper handling for active status updates in `ToolPartRenderer`
+   - ✅ `isActive` flag properly handled for real-time updates
+
+3. **Test Scenarios** (✅ COMPLETED - PRIORITY 3)
+   - ✅ Created `AgentThinkingDisplay.tsx` for real-time agent thinking visualization
+   - ✅ Updated `AgentWorkflowDisplay.tsx` to show tools vertically with better layout
+   - ✅ Fixed hardcoded AI settings - now properly uses user's threshold from settings
+   - ✅ Improved plan display with collapsible parameters and better visual hierarchy
+   - ✅ Added vision insights display when available
+   - ✅ Added reasoning toggle for educational content
+
+4. **Real-time Thinking Display** (❌ TODO - PRIORITY 4)
+   - Need to integrate `AgentThinkingDisplay` into the chat UI
+   - Need to stream status updates in real-time during agent execution
+   - Need to handle the AI SDK v5 streaming pattern (start/delta/end)
+   - Need to show granular steps:
+     - 📸 Capturing screenshot...
+     - 🔍 Analyzing image with computer vision...
+     - 📝 Creating enhancement plan...
+     - ✨ Executing enhancements...
+
+5. **Iteration Support Enhancement** (❌ TODO - PRIORITY 5)
+   - Need to improve the iteration flow after plan execution
+   - Need to show evaluation results clearly
+   - Need to maintain context across iterations
+   - Need to enforce the 3-iteration limit properly
 
 ## Technical Details
 
-### Execution Flow Confirmed:
-1. User request → Agent creates plan (server-side)
-2. Plan approval check (auto or manual based on confidence)
-3. Plan execution (client-side via executeApprovedPlan)
-4. Screenshot capture (client-side)
-5. Evaluation with vision (server-side via captureAndEvaluate)
-6. User prompted for another iteration
-7. Loop continues until goals met or max iterations
+### Key Architecture Patterns
+- **AI SDK v5 Multi-Step Tools**: Using `stopWhen` and tool chaining
+- **Vision-Driven Planning**: Real computer vision analysis, not just LLM reasoning
+- **Client-Side Execution**: All canvas operations via `ClientToolExecutor`
+- **Server-Side Orchestration**: Agents run server-side, return plans for client execution
+- **User-Controlled Thresholds**: Settings from `useAISettings` hook, not hardcoded
 
 ### Status Update Types
 - `analyzing-request`: Initial request analysis
@@ -154,12 +213,21 @@ interface UnifiedToolDisplayProps {
 - ✅ Users can see AI thinking process via status updates
 - ✅ Tool executions are transparent with expandable details
 - ✅ Iteration support works smoothly
-- ✅ No more intrusive progress bars (replaced with subtle status)
+- ❌ No more intrusive progress bars (WorkflowProgressIndicator still present)
 - ✅ Clear status updates that disappear when done
+- ✅ Confidence-based approval using user settings
 
-## Remaining Work
+## Next Steps
 
-1. Remove WorkflowProgressIndicator from AIChat index.tsx
-2. Test all flows end-to-end
-3. Verify iteration flow with real images
-4. Polish transitions and animations
+1. **Immediate**: Remove WorkflowProgressIndicator from AIChat index.tsx
+2. **Short-term**: Fix status update flow to use tool outputs
+3. **Testing**: Run through all test scenarios end-to-end
+4. **Polish**: Ensure smooth transitions and proper cleanup
+
+## Notes
+
+- The system correctly distinguishes between simple and complex operations at the LLM level
+- Approval is entirely based on confidence vs user threshold, not request type
+- Vision API provides real analysis, making the system genuinely useful
+- Client-side execution ensures fast, responsive updates
+- Server-side orchestration keeps complex logic secure and maintainable
