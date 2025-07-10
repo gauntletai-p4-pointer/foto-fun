@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { IText, Textbox } from 'fabric'
+import type { CanvasObject } from '@/lib/editor/canvas/types'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Slider } from '@/components/ui/slider'
 import { Input } from '@/components/ui/input'
@@ -10,7 +10,7 @@ import { TextLayerStyles, type StrokeOptions } from '@/lib/editor/text/effects'
 import { cn } from '@/lib/utils'
 
 interface StrokeSectionProps {
-  object: IText | Textbox
+  object: CanvasObject | null
   onChange: () => void
 }
 
@@ -21,6 +21,11 @@ export function StrokeSection({ object, onChange }: StrokeSectionProps) {
     width: 2,
     position: 'center',
   })
+  
+  // Type guard for text objects
+  if (!object || (object.type !== 'text' && object.type !== 'verticalText')) {
+    return null
+  }
   
   // Check if object has stroke on mount
   useEffect(() => {

@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { BaseToolAdapter } from '../base'
+import { FilterToolAdapter } from '../base'
 import type { CanvasContext } from '@/lib/ai/tools/canvas-bridge'
 import type { ExecutionContext } from '@/lib/events/execution/ExecutionContext'
 import { brightnessTool } from '@/lib/editor/tools/adjustments/brightnessTool'
@@ -17,14 +17,14 @@ interface BrightnessOutput {
   success: boolean
   adjustment: number
   message: string
-  targetingMode: 'selection' | 'auto-single'
+  targetingMode: 'selection' | 'auto-single' | 'all' | 'none'
 }
 
 /**
  * Adapter for the brightness adjustment tool
  * Provides AI-compatible interface for adjusting image brightness
  */
-export class BrightnessToolAdapter extends BaseToolAdapter<BrightnessInput, BrightnessOutput> {
+export class BrightnessToolAdapter extends FilterToolAdapter<BrightnessInput, BrightnessOutput> {
   tool = brightnessTool
   aiName = 'adjust_brightness'
   description = `Adjust the brightness of images. 
@@ -47,71 +47,45 @@ export class BrightnessToolAdapter extends BaseToolAdapter<BrightnessInput, Brig
   
   inputSchema = brightnessParameters
   
+  protected getFilterType(): string {
+    return 'brightness'
+  }
+  
+  protected createFilter(params: BrightnessInput): any {
+    return {
+      type: 'brightness',
+      brightness: params.adjustment / 100 // Convert percentage to decimal
+    }
+  }
+  
+  protected shouldApplyFilter(params: BrightnessInput): boolean {
+    return params.adjustment !== 0
+  }
+  
+  protected getActionVerb(): string {
+    return 'adjust brightness'
+  }
+  
   async execute(
     params: BrightnessInput, 
     context: CanvasContext,
     executionContext?: ExecutionContext
   ): Promise<BrightnessOutput> {
-    try {
-      console.log(`[BrightnessAdapter] Execute called with adjustment: ${params.adjustment}`)
-      
-      const canvas = context.canvas
-      if (!canvas) {
-        throw new Error('Canvas is required but not provided in context')
-      }
-      
-      // Get target images from context
-      const images = context.targetImages
-      
-      if (images.length === 0) {
-        throw new Error('No images found to adjust brightness')
-      }
-      
-      // Get the tool store from service container
-      const container = (window as { __serviceContainer?: unknown }).__serviceContainer
-      if (!container) {
-        throw new Error('Service container not found')
-      }
-      
-      const toolStore = container.get('ToolStore')
-      
-      // Activate the brightness tool
-      toolStore.setActiveTool(this.tool.id)
-      const activeTool = toolStore.getTool(this.tool.id)
-      
-      if (!activeTool) {
-        throw new Error('Brightness tool not found')
-      }
-      
-      // Set the adjustment value on the tool
-      activeTool.setOption('adjustment', params.adjustment)
-      
-      // If we have an execution context, set it on the tool
-      if (executionContext && 'setExecutionContext' in activeTool) {
-        const toolWithContext = activeTool as { setExecutionContext: (context: ExecutionContext) => void }
-        toolWithContext.setExecutionContext(executionContext)
-      }
-      
-      // Apply brightness using the tool's method
-      if ('applyBrightness' in activeTool && typeof activeTool.applyBrightness === 'function') {
-        const toolWithApply = activeTool as { applyBrightness: (adjustment: number) => Promise<void> }
-        await toolWithApply.applyBrightness(params.adjustment)
-      }
-      
-      return {
-        success: true,
-        adjustment: params.adjustment,
-        message: `Brightness adjusted by ${params.adjustment > 0 ? '+' : ''}${params.adjustment}%`,
-        targetingMode: context.targetingMode
-      }
-      
-    } catch (error) {
-      return {
-        success: false,
-        adjustment: params.adjustment,
-        message: error instanceof Error ? error.message : 'Failed to adjust brightness',
-        targetingMode: context.targetingMode
-      }
-    }
+    return this.executeWithCommonPatterns(
+      params,
+      context,
+      async (images, execContext) => {
+        console.log(`[BrightnessAdapter] Applying brightness adjustment: ${params.adjustment}%`)
+        
+        // Apply brightness filter to all target images
+        await this.applyFilterToImages(images, params, context.canvas, execContext)
+        
+        return {
+          adjustment: params.adjustment,
+          message: `Brightness adjusted by ${params.adjustment > 0 ? '+' : ''}${params.adjustment}%`
+        }
+      },
+      executionContext
+    )
   }
 } 

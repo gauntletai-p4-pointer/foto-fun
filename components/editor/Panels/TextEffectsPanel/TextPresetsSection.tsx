@@ -1,15 +1,19 @@
 'use client'
 
 import { Button } from '@/components/ui/button'
-import { IText, Textbox } from 'fabric'
+import type { CanvasObject } from '@/lib/editor/canvas/types'
 import { TextLayerStyles } from '@/lib/editor/text/effects'
 
 interface TextPresetsSectionProps {
-  object: IText | Textbox
+  object: CanvasObject | null
   onChange: () => void
 }
 
 export function TextPresetsSection({ object, onChange }: TextPresetsSectionProps) {
+  // Type guard for text objects
+  if (!object || (object.type !== 'text' && object.type !== 'verticalText')) {
+    return null
+  }
   const applyPreset = (preset: string) => {
     switch (preset) {
       case 'neon':

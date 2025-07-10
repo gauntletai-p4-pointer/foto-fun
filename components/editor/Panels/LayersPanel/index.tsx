@@ -39,6 +39,7 @@ import { cn } from '@/lib/utils'
 import type { Layer } from '@/lib/editor/canvas/types'
 import type { BlendMode } from '@/types'
 import { 
+  // CreateLayerCommand, // Commented out until layer creation is properly implemented
   RemoveLayerCommand,
   UpdateLayerCommand,
   ReorderLayersCommand,

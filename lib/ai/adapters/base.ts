@@ -264,6 +264,9 @@ export abstract class BaseToolAdapter<
  */
 export type ToolAdapter = BaseToolAdapter<unknown, unknown>
 
+// Type for Canvas image objects (replaces FabricImage)
+type CanvasImage = CanvasObject & { type: 'image' }
+
 /**
  * Extended base class for canvas tool adapters with common patterns
  * Provides DRY implementations for common operations
@@ -284,7 +287,7 @@ export abstract class CanvasToolAdapter<
   protected async executeWithCommonPatterns(
     params: TInput,
     context: CanvasContext,
-    toolExecution: (images: FabricImage[], executionContext?: ExecutionContext) => Promise<Partial<TOutput>>,
+    toolExecution: (images: CanvasImage[], executionContext?: ExecutionContext) => Promise<Partial<TOutput>>,
     executionContext?: ExecutionContext
   ): Promise<TOutput> {
     try {
@@ -299,7 +302,7 @@ export abstract class CanvasToolAdapter<
       }
       
       // Use pre-filtered target images from enhanced context
-      const images = context.targetImages
+      const images = context.targetImages as CanvasImage[]
       
       console.log(`[${this.constructor.name}] Target images:`, images.length)
       console.log(`[${this.constructor.name}] Targeting mode:`, context.targetingMode)
@@ -307,7 +310,7 @@ export abstract class CanvasToolAdapter<
       // STRICT SELECTION ENFORCEMENT
       if (images.length === 0) {
         // Check why we have no target images
-        const allImages = context.canvas.getObjects().filter(obj => obj.type === 'image')
+        const allImages = this.getAllImages(canvas)
         
         if (allImages.length === 0) {
           throw new Error(`No images found on canvas. Please load an image first.`)
@@ -345,6 +348,15 @@ export abstract class CanvasToolAdapter<
         targetingMode: context.targetingMode
       } as TOutput
     }
+  }
+
+  /**
+   * Get all image objects from canvas
+   */
+  protected getAllImages(canvas: CanvasManager): CanvasImage[] {
+    return canvas.state.layers
+      .flatMap(layer => layer.objects)
+      .filter(obj => obj.type === 'image') as CanvasImage[]
   }
   
   /**
@@ -399,57 +411,50 @@ export abstract class CanvasToolAdapter<
       return 'Please load an image before using this tool.'
     }
     
-    // Network errors
-    if (message.includes('network') || message.includes('fetch')) {
-      return 'Network error. Please check your connection and try again.'
+    // Selection errors
+    if (message.includes('select') || message.includes('selection')) {
+      return 'Please select the objects you want to modify.'
     }
     
-    // Timeout errors
-    if (message.includes('timeout')) {
-      return 'The operation took too long. Please try again.'
+    // Tool not found errors
+    if (message.includes('tool') && message.includes('not found')) {
+      return 'The requested tool is not available. Please try refreshing the page.'
     }
     
-    // Rate limit errors
-    if (message.includes('rate limit') || message.includes('quota')) {
-      return 'You\'ve made too many requests. Please wait a moment and try again.'
+    // Permission/locked errors
+    if (message.includes('locked') || message.includes('permission')) {
+      return 'The selected objects are locked. Please unlock them first.'
     }
     
-    // Permission errors
-    if (message.includes('permission') || message.includes('denied')) {
-      return 'You don\'t have permission to perform this action.'
+    // Out of bounds errors
+    if (message.includes('bounds') || message.includes('dimensions')) {
+      return 'The operation would extend beyond the canvas boundaries. Please adjust your parameters.'
     }
     
-    // Invalid parameter errors
-    if (message.includes('invalid') || message.includes('parameter')) {
-      return `Invalid settings for ${context}. Please check your inputs.`
-    }
-    
-    // Default fallback
-    return `The ${context} operation failed. Please try again.`
+    // Default to a cleaned up version of the original message
+    return error.message.charAt(0).toUpperCase() + error.message.slice(1)
   }
   
   /**
-   * Suggest recovery actions for errors
+   * Suggest recovery actions for common errors
    */
   protected suggestRecovery(error: unknown): string | undefined {
-    if (!(error instanceof Error)) return undefined
+    if (!(error instanceof Error)) {
+      return undefined
+    }
     
     const message = error.message.toLowerCase()
     
-    if (message.includes('canvas') && (message.includes('null') || message.includes('undefined'))) {
-      return 'Wait for canvas to load'
-    }
-    
     if (message.includes('no image')) {
-      return 'Load an image first'
+      return 'Load an image using the file menu or drag and drop an image onto the canvas.'
     }
     
-    if (message.includes('network')) {
-      return 'Check your internet connection'
+    if (message.includes('select')) {
+      return 'Use the selection tools to select the objects you want to modify.'
     }
     
-    if (message.includes('timeout')) {
-      return 'Try again with a smaller image'
+    if (message.includes('locked')) {
+      return 'Right-click on the object and choose "Unlock" from the context menu.'
     }
     
     return 'Try again'
@@ -468,8 +473,9 @@ export abstract class CanvasToolAdapter<
    * Helper to activate a tool and wait for it to be ready
    */
   protected async activateTool(): Promise<void> {
-    const { useToolStore } = await import('@/store/toolStore')
-    useToolStore.getState().setActiveTool(this.tool.id)
+    const container = ServiceContainer.getInstance()
+    const toolStore = container.get<EventToolStore>('ToolStore')
+    await toolStore.activateTool(this.tool.id)
     
     // Small delay to ensure tool is activated and subscribed
     await new Promise(resolve => setTimeout(resolve, 50))
@@ -479,8 +485,9 @@ export abstract class CanvasToolAdapter<
    * Helper to update a tool option
    */
   protected async updateToolOption(optionName: string, value: unknown): Promise<void> {
-    const { useToolOptionsStore } = await import('@/store/toolOptionsStore')
-    useToolOptionsStore.getState().updateOption(this.tool.id, optionName, value)
+    const container = ServiceContainer.getInstance()
+    const toolStore = container.get<EventToolStore>('ToolStore')
+    toolStore.updateOption(this.tool.id, optionName, value)
   }
   
   /**
@@ -503,24 +510,9 @@ export abstract class CanvasToolAdapter<
   }
 }
 
-// Type for Fabric.js image objects
-type FabricImage = CanvasObject & { type: 'image' }
-
-// Extended type for FabricImage with filters
-type FabricImageWithFilters = FabricImage & {
-  filters?: unknown[]
-  applyFilters(): void
-}
-
-// Define filter type
-interface ImageFilter {
-  type?: string
-  [key: string]: unknown
-}
-
 /**
  * Extended base class for filter-based canvas tool adapters
- * Provides common patterns for tools that apply Fabric.js filters
+ * Provides common patterns for tools that apply filters to images
  */
 export abstract class FilterToolAdapter<
   TInput = unknown,
@@ -528,14 +520,14 @@ export abstract class FilterToolAdapter<
 > extends CanvasToolAdapter<TInput, TOutput> {
   
   /**
-   * Get the filter type name (e.g., 'Brightness', 'Contrast')
+   * Get the filter type name (e.g., 'brightness', 'contrast')
    */
   protected abstract getFilterType(): string
   
   /**
-   * Create a new filter instance with the given parameters
+   * Create a new filter with the given parameters
    */
-  protected abstract createFilter(params: TInput): unknown
+  protected abstract createFilter(params: TInput): any
   
   /**
    * Check if a filter should be applied (return false to remove existing filters)
@@ -543,88 +535,63 @@ export abstract class FilterToolAdapter<
   protected abstract shouldApplyFilter(params: TInput): boolean
   
   /**
-   * Apply filters to images using common pattern
+   * Apply filters to images using CanvasManager
    * Now emits events when ExecutionContext is provided
    */
   protected async applyFilterToImages(
-    images: FabricImage[],
+    images: CanvasImage[],
     params: TInput,
     canvas: CanvasManager,
     executionContext?: ExecutionContext
   ): Promise<void> {
     const filterType = this.getFilterType()
     
-    // Create a selection snapshot from the target images
-    const { SelectionSnapshotFactory } = await import('../execution/SelectionSnapshot')
-    const selectionSnapshot = SelectionSnapshotFactory.fromObjects(images)
-    
-    // Get the tool
-    const { useToolStore } = await import('@/store/toolStore')
-    const tool = useToolStore.getState().getTool(this.tool.id)
-    
-    // Set selection snapshot on the tool if it supports it
-    if (tool && 'setSelectionSnapshot' in tool && typeof tool.setSelectionSnapshot === 'function') {
-      console.log(`[FilterToolAdapter] Setting selection snapshot on tool ${this.tool.id}`)
-      tool.setSelectionSnapshot(selectionSnapshot)
-    }
-    
     // Capture state before modification if we have an execution context
-    let previousStates: Map<FabricImage, Record<string, unknown>> | null = null
+    let previousStates: Map<string, Record<string, unknown>> | null = null
     
     if (executionContext) {
       previousStates = new Map()
       images.forEach(img => {
-        previousStates!.set(img, img.toObject(['filters']))
+        previousStates!.set(img.id, this.captureObjectState(img))
       })
     }
     
     try {
-      images.forEach((img, index) => {
-        console.log(`[${this.constructor.name}] Processing image ${index + 1}/${images.length}`)
+      // Apply filters using CanvasManager's filter system
+      for (const img of images) {
+        console.log(`[${this.constructor.name}] Processing image ${img.id}`)
         
-        const imageWithFilters = img as FabricImageWithFilters
-        
-        // Initialize filters array if needed
-        if (!imageWithFilters.filters) {
-          imageWithFilters.filters = []
-        } else {
-          // Remove existing filters of this type
-          imageWithFilters.filters = imageWithFilters.filters.filter(
-            (f: unknown) => (f as unknown as ImageFilter).type !== filterType
-          )
-        }
-        
-        // Add new filter if needed
         if (this.shouldApplyFilter(params)) {
           const filter = this.createFilter(params)
-          imageWithFilters.filters.push(filter)
+          await canvas.applyFilter(filter, img)
+        } else {
+          // Remove existing filters of this type
+          const existingFilters = img.filters || []
+          const updatedFilters = existingFilters.filter(f => f.type !== filterType)
+          
+          // Update the object with new filters
+          await canvas.updateObject(img.id, { filters: updatedFilters })
         }
-        
-        // Apply filters
-        imageWithFilters.applyFilters()
-      })
-      
-      // Render the canvas to show changes
-      canvas.renderAll()
+      }
       
       // Emit events if we have an execution context
       if (executionContext && previousStates) {
         const modifications: Array<{
-          object: FabricObject
+          objectId: string
           previousState: Record<string, unknown>
           newState: Record<string, unknown>
         }> = []
         
         // Build modifications
         images.forEach(img => {
-          const prevState = previousStates!.get(img)
+          const prevState = previousStates!.get(img.id)
           if (prevState) {
-            const newState = img.toObject(['filters'])
+            const newState = this.captureObjectState(img)
             
             // Check if filters actually changed
             if (JSON.stringify(prevState) !== JSON.stringify(newState)) {
               modifications.push({
-                object: img,
+                objectId: img.id,
                 previousState: prevState,
                 newState: newState
               })
@@ -644,11 +611,9 @@ export abstract class FilterToolAdapter<
           console.log(`[FilterToolAdapter] Emitted batch modification event for ${modifications.length} images`)
         }
       }
-    } finally {
-      // Clear selection snapshot
-      if (tool && 'setSelectionSnapshot' in tool && typeof tool.setSelectionSnapshot === 'function') {
-        tool.setSelectionSnapshot(null)
-      }
+    } catch (error) {
+      console.error(`[FilterToolAdapter] Error applying ${filterType} filter:`, error)
+      throw error
     }
   }
 } 

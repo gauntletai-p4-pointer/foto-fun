@@ -1,15 +1,23 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { IText, Textbox, Shadow } from 'fabric'
+import type { CanvasObject } from '@/lib/editor/canvas/types'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Slider } from '@/components/ui/slider'
 import { Input } from '@/components/ui/input'
 import { TextLayerStyles, type DropShadowOptions } from '@/lib/editor/text/effects'
 import { cn } from '@/lib/utils'
 
+// Local interface for Shadow properties
+interface Shadow {
+  color?: string
+  offsetX?: number
+  offsetY?: number
+  blur?: number
+}
+
 interface DropShadowSectionProps {
-  object: IText | Textbox
+  object: CanvasObject | null
   onChange: () => void
 }
 
@@ -22,6 +30,11 @@ export function DropShadowSection({ object, onChange }: DropShadowSectionProps) 
     distance: 5,
     blur: 5,
   })
+  
+  // Type guard for text objects
+  if (!object || (object.type !== 'text' && object.type !== 'verticalText')) {
+    return null
+  }
   
   // Check if object has shadow on mount
   useEffect(() => {

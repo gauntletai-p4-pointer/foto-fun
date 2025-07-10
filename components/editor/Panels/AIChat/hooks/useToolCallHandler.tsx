@@ -2,6 +2,7 @@ import { useCallback } from 'react'
 import { ClientToolExecutor } from '@/lib/ai/client/tool-executor'
 import { ServiceContainer } from '@/lib/core/ServiceContainer'
 import type { TypedCanvasStore } from '@/lib/store/canvas/TypedCanvasStore'
+import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
 import { adapterRegistry } from '@/lib/ai/adapters/registry'
 
 interface ThinkingStep {
@@ -26,6 +27,7 @@ export function useToolCallHandler({
   onAgentThinkingStep
 }: UseToolCallHandlerProps) {
   const canvasStore = ServiceContainer.getInstance().get<TypedCanvasStore>('CanvasStore')
+  const canvasManager = ServiceContainer.getInstance().get<CanvasManager>('CanvasManager')
   
   const handleToolCall = useCallback(async ({ toolCall }: { toolCall: {
     toolName?: string
@@ -71,14 +73,11 @@ export function useToolCallHandler({
           iterationCount?: number
         }
         
-        // TODO: Update canvas screenshot capture for Konva
-        // This functionality needs to be migrated to use the new CanvasManager
-        const fabricCanvas = null // Temporary placeholder
-        if (fabricCanvas) {
-          const screenshot = fabricCanvas.toDataURL({
-            format: 'png',
-            quality: 0.8,
-            multiplier: 1
+        // Capture canvas screenshot using Konva
+        if (canvasManager?.konvaStage) {
+          const screenshot = await canvasManager.konvaStage.toDataURL({
+            pixelRatio: 1,
+            mimeType: 'image/png'
           })
           
           console.log('[AIChat] Captured canvas screenshot, length:', screenshot.length)
@@ -138,26 +137,24 @@ export function useToolCallHandler({
               console.log('[AIChat] Tool chain completed successfully:', chainResult)
               
               // After executing all tools, capture the updated canvas state
-              const currentState = canvasStore.getState()
               let canvasScreenshot: string | undefined
               
-              if (currentState.fabricCanvas) {
+              if (canvasManager?.konvaStage) {
                 // Capture screenshot for evaluation
-                canvasScreenshot = currentState.fabricCanvas.toDataURL({
-                  format: 'png',
-                  quality: 0.8,
-                  multiplier: 1
+                canvasScreenshot = await canvasManager.konvaStage.toDataURL({
+                  pixelRatio: 1,
+                  mimeType: 'image/png'
                 })
                 console.log('[AIChat] Captured post-execution screenshot')
               }
               
-              const updatedCanvasContext = currentState.fabricCanvas ? {
+              const updatedCanvasContext = canvasManager ? {
                 dimensions: {
-                  width: currentState.fabricCanvas.getWidth(),
-                  height: currentState.fabricCanvas.getHeight()
+                  width: canvasManager.state.width,
+                  height: canvasManager.state.height
                 },
-                hasContent: currentState.hasContent(),
-                objectCount: currentState.fabricCanvas.getObjects().length,
+                hasContent: canvasManager.state.layers.some(layer => layer.objects.length > 0),
+                objectCount: canvasManager.state.layers.reduce((count, layer) => count + layer.objects.length, 0),
                 canvasScreenshot
               } : null
               
@@ -213,26 +210,24 @@ export function useToolCallHandler({
             }
             
             // After executing all tools, capture the updated canvas state
-            const currentState = canvasStore.getState()
             let canvasScreenshot: string | undefined
             
-            if (currentState.fabricCanvas) {
+            if (canvasManager?.konvaStage) {
               // Capture screenshot for evaluation
-              canvasScreenshot = currentState.fabricCanvas.toDataURL({
-                format: 'png',
-                quality: 0.8,
-                multiplier: 1
+              canvasScreenshot = await canvasManager.konvaStage.toDataURL({
+                pixelRatio: 1,
+                mimeType: 'image/png'
               })
               console.log('[AIChat] Captured post-execution screenshot')
             }
             
-            const updatedCanvasContext = currentState.fabricCanvas ? {
+            const updatedCanvasContext = canvasManager ? {
               dimensions: {
-                width: currentState.fabricCanvas.getWidth(),
-                height: currentState.fabricCanvas.getHeight()
+                width: canvasManager.state.width,
+                height: canvasManager.state.height
               },
-              hasContent: currentState.hasContent(),
-              objectCount: currentState.fabricCanvas.getObjects().length,
+              hasContent: canvasManager.state.layers.some(layer => layer.objects.length > 0),
+              objectCount: canvasManager.state.layers.reduce((count, layer) => count + layer.objects.length, 0),
               canvasScreenshot
             } : null
             
@@ -457,13 +452,11 @@ export function useToolCallHandler({
                               adapter.metadata?.worksOn !== 'new-image'
       
       if (requiresSelection) {
-        // Get current canvas state
-        const canvasStore = ServiceContainer.getInstance().get<TypedCanvasStore>('CanvasStore')
-        const { fabricCanvas } = canvasStore.getState()
-        
-        if (fabricCanvas) {
-          const objectCount = fabricCanvas.getObjects().length
-          const selectionCount = fabricCanvas.getActiveObjects().length
+        // Check current selection state
+        if (canvasManager) {
+          const objectCount = canvasManager.state.layers.reduce((count, layer) => count + layer.objects.length, 0)
+          const selection = canvasManager.state.selection
+          const selectionCount = selection?.type === 'objects' ? selection.objectIds.length : 0
           
           // Check if we have multiple objects with no selection
           if (objectCount > 1 && selectionCount === 0) {
@@ -489,13 +482,10 @@ Once you've made your selection, just tell me what you'd like to do!`,
       
       console.log('Executing tool on client:', toolName)
       
-      // Get fresh state from store
-      const currentState = canvasStore.getState()
-      console.log('[AIChat] Canvas ready:', currentState.isReady)
-      console.log('[AIChat] FabricCanvas:', currentState.fabricCanvas)
+      // Double-check canvas is ready
+      console.log('[AIChat] Canvas manager ready:', !!canvasManager?.konvaStage)
       
-      // Double-check canvas is ready after waiting
-      if (!currentState.fabricCanvas) {
+      if (!canvasManager?.konvaStage) {
         throw new Error('Canvas is not available after initialization.')
       }
       
@@ -507,7 +497,7 @@ Once you've made your selection, just tell me what you'd like to do!`,
       console.error('[AIChat] Tool execution error:', error)
       throw error
     }
-  }, [waitForReady, onAgentThinkingStart, onAgentThinkingEnd, onAgentThinkingStep])
+  }, [waitForReady, onAgentThinkingStart, onAgentThinkingEnd, onAgentThinkingStep, canvasManager, canvasStore])
   
   return { handleToolCall }
 } 

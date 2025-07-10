@@ -12,6 +12,7 @@ import { useCanvasStore, TypedCanvasStore } from '@/lib/store/canvas/TypedCanvas
 import { AgentApprovalDialog } from '../../AgentApprovalDialog'
 import { AgentModeToggle } from './AgentModeToggle'
 import type { ApprovalDecision, AgentStep, StepResult, AgentContext } from '@/lib/ai/agents/types'
+import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
 import { cn } from '@/lib/utils'
 
 export function EnhancedAIChat() {
@@ -21,10 +22,13 @@ export function EnhancedAIChat() {
   const [agentMode, setAgentMode] = useState(false)
   const canvasStore = useService<TypedCanvasStore>('CanvasStore')
   const canvasState = useCanvasStore(canvasStore)
-  // TODO: Update for new canvas system
-  const isCanvasReady = true // Temporary placeholder
-  const fabricCanvas = null // Temporary placeholder
-  const hasContent = () => Object.keys(canvasState.objects).length > 0
+  const canvasManager = useService<CanvasManager>('CanvasManager')
+  
+  const isCanvasReady = !!canvasManager?.konvaStage
+  const hasContent = () => {
+    if (!canvasManager) return false
+    return canvasManager.state.layers.some(layer => layer.objects.length > 0)
+  }
   
   // Auto-resize textarea with max height
   const adjustTextareaHeight = useCallback(() => {
@@ -86,14 +90,14 @@ export function EnhancedAIChat() {
 
   const handleSubmit = useCallback((e: React.FormEvent) => {
     e.preventDefault()
-    if (input.trim() && !isLoading && fabricCanvas && isCanvasReady) {
+    if (input.trim() && !isLoading && canvasManager && isCanvasReady) {
       const canvasContext = {
         dimensions: {
-          width: fabricCanvas.getWidth(),
-          height: fabricCanvas.getHeight()
+          width: canvasManager.state.width,
+          height: canvasManager.state.height
         },
         hasContent: hasContent(),
-        objectCount: fabricCanvas.getObjects().length
+        objectCount: canvasManager.state.layers.reduce((count, layer) => count + layer.objects.length, 0)
       }
       
       sendMessage(
@@ -102,7 +106,7 @@ export function EnhancedAIChat() {
       )
       setInput('')
     }
-  }, [input, isLoading, sendMessage, fabricCanvas, hasContent, agentMode, isCanvasReady])
+  }, [input, isLoading, sendMessage, canvasManager, hasContent, agentMode, isCanvasReady])
 
   const handleApprovalDecision = (decision: ApprovalDecision) => {
     console.log('Approval decision:', decision)
@@ -224,7 +228,7 @@ export function EnhancedAIChat() {
               "disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50"
             )}
           />
-          <Button type="submit" disabled={isLoading || !fabricCanvas || !isCanvasReady} className="self-end">
+          <Button type="submit" disabled={isLoading || !canvasManager || !isCanvasReady} className="self-end">
             <Send className="h-4 w-4" />
           </Button>
         </div>

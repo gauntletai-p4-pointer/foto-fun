@@ -1,12 +1,13 @@
 import { z } from 'zod'
-import { BaseToolAdapter } from '../base'
-import { blurTool } from '@/lib/editor/tools/filters/blurTool'
+import { FilterToolAdapter } from '../base'
 import type { CanvasContext } from '@/lib/ai/tools/canvas-bridge'
+import type { ExecutionContext } from '@/lib/events/execution/ExecutionContext'
+import { blurTool } from '@/lib/editor/tools/filters/blurTool'
 
 // Define parameter schema
 const blurParameters = z.object({
-  amount: z.number().min(0).max(100)
-    .describe('Blur intensity as a percentage (0-100). 0 = no blur, 100 = maximum blur')
+  radius: z.number().min(0).max(50)
+    .describe('Blur radius in pixels. 0 = no blur, higher values = more blur. Range: 0 to 50')
 })
 
 // Define types
@@ -14,95 +15,80 @@ type BlurInput = z.infer<typeof blurParameters>
 
 interface BlurOutput {
   success: boolean
-  amount: number
+  radius: number
   message: string
-  targetingMode: 'selection' | 'auto-single'
+  targetingMode: 'selection' | 'auto-single' | 'all' | 'none'
 }
 
-// Create adapter class
-export class BlurAdapter extends BaseToolAdapter<BlurInput, BlurOutput> {
+/**
+ * Adapter for the blur filter tool
+ * Provides AI-compatible interface for applying blur effects
+ */
+export class BlurToolAdapter extends FilterToolAdapter<BlurInput, BlurOutput> {
   tool = blurTool
-  aiName = 'blurImage'
-  description = `Apply blur effect to existing images on the canvas. You MUST calculate the blur amount based on user intent.
-
-INTELLIGENT TARGETING:
-- If you have images selected, only those images will be blurred
-- If no images are selected, all images on the canvas will be blurred
-
-Common blur requests:
-- "blur" or "soft blur" → 5-10
-- "heavy blur" or "strong blur" → 15-25
-- "slight blur" or "subtle blur" → 2-5
-- "gaussian blur" → 8-12
-- "motion blur effect" → 10-15
-
-NEVER ask for exact values - interpret the user's intent and calculate appropriate blur amounts.
-Range: 0 (no blur) to 50 (maximum blur)`
-
+  aiName = 'apply_blur'
+  description = `Apply blur effect to images. 
+  
+  You MUST calculate the blur radius based on user intent:
+  - "slight blur" or "soft blur" → 2 to 5 pixels
+  - "blur" or "medium blur" → 8 to 15 pixels
+  - "heavy blur" or "strong blur" → 20 to 35 pixels
+  - "extreme blur" → 40 to 50 pixels
+  - "remove blur" or "no blur" → 0 pixels
+  
+  NEVER ask for exact values - interpret the user's intent.`
+  
   metadata = {
     category: 'canvas-editing' as const,
     executionType: 'fast' as const,
     worksOn: 'existing-image' as const
   }
-
+  
   inputSchema = blurParameters
   
-  async execute(params: BlurInput, context: CanvasContext): Promise<BlurOutput> {
-    try {
-      console.log('[BlurAdapter] Execute called with params:', params)
-      console.log('[BlurAdapter] Targeting mode:', context.targetingMode)
-      
-      // Use pre-filtered target images from enhanced context
-      const images = context.targetImages
-      
-      console.log('[BlurAdapter] Target images:', images.length)
-      console.log('[BlurAdapter] Targeting mode:', context.targetingMode)
-      
-      if (images.length === 0) {
-        throw new Error('No images found to blur. Please load an image or select images first.')
-      }
-      
-      // Create a selection snapshot from the target images
-      const { SelectionSnapshotFactory } = await import('@/lib/ai/execution/SelectionSnapshot')
-      const selectionSnapshot = SelectionSnapshotFactory.fromObjects(images)
-      
-      // Apply the blur using the base class helper with selection snapshot
-      await this.applyToolOperation(this.tool.id, 'amount', params.amount, context.canvas, selectionSnapshot)
-      
-      // Generate descriptive message
-      let description = ''
-      
-      if (params.amount === 0) {
-        description = 'Removed blur effect'
-      } else if (params.amount <= 20) {
-        description = 'Applied subtle blur'
-      } else if (params.amount <= 40) {
-        description = 'Applied moderate blur'
-      } else if (params.amount <= 70) {
-        description = 'Applied strong blur'
-      } else {
-        description = 'Applied heavy blur'
-      }
-      
-      const message = `${description} (${params.amount}% intensity) to ${images.length} image${images.length !== 1 ? 's' : ''}`
-      
-      return {
-        success: true,
-        amount: params.amount,
-        message,
-        targetingMode: context.targetingMode
-      }
-    } catch (error) {
-      return {
-        success: false,
-        amount: 0,
-        message: error instanceof Error ? error.message : 'Failed to apply blur',
-        targetingMode: context.targetingMode
-      }
+  protected getFilterType(): string {
+    return 'blur'
+  }
+  
+  protected createFilter(params: BlurInput): any {
+    return {
+      type: 'blur',
+      blur: params.radius
     }
   }
-}
-
-// Export singleton instance
-const blurAdapter = new BlurAdapter()
-export default blurAdapter 
+  
+  protected shouldApplyFilter(params: BlurInput): boolean {
+    return params.radius > 0
+  }
+  
+  protected getActionVerb(): string {
+    return 'apply blur'
+  }
+  
+  async execute(
+    params: BlurInput, 
+    context: CanvasContext,
+    executionContext?: ExecutionContext
+  ): Promise<BlurOutput> {
+    return this.executeWithCommonPatterns(
+      params,
+      context,
+      async (images, execContext) => {
+        console.log(`[BlurAdapter] Applying blur with radius: ${params.radius}px`)
+        
+        // Apply blur filter to all target images
+        await this.applyFilterToImages(images, params, context.canvas, execContext)
+        
+        const message = params.radius === 0 
+          ? 'Blur effect removed'
+          : `Blur applied with ${params.radius}px radius`
+        
+        return {
+          radius: params.radius,
+          message
+        }
+      },
+      executionContext
+    )
+  }
+} 

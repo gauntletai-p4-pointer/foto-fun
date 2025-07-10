@@ -25,7 +25,7 @@ export function TextEffectsPanel() {
   useEffect(() => {
     // Check if we have a text object selected
     const selectedObjects = canvasStore.getSelectedObjects()
-    const textObject = selectedObjects.find(obj => obj.type === 'text')
+    const textObject = selectedObjects.find(obj => obj.type === 'text' || obj.type === 'verticalText')
     setActiveTextObject(textObject || null)
   }, [canvasState.selection, canvasStore])
   

@@ -1,325 +1,314 @@
-# Konva.js Migration Plan
+# Konva Migration Plan - Complete Fabric.js Removal
 
 ## Executive Summary
 
-Migrating from Fabric.js to Konva.js to enable true pixel-based editing capabilities required for a Photoshop alternative.
+This document outlines a comprehensive plan to complete the migration from Fabric.js to Konva, ensuring all Fabric dependencies are removed and the codebase follows best practices and established architectural patterns.
 
-## Why Konva.js?
+## Current State Analysis
 
-### Current Limitations with Fabric.js
-1. **No native pixel manipulation** - Everything is object-based
-2. **No real eraser tool** - Cannot create pixel-level holes
-3. **Limited filter support** - Filters apply to whole objects only
-4. **No adjustment layers** - Cannot do non-destructive color corrections
-5. **Poor performance** with large images or many layers
-6. **No WebGL acceleration** for filters and effects
+### Migration Progress
+- ✅ Core infrastructure migrated (CanvasManager, TypedCanvasStore, TypedEventBus)
+- ✅ Event-driven architecture established
+- ✅ Basic tool infrastructure with BaseTool
+- ⚠️ 51 files still importing Fabric.js
+- ⚠️ Mixed type system causing conflicts
+- ❌ Command system not migrated
+- ❌ AI integration using old Fabric patterns
+- ❌ UI components expecting Fabric canvas
 
-### Konva.js Advantages
-1. **Native pixel operations** via `Konva.Filters` and direct pixel access
-2. **True layer system** with compositing and blend modes
-3. **WebGL support** via `Konva.FastLayer`
-4. **Better performance** for complex scenes
-5. **Built-in caching** system for performance
-6. **Proper hit detection** for both shapes and pixels
-7. **Native support for masks and clipping**
+### Critical Dependencies
+1. **Selection System** - Core functionality blocked
+2. **Command Pattern** - Undo/redo functionality broken
+3. **Text Tools** - Complex text features unavailable
+4. **AI Tools** - All adapters need rewriting
 
-## Architecture Comparison
+## Migration Phases
 
-### Fabric.js Model
-```
-Canvas
-  └── Objects (FabricObject)
-       ├── Image
-       ├── Text
-       ├── Path
-       └── Group
-```
+### Phase 1: Foundation & Type Safety (Week 1)
+**Goal**: Establish clean type system and remove all Fabric imports
 
-### Konva.js Model
-```
-Stage (Canvas)
-  └── Layers (Konva.Layer)
-       ├── Shapes (Konva.Shape)
-       │    ├── Image
-       │    ├── Text
-       │    └── Path
-       └── Groups (Konva.Group)
-```
+#### 1.1 Type System Cleanup
+- [ ] Create migration mapping: `/lib/migration/fabric-to-konva-types.ts`
+- [ ] Update `/types/index.ts` to remove Fabric-specific types
+- [ ] Create type guards for safe migration
+- [ ] Add strict TypeScript checks for migration boundary
 
-## Migration Strategy
+#### 1.2 Remove Fabric Dependencies
+- [ ] Remove `fabric` from package.json
+- [ ] Create Fabric polyfills for gradual migration
+- [ ] Update all import statements
+- [ ] Fix resulting type errors
 
-### Phase 1: Create Abstraction Layer (2-3 weeks)
+#### 1.3 Canvas State Unification
+- [ ] Remove dual canvas state (fabricCanvas vs konvaStage)
+- [ ] Update CanvasStore to use only Konva state
+- [ ] Migrate canvas initialization logic
 
-#### 1.1 Canvas Abstraction Interface
+### Phase 2: Core Systems Migration (Week 2)
+
+#### 2.1 Selection System
 ```typescript
-// lib/editor/canvas/ICanvas.ts
-export interface ICanvas {
-  // Core operations
-  add(object: ICanvasObject): void
-  remove(object: ICanvasObject): void
-  clear(): void
-  renderAll(): void
+// New selection architecture
+interface SelectionManager {
+  // Pixel-based selection
+  createPixelSelection(bounds: Rect, mask: ImageData): void
   
-  // Selection
-  getActiveObject(): ICanvasObject | null
-  setActiveObject(object: ICanvasObject): void
-  getActiveObjects(): ICanvasObject[]
+  // Object-based selection
+  selectObjects(objectIds: string[]): void
   
-  // Viewport
-  setZoom(zoom: number): void
-  getZoom(): number
-  pan(x: number, y: number): void
-  
-  // Pixel operations (new)
-  getImageData(x: number, y: number, width: number, height: number): ImageData
-  putImageData(imageData: ImageData, x: number, y: number): void
-  applyFilter(filter: IFilter, area?: IArea): void
+  // Selection operations
+  expandSelection(pixels: number): void
+  contractSelection(pixels: number): void
+  featherSelection(pixels: number): void
 }
 ```
 
-#### 1.2 Object Abstraction
+- [ ] Implement pixel-based selection with Konva
+- [ ] Create selection visualization layer
+- [ ] Migrate selection events to TypedEventBus
+- [ ] Update all selection-dependent features
+
+#### 2.2 Command System
 ```typescript
-// lib/editor/canvas/ICanvasObject.ts
-export interface ICanvasObject {
-  id: string
-  type: string
-  left: number
-  top: number
-  width: number
-  height: number
-  angle: number
-  opacity: number
-  visible: boolean
+// New command pattern for Konva
+abstract class KonvaCommand implements Command {
+  abstract execute(context: CommandContext): Promise<void>
+  abstract undo(context: CommandContext): Promise<void>
   
-  // Transformations
-  setPosition(x: number, y: number): void
-  setSize(width: number, height: number): void
-  rotate(angle: number): void
-  
-  // Rendering
-  render(ctx: CanvasRenderingContext2D): void
-  toObject(): Record<string, unknown>
+  protected emitEvent(event: CanvasEvent): void {
+    this.context.eventBus.emit(event.type, event.data)
+  }
 }
 ```
 
-#### 1.3 Implementation Adapters
-- `FabricCanvasAdapter` - Wraps existing Fabric.js canvas
-- `KonvaCanvasAdapter` - Implements same interface with Konva.js
+- [ ] Create new command base classes
+- [ ] Migrate all canvas commands
+- [ ] Implement proper event emission
+- [ ] Update history store integration
 
-### Phase 2: Implement Dual-Mode System (3-4 weeks)
+#### 2.3 Object Management
+- [ ] Create object factory for Konva nodes
+- [ ] Implement object serialization/deserialization
+- [ ] Add object metadata system
+- [ ] Create object transformation utilities
 
-#### 2.1 Mode Selection
+### Phase 3: Tool Migration (Week 3)
+
+#### 3.1 Selection Tools
+- [ ] Marquee tools with pixel selection
+- [ ] Lasso tool with path selection
+- [ ] Magic wand with color-based selection
+- [ ] Quick selection with edge detection
+
+#### 3.2 Drawing Tools
+- [ ] Brush tool with pressure sensitivity
+- [ ] Eraser with true transparency
+- [ ] Shape tools with Konva shapes
+- [ ] Path tools with bezier curves
+
+#### 3.3 Text Tools
 ```typescript
-export type CanvasMode = 'vector' | 'raster'
-
-export interface CanvasStore {
-  mode: CanvasMode
-  fabricCanvas: Canvas | null  // For vector mode
-  konvaStage: Konva.Stage | null  // For raster mode
-  
-  // Unified API
-  canvas: ICanvas  // Abstract interface
+// Text system architecture
+class KonvaTextManager {
+  createText(options: TextOptions): KonvaText
+  warpText(text: KonvaText, warpStyle: WarpStyle): void
+  convertToPath(text: KonvaText): KonvaPath
 }
 ```
 
-#### 2.2 Tool Migration Priority
-1. **Pixel Tools First** (use Konva)
-   - Brush Tool
-   - Eraser Tool
-   - Clone Stamp
-   - Healing Brush
-   - Blur/Sharpen
-   
-2. **Adjustment Tools** (use Konva)
-   - Brightness/Contrast
-   - Hue/Saturation
-   - Levels
-   - Curves
-   
-3. **Selection Tools** (hybrid approach)
-   - Marquee (both)
-   - Lasso (pixel-based with Konva)
-   - Magic Wand (pixel-based with Konva)
-   
-4. **Vector Tools Last** (keep Fabric for now)
-   - Pen Tool
-   - Shape Tools
-   - Text Tool (initially)
+- [ ] Basic text creation and editing
+- [ ] Text effects (warp, path text)
+- [ ] Typography controls
+- [ ] Text-to-path conversion
 
-### Phase 3: Full Konva Migration (4-6 weeks)
+#### 3.4 Transform Tools
+- [ ] Move tool with snapping
+- [ ] Rotate with pivot points
+- [ ] Scale with aspect ratio lock
+- [ ] Crop with aspect ratios
 
-#### 3.1 Core Components
-1. **Canvas Store Migration**
-   ```typescript
-   // Before (Fabric)
-   fabricCanvas: Canvas | null
-   
-   // After (Konva)
-   stage: Konva.Stage | null
-   mainLayer: Konva.Layer | null
-   pixelLayer: Konva.FastLayer | null  // WebGL accelerated
-   ```
+### Phase 4: AI Integration (Week 4)
 
-2. **Layer System Enhancement**
-   ```typescript
-   interface Layer {
-     id: string
-     name: string
-     type: 'raster' | 'vector' | 'adjustment' | 'text'
-     konvaLayer: Konva.Layer
-     blendMode: string
-     opacity: number
-     masks: Mask[]
-   }
-   ```
+#### 4.1 AI Tool Adapters
+```typescript
+// New AI adapter pattern
+abstract class KonvaAIAdapter extends BaseToolAdapter {
+  protected async getCanvasContext(): Promise<AICanvasContext> {
+    const manager = this.canvasManager
+    return {
+      objects: manager.getSelectedObjects(),
+      bounds: manager.getSelectionBounds(),
+      imageData: await manager.getImageData()
+    }
+  }
+}
+```
 
-3. **Event System Migration**
-   ```typescript
-   // Fabric events
-   canvas.on('mouse:down', handler)
-   
-   // Konva events
-   stage.on('mousedown', handler)
-   layer.on('click', handler)
-   shape.on('dragend', handler)
-   ```
+- [ ] Rewrite all AI tool adapters
+- [ ] Update canvas context for AI operations
+- [ ] Implement preview generation with Konva
+- [ ] Add proper error handling
 
-### Phase 4: New Capabilities (2-3 weeks)
+#### 4.2 AI-Canvas Bridge
+- [ ] Update CanvasToolBridge for Konva
+- [ ] Implement selection snapshot system
+- [ ] Add AI operation locks
+- [ ] Create AI preview layer
 
-#### 4.1 Pixel-Based Features
-1. **True Eraser Tool**
-   ```typescript
-   class EraserTool {
-     erase(x: number, y: number, radius: number) {
-       const imageData = layer.getContext().getImageData(...)
-       // Manipulate alpha channel
-       layer.getContext().putImageData(imageData, ...)
-     }
-   }
-   ```
+### Phase 5: UI Component Updates (Week 5)
 
-2. **Adjustment Layers**
-   ```typescript
-   class AdjustmentLayer extends Konva.Layer {
-     adjustments: Adjustment[] = []
-     
-     applyAdjustments(imageData: ImageData): ImageData {
-       // Chain adjustments
-       return this.adjustments.reduce(
-         (data, adj) => adj.apply(data), 
-         imageData
-       )
-     }
-   }
-   ```
+#### 5.1 Panel Components
+- [ ] Layers panel with Konva layers
+- [ ] Properties panel for Konva objects
+- [ ] Text panels with new text system
+- [ ] Tool options with Konva parameters
 
-3. **Smart Filters**
-   ```typescript
-   // Non-destructive filters
-   layer.filters([
-     Konva.Filters.Blur,
-     Konva.Filters.Brighten,
-     customPixelFilter
-   ])
-   ```
+#### 5.2 Canvas Component
+- [ ] Remove all Fabric canvas references
+- [ ] Update mouse event handling
+- [ ] Implement proper canvas sizing
+- [ ] Add performance optimizations
 
-## Implementation Order
+#### 5.3 Dialogs and Modals
+- [ ] Image generation dialog
+- [ ] Export dialog with Konva
+- [ ] Document settings
+- [ ] Tool-specific dialogs
 
-### Week 1-2: Foundation
-- [ ] Create abstraction interfaces
-- [ ] Implement Konva adapter
-- [ ] Set up dual-mode infrastructure
-- [ ] Create mode switching UI
+### Phase 6: Testing & Optimization (Week 6)
 
-### Week 3-4: Pixel Tools
-- [ ] Migrate Brush tool to Konva
-- [ ] Implement Eraser tool (finally!)
-- [ ] Add Clone Stamp tool
-- [ ] Implement Healing Brush
+#### 6.1 Testing Strategy
+- [ ] Unit tests for all migrated systems
+- [ ] Integration tests for workflows
+- [ ] Performance benchmarks
+- [ ] Visual regression tests
 
-### Week 5-6: Filters & Adjustments
-- [ ] Port existing filters to Konva
-- [ ] Add adjustment layers
-- [ ] Implement Levels/Curves
-- [ ] Add blend modes
+#### 6.2 Performance Optimization
+- [ ] Implement Konva caching strategies
+- [ ] Optimize layer rendering
+- [ ] Add WebGL acceleration where needed
+- [ ] Memory usage optimization
 
-### Week 7-8: Selection System
-- [ ] Pixel-based selection tools
-- [ ] Selection masks
-- [ ] Feathering and anti-aliasing
-- [ ] Quick selection tool
+#### 6.3 Migration Validation
+- [ ] Verify no Fabric imports remain
+- [ ] Check all features work correctly
+- [ ] Validate performance improvements
+- [ ] User acceptance testing
 
-### Week 9-10: Performance & Polish
-- [ ] WebGL acceleration
-- [ ] Caching optimization
-- [ ] Memory management
-- [ ] Tool performance tuning
+## Implementation Guidelines
 
-### Week 11-12: Migration Completion
-- [ ] Port remaining tools
-- [ ] Update all stores
-- [ ] Migration testing
-- [ ] Remove Fabric.js
+### 1. Event-Driven Architecture
+All state changes MUST go through the event system:
+```typescript
+// Good
+await eventStore.append(new ObjectAddedEvent(object))
 
-## Technical Considerations
+// Bad
+canvasManager.objects.push(object)
+```
 
-### 1. State Management
-- Keep Zustand stores but update interfaces
-- Add new stores for pixel operations
-- Maintain backward compatibility during migration
+### 2. Type Safety
+Use strict types throughout:
+```typescript
+// Good
+function updateObject(id: string, updates: Partial<CanvasObject>): void
 
-### 2. Event System
-- Create unified event wrapper
-- Map Fabric events to Konva equivalents
-- Preserve existing tool behavior
+// Bad
+function updateObject(id: any, updates: any): void
+```
 
-### 3. Serialization
-- Design new project format supporting layers
-- Migration tool for existing projects
-- Support for PSD import/export
+### 3. Resource Management
+Always clean up resources:
+```typescript
+class Tool extends BaseTool {
+  protected setupTool(): void {
+    this.registerInterval('update', () => this.update(), 100)
+    this.registerEventListener('mousemove', this.handleMove)
+  }
+  // Cleanup automatic via BaseTool
+}
+```
 
-### 4. Performance
-- Use Konva.FastLayer for pixel operations
-- Implement tile-based rendering for large images
-- Add GPU acceleration where possible
+### 4. Performance Considerations
+- Use Konva's built-in caching
+- Batch operations with `batchDraw()`
+- Implement viewport culling
+- Use WebGL layers for filters
 
-### 5. Testing Strategy
-- Unit tests for abstraction layer
-- Integration tests for dual mode
-- Performance benchmarks
-- User acceptance testing
+### 5. Error Handling
+```typescript
+try {
+  await canvasManager.applyFilter(filter)
+} catch (error) {
+  eventBus.emit('error', {
+    code: 'FILTER_FAILED',
+    message: error.message,
+    context: { filter }
+  })
+}
+```
+
+## Migration Checklist
+
+### Pre-Migration
+- [ ] Create migration branch
+- [ ] Set up migration tracking
+- [ ] Document current functionality
+- [ ] Create rollback plan
+
+### During Migration
+- [ ] Follow phase plan strictly
+- [ ] Update tests as you go
+- [ ] Document breaking changes
+- [ ] Regular team sync meetings
+
+### Post-Migration
+- [ ] Remove all Fabric code
+- [ ] Update documentation
+- [ ] Performance validation
+- [ ] User training materials
+
+## Success Criteria
+
+1. **No Fabric Dependencies**: Zero imports from 'fabric' package
+2. **Type Safety**: 100% TypeScript coverage with strict mode
+3. **Performance**: 50%+ improvement in filter operations
+4. **Memory**: 30% reduction in memory usage
+5. **Features**: All existing features work correctly
+6. **Architecture**: Clean event-driven architecture throughout
 
 ## Risk Mitigation
 
-1. **Gradual Migration** - Keep Fabric.js during transition
-2. **Feature Flags** - Toggle between implementations
-3. **Abstraction Layer** - Minimize breaking changes
-4. **Comprehensive Testing** - Catch issues early
-5. **User Communication** - Clear migration timeline
+### Technical Risks
+- **Text Features**: Complex text effects may need custom implementation
+- **Performance**: Some operations might be slower initially
+- **Compatibility**: Third-party integrations may break
 
-## Success Metrics
+### Mitigation Strategies
+- Incremental migration with feature flags
+- Comprehensive testing at each phase
+- Performance profiling throughout
+- Clear rollback procedures
 
-1. **Eraser tool works** properly
-2. **Performance improvement** of 50%+ for filters
-3. **Memory usage** reduced by 30%
-4. **New features** enabled (adjustment layers, masks)
-5. **User satisfaction** increased
+## Timeline Summary
 
-## Alternative Approaches Considered
+- **Week 1**: Foundation & Type Safety
+- **Week 2**: Core Systems (Selection, Commands, Objects)
+- **Week 3**: Tool Migration
+- **Week 4**: AI Integration
+- **Week 5**: UI Components
+- **Week 6**: Testing & Optimization
 
-1. **Canvas 2D API Only** - Too low-level, lots of work
-2. **Paper.js** - Still vector-focused like Fabric
-3. **P5.js** - More for creative coding
-4. **PixiJS** - Game-focused, less suited for image editing
-5. **Custom WebGL** - Too complex, long development time
+Total Duration: 6 weeks with dedicated team
 
-## Conclusion
+## Next Steps
 
-Konva.js provides the best balance of:
-- Pixel manipulation capabilities
-- Performance characteristics  
-- Development velocity
-- Community support
-- Documentation quality
+1. Review and approve migration plan
+2. Assign team members to phases
+3. Set up migration tracking dashboard
+4. Begin Phase 1 implementation
+5. Daily standups during migration
 
-The phased migration approach minimizes risk while enabling new features incrementally. 
+---
+
+This plan ensures complete removal of Fabric.js while maintaining code quality, performance, and following established architectural patterns. The phased approach allows for incremental progress with validation at each step.

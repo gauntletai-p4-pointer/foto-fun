@@ -1,14 +1,12 @@
 import { BaseTool } from './BaseTool'
-import type { Canvas, TPointerEventInfo } from 'fabric'
-import { IText, Textbox } from 'fabric'
+import Konva from 'konva'
 import { createToolState } from '../utils/toolState'
-import type { ToolOption } from '@/store/toolOptionsStore'
-import { AddTextCommand } from '../../commands/text/AddTextCommand'
-import { EditTextCommand } from '../../commands/text/EditTextCommand'
+import type { ToolEvent, Point, CanvasObject } from '@/lib/editor/canvas/types'
+import { KonvaObjectAddedEvent, KonvaObjectModifiedEvent } from '@/lib/events/canvas/CanvasEvents'
 
 // Extend TextToolState to satisfy Record constraint
 interface ExtendedTextToolState extends Record<string, unknown> {
-  currentText: IText | Textbox | null
+  currentText: Konva.Text | null
   isEditing: boolean
   originalText: string
   lastClickTime: number
@@ -19,6 +17,7 @@ interface ExtendedTextToolState extends Record<string, unknown> {
 /**
  * Base class for text tools (horizontal, vertical, mask, path)
  * Provides common text editing functionality and state management
+ * Konva implementation with inline editing support
  */
 export abstract class BaseTextTool extends BaseTool {
   // Encapsulated state using ToolStateManager
@@ -34,55 +33,47 @@ export abstract class BaseTextTool extends BaseTool {
   // Double-click threshold in milliseconds
   protected readonly DOUBLE_CLICK_THRESHOLD = 300
   
-  // Store bound event handlers for cleanup
-  private textEventHandlers = new Map<string, () => void>()
+  // Text editing state
+  protected textarea: HTMLTextAreaElement | null = null
   
   /**
    * Tool-specific setup
    */
-  protected setupTool(canvas: Canvas): void {
-    // Disable object selection while using text tools
-    canvas.selection = false
-    
-    // Set up event handlers
-    this.addCanvasEvent('mouse:down', (e: unknown) => this.handleMouseDown(e as TPointerEventInfo<MouseEvent>))
-    this.addCanvasEvent('text:changed', () => this.handleTextChanged())
-    // Remove the problematic global text:editing:exited listener
-    this.addCanvasEvent('selection:created', (e: unknown) => this.handleSelectionCreated(e as { selected: Array<IText | Textbox> }))
-    this.addCanvasEvent('selection:updated', (e: unknown) => this.handleSelectionUpdated(e as { selected: Array<IText | Textbox> }))
-    
-    // Subscribe to tool options changes
-    this.subscribeToToolOptions((options) => {
-      this.updateTextStyle(options)
-    })
+  protected setupTool(): void {
+    // Set default text options
+    this.setOption('fontFamily', 'Arial')
+    this.setOption('fontSize', 60)
+    this.setOption('color', '#000000')
+    this.setOption('alignment', 'left')
+    this.setOption('bold', false)
+    this.setOption('italic', false)
+    this.setOption('underline', false)
+    this.setOption('letterSpacing', 0)
+    this.setOption('lineHeight', 1.2)
   }
   
   /**
    * Tool-specific cleanup
    */
-  protected cleanup(canvas: Canvas): void {
+  protected cleanupTool(): void {
     // Commit any active text
     if (this.state.get('isEditing') && !this.state.get('isCommitting')) {
       this.commitText()
     }
     
-    // Clean up text event handlers
-    this.cleanupTextEventHandlers()
+    // Clean up textarea
+    this.cleanupTextarea()
     
     // Reset state
     this.state.reset()
-    
-    // Re-enable object selection
-    canvas.selection = true
   }
   
   /**
    * Handle mouse down - create or edit text
    */
-  protected handleMouseDown(e: TPointerEventInfo<MouseEvent>): void {
-    if (!this.canvas) return
-    
-    const pointer = this.canvas.getPointer(e.e)
+  async onMouseDown(event: ToolEvent): Promise<void> {
+    const canvas = this.getCanvas()
+    const point = event.point
     const currentTime = Date.now()
     const lastClickTime = this.state.get('lastClickTime')
     const lastPosition = this.state.get('lastClickPosition')
@@ -90,233 +81,297 @@ export abstract class BaseTextTool extends BaseTool {
     // Check for double-click
     const isDoubleClick = 
       currentTime - lastClickTime < this.DOUBLE_CLICK_THRESHOLD &&
-      Math.abs(pointer.x - lastPosition.x) < 5 &&
-      Math.abs(pointer.y - lastPosition.y) < 5
+      Math.abs(point.x - lastPosition.x) < 5 &&
+      Math.abs(point.y - lastPosition.y) < 5
     
     // Update click tracking
     this.state.set('lastClickTime', currentTime)
-    this.state.set('lastClickPosition', { x: pointer.x, y: pointer.y })
+    this.state.set('lastClickPosition', { x: point.x, y: point.y })
     
     // If we're editing and click elsewhere, commit the text
     if (this.state.get('isEditing') && !isDoubleClick && !this.state.get('isCommitting')) {
-      const target = this.canvas.findTarget(e.e)
+      const clickedObject = canvas.getObjectAtPoint(point)
       const currentText = this.state.get('currentText')
       
       // Only commit if we clicked outside the current text
-      if (target !== currentText) {
-        this.commitText()
+      if (!clickedObject || clickedObject.node !== currentText) {
+        await this.commitText()
         return
       }
     }
     
     // Check if clicking on existing text
-    const target = this.canvas.findTarget(e.e)
-    if (target && (target instanceof IText || target instanceof Textbox)) {
+    const clickedObject = canvas.getObjectAtPoint(point)
+    if (clickedObject && this.isTextObject(clickedObject)) {
       // Enter edit mode for existing text
-      this.enterEditMode(target)
+      const textNode = clickedObject.node as Konva.Text
+      this.enterEditMode(textNode, clickedObject)
       return
     }
     
     // Create new text at pointer position
-    this.track('createText', () => {
-      this.createNewText(pointer.x, pointer.y)
-    })
+    await this.createNewText(point)
+  }
+  
+  /**
+   * Handle key down events
+   */
+  onKeyDown(event: KeyboardEvent): void {
+    // Handle escape to cancel editing
+    if (event.key === 'Escape' && this.state.get('isEditing')) {
+      this.cancelEditing()
+    }
+  }
+  
+  /**
+   * Check if a canvas object is a text object
+   */
+  protected isTextObject(obj: CanvasObject): boolean {
+    return obj.type === 'text' || obj.type === 'verticalText'
   }
   
   /**
    * Enter edit mode for a text object
    */
-  protected enterEditMode(textObject: IText | Textbox): void {
-    // Clean up any previous text handlers
-    this.cleanupTextEventHandlers()
-    
+  protected enterEditMode(textNode: Konva.Text, canvasObject: CanvasObject): void {
     this.state.setState({
-      currentText: textObject,
-      originalText: textObject.text || '',
+      currentText: textNode,
+      originalText: textNode.text(),
       isEditing: true,
       isCommitting: false
     })
     
-    // Set up object-specific event handlers
-    const exitHandler = () => {
-      if (!this.state.get('isCommitting')) {
-        this.commitText()
-      }
+    // Hide the text node while editing
+    textNode.hide()
+    
+    // Create textarea for editing
+    this.createTextarea(textNode, canvasObject)
+    
+    // Focus textarea
+    if (this.textarea) {
+      this.textarea.focus()
+      this.textarea.select()
     }
     
-    // Store handlers for cleanup
-    this.textEventHandlers.set('editing:exited', exitHandler)
-    
-    // Attach handler to the specific text object
-    textObject.on('editing:exited', exitHandler)
-    
-    textObject.enterEditing()
-    textObject.selectAll()
+    // Redraw layer
+    const layer = textNode.getLayer()
+    if (layer) layer.batchDraw()
   }
   
   /**
    * Create text object with tool-specific properties
    * Subclasses must implement this to create their specific text type
    */
-  protected abstract createTextObject(x: number, y: number): IText | Textbox
+  protected abstract createTextObject(x: number, y: number): Konva.Text
   
   /**
    * Create new text object at the specified position
    */
-  protected createNewText(x: number, y: number): void {
-    if (!this.canvas) return
+  protected async createNewText(point: Point): Promise<void> {
+    const canvas = this.getCanvas()
+    const activeLayer = canvas.getActiveLayer()
+    if (!activeLayer) return
     
-    const textObject = this.createTextObject(x, y)
+    const textNode = this.createTextObject(point.x, point.y)
     
-    // Ensure proper Unicode/emoji support
-    textObject.set('splitByGrapheme', true)
+    // Add to layer
+    activeLayer.konvaLayer.add(textNode)
     
-    // Don't show selection handles - go straight to edit mode
-    textObject.set({
-      hasControls: false,
-      hasBorders: false,
-      lockMovementX: true,
-      lockMovementY: true,
-      lockRotation: true,
-      lockScalingX: true,
-      lockScalingY: true,
-      evented: true
+    // Create canvas object
+    const canvasObject: CanvasObject = {
+      id: `text-${Date.now()}`,
+      type: 'text',
+      name: 'Text',
+      visible: true,
+      locked: false,
+      opacity: 1,
+      blendMode: 'normal',
+      transform: {
+        x: point.x,
+        y: point.y,
+        scaleX: 1,
+        scaleY: 1,
+        rotation: 0,
+        skewX: 0,
+        skewY: 0
+      },
+      node: textNode,
+      layerId: activeLayer.id,
+      data: textNode.text()
+    }
+    
+    // Add to layer objects
+    activeLayer.objects.push(canvasObject)
+    
+    // Emit event
+    if (this.executionContext) {
+      await this.executionContext.emit(new KonvaObjectAddedEvent(
+        'canvas',
+        canvasObject.id,
+        canvasObject.type,
+        {
+          name: canvasObject.name,
+          visible: canvasObject.visible,
+          locked: canvasObject.locked,
+          opacity: canvasObject.opacity,
+          blendMode: canvasObject.blendMode,
+          transform: canvasObject.transform,
+          data: canvasObject.data
+        },
+        activeLayer.id,
+        this.executionContext.getMetadata()
+      ))
+    }
+    
+    // Enter edit mode immediately
+    this.enterEditMode(textNode, canvasObject)
+  }
+  
+  /**
+   * Create textarea for text editing
+   */
+  protected createTextarea(textNode: Konva.Text, canvasObject: CanvasObject): void {
+    // Remove existing textarea if any
+    this.cleanupTextarea()
+    
+    // Create new textarea
+    this.textarea = document.createElement('textarea')
+    document.body.appendChild(this.textarea)
+    
+    // Get absolute position of text
+    const textPosition = textNode.absolutePosition()
+    const stage = textNode.getStage()
+    if (!stage) return
+    
+    const stageBox = stage.container().getBoundingClientRect()
+    const areaPosition = {
+      x: stageBox.left + textPosition.x,
+      y: stageBox.top + textPosition.y
+    }
+    
+    // Set textarea properties
+    this.textarea.value = canvasObject.data as string || textNode.text()
+    this.textarea.style.position = 'absolute'
+    this.textarea.style.top = `${areaPosition.y}px`
+    this.textarea.style.left = `${areaPosition.x}px`
+    this.textarea.style.width = `${Math.max(textNode.width(), 200)}px`
+    this.textarea.style.height = `${Math.max(textNode.height() + 20, 40)}px`
+    this.textarea.style.padding = `${textNode.padding() || 5}px`
+    this.textarea.style.margin = '0'
+    this.textarea.style.overflow = 'hidden'
+    this.textarea.style.background = 'rgba(255, 255, 255, 0.9)'
+    this.textarea.style.border = '1px solid #ccc'
+    this.textarea.style.borderRadius = '2px'
+    this.textarea.style.outline = 'none'
+    this.textarea.style.resize = 'none'
+    this.textarea.style.transformOrigin = 'left top'
+    
+    // Apply text styles
+    this.updateTextareaStyle(textNode)
+    
+    // Handle input
+    this.textarea.addEventListener('input', () => {
+      this.handleTextInput()
     })
     
-    // Temporarily add to canvas for editing (will be removed and re-added by command)
-    this.canvas.add(textObject)
-    
-    // Enter edit mode immediately without selecting first
-    this.state.setState({
-      currentText: textObject,
-      originalText: '',
-      isEditing: true,
-      isCommitting: false
+    // Handle blur (finish editing)
+    this.textarea.addEventListener('blur', () => {
+      this.commitText()
     })
     
-    // Set up object-specific event handlers
-    const exitHandler = () => {
-      if (!this.state.get('isCommitting')) {
+    // Handle special keys
+    this.textarea.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        this.cancelEditing()
+      } else if (e.key === 'Enter' && e.ctrlKey) {
         this.commitText()
       }
-    }
-    
-    // Store handlers for cleanup
-    this.textEventHandlers.set('editing:exited', exitHandler)
-    
-    // Attach handler to the specific text object
-    textObject.on('editing:exited', exitHandler)
-    
-    // Enter editing mode immediately
-    textObject.enterEditing()
-    textObject.hiddenTextarea?.focus()
-    
-    // Remove from canvas before command execution
-    this.canvas.remove(textObject)
-    
-    // Record command for undo/redo - this will add to canvas and layer properly
-    const command = new AddTextCommand(this.canvas, textObject)
-    this.executeCommand(command)
-    
-    this.canvas.renderAll()
-  }
-  
-  /**
-   * Handle text changed event
-   */
-  protected handleTextChanged(): void {
-    const currentText = this.state.get('currentText')
-    if (!currentText) return
-    
-    // Update any UI that depends on text content
-    // This could include character count, etc.
-    this.canvas?.renderAll()
-  }
-  
-  /**
-   * Clean up text-specific event handlers
-   */
-  protected cleanupTextEventHandlers(): void {
-    const currentText = this.state.get('currentText')
-    if (!currentText) return
-    
-    // Remove all stored handlers
-    this.textEventHandlers.forEach((handler, event) => {
-      // Use type assertion for the event type
-      currentText.off(event as 'editing:exited', handler)
     })
+  }
+  
+  /**
+   * Update textarea styling to match text node
+   */
+  protected updateTextareaStyle(textNode: Konva.Text): void {
+    if (!this.textarea) return
     
-    this.textEventHandlers.clear()
+    this.textarea.style.fontFamily = textNode.fontFamily()
+    this.textarea.style.fontSize = `${Math.max(textNode.fontSize() * 0.8, 14)}px`
+    this.textarea.style.color = textNode.fill() as string
+    this.textarea.style.fontWeight = this.getOption('bold') ? 'bold' : 'normal'
+    this.textarea.style.fontStyle = this.getOption('italic') ? 'italic' : 'normal'
+    this.textarea.style.textDecoration = this.getOption('underline') ? 'underline' : 'none'
   }
   
   /**
-   * Handle selection created event
+   * Handle text input changes
    */
-  protected handleSelectionCreated(e: { selected: Array<IText | Textbox> }): void {
-    const textObject = e.selected[0]
-    if (textObject) {
-      // Type guard to ensure it's a text object
-      const isTextObject = 'text' in textObject && 
-                          'enterEditing' in textObject && 
-                          typeof textObject.text === 'string'
-      
-      if (isTextObject) {
-        this.state.setState({
-          currentText: textObject as IText | Textbox,
-          originalText: (textObject as IText | Textbox).text || ''
-        })
-      }
+  protected handleTextInput(): void {
+    // This can be overridden by subclasses for live preview
+  }
+  
+  /**
+   * Clean up textarea
+   */
+  protected cleanupTextarea(): void {
+    if (this.textarea) {
+      this.textarea.remove()
+      this.textarea = null
     }
-  }
-  
-  /**
-   * Handle selection updated event
-   */
-  protected handleSelectionUpdated(e: { selected: Array<IText | Textbox> }): void {
-    this.handleSelectionCreated(e)
   }
   
   /**
    * Commit the current text editing
    */
-  protected commitText(): void {
+  protected async commitText(): Promise<void> {
     const currentText = this.state.get('currentText')
     const originalText = this.state.get('originalText')
     
-    if (!currentText || !this.canvas || this.state.get('isCommitting')) return
+    if (!currentText || !this.textarea || this.state.get('isCommitting')) return
     
     // Set guard flag to prevent re-entry
     this.state.set('isCommitting', true)
     
     try {
-      // Clean up event handlers first
-      this.cleanupTextEventHandlers()
+      const canvas = this.getCanvas()
+      const finalText = this.textarea.value
       
-      // Exit editing mode if still editing
-      if (currentText.isEditing) {
-        currentText.exitEditing()
+      // Update text node
+      currentText.text(finalText)
+      currentText.show()
+      
+      // Find canvas object
+      let canvasObject: CanvasObject | null = null
+      for (const layer of canvas.state.layers) {
+        const obj = layer.objects.find(o => o.node === currentText)
+        if (obj) {
+          canvasObject = obj
+          break
+        }
       }
       
-      // Restore controls after editing
-      currentText.set({
-        hasControls: true,
-        hasBorders: true,
-        lockMovementX: false,
-        lockMovementY: false,
-        lockRotation: false,
-        lockScalingX: false,
-        lockScalingY: false
-      })
-      
-      // If text is empty, remove it
-      if (!currentText.text || currentText.text.trim() === '') {
-        this.canvas.remove(currentText)
-        this.canvas.renderAll()
-      } else if (currentText.text !== originalText) {
-        // Record edit command if text changed
-        const command = new EditTextCommand(currentText, originalText, currentText.text)
-        this.executeCommand(command)
+      // Emit event if text changed
+      if (canvasObject && canvasObject.data !== finalText) {
+        const previousData = canvasObject.data
+        canvasObject.data = finalText
+        
+        if (this.executionContext) {
+          await this.executionContext.emit(new KonvaObjectModifiedEvent(
+            'canvas',
+            canvasObject.id,
+            { data: previousData },
+            { data: finalText },
+            this.executionContext.getMetadata()
+          ))
+        }
       }
+      
+      // Clean up textarea
+      this.cleanupTextarea()
+      
+      // Redraw
+      const layer = currentText.getLayer()
+      if (layer) layer.batchDraw()
       
       // Reset state
       this.state.setState({
@@ -333,46 +388,90 @@ export abstract class BaseTextTool extends BaseTool {
   }
   
   /**
-   * Update text style based on tool options
+   * Cancel text editing without saving changes
    */
-  protected updateTextStyle(options: ToolOption[]): void {
+  protected cancelEditing(): void {
     const currentText = this.state.get('currentText')
-    if (!currentText || !this.state.get('isEditing')) return
+    const originalText = this.state.get('originalText')
     
-    // Apply each option to the text
-    options.forEach(option => {
-      switch (option.id) {
-        case 'fontFamily':
-          currentText.set('fontFamily', option.value as string)
-          break
-        case 'fontSize':
-          currentText.set('fontSize', option.value as number)
-          break
-        case 'color':
-          currentText.set('fill', option.value as string)
-          break
-        case 'alignment':
-          currentText.set('textAlign', option.value as string)
-          break
-        case 'bold':
-          currentText.set('fontWeight', option.value ? 'bold' : 'normal')
-          break
-        case 'italic':
-          currentText.set('fontStyle', option.value ? 'italic' : 'normal')
-          break
-        case 'underline':
-          currentText.set('underline', option.value as boolean)
-          break
-      }
+    if (!currentText) return
+    
+    // Restore original text
+    currentText.text(originalText)
+    currentText.show()
+    
+    // Clean up textarea
+    this.cleanupTextarea()
+    
+    // Redraw
+    const layer = currentText.getLayer()
+    if (layer) layer.batchDraw()
+    
+    // Reset state
+    this.state.setState({
+      currentText: null,
+      isEditing: false,
+      originalText: '',
+      isCommitting: false
     })
-    
-    this.canvas?.renderAll()
   }
   
   /**
-   * Get option value from tool options
+   * Update text style based on tool options
    */
-  protected getOptionValue<T = unknown>(optionId: string): T | undefined {
-    return this.toolOptionsStore.getOptionValue<T>(this.id, optionId)
+  protected onOptionChange(key: string, value: unknown): void {
+    const currentText = this.state.get('currentText')
+    if (!currentText) return
+    
+    // Apply each option to the text
+    switch (key) {
+      case 'fontFamily':
+        currentText.fontFamily(value as string)
+        break
+      case 'fontSize':
+        currentText.fontSize(value as number)
+        break
+      case 'color':
+        currentText.fill(value as string)
+        break
+      case 'alignment':
+        currentText.align(value as string)
+        break
+      case 'bold':
+      case 'italic':
+        currentText.fontStyle(this.getFontStyle())
+        break
+      case 'underline':
+        currentText.textDecoration(value ? 'underline' : '')
+        break
+      case 'letterSpacing':
+        currentText.letterSpacing(value as number)
+        break
+      case 'lineHeight':
+        currentText.lineHeight(value as number)
+        break
+    }
+    
+    // Update textarea if editing
+    if (this.textarea && this.state.get('isEditing')) {
+      this.updateTextareaStyle(currentText)
+    }
+    
+    // Redraw
+    const layer = currentText.getLayer()
+    if (layer) layer.batchDraw()
+  }
+  
+  /**
+   * Get font style string based on bold/italic options
+   */
+  protected getFontStyle(): string {
+    const bold = this.getOption('bold') as boolean
+    const italic = this.getOption('italic') as boolean
+    
+    if (bold && italic) return 'bold italic'
+    if (bold) return 'bold'
+    if (italic) return 'italic'
+    return 'normal'
   }
 } 

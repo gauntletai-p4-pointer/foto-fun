@@ -7,7 +7,8 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { useService } from '@/lib/core/AppInitializer'
 import { useCanvasStore, TypedCanvasStore } from '@/lib/store/canvas/TypedCanvasStore'
 import { useAISettings } from '@/hooks/useAISettings'
-import type { FabricObject } from 'fabric'
+import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
+import type { CanvasObject } from '@/lib/editor/canvas/types'
 
 // Import extracted components
 import { ChatInput } from './components/ChatInput'
@@ -57,9 +58,20 @@ export function AIChat() {
   const [isAgentThinking, setIsAgentThinking] = useState(false)
   const canvasStore = useService<TypedCanvasStore>('CanvasStore')
   const canvasState = useCanvasStore(canvasStore)
-  // TODO: Update waitForReady and hasContent for new canvas system
-  const waitForReady = async () => true // Temporary placeholder
-  const hasContent = () => Object.keys(canvasState.objects).length > 0
+  const canvasManager = useService<CanvasManager>('CanvasManager')
+  
+  // Canvas readiness helpers
+  const waitForReady = async (): Promise<void> => {
+    // Wait for canvas manager to be initialized
+    while (!canvasManager?.konvaStage) {
+      await new Promise(resolve => setTimeout(resolve, 100))
+    }
+  }
+  
+  const hasContent = () => {
+    if (!canvasManager) return false
+    return canvasManager.state.layers.some(layer => layer.objects.length > 0)
+  }
   const { settings: aiSettings } = useAISettings()
   
   // Use the custom hook for tool call handling
@@ -137,29 +149,29 @@ export function AIChat() {
   }, [messages])
   
   const handleSubmit = useCallback((text: string) => {
-    // TODO: Update this function to work with Konva-based canvas
-    // This requires significant changes to work with the new canvas system
-    const fabricCanvas = null // Temporary placeholder
-    
     // Capture selection snapshot at request time
     let selectionSnapshot = null
-    if (fabricCanvas) {
-      const activeObjects = fabricCanvas.getActiveObjects()
+    const selectedObjects: CanvasObject[] = []
+    
+    if (canvasManager) {
+      const selection = canvasManager.state.selection
+      
+      if (selection?.type === 'objects') {
+        selection.objectIds.forEach(id => {
+          const obj = canvasManager.findObject(id)
+          if (obj) selectedObjects.push(obj)
+        })
+      }
       
       // Create a lightweight snapshot of the selection
       selectionSnapshot = {
-        objectCount: activeObjects.length,
-        objectIds: activeObjects.map(obj => {
-          // Try to get ID, or generate a temporary one based on object properties
-          const objWithId = obj as FabricObject & { id?: string }
-          const objId = objWithId.id || `${obj.type}_${obj.left}_${obj.top}_${Date.now()}`
-          return objId
-        }),
-        types: Array.from(new Set(activeObjects.map(obj => obj.type || 'unknown'))),
-        isEmpty: activeObjects.length === 0,
-        hasImages: activeObjects.some(obj => obj.type === 'image'),
+        objectCount: selectedObjects.length,
+        objectIds: selectedObjects.map((obj: CanvasObject) => obj.id),
+        types: Array.from(new Set(selectedObjects.map((obj: CanvasObject) => obj.type))),
+        isEmpty: selectedObjects.length === 0,
+        hasImages: selectedObjects.some((obj: CanvasObject) => obj.type === 'image'),
         // Store actual object references for this request
-        _objects: activeObjects
+        _objects: selectedObjects
       }
       
       console.log('[AIChat] Captured selection snapshot:', {
@@ -170,27 +182,26 @@ export function AIChat() {
     }
     
     // Build canvas context with fresh state
-    const canvasContext = fabricCanvas ? {
+    const canvasContext = canvasManager ? {
       dimensions: {
-        width: fabricCanvas.getWidth(),
-        height: fabricCanvas.getHeight()
+        width: canvasManager.state.width,
+        height: canvasManager.state.height
       },
       hasContent: hasContent(),
-      objectCount: fabricCanvas.getObjects().length,
-      // ADD: Selection state for AI awareness
+      objectCount: canvasManager.state.layers.reduce((count, layer) => count + layer.objects.length, 0),
+      // Selection state for AI awareness
       selection: {
-        count: fabricCanvas.getActiveObjects().length,
-        hasImages: fabricCanvas.getActiveObjects().some(obj => obj.type === 'image'),
-        hasText: fabricCanvas.getActiveObjects().some(obj => 
-          obj.type === 'text' || obj.type === 'i-text' || obj.type === 'textbox'
-        ),
+        count: selectedObjects.length,
+        hasImages: selectedObjects.some((obj: CanvasObject) => obj.type === 'image'),
+        hasText: selectedObjects.some((obj: CanvasObject) => obj.type === 'text' || obj.type === 'verticalText'),
         // For single-object scenarios
-        isSingleImage: fabricCanvas.getActiveObjects().length === 1 && 
-                       fabricCanvas.getActiveObjects()[0].type === 'image'
+        isSingleImage: selectedObjects.length === 1 && selectedObjects[0].type === 'image'
       },
-      // ADD: Canvas state hints for smart inference
-      singleImageCanvas: fabricCanvas.getObjects().length === 1 && 
-                         fabricCanvas.getObjects()[0].type === 'image',
+      // Canvas state hints for smart inference
+      singleImageCanvas: (() => {
+        const allObjects = canvasManager.state.layers.flatMap(layer => layer.objects)
+        return allObjects.length === 1 && allObjects[0].type === 'image'
+      })(),
       // ADD: Selection snapshot data for request-time capture
       selectionSnapshot: selectionSnapshot ? {
         objectCount: selectionSnapshot.objectCount,

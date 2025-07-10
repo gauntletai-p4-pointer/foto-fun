@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { IText, Textbox, Shadow } from 'fabric'
+import type { CanvasObject } from '@/lib/editor/canvas/types'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Slider } from '@/components/ui/slider'
 import { Input } from '@/components/ui/input'
@@ -9,8 +9,16 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { TextLayerStyles, type GlowOptions } from '@/lib/editor/text/effects'
 import { cn } from '@/lib/utils'
 
+// Local interface for Shadow properties
+interface Shadow {
+  color?: string
+  offsetX?: number
+  offsetY?: number
+  blur?: number
+}
+
 interface GlowSectionProps {
-  object: IText | Textbox
+  object: CanvasObject | null
   onChange: () => void
 }
 
@@ -22,6 +30,11 @@ export function GlowSection({ object, onChange }: GlowSectionProps) {
     size: 10,
     opacity: 0.8,
   })
+  
+  // Type guard for text objects
+  if (!object || (object.type !== 'text' && object.type !== 'verticalText')) {
+    return null
+  }
   
   // Check if object has glow on mount
   useEffect(() => {
@@ -40,7 +53,7 @@ export function GlowSection({ object, onChange }: GlowSectionProps) {
     }
     
     // Check for inner glow (custom property)
-    const textWithGlow = object as IText & { innerGlow?: { color: string; size: number; opacity: number } }
+    const textWithGlow = object as CanvasObject & { innerGlow?: { color: string; size: number; opacity: number } }
     if (textWithGlow.innerGlow) {
       setEnabled(true)
       const glow = textWithGlow.innerGlow

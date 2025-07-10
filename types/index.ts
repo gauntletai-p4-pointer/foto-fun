@@ -1,9 +1,22 @@
 import type * as PIXI from 'pixi.js'
-import type { Canvas, TPointerEventInfo, TPointerEvent, FabricObject } from 'fabric'
+import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
+import type { Point } from '@/lib/editor/canvas/types'
 
-// Canvas types
+// Re-export canvas types from the new location
+export type { 
+  CanvasObject,
+  Layer,
+  Selection,
+  BlendMode,
+  Point,
+  Size,
+  Rect,
+  Transform
+} from '@/lib/editor/canvas/types'
+
+// Canvas state using new architecture
 export interface CanvasState {
-  fabricCanvas: Canvas | null
+  canvasManager: CanvasManager | null
   pixiApp: PIXI.Application | null
   zoom: number
   rotation: number
@@ -23,54 +36,23 @@ export interface Document {
   modified: Date
 }
 
-// Layer types
-export type LayerType = 'image' | 'text' | 'shape' | 'adjustment' | 'group'
+// Layer types - using the new system
+export type LayerType = 'raster' | 'vector' | 'text' | 'adjustment' | 'group'
 
-export type BlendMode = 
-  | 'normal'
-  | 'multiply'
-  | 'screen'
-  | 'overlay'
-  | 'darken'
-  | 'lighten'
-  | 'color-dodge'
-  | 'color-burn'
-  | 'hard-light'
-  | 'soft-light'
-  | 'difference'
-  | 'exclusion'
-  | 'hue'
-  | 'saturation'
-  | 'color'
-  | 'luminosity'
-
-export interface Layer {
-  id: string
-  name: string
-  type: LayerType
-  visible: boolean
-  opacity: number // 0-100
-  blendMode: BlendMode
-  locked: boolean
-  parentId?: string // for groups
-  childIds?: string[] // for groups
-  objectIds?: string[] // IDs of fabric objects in this layer
-  thumbnail?: string // Base64 thumbnail for UI
-  position: number // Layer stack position (0 = bottom)
+// Tool event type - updated for Konva
+export interface ToolEvent {
+  point: Point
+  screenPoint: Point
+  pressure: number
+  shiftKey: boolean
+  ctrlKey: boolean
+  altKey: boolean
+  metaKey: boolean
+  button: number
+  target?: any // Konva.Node
 }
 
-export interface LayerGroup extends Layer {
-  type: 'group'
-  childIds: string[]
-  expanded: boolean
-}
-
-// Tool event type - properly typed Fabric.js event
-export type ToolEvent = TPointerEventInfo<TPointerEvent> & {
-  target: Canvas
-}
-
-// Tool types
+// Tool types - updated for Konva architecture
 export interface Tool {
   id: string
   name: string
@@ -79,8 +61,8 @@ export interface Tool {
   group?: string
   shortcut?: string
   isImplemented: boolean
-  onActivate?: (canvas: Canvas) => void
-  onDeactivate?: (canvas: Canvas) => void
+  onActivate?: (canvas: CanvasManager) => void
+  onDeactivate?: (canvas: CanvasManager) => void
   onMouseDown?: (e: ToolEvent) => void
   onMouseMove?: (e: ToolEvent) => void
   onMouseUp?: (e: ToolEvent) => void
@@ -95,12 +77,6 @@ export interface HistoryEntry {
   data?: any
 }
 
-// Custom properties we add to Fabric objects
-export interface CustomFabricObjectProps {
-  layerId?: string
-  id?: string
-}
-
 // Export types
 export type ExportFormat = 'png' | 'jpeg' | 'webp'
 
@@ -110,4 +86,4 @@ export interface ExportOptions {
   width?: number
   height?: number
   includeMetadata?: boolean
-} 
+}

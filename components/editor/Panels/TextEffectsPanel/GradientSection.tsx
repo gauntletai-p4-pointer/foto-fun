@@ -1,15 +1,20 @@
 'use client'
 
 import { Button } from '@/components/ui/button'
-import { IText, Textbox } from 'fabric'
+import type { CanvasObject } from '@/lib/editor/canvas/types'
 import { TextLayerStyles } from '@/lib/editor/text/effects'
 
 interface GradientSectionProps {
-  object: IText | Textbox
+  object: CanvasObject | null
   onChange: () => void
 }
 
 export function GradientSection({ object, onChange }: GradientSectionProps) {
+  // Type guard for text objects
+  if (!object || (object.type !== 'text' && object.type !== 'verticalText')) {
+    return null
+  }
+  
   const applyGradient = () => {
     // Apply a simple gradient
     TextLayerStyles.applyGradientFill(object, {

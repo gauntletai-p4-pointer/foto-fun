@@ -423,3 +423,198 @@ export class CanvasResizedEvent extends CanvasEvent {
     }
   }
 } 
+
+/**
+ * Konva object added to canvas
+ */
+export class KonvaObjectAddedEvent extends CanvasEvent {
+  constructor(
+    private canvasId: string,
+    private objectId: string,
+    private objectType: string,
+    private objectData: Record<string, unknown>,
+    private layerId: string,
+    metadata: CanvasEvent['metadata']
+  ) {
+    super('canvas.konva.object.added', canvasId, metadata)
+  }
+  
+  apply(currentState: KonvaCanvasState): KonvaCanvasState {
+    // Create new CanvasObject
+    const newObject: CanvasObject = {
+      id: this.objectId,
+      type: this.objectType as any,
+      name: this.objectData.name as string || this.objectType,
+      visible: this.objectData.visible as boolean ?? true,
+      locked: this.objectData.locked as boolean ?? false,
+      opacity: this.objectData.opacity as number ?? 1,
+      blendMode: (this.objectData.blendMode as any) || 'normal',
+      transform: this.objectData.transform as any || {
+        x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0, skewX: 0, skewY: 0
+      },
+      node: null as any, // Will be set by the canvas manager
+      layerId: this.layerId,
+      data: this.objectData.data
+    }
+    
+    return {
+      ...currentState,
+      objects: [...currentState.objects, newObject],
+      version: currentState.version + 1
+    }
+  }
+  
+  reverse(): KonvaObjectRemovedEvent {
+    return new KonvaObjectRemovedEvent(
+      this.canvasId,
+      this.objectId,
+      this.metadata
+    )
+  }
+  
+  canApply(currentState: KonvaCanvasState): boolean {
+    return !currentState.objects.some(obj => obj.id === this.objectId)
+  }
+  
+  getDescription(): string {
+    return `Add ${this.objectType} to canvas`
+  }
+  
+  protected getEventData(): Record<string, unknown> {
+    return {
+      canvasId: this.canvasId,
+      objectId: this.objectId,
+      objectType: this.objectType,
+      layerId: this.layerId,
+      objectData: this.objectData
+    }
+  }
+}
+
+/**
+ * Konva object removed from canvas
+ */
+export class KonvaObjectRemovedEvent extends CanvasEvent {
+  private removedObject: CanvasObject | null = null
+  
+  constructor(
+    private canvasId: string,
+    private objectId: string,
+    metadata: CanvasEvent['metadata']
+  ) {
+    super('canvas.konva.object.removed', canvasId, metadata)
+  }
+  
+  apply(currentState: KonvaCanvasState): KonvaCanvasState {
+    // Find and store the object for undo
+    this.removedObject = currentState.objects.find(obj => obj.id === this.objectId) || null
+    
+    return {
+      ...currentState,
+      objects: currentState.objects.filter(obj => obj.id !== this.objectId),
+      version: currentState.version + 1
+    }
+  }
+  
+  reverse(): KonvaObjectAddedEvent {
+    if (!this.removedObject) {
+      throw new Error('Cannot reverse object removal: object data not available')
+    }
+    
+    return new KonvaObjectAddedEvent(
+      this.canvasId,
+      this.removedObject.id,
+      this.removedObject.type,
+      {
+        name: this.removedObject.name,
+        visible: this.removedObject.visible,
+        locked: this.removedObject.locked,
+        opacity: this.removedObject.opacity,
+        blendMode: this.removedObject.blendMode,
+        transform: this.removedObject.transform,
+        data: this.removedObject.data
+      },
+      this.removedObject.layerId,
+      this.metadata
+    )
+  }
+  
+  canApply(currentState: KonvaCanvasState): boolean {
+    return currentState.objects.some(obj => obj.id === this.objectId)
+  }
+  
+  getDescription(): string {
+    return `Remove ${this.removedObject?.type || 'object'} from canvas`
+  }
+  
+  protected getEventData(): Record<string, unknown> {
+    return {
+      canvasId: this.canvasId,
+      objectId: this.objectId,
+      objectType: this.removedObject?.type
+    }
+  }
+}
+
+/**
+ * Konva object modified on canvas
+ */
+export class KonvaObjectModifiedEvent extends CanvasEvent {
+  constructor(
+    private canvasId: string,
+    private objectId: string,
+    private previousState: Record<string, unknown>,
+    private newState: Record<string, unknown>,
+    metadata: CanvasEvent['metadata']
+  ) {
+    super('canvas.konva.object.modified', canvasId, metadata)
+  }
+  
+  apply(currentState: KonvaCanvasState): KonvaCanvasState {
+    const objectIndex = currentState.objects.findIndex(obj => obj.id === this.objectId)
+    if (objectIndex === -1) return currentState
+    
+    // Create updated object
+    const updatedObject = {
+      ...currentState.objects[objectIndex],
+      ...this.newState
+    }
+    
+    const newObjects = [...currentState.objects]
+    newObjects[objectIndex] = updatedObject
+    
+    return {
+      ...currentState,
+      objects: newObjects,
+      version: currentState.version + 1
+    }
+  }
+  
+  reverse(): KonvaObjectModifiedEvent {
+    return new KonvaObjectModifiedEvent(
+      this.canvasId,
+      this.objectId,
+      this.newState,
+      this.previousState,
+      this.metadata
+    )
+  }
+  
+  canApply(currentState: KonvaCanvasState): boolean {
+    return currentState.objects.some(obj => obj.id === this.objectId)
+  }
+  
+  getDescription(): string {
+    const changes = Object.keys(this.newState).join(', ')
+    return `Modify object: ${changes}`
+  }
+  
+  protected getEventData(): Record<string, unknown> {
+    return {
+      canvasId: this.canvasId,
+      objectId: this.objectId,
+      previousState: this.previousState,
+      newState: this.newState
+    }
+  }
+} 

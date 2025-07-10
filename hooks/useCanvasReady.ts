@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useService } from '@/lib/core/ServiceContainer'
 import type { TypedCanvasStore } from '@/lib/store/canvas/TypedCanvasStore'
+import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
 
 /**
  * Hook to check if the canvas is ready for use
@@ -8,9 +9,10 @@ import type { TypedCanvasStore } from '@/lib/store/canvas/TypedCanvasStore'
 export function useCanvasReady() {
   const [isReady, setIsReady] = useState(false)
   const canvasStore = useService<TypedCanvasStore>('CanvasStore')
+  const canvasManager = useService<CanvasManager>('CanvasManager')
   
   useEffect(() => {
-    if (!canvasStore) {
+    if (!canvasStore || !canvasManager) {
       setIsReady(false)
       return
     }
@@ -18,7 +20,8 @@ export function useCanvasReady() {
     // Check if canvas is initialized
     const checkReady = () => {
       const state = canvasStore.getState()
-      setIsReady(state.width > 0 && state.height > 0 && !state.isLoading)
+      const hasKonvaStage = !!canvasManager.konvaStage
+      setIsReady(state.width > 0 && state.height > 0 && !state.isLoading && hasKonvaStage)
     }
     
     // Initial check
@@ -26,11 +29,12 @@ export function useCanvasReady() {
     
     // Subscribe to canvas changes
     const unsubscribe = canvasStore.subscribe((state) => {
-      setIsReady(state.width > 0 && state.height > 0 && !state.isLoading)
+      const hasKonvaStage = !!canvasManager.konvaStage
+      setIsReady(state.width > 0 && state.height > 0 && !state.isLoading && hasKonvaStage)
     })
     
     return unsubscribe
-  }, [canvasStore])
+  }, [canvasStore, canvasManager])
   
   return isReady
 } 
