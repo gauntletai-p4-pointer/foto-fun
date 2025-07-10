@@ -190,7 +190,7 @@ The user will then be shown a review modal to compare the original and upscaled 
       }
       
       // Use the first image found
-      const imageObj = imageObjects[0] as any
+      const imageObj = imageObjects[0] as unknown as { getSrc?: () => string; toDataURL?: (options: { format: string; quality: number }) => string }
       
       // Try to get the original image URL
       if (imageObj.getSrc) {
@@ -198,6 +198,10 @@ The user will then be shown a review modal to compare the original and upscaled 
       }
       
       // Fallback: export the image object as data URL
+      if (!imageObj.toDataURL) {
+        return null
+      }
+      
       const dataUrl = imageObj.toDataURL({
         format: 'png',
         quality: 1.0
@@ -244,7 +248,7 @@ The user will then be shown a review modal to compare the original and upscaled 
       // Find the original image object and replace it
       const objects = canvas.getObjects()
       const originalImage = objects.find(obj => 
-        obj.type === 'image' && (obj as any).getSrc?.() === originalUrl
+        obj.type === 'image' && (obj as unknown as { getSrc?: () => string }).getSrc?.() === originalUrl
       )
       
       if (originalImage) {

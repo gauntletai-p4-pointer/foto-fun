@@ -367,7 +367,7 @@ export abstract class BaseTool implements Tool {
     operation: () => T | Promise<T>
   ): Promise<T | undefined> {
     // Check if we have a state object with get/set methods
-    const state = (this as any).state
+    const state = (this as unknown as { state?: { get: (key: string) => unknown; set: (key: string, value: unknown) => void } }).state
     if (!state || typeof state.get !== 'function' || typeof state.set !== 'function') {
       // No state management, just execute
       return await operation()
@@ -415,7 +415,7 @@ export abstract class BaseTool implements Tool {
   protected subscribeToOption<T>(
     optionId: string,
     callback: (value: T) => void,
-    trackState?: { stateName: string, stateObject: any }
+    trackState?: { stateName: string, stateObject: { get: (key: string) => unknown; set: (key: string, value: unknown) => void } }
   ): void {
     this.subscribeToToolOptions((options) => {
       const value = options.find(opt => opt.id === optionId)?.value as T | undefined

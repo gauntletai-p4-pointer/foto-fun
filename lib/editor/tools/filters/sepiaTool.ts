@@ -4,7 +4,7 @@ import type { Canvas } from 'fabric'
 import { FabricImage, filters } from 'fabric'
 import { BaseTool } from '../base/BaseTool'
 import { createToolState } from '../utils/toolState'
-import { useToolOptionsStore } from '@/store/toolOptionsStore'
+// import { useToolOptionsStore } from '@/store/toolOptionsStore'
 import { ModifyCommand } from '@/lib/editor/commands/canvas'
 
 // Define tool state

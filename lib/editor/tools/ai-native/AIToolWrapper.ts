@@ -1,4 +1,4 @@
-import type { Canvas } from 'fabric'
+// import type { Canvas } from 'fabric'
 import type { ComponentType } from 'react'
 import { BaseTool } from '../base/BaseTool'
 import { createToolState } from '../utils/toolState'

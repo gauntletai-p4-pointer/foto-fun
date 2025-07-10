@@ -2,10 +2,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { serverReplicateClient } from '@/lib/ai/server/replicateClient'
-import Replicate from 'replicate'
+// import Replicate from 'replicate'
 
 // Create properly authenticated instance
-const replicate = new Replicate({ auth: process.env.REPLICATE_API_KEY })
+// const replicate = new Replicate({ auth: process.env.REPLICATE_API_KEY })
 
 // Input validation schema
 const inpaintSchema = z.object({

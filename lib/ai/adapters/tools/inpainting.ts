@@ -21,7 +21,11 @@ type InpaintOutput = {
   message: string
   imageUrl?: string
   cost?: number
-  metadata?: any
+  metadata?: {
+    model?: string
+    processingTime?: number
+    [key: string]: unknown
+  }
 }
 
 // Zod schema

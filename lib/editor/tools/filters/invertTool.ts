@@ -1,11 +1,11 @@
 import { Contrast } from 'lucide-react'
 import { TOOL_IDS } from '@/constants'
-import type { Canvas } from 'fabric'
-import { FabricImage, filters } from 'fabric'
+// import type { Canvas } from 'fabric'
+import { filters } from 'fabric'
 import { BaseTool } from '../base/BaseTool'
 import { createToolState } from '../utils/toolState'
 import { useToolOptionsStore } from '@/store/toolOptionsStore'
-import { ModifyCommand } from '@/lib/editor/commands/canvas'
+// import { ModifyCommand } from '@/lib/editor/commands/canvas'
 
 // Define tool state
 type InvertToolState = {
@@ -28,13 +28,13 @@ class InvertTool extends BaseTool {
   })
   
   // Required: Setup
-  protected setupTool(canvas: Canvas): void {
+  protected setupTool(): void {
     // Subscribe to tool options
     this.subscribeToToolOptions(() => {
       const action = this.getOptionValue('action')
       
       if (action === 'toggle') {
-        this.toggleInvert(canvas)
+        this.toggleInvert()
         // Reset the action
         useToolOptionsStore.getState().updateOption(this.id, 'action', null)
       }
@@ -50,7 +50,7 @@ class InvertTool extends BaseTool {
     })
   }
   
-  private toggleInvert(canvas: Canvas): void {
+  private toggleInvert(): void {
     this.executeWithGuard('isApplying', async () => {
       const newState = !this.state.get('isInverted')
       const images = this.getTargetImages()

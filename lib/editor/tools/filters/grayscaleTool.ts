@@ -1,11 +1,11 @@
 import { Palette } from 'lucide-react'
 import { TOOL_IDS } from '@/constants'
-import type { Canvas } from 'fabric'
-import { FabricImage, filters } from 'fabric'
+// import type { Canvas } from 'fabric'
+import { filters } from 'fabric'
 import { BaseTool } from '../base/BaseTool'
 import { createToolState } from '../utils/toolState'
 import { useToolOptionsStore } from '@/store/toolOptionsStore'
-import { ModifyCommand } from '@/lib/editor/commands/canvas'
+// import { ModifyCommand } from '@/lib/editor/commands/canvas'
 
 // Define tool state
 type GrayscaleToolState = {
@@ -28,13 +28,13 @@ class GrayscaleTool extends BaseTool {
   })
   
   // Required: Setup
-  protected setupTool(canvas: Canvas): void {
+  protected setupTool(): void {
     // Subscribe to tool options
     this.subscribeToToolOptions(() => {
       const action = this.getOptionValue('action')
       
       if (action === 'toggle') {
-        this.toggleGrayscale(canvas)
+        this.toggleGrayscale()
         // Reset the action
         useToolOptionsStore.getState().updateOption(this.id, 'action', null)
       }
@@ -50,7 +50,7 @@ class GrayscaleTool extends BaseTool {
     })
   }
   
-  private toggleGrayscale(canvas: Canvas): void {
+  private toggleGrayscale(): void {
     this.executeWithGuard('isApplying', async () => {
       const newState = !this.state.get('isGrayscale')
       const images = this.getTargetImages()

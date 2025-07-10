@@ -1,8 +1,10 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { z } from 'zod'
 import { BaseToolAdapter } from '../base'
-import type { Canvas } from 'fabric'
+import type { Canvas, FabricObject } from 'fabric'
 import { tool } from 'ai'
 import type { Tool } from '@/types'
+import { CanvasToolBridge } from '@/lib/ai/tools/canvas-bridge'
 
 // Input schema for AI SDK v5 - no parameters needed for background removal
 const backgroundRemovalInputSchema = z.object({
@@ -88,18 +90,43 @@ The user will then be shown a review modal to compare the original and processed
   async execute(params: BackgroundRemovalInput, context: { canvas: Canvas }): Promise<BackgroundRemovalOutput> {
     try {
       console.log('[BackgroundRemovalAdapter] Starting background removal with params:', params)
-      console.log('[BackgroundRemovalAdapter] Canvas state:', {
-        canvasReady: !!context.canvas,
-        canvasWidth: context.canvas?.getWidth(),
-        canvasHeight: context.canvas?.getHeight(),
-        objectCount: context.canvas?.getObjects()?.length || 0
+      
+      // Use CanvasToolBridge to get proper canvas context with image targeting
+      const canvasContext = CanvasToolBridge.getCanvasContext()
+      
+      if (!canvasContext) {
+        console.error('[BackgroundRemovalAdapter] Canvas context not available')
+        return {
+          success: false,
+          message: 'Canvas not ready. Please wait for the canvas to fully load and try again.',
+          cost: 0
+        }
+      }
+      
+      console.log('[BackgroundRemovalAdapter] Canvas context:', {
+        canvasReady: !!canvasContext.canvas,
+        canvasWidth: canvasContext.canvas?.getWidth(),
+        canvasHeight: canvasContext.canvas?.getHeight(),
+        totalObjects: canvasContext.canvas?.getObjects()?.length || 0,
+        targetImages: canvasContext.targetImages.length,
+        targetingMode: canvasContext.targetingMode
       })
+      
+      // Check if we have target images
+      if (canvasContext.targetImages.length === 0) {
+        console.error('[BackgroundRemovalAdapter] No target images found')
+        return {
+          success: false,
+          message: 'No image found on canvas to process. Please ensure an image is selected or present on the canvas.',
+          cost: 0
+        }
+      }
       
       // Add a small delay to ensure canvas is fully ready
       await new Promise(resolve => setTimeout(resolve, 100))
       
-      // Get the image to process from canvas
-      const imageUrl = await this.getImageFromCanvas(context.canvas)
+      // Get the image to process from the target images
+      const imageUrl = await this.getImageFromTargetImages(canvasContext.targetImages)
       
       console.log('[BackgroundRemovalAdapter] Image extraction result:', {
         success: !!imageUrl,
@@ -109,10 +136,10 @@ The user will then be shown a review modal to compare the original and processed
       })
       
       if (!imageUrl) {
-        console.error('[BackgroundRemovalAdapter] No image URL extracted from canvas')
+        console.error('[BackgroundRemovalAdapter] No image URL extracted from target images')
         return {
           success: false,
-          message: 'No image found on canvas to process. Please ensure an image is selected or present on the canvas.',
+          message: 'Failed to extract image data from canvas. Please try selecting the image first or re-adding it to the canvas.',
           cost: 0
         }
       }
@@ -245,58 +272,28 @@ The user will then be shown a review modal to compare the original and processed
   }
   
   /**
-   * Get image from canvas to process
+   * Get image from target images (from CanvasToolBridge)
    */
-  private async getImageFromCanvas(canvas: Canvas): Promise<string | null> {
+  private async getImageFromTargetImages(targetImages: FabricObject[]): Promise<string | null> {
     try {
-      console.log('[BackgroundRemovalAdapter] Starting canvas image extraction')
+      console.log('[BackgroundRemovalAdapter] Starting image extraction from target images')
+      console.log('[BackgroundRemovalAdapter] Target images count:', targetImages.length)
       
-      // Ensure canvas is ready
-      if (!canvas) {
-        console.error('[BackgroundRemovalAdapter] Canvas is null or undefined')
+      if (targetImages.length === 0) {
+        console.log('[BackgroundRemovalAdapter] No target images provided')
         return null
       }
       
-      // Add a small delay to ensure canvas operations are complete
-      await new Promise(resolve => setTimeout(resolve, 50))
-      
-      // Get canvas objects with error handling
-      let selectedObjects: any[] = []
-      let allObjects: any[] = []
-      
-      try {
-        selectedObjects = canvas.getActiveObjects() || []
-        allObjects = canvas.getObjects() || []
-      } catch (canvasError) {
-        console.error('[BackgroundRemovalAdapter] Error accessing canvas objects:', canvasError)
-        return null
-      }
-      
-      console.log('[BackgroundRemovalAdapter] Canvas objects found:', {
-        selectedCount: selectedObjects.length,
-        totalCount: allObjects.length
-      })
-      
-      // Find images in selected objects first, then in all objects
-      const imageObjects = selectedObjects.length > 0 
-        ? selectedObjects.filter(obj => obj && obj.type === 'image')
-        : allObjects.filter(obj => obj && obj.type === 'image')
-      
-      if (imageObjects.length === 0) {
-        console.log('[BackgroundRemovalAdapter] No image objects found on canvas')
-        return null
-      }
-      
-      // Use the first image found
-      const imageObj = imageObjects[0] as any
+      // Use the first target image
+      const imageObj = targetImages[0] as unknown as Record<string, unknown>
       
       // Validate the image object
       if (!imageObj) {
-        console.error('[BackgroundRemovalAdapter] Image object is null or undefined')
+        console.error('[BackgroundRemovalAdapter] Target image object is null or undefined')
         return null
       }
       
-      console.log('[BackgroundRemovalAdapter] Found image object:', {
+      console.log('[BackgroundRemovalAdapter] Processing target image:', {
         type: imageObj.type,
         hasSrc: !!imageObj.getSrc,
         width: imageObj.width,
@@ -307,19 +304,25 @@ The user will then be shown a review modal to compare the original and processed
       })
       
       // Get image dimensions for processing decisions
-      const imageWidth = imageObj.width || 0
-      const imageHeight = imageObj.height || 0
-      const actualWidth = imageWidth * (imageObj.scaleX || 1)
-      const actualHeight = imageHeight * (imageObj.scaleY || 1)
+      const imageWidth = (imageObj.width as number) || 0
+      const imageHeight = (imageObj.height as number) || 0
+      const actualWidth = imageWidth * ((imageObj.scaleX as number) || 1)
+      const actualHeight = imageHeight * ((imageObj.scaleY as number) || 1)
       
       console.log(`[BackgroundRemovalAdapter] Image dimensions: ${imageWidth}x${imageHeight} (actual: ${actualWidth}x${actualHeight})`)
       
-      // Try to get the original image URL first
+      // Try to get the original image URL first (with error handling)
       let originalUrl: string | null = null
-      if (imageObj.getSrc) {
-        originalUrl = imageObj.getSrc()
-        console.log('[BackgroundRemovalAdapter] Original URL type:', originalUrl?.startsWith('data:') ? 'data_url' : 'url')
-        console.log('[BackgroundRemovalAdapter] Original URL format:', originalUrl?.substring(0, 30) + '...')
+      const getSrc = imageObj.getSrc as (() => string) | undefined
+      if (getSrc) {
+        try {
+          originalUrl = getSrc()
+          console.log('[BackgroundRemovalAdapter] Original URL type:', originalUrl?.startsWith('data:') ? 'data_url' : 'url')
+          console.log('[BackgroundRemovalAdapter] Original URL format:', originalUrl?.substring(0, 30) + '...')
+        } catch (getSrcError) {
+          console.warn('[BackgroundRemovalAdapter] getSrc() failed, will use toDataURL instead:', getSrcError)
+          originalUrl = null
+        }
       }
       
       // Always process the image to ensure compatibility
@@ -335,94 +338,134 @@ The user will then be shown a review modal to compare the original and processed
         console.log(`[BackgroundRemovalAdapter] Resizing image by factor ${exportMultiplier} (${actualWidth}x${actualHeight} → ${Math.round(actualWidth * exportMultiplier)}x${Math.round(actualHeight * exportMultiplier)})`)
       }
       
-             // Validate the image object has the toDataURL method
-       if (typeof imageObj.toDataURL !== 'function') {
-         console.error('[BackgroundRemovalAdapter] Image object missing toDataURL method')
-         return null
-       }
-       
-       // Try multiple export strategies
-       const exportStrategies = [
-         { format: 'png', quality: 1.0, multiplier: exportMultiplier, description: 'PNG high quality' },
-         { format: 'jpeg', quality: 0.95, multiplier: exportMultiplier, description: 'JPEG high quality' },
-         { format: 'jpeg', quality: 0.8, multiplier: exportMultiplier * 0.8, description: 'JPEG medium quality' },
-         { format: 'png', quality: 1.0, multiplier: exportMultiplier * 0.5, description: 'PNG smaller size' },
-         { format: 'jpeg', quality: 0.7, multiplier: exportMultiplier * 0.5, description: 'JPEG low quality' }
-       ]
-       
-       for (const strategy of exportStrategies) {
-         try {
-           console.log(`[BackgroundRemovalAdapter] Trying export strategy: ${strategy.description}`)
-           
-           // Add timeout to prevent hanging
-           const exportPromise = new Promise<string>((resolve, reject) => {
-             try {
-               const imageUrl = imageObj.toDataURL({
-                 format: strategy.format as 'png' | 'jpeg',
-                 quality: strategy.quality,
-                 multiplier: strategy.multiplier
-               })
-               resolve(imageUrl)
-             } catch (error) {
-               reject(error)
-             }
-           })
-           
-           const timeoutPromise = new Promise<string>((_, reject) => {
-             setTimeout(() => reject(new Error('Export timeout')), 5000)
-           })
-           
-           const imageUrl = await Promise.race([exportPromise, timeoutPromise])
-           
-           console.log(`[BackgroundRemovalAdapter] Export result: ${imageUrl?.length || 0} characters`)
-           
-           if (!imageUrl) {
-             console.warn(`[BackgroundRemovalAdapter] Export failed for ${strategy.description}`)
-             continue
-           }
-           
-           // Check size limits
-           if (imageUrl.length > 8_000_000) { // 8MB limit
-             console.log(`[BackgroundRemovalAdapter] Image too large (${imageUrl.length}), trying next strategy`)
-             continue
-           }
-           
-           // Validate the format
-           if (!this.isValidImageDataUrl(imageUrl)) {
-             console.log(`[BackgroundRemovalAdapter] Invalid format for ${strategy.description}, trying next strategy`)
-             continue
-           }
-           
-           // Test if it's a valid image by trying to parse the base64
-           try {
-             const base64Index = imageUrl.indexOf(';base64,')
-             if (base64Index !== -1) {
-               const base64Data = imageUrl.substring(base64Index + 8)
-               // Try to decode to verify it's valid base64
-               atob(base64Data.substring(0, 100)) // Test first 100 chars
-               console.log(`[BackgroundRemovalAdapter] Base64 validation passed for ${strategy.description}`)
-             }
-           } catch (base64Error) {
-             console.warn(`[BackgroundRemovalAdapter] Base64 validation failed for ${strategy.description}:`, base64Error)
-             continue
-           }
-           
-           console.log(`[BackgroundRemovalAdapter] Successfully processed image using ${strategy.description}`)
-           console.log(`[BackgroundRemovalAdapter] Final image: ${imageUrl.substring(0, 50)}... (${imageUrl.length} chars)`)
-           
-           return imageUrl
-           
-         } catch (exportError) {
-           console.warn(`[BackgroundRemovalAdapter] Export error for ${strategy.description}:`, exportError)
-           continue
-         }
-       }
+      // Validate the image object has the toDataURL method
+      const toDataURL = imageObj.toDataURL as ((options: { format: string; quality: number; multiplier?: number }) => string) | undefined
+      if (typeof toDataURL !== 'function') {
+        console.error('[BackgroundRemovalAdapter] Image object missing toDataURL method')
+        return null
+      }
       
-      console.error('[BackgroundRemovalAdapter] All export strategies failed')
+      // If we have originalUrl and it's a data URL, we might be able to use it directly
+      if (originalUrl && originalUrl.startsWith('data:image/') && this.isValidImageDataUrl(originalUrl)) {
+        console.log('[BackgroundRemovalAdapter] Using original image URL directly')
+        return originalUrl
+      }
+      
+      // Try multiple export strategies
+      const exportStrategies = [
+        { format: 'png', quality: 1.0, multiplier: exportMultiplier, description: 'PNG high quality' },
+        { format: 'jpeg', quality: 0.95, multiplier: exportMultiplier, description: 'JPEG high quality' },
+        { format: 'jpeg', quality: 0.8, multiplier: exportMultiplier * 0.8, description: 'JPEG medium quality' },
+        { format: 'png', quality: 1.0, multiplier: exportMultiplier * 0.5, description: 'PNG smaller size' },
+        { format: 'jpeg', quality: 0.7, multiplier: exportMultiplier * 0.5, description: 'JPEG low quality' }
+      ]
+      
+      for (const strategy of exportStrategies) {
+        try {
+          console.log(`[BackgroundRemovalAdapter] Trying export strategy: ${strategy.description}`)
+          
+          // Add timeout to prevent hanging
+          const exportPromise = new Promise<string>((resolve, reject) => {
+            try {
+              const imageUrl = toDataURL({
+                format: strategy.format as 'png' | 'jpeg',
+                quality: strategy.quality,
+                multiplier: strategy.multiplier
+              })
+              resolve(imageUrl)
+            } catch (error) {
+              reject(error)
+            }
+          })
+          
+          const timeoutPromise = new Promise<string>((_, reject) => {
+            setTimeout(() => reject(new Error('Export timeout')), 10000) // Increased timeout
+          })
+          
+          const imageUrl = await Promise.race([exportPromise, timeoutPromise])
+          
+          console.log(`[BackgroundRemovalAdapter] Export result: ${imageUrl?.length || 0} characters`)
+          
+          if (!imageUrl) {
+            console.warn(`[BackgroundRemovalAdapter] Export failed for ${strategy.description}`)
+            continue
+          }
+          
+          // Additional validation - check if the result looks like a valid data URL
+          if (!imageUrl.startsWith('data:image/')) {
+            console.warn(`[BackgroundRemovalAdapter] Export result doesn't look like a valid data URL for ${strategy.description}`)
+            continue
+          }
+          
+          // Check size limits
+          if (imageUrl.length > 8_000_000) { // 8MB limit
+            console.log(`[BackgroundRemovalAdapter] Image too large (${imageUrl.length}), trying next strategy`)
+            continue
+          }
+          
+          // Validate the format
+          if (!this.isValidImageDataUrl(imageUrl)) {
+            console.log(`[BackgroundRemovalAdapter] Invalid format for ${strategy.description}, trying next strategy`)
+            continue
+          }
+          
+          // Test if it's a valid image by trying to parse the base64
+          try {
+            const base64Index = imageUrl.indexOf(';base64,')
+            if (base64Index !== -1) {
+              const base64Data = imageUrl.substring(base64Index + 8)
+              // Try to decode to verify it's valid base64
+              atob(base64Data.substring(0, 100)) // Test first 100 chars
+              console.log(`[BackgroundRemovalAdapter] Base64 validation passed for ${strategy.description}`)
+            }
+          } catch {
+            console.warn(`[BackgroundRemovalAdapter] Base64 validation failed for ${strategy.description}`)
+            continue
+          }
+          
+          console.log(`[BackgroundRemovalAdapter] Successfully processed image using ${strategy.description}`)
+          console.log(`[BackgroundRemovalAdapter] Final image: ${imageUrl.substring(0, 50)}... (${imageUrl.length} chars)`)
+          
+          return imageUrl
+          
+        } catch (exportError) {
+          console.warn(`[BackgroundRemovalAdapter] Export error for ${strategy.description}:`, exportError)
+          // Log more details about the error
+          if (exportError instanceof Error) {
+            console.warn(`[BackgroundRemovalAdapter] Error details: ${exportError.message}`)
+            console.warn(`[BackgroundRemovalAdapter] Error stack: ${exportError.stack}`)
+          }
+          continue
+        }
+      }
+      
+      // If all strategies failed, try one more fallback using the canvas itself
+      console.log('[BackgroundRemovalAdapter] All export strategies failed, trying canvas fallback')
+      try {
+        // Get canvas context to try extracting the image differently
+        const canvasContext = CanvasToolBridge.getCanvasContext()
+        if (canvasContext && canvasContext.canvas) {
+          console.log('[BackgroundRemovalAdapter] Trying canvas-level export as fallback')
+          const canvasDataURL = await CanvasToolBridge.getCleanCanvasImage(canvasContext.canvas, {
+            format: 'png',
+            quality: 1,
+            multiplier: 0.5 // Smaller size for better compatibility
+          })
+          
+          if (canvasDataURL && this.isValidImageDataUrl(canvasDataURL)) {
+            console.log('[BackgroundRemovalAdapter] Canvas fallback successful')
+            return canvasDataURL
+          }
+        }
+      } catch (canvasError) {
+        console.warn('[BackgroundRemovalAdapter] Canvas fallback also failed:', canvasError)
+      }
+      
+      console.error('[BackgroundRemovalAdapter] All export strategies and fallbacks failed')
       return null
       
     } catch (error) {
-      console.error('[BackgroundRemovalAdapter] Error getting image from canvas:', error)
+      console.error('[BackgroundRemovalAdapter] Error getting image from target images:', error)
       return null
     }
   }
@@ -469,7 +512,7 @@ The user will then be shown a review modal to compare the original and processed
       // Additional validation - ensure it's valid base64
       try {
         atob(base64Data.substring(0, 100)) // Test decode first 100 chars
-      } catch (base64Error) {
+      } catch {
         console.warn('[BackgroundRemovalAdapter] Invalid base64 data')
         return false
       }
@@ -523,12 +566,12 @@ The user will then be shown a review modal to compare the original and processed
       const imageObjects = objects.filter(obj => obj.type === 'image')
       console.log('[BackgroundRemovalAdapter] Found', imageObjects.length, 'image objects')
       
-      let originalImage: any = null
+      let originalImage: unknown = null
       
       // Strategy 1: Try exact URL match
       originalImage = imageObjects.find(obj => {
-        const objSrc = (obj as any).getSrc?.()
-        return objSrc === originalUrl
+        const objSrc = (obj as any).getSrc as (() => string) | undefined
+        return objSrc?.() === originalUrl
       })
       
       if (!originalImage) {
@@ -536,12 +579,13 @@ The user will then be shown a review modal to compare the original and processed
         
         // Strategy 2: Try fuzzy matching for data URLs (compare significant parts)
         originalImage = imageObjects.find(obj => {
-          const objSrc = (obj as any).getSrc?.()
-          if (!objSrc || !originalUrl) return false
+          const objSrc = (obj as any).getSrc as (() => string) | undefined
+          const srcValue = objSrc?.()
+          if (!srcValue || !originalUrl) return false
           
           // For data URLs, compare the base64 data part
-          if (objSrc.startsWith('data:') && originalUrl.startsWith('data:')) {
-            const objBase64 = objSrc.split(';base64,')[1]
+          if (srcValue.startsWith('data:') && originalUrl.startsWith('data:')) {
+            const objBase64 = srcValue.split(';base64,')[1]
             const origBase64 = originalUrl.split(';base64,')[1]
             if (objBase64 && origBase64) {
               // Compare first 100 characters of base64 (should be enough to identify)
@@ -583,21 +627,21 @@ The user will then be shown a review modal to compare the original and processed
       
       console.log('[BackgroundRemovalAdapter] Found original image, proceeding with replacement')
       console.log('[BackgroundRemovalAdapter] Original image properties:', {
-        type: originalImage.type,
-        left: originalImage.left,
-        top: originalImage.top,
-        width: originalImage.width,
-        height: originalImage.height,
-        scaleX: originalImage.scaleX,
-        scaleY: originalImage.scaleY,
-        angle: originalImage.angle
+        type: (originalImage as any).type,
+        left: (originalImage as any).left,
+        top: (originalImage as any).top,
+        width: (originalImage as any).width,
+        height: (originalImage as any).height,
+        scaleX: (originalImage as any).scaleX,
+        scaleY: (originalImage as any).scaleY,
+        angle: (originalImage as any).angle
       })
       
       // Load the processed image
       const fabric = await import('fabric')
       
       // Load the processed image using a more direct approach
-      let processedImg: any
+      let processedImg: unknown
       try {
         console.log('[BackgroundRemovalAdapter] Loading processed image...')
         
@@ -613,7 +657,7 @@ The user will then be shown a review modal to compare the original and processed
         })
         
         // Create fabric image from loaded element
-        processedImg = new fabric.Image(imgElement)
+        processedImg = new fabric.Image(imgElement) as any
         console.log('[BackgroundRemovalAdapter] Successfully loaded processed image')
       } catch (loadError) {
         console.error('[BackgroundRemovalAdapter] Error loading processed image:', loadError)
@@ -627,22 +671,22 @@ The user will then be shown a review modal to compare the original and processed
       }
       
       // Copy position and properties from original
-      processedImg.set({
-        left: originalImage.left,
-        top: originalImage.top,
-        scaleX: originalImage.scaleX,
-        scaleY: originalImage.scaleY,
-        angle: originalImage.angle,
-        selectable: originalImage.selectable,
-        evented: originalImage.evented
+      ;(processedImg as any).set({
+        left: (originalImage as any).left,
+        top: (originalImage as any).top,
+        scaleX: (originalImage as any).scaleX,
+        scaleY: (originalImage as any).scaleY,
+        angle: (originalImage as any).angle,
+        selectable: (originalImage as any).selectable,
+        evented: (originalImage as any).evented
       })
       
       console.log('[BackgroundRemovalAdapter] Removing original image and adding processed image')
       
       // Remove original and add processed
-      canvas.remove(originalImage)
-      canvas.add(processedImg)
-      canvas.setActiveObject(processedImg)
+      canvas.remove(originalImage as any)
+      canvas.add(processedImg as any)
+      canvas.setActiveObject(processedImg as any)
       canvas.renderAll()
       
       console.log('[BackgroundRemovalAdapter] Successfully applied processed image in place')
@@ -694,7 +738,7 @@ The user will then be shown a review modal to compare the original and processed
       // Load the processed image
       const fabric = await import('fabric')
       
-      let processedImg: any
+      let processedImg: unknown
       try {
         console.log('[BackgroundRemovalAdapter] Loading processed image for acceptBoth...')
         
@@ -710,7 +754,7 @@ The user will then be shown a review modal to compare the original and processed
         })
         
         // Create fabric image from loaded element
-        processedImg = new fabric.Image(imgElement)
+        processedImg = new fabric.Image(imgElement) as any
         console.log('[BackgroundRemovalAdapter] Successfully loaded processed image for acceptBoth')
       } catch (loadError) {
         console.error('[BackgroundRemovalAdapter] Error loading processed image for acceptBoth:', loadError)
@@ -727,7 +771,7 @@ The user will then be shown a review modal to compare the original and processed
       const canvasWidth = canvas.getWidth()
       const canvasHeight = canvas.getHeight()
       
-      processedImg.set({
+      ;(processedImg as any).set({
         left: canvasWidth * 0.6, // Position to the right
         top: canvasHeight * 0.1,
         selectable: true,
@@ -737,8 +781,8 @@ The user will then be shown a review modal to compare the original and processed
       console.log('[BackgroundRemovalAdapter] Adding processed image to canvas')
       
       // Add to canvas
-      canvas.add(processedImg)
-      canvas.setActiveObject(processedImg)
+      canvas.add(processedImg as any)
+      canvas.setActiveObject(processedImg as any)
       canvas.renderAll()
       
       console.log('[BackgroundRemovalAdapter] Successfully added both images')

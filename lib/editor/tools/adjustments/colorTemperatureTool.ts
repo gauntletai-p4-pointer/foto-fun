@@ -3,7 +3,7 @@ import { TOOL_IDS } from '@/constants'
 import type { Canvas, Image, FabricObject } from 'fabric'
 import { BaseTool } from '../base/BaseTool'
 import { createToolState } from '../utils/toolState'
-import { useToolOptionsStore } from '@/store/toolOptionsStore'
+// import { useToolOptionsStore } from '@/store/toolOptionsStore'
 import { ModifyCommand } from '@/lib/editor/commands/canvas'
 import * as fabric from 'fabric'
 

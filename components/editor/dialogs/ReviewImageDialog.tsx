@@ -3,7 +3,7 @@
 import { useCanvasStore } from '@/store/canvasStore'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
-import { X } from 'lucide-react'
+// import { X } from 'lucide-react'
 import Image from 'next/image'
 import { useState, useRef, useCallback } from 'react'
 
@@ -14,20 +14,6 @@ export function ReviewImageDialog() {
   const containerRef = useRef<HTMLDivElement>(null)
   const isDragging = useRef(false)
   
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    isDragging.current = true
-    updateSliderPosition(e)
-  }, [])
-  
-  const handleMouseMove = useCallback((e: React.MouseEvent) => {
-    if (!isDragging.current) return
-    updateSliderPosition(e)
-  }, [])
-  
-  const handleMouseUp = useCallback(() => {
-    isDragging.current = false
-  }, [])
-  
   const updateSliderPosition = useCallback((e: React.MouseEvent) => {
     if (!containerRef.current) return
     
@@ -35,6 +21,20 @@ export function ReviewImageDialog() {
     const x = e.clientX - rect.left
     const percentage = Math.max(0, Math.min(100, (x / rect.width) * 100))
     setSliderPosition(percentage)
+  }, [])
+  
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    isDragging.current = true
+    updateSliderPosition(e)
+  }, [updateSliderPosition])
+  
+  const handleMouseMove = useCallback((e: React.MouseEvent) => {
+    if (!isDragging.current) return
+    updateSliderPosition(e)
+  }, [updateSliderPosition])
+  
+  const handleMouseUp = useCallback(() => {
+    isDragging.current = false
   }, [])
   
   // Early return after all hooks are called

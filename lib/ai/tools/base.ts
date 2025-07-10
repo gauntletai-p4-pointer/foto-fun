@@ -164,7 +164,7 @@ export interface BaseAITool<TInput = unknown, TOutput = unknown> {
 // UI Props interface for AI tools
 export interface AIToolUIProps {
   tool: BaseAITool
-  onComplete: (result: any) => void
+  onComplete: (result: unknown) => void
   onCancel: () => void
 }
 

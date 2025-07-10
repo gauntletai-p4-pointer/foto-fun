@@ -14,6 +14,7 @@ import { TOOL_IDS } from '@/constants'
 import { Input } from '@/components/ui/input'
 import { InpaintingAdapter } from '@/lib/ai/adapters/tools/inpainting'
 import { Slider } from '@/components/ui/slider'
+import { CanvasToolBridge } from '@/lib/ai/tools/canvas-bridge'
 
 const TRANSFORMATION_TYPES = [
   { value: 'upscale', label: 'Upscale image' },
@@ -64,6 +65,14 @@ export function ImageTransformationDialog() {
       return
     }
     
+    // Get canvas context first for better error handling
+    const canvasContext = CanvasToolBridge.getCanvasContext()
+    if (!canvasContext) {
+      console.error('Canvas context not available')
+      alert('Canvas not ready. Please wait for the canvas to fully load and try again.')
+      return
+    }
+    
     setIsTransforming(true)
     
     try {
@@ -89,10 +98,16 @@ export function ImageTransformationDialog() {
           alert(result.message || 'Failed to upscale image')
         }
       } else if (transformationType === 'remove-background') {
+        // Check if we have target images before proceeding
+        if (canvasContext.targetImages.length === 0) {
+          alert('No image found on canvas to process. Please ensure an image is selected or present on the canvas.')
+          return
+        }
+        
         // Create background removal adapter instance
         const adapter = new BackgroundRemovalAdapter()
         
-        // Execute background removal
+        // Execute background removal with canvas context
         const result = await adapter.execute(
           {}, // No parameters needed for background removal
           { canvas: fabricCanvas }

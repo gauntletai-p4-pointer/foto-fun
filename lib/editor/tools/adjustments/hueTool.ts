@@ -2,9 +2,9 @@ import { Paintbrush } from 'lucide-react'
 import { TOOL_IDS } from '@/constants'
 import { BaseTool } from '../base/BaseTool'
 import { createToolState } from '../utils/toolState'
-import type { FabricObject, Image as FabricImage } from 'fabric'
+// import type { FabricObject, Image as FabricImage } from 'fabric'
 import { filters } from 'fabric'
-import { ModifyCommand } from '@/lib/editor/commands/canvas'
+// import { ModifyCommand } from '@/lib/editor/commands/canvas'
 
 // Define filter type
 interface ImageFilter {
