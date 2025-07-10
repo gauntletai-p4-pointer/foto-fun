@@ -1,11 +1,23 @@
 import { CanvasEvent } from '../core/Event'
 import type { FabricObject } from 'fabric'
+import type { CanvasObject } from '@/lib/editor/canvas/types'
 
 /**
  * Canvas state interface for event application
  */
 export interface CanvasState {
   objects: FabricObject[]
+  backgroundColor?: string
+  width: number
+  height: number
+  version: number
+}
+
+/**
+ * New canvas state for Konva-based system
+ */
+export interface KonvaCanvasState {
+  objects: CanvasObject[]
   backgroundColor?: string
   width: number
   height: number
@@ -249,6 +261,70 @@ export class ObjectsBatchModifiedEvent extends CanvasEvent {
         previousState,
         newState
       }))
+    }
+  }
+}
+
+/**
+ * Multiple objects modified in Konva canvas (for efficiency)
+ */
+export class KonvaObjectsBatchModifiedEvent extends CanvasEvent {
+  constructor(
+    private canvasId: string,
+    private modifications: Array<{
+      objectId: string
+      previousState: Record<string, unknown>
+      newState: Record<string, unknown>
+    }>,
+    metadata: CanvasEvent['metadata']
+  ) {
+    super('canvas.objects.batch.modified', canvasId, metadata)
+  }
+  
+  apply(currentState: KonvaCanvasState): KonvaCanvasState {
+    // Apply all modifications
+    this.modifications.forEach(({ objectId, newState }) => {
+      const object = currentState.objects.find(obj => obj.id === objectId)
+      if (object) {
+        Object.assign(object, newState)
+      }
+    })
+    
+    return {
+      ...currentState,
+      version: currentState.version + 1
+    }
+  }
+  
+  reverse(): KonvaObjectsBatchModifiedEvent {
+    // Reverse the modifications
+    const reversedMods = this.modifications.map(({ objectId, previousState, newState }) => ({
+      objectId,
+      previousState: newState,
+      newState: previousState
+    }))
+    
+    return new KonvaObjectsBatchModifiedEvent(
+      this.canvasId,
+      reversedMods,
+      this.metadata
+    )
+  }
+  
+  canApply(currentState: KonvaCanvasState): boolean {
+    return this.modifications.every(({ objectId }) => 
+      currentState.objects.some(obj => obj.id === objectId)
+    )
+  }
+  
+  getDescription(): string {
+    return `Modify ${this.modifications.length} objects`
+  }
+  
+  protected getEventData(): Record<string, unknown> {
+    return {
+      canvasId: this.canvasId,
+      modifications: this.modifications
     }
   }
 }

@@ -1,8 +1,8 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { IText, Textbox } from 'fabric'
-import { useCanvasStore } from '@/store/canvasStore'
+import { useService } from '@/lib/core/AppInitializer'
+import { TypedCanvasStore, useCanvasStore } from '@/lib/store/canvas/TypedCanvasStore'
 import { Sparkles } from 'lucide-react'
 import { DropShadowSection } from './DropShadowSection'
 import { StrokeSection } from './StrokeSection'
@@ -11,46 +11,22 @@ import { GradientSection } from './GradientSection'
 import { TextPresetsSection } from './TextPresetsSection'
 import { TextWarpSection } from './TextWarpSection'
 import { Button } from '@/components/ui/button'
-import { TextLayerStyles } from '@/lib/editor/text/effects'
 
 /**
  * Text Effects Panel - Advanced text effects like drop shadow, stroke, glow, etc.
  * Shows when a text object is selected
  */
 export function TextEffectsPanel() {
-  const { fabricCanvas } = useCanvasStore()
-  const [activeTextObject, setActiveTextObject] = useState<IText | Textbox | null>(null)
+  const canvasStore = useService<TypedCanvasStore>('CanvasStore')
+  const canvasState = useCanvasStore(canvasStore)
+  const [activeTextObject, setActiveTextObject] = useState<any | null>(null)
   
   useEffect(() => {
-    if (!fabricCanvas) return
-    
-    const handleSelection = () => {
-      const activeObject = fabricCanvas.getActiveObject()
-      if (activeObject && (activeObject instanceof IText || activeObject instanceof Textbox)) {
-        setActiveTextObject(activeObject)
-      } else {
-        setActiveTextObject(null)
-      }
-    }
-    
-    // Initial check
-    handleSelection()
-    
-    // Listen for selection changes
-    fabricCanvas.on('selection:created', handleSelection)
-    fabricCanvas.on('selection:updated', handleSelection)
-    fabricCanvas.on('selection:cleared', () => setActiveTextObject(null))
-    
-    // Listen for object modifications to update UI
-    fabricCanvas.on('object:modified', handleSelection)
-    
-    return () => {
-      fabricCanvas.off('selection:created', handleSelection)
-      fabricCanvas.off('selection:updated', handleSelection)
-      fabricCanvas.off('selection:cleared')
-      fabricCanvas.off('object:modified', handleSelection)
-    }
-  }, [fabricCanvas])
+    // Check if we have a text object selected
+    const selectedObjects = canvasStore.getSelectedObjects()
+    const textObject = selectedObjects.find(obj => obj.type === 'text')
+    setActiveTextObject(textObject || null)
+  }, [canvasState.selection, canvasStore])
   
   if (!activeTextObject) {
     return (
@@ -62,13 +38,8 @@ export function TextEffectsPanel() {
   }
   
   const handleEffectChange = () => {
-    if (!fabricCanvas) return
-    
-    // Trigger canvas update
-    fabricCanvas.renderAll()
-    
-    // Fire modified event for history tracking
-    fabricCanvas.fire('object:modified', { target: activeTextObject })
+    // TODO: Update this to work with the new canvas system
+    console.log('Effect changed for text object:', activeTextObject)
   }
   
   return (
@@ -117,8 +88,8 @@ export function TextEffectsPanel() {
           size="sm" 
           className="w-full"
           onClick={() => {
-            // Clear all effects from the text
-            TextLayerStyles.removeAllEffects(activeTextObject)
+            // TODO: Clear all effects from the text in the new system
+            console.log('Clear all effects for:', activeTextObject)
             handleEffectChange()
           }}
         >

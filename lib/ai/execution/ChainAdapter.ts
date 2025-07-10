@@ -4,7 +4,7 @@ import React from 'react'
 import { ToolChain, ChainStepSchema } from './ToolChain'
 import { adapterRegistry } from '../adapters/registry'
 import { BaseToolAdapter } from '../adapters/base'
-import type { Tool } from '@/types'
+import type { Tool } from '@/lib/editor/canvas/types'
 
 // Schema for the chain execution tool
 const ExecuteChainSchema = z.object({
@@ -40,9 +40,12 @@ export class ChainAdapter extends BaseToolAdapter<ExecuteChainInput, ExecuteChai
   tool: Tool = {
     id: 'execute-chain',
     name: 'Execute Tool Chain',
-    icon: (() => null) as React.ComponentType<{ className?: string }>,
+    icon: (() => null) as React.ComponentType,
     cursor: 'default',
-    isImplemented: true
+    
+    // Tool lifecycle (no-op for chain execution)
+    onActivate: () => {},
+    onDeactivate: () => {}
   }
   
   aiName = 'executeToolChain'

@@ -1,8 +1,8 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { IText, Textbox } from 'fabric'
-import { useCanvasStore } from '@/store/canvasStore'
+import { useService } from '@/lib/core/AppInitializer'
+import { TypedCanvasStore, useCanvasStore } from '@/lib/store/canvas/TypedCanvasStore'
 import { AlignmentButtons } from './AlignmentButtons'
 import { IndentControls } from './IndentControls'
 import { SpacingControls } from './SpacingControls'
@@ -16,35 +16,16 @@ import { AlignLeft } from 'lucide-react'
  * Shows when a text object is selected
  */
 export function ParagraphPanel() {
-  const { fabricCanvas } = useCanvasStore()
-  const [activeTextObject, setActiveTextObject] = useState<IText | Textbox | null>(null)
+  const canvasStore = useService<TypedCanvasStore>('CanvasStore')
+  const canvasState = useCanvasStore(canvasStore)
+  const [activeTextObject, setActiveTextObject] = useState<any | null>(null)
   
   useEffect(() => {
-    if (!fabricCanvas) return
-    
-    const handleSelection = () => {
-      const activeObject = fabricCanvas.getActiveObject()
-      if (activeObject && (activeObject instanceof IText || activeObject instanceof Textbox)) {
-        setActiveTextObject(activeObject)
-      } else {
-        setActiveTextObject(null)
-      }
-    }
-    
-    // Initial check
-    handleSelection()
-    
-    // Listen for selection changes
-    fabricCanvas.on('selection:created', handleSelection)
-    fabricCanvas.on('selection:updated', handleSelection)
-    fabricCanvas.on('selection:cleared', () => setActiveTextObject(null))
-    
-    return () => {
-      fabricCanvas.off('selection:created', handleSelection)
-      fabricCanvas.off('selection:updated', handleSelection)
-      fabricCanvas.off('selection:cleared')
-    }
-  }, [fabricCanvas])
+    // Check if we have a text object selected
+    const selectedObjects = canvasStore.getSelectedObjects()
+    const textObject = selectedObjects.find(obj => obj.type === 'text')
+    setActiveTextObject(textObject || null)
+  }, [canvasState.selection, canvasStore])
   
   if (!activeTextObject) {
     return (
@@ -55,15 +36,15 @@ export function ParagraphPanel() {
     )
   }
   
-  const updateTextProperty = <K extends keyof IText>(property: K, value: IText[K]) => {
-    if (!activeTextObject || !fabricCanvas) return
+  const updateTextProperty = (property: string, value: any) => {
+    if (!activeTextObject) return
     
-    activeTextObject.set(property, value)
-    fabricCanvas.renderAll()
-    
-    // Fire modified event for history tracking
-    fabricCanvas.fire('object:modified', { target: activeTextObject })
+    // TODO: Update this to work with the new canvas system
+    console.log('Update text property:', property, value, 'for object:', activeTextObject)
   }
+  
+  // Extract text properties from the object
+  const textStyle = activeTextObject.style || {}
   
   return (
     <div className="p-4 space-y-4">
@@ -73,7 +54,7 @@ export function ParagraphPanel() {
       <div className="space-y-1">
         <label className="text-xs font-medium text-foreground">Alignment</label>
         <AlignmentButtons
-          value={activeTextObject.textAlign || 'left'}
+          value={textStyle.textAlign || 'left'}
           onChange={(align: string) => updateTextProperty('textAlign', align)}
         />
       </div>
@@ -109,7 +90,7 @@ export function ParagraphPanel() {
       <div className="space-y-1">
         <label className="text-xs font-medium text-foreground">Text Direction</label>
         <TextDirectionControl
-          value={(activeTextObject.direction === 'ltr' || activeTextObject.direction === 'rtl') ? activeTextObject.direction : 'ltr'}
+          value={textStyle.direction || 'ltr'}
           onChange={(direction) => updateTextProperty('direction', direction)}
         />
       </div>

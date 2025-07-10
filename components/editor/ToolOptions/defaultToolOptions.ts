@@ -149,5 +149,45 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
     ]
   },
   
+  [TOOL_IDS.BRIGHTNESS]: {
+    toolId: TOOL_IDS.BRIGHTNESS,
+    options: [
+      {
+        id: 'adjustment',
+        type: 'slider',
+        label: 'Brightness',
+        value: 0,
+        props: {
+          min: -100,
+          max: 100,
+          step: 1,
+          unit: '%',
+          showValue: true
+        }
+      }
+    ]
+  },
+  
+  'vintage-effects': {
+    toolId: 'vintage-effects',
+    options: [
+      {
+        id: 'effect',
+        type: 'dropdown',
+        label: 'Effect',
+        value: 'brownie',
+        props: {
+          options: [
+            { value: 'brownie', label: 'Brownie' },
+            { value: 'vintage-pinhole', label: 'Vintage Pinhole' },
+            { value: 'kodachrome', label: 'Kodachrome' },
+            { value: 'technicolor', label: 'Technicolor' },
+            { value: 'polaroid', label: 'Polaroid' }
+          ]
+        }
+      }
+    ]
+  },
+  
   // Add more tool options as needed
 } 

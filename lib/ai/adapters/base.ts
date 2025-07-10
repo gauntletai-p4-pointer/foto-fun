@@ -1,11 +1,14 @@
 import { z } from 'zod'
 import { tool } from 'ai'
-import type { Tool } from '@/types'
-import type { Canvas, FabricObject } from 'fabric'
+import type { Tool } from '@/lib/editor/canvas/types'
+import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
+import type { CanvasObject } from '@/lib/editor/canvas/types'
 import type { CanvasContext } from '../tools/canvas-bridge'
 import type { SelectionSnapshot } from '../execution/SelectionSnapshot'
 import type { ExecutionContext } from '@/lib/events/execution/ExecutionContext'
-import { ObjectsBatchModifiedEvent } from '@/lib/events/canvas/CanvasEvents'
+import { KonvaObjectsBatchModifiedEvent } from '@/lib/events/canvas/CanvasEvents'
+import { ServiceContainer } from '@/lib/core/ServiceContainer'
+import type { EventToolStore } from '@/lib/store/tools/EventToolStore'
 
 /**
  * Metadata for tool adapters to help with routing decisions
@@ -69,12 +72,12 @@ export abstract class BaseToolAdapter<
   /**
    * Optional: Check if the tool can be executed in the current state
    */
-  canExecute?(canvas: Canvas): boolean
+  canExecute?(canvas: CanvasManager): boolean
   
   /**
    * Optional: Generate a preview of the tool's effect
    */
-  generatePreview?(params: TInput, canvas: Canvas): Promise<{ before: string; after: string }>
+  generatePreview?(params: TInput, canvas: CanvasManager): Promise<{ before: string; after: string }>
   
   /**
    * Convert this adapter to an AI SDK v5 tool
@@ -117,176 +120,77 @@ export abstract class BaseToolAdapter<
     toolId: string,
     optionId: string,
     value: unknown,
-    canvas: Canvas,
+    canvas: CanvasManager,
     selectionSnapshot?: SelectionSnapshot,
     executionContext?: ExecutionContext
   ): Promise<void> {
-    // Get the tool
-    const { useToolStore } = await import('@/store/toolStore')
-    const tool = useToolStore.getState().getTool(toolId)
+    // Get the tool store from DI container
+    const container = ServiceContainer.getInstance()
+    const toolStore = container.get<EventToolStore>('ToolStore')
+    
+    const tool = toolStore.getTool(toolId)
     
     if (!tool) {
       throw new Error(`Tool ${toolId} not found`)
     }
     
     // Check if tool is already activated
-    const currentToolId = useToolStore.getState().activeTool
-    const needsActivation = currentToolId !== toolId
+    const currentTool = toolStore.getActiveTool()
+    const needsActivation = currentTool?.id !== toolId
     
     console.log(`[BaseToolAdapter] applyToolOperation - Tool: ${toolId}, Option: ${optionId}, Value: ${value}`)
-    console.log(`[BaseToolAdapter] Current tool: ${currentToolId}, Needs activation: ${needsActivation}`)
+    console.log(`[BaseToolAdapter] Current tool: ${currentTool?.id}, Needs activation: ${needsActivation}`)
     console.log(`[BaseToolAdapter] Has execution context: ${!!executionContext}`)
-    
-    // Set a flag to indicate AI activation
-    if ('isAIActivation' in tool) {
-      (tool as Tool & { isAIActivation?: boolean }).isAIActivation = true
-    }
-    
-    // If we're in a tool chain, don't switch tools - just update the option
-    const { ToolChain } = await import('../execution/ToolChain')
-    if (ToolChain.isExecutingChain && !needsActivation) {
-      console.log(`[BaseToolAdapter] In tool chain and tool already active, updating option directly`)
-      
-      // Set selection snapshot if provided and tool supports it
-      if (selectionSnapshot && 'setSelectionSnapshot' in tool && typeof tool.setSelectionSnapshot === 'function') {
-        console.log(`[BaseToolAdapter] Setting selection snapshot on tool ${toolId} with ${selectionSnapshot.count} objects`)
-        tool.setSelectionSnapshot(selectionSnapshot)
-      }
-      
-      try {
-        // Capture state before modification if we have an execution context
-        let previousStates: Map<FabricObject, Record<string, unknown>> | null = null
-        
-        if (executionContext && selectionSnapshot) {
-          previousStates = new Map()
-          const targetObjects = selectionSnapshot.getValidObjects(canvas)
-          
-          // Capture current state of all target objects
-          targetObjects.forEach(obj => {
-            previousStates!.set(obj, obj.toObject())
-          })
-        }
-        
-        // Update the tool option - this should trigger the tool's logic
-        const { useToolOptionsStore } = await import('@/store/toolOptionsStore')
-        console.log(`[BaseToolAdapter] Updating option ${optionId} to ${value}`)
-        useToolOptionsStore.getState().updateOption(toolId, optionId, value)
-        
-        // Wait for the operation to complete
-        await new Promise(resolve => setTimeout(resolve, 100))
-        
-        // Emit events if we have an execution context
-        if (executionContext && previousStates && selectionSnapshot) {
-          const targetObjects = selectionSnapshot.getValidObjects(canvas)
-          const modifications: Array<{
-            object: FabricObject
-            previousState: Record<string, unknown>
-            newState: Record<string, unknown>
-          }> = []
-          
-          // Capture new state and build modifications
-          targetObjects.forEach(obj => {
-            const prevState = previousStates!.get(obj)
-            if (prevState) {
-              const newState = obj.toObject()
-              
-              // Check if object actually changed
-              if (JSON.stringify(prevState) !== JSON.stringify(newState)) {
-                modifications.push({
-                  object: obj,
-                  previousState: prevState,
-                  newState: newState
-                })
-              }
-            }
-          })
-          
-          // Emit batch modification event if objects changed
-          if (modifications.length > 0) {
-            const event = new ObjectsBatchModifiedEvent(
-              canvas.toString(), // Canvas ID
-              modifications,
-              executionContext.getMetadata()
-            )
-            
-            await executionContext.emit(event)
-            console.log(`[BaseToolAdapter] Emitted batch modification event for ${modifications.length} objects`)
-          }
-        }
-        
-        console.log(`[BaseToolAdapter] Operation completed`)
-      } finally {
-        // Clear selection snapshot if we set it
-        if (selectionSnapshot && 'setSelectionSnapshot' in tool && typeof tool.setSelectionSnapshot === 'function') {
-          console.log(`[BaseToolAdapter] Clearing selection snapshot`)
-          tool.setSelectionSnapshot(null)
-        }
-        
-        // Clear AI activation flag
-        if ('isAIActivation' in tool) {
-          (tool as Tool & { isAIActivation?: boolean }).isAIActivation = false
-        }
-      }
-      
-      return
-    }
     
     // If tool needs activation, activate it properly
     if (needsActivation) {
       console.log(`[BaseToolAdapter] Activating tool ${toolId} for operation`)
-      useToolStore.getState().setActiveTool(toolId)
+      await toolStore.activateTool(toolId)
       
       // Wait for activation to complete
       await new Promise(resolve => setTimeout(resolve, 100))
     }
     
-    // Set selection snapshot if provided and tool supports it
-    if (selectionSnapshot && 'setSelectionSnapshot' in tool && typeof tool.setSelectionSnapshot === 'function') {
-      console.log(`[BaseToolAdapter] Setting selection snapshot on tool ${toolId} with ${selectionSnapshot.count} objects`)
-      tool.setSelectionSnapshot(selectionSnapshot)
-    }
-    
     try {
       // Capture state before modification if we have an execution context
-      let previousStates: Map<FabricObject, Record<string, unknown>> | null = null
+      let previousStates: Map<string, Record<string, unknown>> | null = null
       
       if (executionContext && selectionSnapshot) {
         previousStates = new Map()
-        const targetObjects = selectionSnapshot.getValidObjects(canvas)
+        const targetObjects = this.getTargetObjects(canvas, selectionSnapshot)
         
         // Capture current state of all target objects
         targetObjects.forEach(obj => {
-          previousStates!.set(obj, obj.toObject())
+          previousStates!.set(obj.id, this.captureObjectState(obj))
         })
       }
       
       // Update the tool option - this should trigger the tool's logic
-      const { useToolOptionsStore } = await import('@/store/toolOptionsStore')
       console.log(`[BaseToolAdapter] Updating option ${optionId} to ${value}`)
-      useToolOptionsStore.getState().updateOption(toolId, optionId, value)
+      toolStore.updateOption(toolId, optionId, value)
       
       // Wait for the operation to complete
       await new Promise(resolve => setTimeout(resolve, 100))
       
       // Emit events if we have an execution context
       if (executionContext && previousStates && selectionSnapshot) {
-        const targetObjects = selectionSnapshot.getValidObjects(canvas)
+        const targetObjects = this.getTargetObjects(canvas, selectionSnapshot)
         const modifications: Array<{
-          object: FabricObject
+          objectId: string
           previousState: Record<string, unknown>
           newState: Record<string, unknown>
         }> = []
         
         // Capture new state and build modifications
         targetObjects.forEach(obj => {
-          const prevState = previousStates!.get(obj)
+          const prevState = previousStates!.get(obj.id)
           if (prevState) {
-            const newState = obj.toObject()
+            const newState = this.captureObjectState(obj)
             
             // Check if object actually changed
             if (JSON.stringify(prevState) !== JSON.stringify(newState)) {
               modifications.push({
-                object: obj,
+                objectId: obj.id,
                 previousState: prevState,
                 newState: newState
               })
@@ -296,8 +200,8 @@ export abstract class BaseToolAdapter<
         
         // Emit batch modification event if objects changed
         if (modifications.length > 0) {
-          const event = new ObjectsBatchModifiedEvent(
-            canvas.toString(), // Canvas ID
+          const event = new KonvaObjectsBatchModifiedEvent(
+            canvas.id,
             modifications,
             executionContext.getMetadata()
           )
@@ -309,22 +213,48 @@ export abstract class BaseToolAdapter<
       
       console.log(`[BaseToolAdapter] Operation completed`)
     } finally {
-      // Clear AI activation flag
-      if ('isAIActivation' in tool) {
-        (tool as Tool & { isAIActivation?: boolean }).isAIActivation = false
+      // Restore the original tool if we changed it
+      if (needsActivation && currentTool) {
+        console.log(`[BaseToolAdapter] Restoring original tool ${currentTool.id}`)
+        await toolStore.activateTool(currentTool.id)
       }
-      
-      // Clear selection snapshot if we set it
-      if (selectionSnapshot && 'setSelectionSnapshot' in tool && typeof tool.setSelectionSnapshot === 'function') {
-        console.log(`[BaseToolAdapter] Clearing selection snapshot`)
-        tool.setSelectionSnapshot(null)
-      }
-      
-      // Restore the original tool if we changed it AND we're not in a tool chain
-      if (needsActivation && currentToolId && !ToolChain.isExecutingChain) {
-        console.log(`[BaseToolAdapter] Restoring original tool ${currentToolId}`)
-        useToolStore.getState().setActiveTool(currentToolId)
-      }
+    }
+  }
+  
+  /**
+   * Get target objects from canvas based on selection snapshot
+   */
+  protected getTargetObjects(canvas: CanvasManager, selectionSnapshot?: SelectionSnapshot): CanvasObject[] {
+    if (!selectionSnapshot) {
+      return []
+    }
+    
+    // TODO: Implement selection snapshot logic for new canvas
+    // For now, return selected objects
+    const selection = canvas.state.selection
+    if (selection?.type === 'objects') {
+      return selection.objectIds
+        .map(id => canvas.findObject(id))
+        .filter((obj): obj is CanvasObject => obj !== null)
+    }
+    
+    return []
+  }
+  
+  /**
+   * Capture the current state of an object
+   */
+  protected captureObjectState(obj: CanvasObject): Record<string, unknown> {
+    return {
+      id: obj.id,
+      type: obj.type,
+      name: obj.name,
+      transform: { ...obj.transform },
+      style: obj.style ? { ...obj.style } : undefined,
+      opacity: obj.opacity,
+      visible: obj.visible,
+      locked: obj.locked,
+      data: obj.data ? { ...obj.data } : undefined
     }
   }
 }
@@ -562,8 +492,10 @@ export abstract class CanvasToolAdapter<
   /**
    * Common canExecute implementation - checks for images on canvas
    */
-  canExecute?(canvas: Canvas): boolean {
-    const hasImages = canvas.getObjects().some(obj => obj.type === 'image')
+  canExecute?(canvas: CanvasManager): boolean {
+    const hasImages = canvas.state.layers.some(layer => 
+      layer.objects.some(obj => obj.type === 'image')
+    )
     if (!hasImages) {
       console.warn(`${this.aiName}: No images on canvas`)
     }
@@ -572,7 +504,7 @@ export abstract class CanvasToolAdapter<
 }
 
 // Type for Fabric.js image objects
-type FabricImage = FabricObject & { type: 'image' }
+type FabricImage = CanvasObject & { type: 'image' }
 
 // Extended type for FabricImage with filters
 type FabricImageWithFilters = FabricImage & {
@@ -617,7 +549,7 @@ export abstract class FilterToolAdapter<
   protected async applyFilterToImages(
     images: FabricImage[],
     params: TInput,
-    canvas: Canvas,
+    canvas: CanvasManager,
     executionContext?: ExecutionContext
   ): Promise<void> {
     const filterType = this.getFilterType()
@@ -702,8 +634,8 @@ export abstract class FilterToolAdapter<
         
         // Emit batch modification event if objects changed
         if (modifications.length > 0) {
-          const event = new ObjectsBatchModifiedEvent(
-            canvas.toString(), // Canvas ID
+          const event = new KonvaObjectsBatchModifiedEvent(
+            canvas.id,
             modifications,
             executionContext.getMetadata()
           )

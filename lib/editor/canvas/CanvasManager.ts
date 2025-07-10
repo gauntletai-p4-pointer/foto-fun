@@ -31,6 +31,9 @@ export class CanvasManager implements ICanvasManager {
   private resourceManager: ResourceManager
   private executionContext: ExecutionContext | null = null
   
+  // Canvas ID
+  public readonly id: string = nanoid()
+  
   // Konva internals
   private stage: Konva.Stage
   private backgroundLayer: Konva.Layer
@@ -525,7 +528,8 @@ export class CanvasManager implements ICanvasManager {
     this.selectionLayer.draw()
   }
   
-  private findObject(objectId: string): CanvasObject | null {
+  // Helper method to find object across all layers
+  findObject(objectId: string): CanvasObject | null {
     for (const layer of this._state.layers) {
       const object = layer.objects.find(o => o.id === objectId)
       if (object) return object

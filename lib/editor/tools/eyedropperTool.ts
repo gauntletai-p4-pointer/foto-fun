@@ -1,28 +1,13 @@
 import { Pipette } from 'lucide-react'
 import { TOOL_IDS } from '@/constants'
-import type { Canvas, TPointerEventInfo } from 'fabric'
 import { BaseTool } from './base/BaseTool'
-import { useColorStore } from '@/store/colorStore'
-import { useToolOptionsStore } from '@/store/toolOptionsStore'
-import { createToolState } from './utils/toolState'
-
-// Eyedropper tool state
-type EyedropperToolState = {
-  sampleAllLayers: boolean
-  isHovering: boolean
-}
+import type { ToolEvent, Point } from '@/lib/editor/canvas/types'
 
 /**
- * Eyedropper Tool - Samples color from the canvas
- * 
- * Features:
- * - Click to sample color from any pixel
- * - Shows color preview while hovering
- * - Updates foreground color in tool options
- * - Adds sampled color to recent colors
- * - Option to sample all layers or current layer only
+ * Eyedropper Tool - Color picker from canvas
+ * Konva implementation with pixel-level color sampling
  */
-class EyedropperTool extends BaseTool {
+export class EyedropperTool extends BaseTool {
   // Tool identification
   id = TOOL_IDS.EYEDROPPER
   name = 'Eyedropper Tool'
@@ -30,262 +15,335 @@ class EyedropperTool extends BaseTool {
   cursor = 'crosshair'
   shortcut = 'I'
   
-  // Encapsulated state
-  private state = createToolState<EyedropperToolState>({
-    sampleAllLayers: true,
-    isHovering: false
-  })
+  // Sampling state
+  private isSampling = false
+  private previewDiv: HTMLDivElement | null = null
+  private magnifierCanvas: HTMLCanvasElement | null = null
+  private magnifierCtx: CanvasRenderingContext2D | null = null
   
-  private previewElement: HTMLDivElement | null = null
+  // Magnifier settings
+  private readonly MAGNIFIER_SIZE = 150
+  private readonly MAGNIFIER_ZOOM = 10
+  private readonly PIXEL_SIZE = 15 // Size of each magnified pixel
   
-  /**
-   * Tool setup
-   */
-  protected setupTool(canvas: Canvas): void {
-    // Create preview element
-    this.createPreviewElement()
+  protected setupTool(): void {
+    // Set default sampling options
+    this.setOption('sampleSize', 'point') // 'point', '3x3', '5x5', '11x11', '31x31'
+    this.setOption('sampleAllLayers', true)
     
-    // Disable object selection
-    canvas.selection = false
-    
-    // Set up event handlers
-    this.addCanvasEvent('mouse:down', (e: unknown) => {
-      this.handleMouseDown(e as TPointerEventInfo<MouseEvent>)
-    })
-    
-    this.addCanvasEvent('mouse:move', (e: unknown) => {
-      this.handleMouseMove(e as TPointerEventInfo<MouseEvent>)
-    })
-    
-    this.addCanvasEvent('mouse:over', () => {
-      this.handleMouseOver()
-    })
-    
-    this.addCanvasEvent('mouse:out', () => {
-      this.handleMouseOut()
-    })
-    
-    canvas.renderAll()
+    // Create magnifier elements
+    this.createMagnifier()
   }
   
-  /**
-   * Tool cleanup
-   */
-  protected cleanup(canvas: Canvas): void {
-    // Remove preview element
-    this.removePreviewElement()
-    
-    // Reset cursor
-    canvas.defaultCursor = 'default'
+  protected cleanupTool(): void {
+    // Clean up magnifier
+    if (this.previewDiv) {
+      this.previewDiv.remove()
+      this.previewDiv = null
+    }
     
     // Reset state
-    this.state.reset()
-    
-    canvas.renderAll()
+    this.isSampling = false
+    this.magnifierCanvas = null
+    this.magnifierCtx = null
   }
   
-  /**
-   * Handle mouse down - sample color
-   */
-  private handleMouseDown(e: TPointerEventInfo<MouseEvent>): void {
-    if (!this.canvas || !e.e) return
+  onMouseDown(event: ToolEvent): void {
+    this.isSampling = true
+    this.sampleColor(event.point)
+  }
+  
+  onMouseMove(event: ToolEvent): void {
+    const canvas = this.getCanvas()
     
-    const color = this.sampleColor(e.e)
-    if (color) {
-      // Update brush tool color option
-      const toolOptionsStore = useToolOptionsStore.getState()
-      toolOptionsStore.updateOption(TOOL_IDS.BRUSH, 'color', color)
+    // Update magnifier position and content
+    if (this.previewDiv && this.magnifierCanvas && this.magnifierCtx) {
+      // Position magnifier near cursor
+      const stage = canvas.konvaStage
+      const stageRect = stage.container().getBoundingClientRect()
       
-      // Add to recent colors
-      const colorStore = useColorStore.getState()
-      colorStore.addRecentColor(color)
+      this.previewDiv.style.left = `${event.screenPoint.x + 20}px`
+      this.previewDiv.style.top = `${event.screenPoint.y - this.MAGNIFIER_SIZE - 20}px`
+      this.previewDiv.style.display = 'block'
       
-      // Show feedback
-      this.showColorFeedback(color, e.e)
+      // Update magnifier content
+      this.updateMagnifier(event.point)
+    }
+    
+    // Sample color while dragging
+    if (this.isSampling) {
+      this.sampleColor(event.point)
     }
   }
   
-  /**
-   * Handle mouse move - update preview
-   */
-  private handleMouseMove(e: TPointerEventInfo<MouseEvent>): void {
-    if (!this.canvas || !this.state.get('isHovering') || !e.e) return
-    
-    const color = this.sampleColor(e.e)
-    if (color && this.previewElement) {
-      this.updatePreview(color, e.e)
-    }
-  }
-  
-  /**
-   * Handle mouse over canvas
-   */
-  private handleMouseOver(): void {
-    this.state.set('isHovering', true)
-    if (this.previewElement) {
-      this.previewElement.style.display = 'block'
-    }
-  }
-  
-  /**
-   * Handle mouse out of canvas
-   */
-  private handleMouseOut(): void {
-    this.state.set('isHovering', false)
-    if (this.previewElement) {
-      this.previewElement.style.display = 'none'
-    }
-  }
-  
-  /**
-   * Sample color from canvas at mouse position
-   */
-  private sampleColor(e: MouseEvent): string | null {
-    if (!this.canvas) return null
-    
-    const canvasElement = this.canvas.getElement()
-    const rect = canvasElement.getBoundingClientRect()
-    
-    // Get mouse position relative to canvas
-    const x = e.clientX - rect.left
-    const y = e.clientY - rect.top
-    
-    // Account for canvas scaling
-    const scaleX = canvasElement.width / rect.width
-    const scaleY = canvasElement.height / rect.height
-    
-    const canvasX = Math.floor(x * scaleX)
-    const canvasY = Math.floor(y * scaleY)
-    
-    // Get pixel data
-    const ctx = canvasElement.getContext('2d')
-    if (!ctx) return null
-    
-    try {
-      const imageData = ctx.getImageData(canvasX, canvasY, 1, 1)
-      const pixel = imageData.data
+  onMouseUp(event: ToolEvent): void {
+    if (this.isSampling) {
+      this.isSampling = false
       
-      // Convert to hex color
-      const r = pixel[0]
-      const g = pixel[1]
-      const b = pixel[2]
-      const a = pixel[3] / 255
+      // Final color sample
+      const color = this.sampleColor(event.point)
       
-      // If pixel is transparent, sample background
-      if (a === 0) {
-        return this.canvasStore.backgroundColor
+      // Apply color to active color store
+      if (color) {
+        this.applyColor(color)
       }
-      
-      // Convert to hex
-      const toHex = (n: number) => n.toString(16).padStart(2, '0')
-      return `#${toHex(r)}${toHex(g)}${toHex(b)}`
-    } catch (error) {
-      console.error('Error sampling color:', error)
+    }
+  }
+  
+  onMouseLeave(): void {
+    // Hide magnifier when mouse leaves canvas
+    if (this.previewDiv) {
+      this.previewDiv.style.display = 'none'
+    }
+  }
+  
+  onKeyDown(event: KeyboardEvent): void {
+    // Alt key toggles between foreground/background color
+    if (event.key === 'Alt') {
+      this.setOption('targetColor', 'background')
+    }
+  }
+  
+  onKeyUp(event: KeyboardEvent): void {
+    // Release Alt key switches back to foreground
+    if (event.key === 'Alt') {
+      this.setOption('targetColor', 'foreground')
+    }
+  }
+  
+  /**
+   * Create magnifier preview elements
+   */
+  private createMagnifier(): void {
+    // Create container div
+    this.previewDiv = document.createElement('div')
+    this.previewDiv.style.position = 'fixed'
+    this.previewDiv.style.width = `${this.MAGNIFIER_SIZE}px`
+    this.previewDiv.style.height = `${this.MAGNIFIER_SIZE + 30}px`
+    this.previewDiv.style.backgroundColor = '#fff'
+    this.previewDiv.style.border = '1px solid #ccc'
+    this.previewDiv.style.borderRadius = '4px'
+    this.previewDiv.style.boxShadow = '0 2px 8px rgba(0,0,0,0.15)'
+    this.previewDiv.style.pointerEvents = 'none'
+    this.previewDiv.style.zIndex = '10000'
+    this.previewDiv.style.display = 'none'
+    this.previewDiv.style.overflow = 'hidden'
+    
+    // Create magnifier canvas
+    this.magnifierCanvas = document.createElement('canvas')
+    this.magnifierCanvas.width = this.MAGNIFIER_SIZE
+    this.magnifierCanvas.height = this.MAGNIFIER_SIZE
+    this.magnifierCanvas.style.width = `${this.MAGNIFIER_SIZE}px`
+    this.magnifierCanvas.style.height = `${this.MAGNIFIER_SIZE}px`
+    this.magnifierCanvas.style.imageRendering = 'pixelated'
+    
+    this.magnifierCtx = this.magnifierCanvas.getContext('2d', { 
+      willReadFrequently: true 
+    })
+    
+    // Create color info div
+    const colorInfo = document.createElement('div')
+    colorInfo.style.padding = '4px 8px'
+    colorInfo.style.fontSize = '12px'
+    colorInfo.style.fontFamily = 'monospace'
+    colorInfo.style.textAlign = 'center'
+    colorInfo.style.borderTop = '1px solid #eee'
+    colorInfo.className = 'eyedropper-color-info'
+    
+    // Assemble elements
+    this.previewDiv.appendChild(this.magnifierCanvas)
+    this.previewDiv.appendChild(colorInfo)
+    document.body.appendChild(this.previewDiv)
+  }
+  
+  /**
+   * Update magnifier display
+   */
+  private updateMagnifier(point: Point): void {
+    if (!this.magnifierCtx || !this.magnifierCanvas) return
+    
+    const canvas = this.getCanvas()
+    const sampleSize = this.getSampleSize()
+    const halfSize = Math.floor(sampleSize / 2)
+    
+    // Get image data around cursor
+    const rect = {
+      x: Math.floor(point.x - halfSize - 5),
+      y: Math.floor(point.y - halfSize - 5),
+      width: sampleSize + 10,
+      height: sampleSize + 10
+    }
+    
+    const imageData = canvas.getImageData(rect)
+    
+    // Clear magnifier
+    this.magnifierCtx.clearRect(0, 0, this.MAGNIFIER_SIZE, this.MAGNIFIER_SIZE)
+    
+    // Draw magnified pixels
+    const pixelSize = this.PIXEL_SIZE
+    const centerX = this.MAGNIFIER_SIZE / 2
+    const centerY = this.MAGNIFIER_SIZE / 2
+    
+    for (let y = 0; y < imageData.height; y++) {
+      for (let x = 0; x < imageData.width; x++) {
+        const idx = (y * imageData.width + x) * 4
+        const r = imageData.data[idx]
+        const g = imageData.data[idx + 1]
+        const b = imageData.data[idx + 2]
+        const a = imageData.data[idx + 3]
+        
+        // Calculate magnified position
+        const mx = centerX + (x - imageData.width / 2) * pixelSize
+        const my = centerY + (y - imageData.height / 2) * pixelSize
+        
+        // Draw pixel
+        this.magnifierCtx.fillStyle = `rgba(${r}, ${g}, ${b}, ${a / 255})`
+        this.magnifierCtx.fillRect(mx, my, pixelSize, pixelSize)
+        
+        // Draw grid
+        this.magnifierCtx.strokeStyle = 'rgba(0, 0, 0, 0.1)'
+        this.magnifierCtx.strokeRect(mx, my, pixelSize, pixelSize)
+      }
+    }
+    
+    // Draw center crosshair
+    this.magnifierCtx.strokeStyle = '#000'
+    this.magnifierCtx.lineWidth = 1
+    this.magnifierCtx.beginPath()
+    this.magnifierCtx.moveTo(centerX - 10, centerY)
+    this.magnifierCtx.lineTo(centerX + 10, centerY)
+    this.magnifierCtx.moveTo(centerX, centerY - 10)
+    this.magnifierCtx.lineTo(centerX, centerY + 10)
+    this.magnifierCtx.stroke()
+    
+    // Highlight center pixel(s)
+    const highlightSize = Math.ceil(sampleSize * pixelSize)
+    this.magnifierCtx.strokeStyle = '#fff'
+    this.magnifierCtx.lineWidth = 2
+    this.magnifierCtx.strokeRect(
+      centerX - highlightSize / 2,
+      centerY - highlightSize / 2,
+      highlightSize,
+      highlightSize
+    )
+    
+    // Sample color and update info
+    const color = this.sampleColor(point, false)
+    if (color && this.previewDiv) {
+      const colorInfo = this.previewDiv.querySelector('.eyedropper-color-info') as HTMLDivElement
+      if (colorInfo) {
+        colorInfo.textContent = color.hex.toUpperCase()
+        colorInfo.style.backgroundColor = color.hex
+        colorInfo.style.color = this.getContrastColor(color.hex)
+      }
+    }
+  }
+  
+  /**
+   * Sample color at point
+   */
+  private sampleColor(point: Point, updateStore = true): { hex: string; rgb: { r: number; g: number; b: number; a: number } } | null {
+    const canvas = this.getCanvas()
+    const sampleSize = this.getSampleSize()
+    
+    // Get image data for sampling area
+    const rect = {
+      x: Math.floor(point.x - Math.floor(sampleSize / 2)),
+      y: Math.floor(point.y - Math.floor(sampleSize / 2)),
+      width: sampleSize,
+      height: sampleSize
+    }
+    
+    const imageData = canvas.getImageData(rect)
+    
+    if (!imageData || imageData.width === 0 || imageData.height === 0) {
       return null
     }
-  }
-  
-  /**
-   * Create preview element
-   */
-  private createPreviewElement(): void {
-    if (this.previewElement) return
     
-    this.previewElement = document.createElement('div')
-    this.previewElement.style.cssText = `
-      position: fixed;
-      width: 40px;
-      height: 40px;
-      border: 2px solid white;
-      border-radius: 50%;
-      box-shadow: 0 0 0 1px black, 0 2px 8px rgba(0,0,0,0.3);
-      pointer-events: none;
-      z-index: 10000;
-      display: none;
-      transition: background-color 0.1s ease;
-    `
+    // Calculate average color
+    let r = 0, g = 0, b = 0, a = 0
+    let pixelCount = 0
     
-    document.body.appendChild(this.previewElement)
-  }
-  
-  /**
-   * Remove preview element
-   */
-  private removePreviewElement(): void {
-    if (this.previewElement) {
-      this.previewElement.remove()
-      this.previewElement = null
+    for (let i = 0; i < imageData.data.length; i += 4) {
+      // Only count pixels with some opacity
+      if (imageData.data[i + 3] > 0) {
+        r += imageData.data[i]
+        g += imageData.data[i + 1]
+        b += imageData.data[i + 2]
+        a += imageData.data[i + 3]
+        pixelCount++
+      }
+    }
+    
+    if (pixelCount === 0) {
+      return null
+    }
+    
+    // Calculate average
+    r = Math.round(r / pixelCount)
+    g = Math.round(g / pixelCount)
+    b = Math.round(b / pixelCount)
+    a = Math.round(a / pixelCount)
+    
+    // Convert to hex
+    const hex = `#${[r, g, b].map(x => x.toString(16).padStart(2, '0')).join('')}`
+    
+    return {
+      hex,
+      rgb: { r, g, b, a }
     }
   }
   
   /**
-   * Update preview position and color
+   * Get sample size in pixels
    */
-  private updatePreview(color: string, e: MouseEvent): void {
-    if (!this.previewElement) return
-    
-    this.previewElement.style.backgroundColor = color
-    this.previewElement.style.left = `${e.clientX + 20}px`
-    this.previewElement.style.top = `${e.clientY - 20}px`
+  private getSampleSize(): number {
+    const sampleSize = this.getOption('sampleSize') as string
+    switch (sampleSize) {
+      case '3x3': return 3
+      case '5x5': return 5
+      case '11x11': return 11
+      case '31x31': return 31
+      default: return 1 // point sample
+    }
   }
   
   /**
-   * Show color feedback on click
+   * Apply sampled color
    */
-  private showColorFeedback(color: string, e: MouseEvent): void {
-    const feedback = document.createElement('div')
-    feedback.style.cssText = `
-      position: fixed;
-      left: ${e.clientX}px;
-      top: ${e.clientY - 40}px;
-      background: ${color};
-      color: ${this.getContrastColor(color)};
-      padding: 4px 8px;
-      border-radius: 4px;
-      font-size: 12px;
-      font-family: monospace;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-      z-index: 10001;
-      animation: fadeOut 1s ease-out forwards;
-      pointer-events: none;
-    `
-    feedback.textContent = color.toUpperCase()
+  private applyColor(color: { hex: string; rgb: { r: number; g: number; b: number; a: number } }): void {
+    // This would integrate with your color store
+    // For now, we'll just emit an event
+    if (this.executionContext) {
+      // You could create a ColorSampledEvent here
+      console.log('Color sampled:', color)
+    }
     
-    // Add fade out animation
-    const style = document.createElement('style')
-    style.textContent = `
-      @keyframes fadeOut {
-        0% { opacity: 1; transform: translateY(0); }
-        100% { opacity: 0; transform: translateY(-10px); }
-      }
-    `
-    document.head.appendChild(style)
-    
-    document.body.appendChild(feedback)
-    
-    // Remove after animation
-    setTimeout(() => {
-      feedback.remove()
-      style.remove()
-    }, 1000)
+    // Update the color store (you'll need to inject this)
+    // colorStore.setForegroundColor(color.hex)
   }
   
   /**
    * Get contrasting color for text
    */
-  private getContrastColor(hexColor: string): string {
+  private getContrastColor(hex: string): string {
     // Convert hex to RGB
-    const hex = hexColor.replace('#', '')
-    const r = parseInt(hex.substr(0, 2), 16)
-    const g = parseInt(hex.substr(2, 2), 16)
-    const b = parseInt(hex.substr(4, 2), 16)
+    const r = parseInt(hex.slice(1, 3), 16)
+    const g = parseInt(hex.slice(3, 5), 16)
+    const b = parseInt(hex.slice(5, 7), 16)
     
     // Calculate luminance
     const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255
     
-    return luminance > 0.5 ? '#000000' : '#FFFFFF'
+    return luminance > 0.5 ? '#000' : '#fff'
   }
   
+  /**
+   * Sample color for AI operations
+   */
+  async sampleColorAt(position: Point): Promise<{ hex: string; rgb: { r: number; g: number; b: number; a: number } } | null> {
+    return this.sampleColor(position, false)
+  }
 }
 
 // Export singleton instance

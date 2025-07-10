@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Create Test Image</title>
+</head>
+<body>
+    <h1>Test Image Generator</h1>
+    <canvas id="canvas" width="800" height="600"></canvas>
+    <br>
+    <button onclick="downloadImage()">Download Test Image</button>
+    
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Create gradient background
+        const gradient = ctx.createLinearGradient(0, 0, 800, 600);
+        gradient.addColorStop(0, '#ff6b6b');
+        gradient.addColorStop(0.25, '#4ecdc4');
+        gradient.addColorStop(0.5, '#45b7d1');
+        gradient.addColorStop(0.75, '#96ceb4');
+        gradient.addColorStop(1, '#feca57');
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, 800, 600);
+        
+        // Add some shapes
+        ctx.fillStyle = '#2c3e50';
+        ctx.fillRect(100, 100, 200, 200);
+        
+        ctx.fillStyle = '#e74c3c';
+        ctx.beginPath();
+        ctx.arc(600, 150, 80, 0, Math.PI * 2);
+        ctx.fill();
+        
+        ctx.fillStyle = '#3498db';
+        ctx.beginPath();
+        ctx.moveTo(400, 400);
+        ctx.lineTo(500, 500);
+        ctx.lineTo(300, 500);
+        ctx.closePath();
+        ctx.fill();
+        
+        // Add text
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 48px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('Filter Test Image', 400, 300);
+        
+        function downloadImage() {
+            const link = document.createElement('a');
+            link.download = 'test-image.jpg';
+            link.href = canvas.toDataURL('image/jpeg', 0.9);
+            link.click();
+        }
+    </script>
+</body>
+</html> 

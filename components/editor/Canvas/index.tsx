@@ -6,6 +6,8 @@ import { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
 import { CanvasManagerFactory } from '@/lib/editor/canvas/CanvasManagerFactory'
 import { useCanvasStore as useTypedCanvasStore } from '@/lib/store/canvas/TypedCanvasStore'
 import { TypedCanvasStore } from '@/lib/store/canvas/TypedCanvasStore'
+import { EventToolStore } from '@/lib/store/tools/EventToolStore'
+import { TypedEventBus, getTypedEventBus } from '@/lib/events/core/TypedEventBus'
 import { useFileHandler } from '@/hooks/useFileHandler'
 
 export function Canvas() {
@@ -15,6 +17,7 @@ export function Canvas() {
   // Get services from DI container
   const canvasFactory = useService<CanvasManagerFactory>('CanvasManagerFactory')
   const canvasStore = useService<TypedCanvasStore>('CanvasStore')
+  const toolStore = useService<EventToolStore>('ToolStore')
   
   // Use the typed canvas store (removed unused variable)
   useTypedCanvasStore(canvasStore)
@@ -50,6 +53,50 @@ export function Canvas() {
       }
     }
   }, [canvasFactory])
+  
+  // Handle tool activation
+  useEffect(() => {
+    if (!canvasManager || !toolStore) return
+    
+    const typedEventBus = getTypedEventBus()
+    const unsubscribe = typedEventBus.on('tool.activated', (data) => {
+      const tool = toolStore.getTool(data.toolId)
+      if (tool) {
+        // Deactivate previous tool
+        const previousTool = toolStore.getActiveTool()
+        if (previousTool && previousTool.id !== tool.id) {
+          previousTool.onDeactivate?.(canvasManager)
+        }
+        
+        // Activate new tool
+        tool.onActivate?.(canvasManager)
+      }
+    })
+    
+    // Listen for option changes
+    const unsubscribeOptions = typedEventBus.on('tool.option.changed', (data) => {
+      const activeTool = toolStore.getActiveTool()
+      if (activeTool && activeTool.id === data.toolId && 'setOption' in activeTool) {
+        (activeTool as any).setOption(data.optionId, data.value)
+      }
+    })
+    
+    // Activate initial tool if any
+    const activeTool = toolStore.getActiveTool()
+    if (activeTool) {
+      activeTool.onActivate?.(canvasManager)
+    }
+    
+    return () => {
+      unsubscribe()
+      unsubscribeOptions()
+      // Deactivate current tool
+      const currentTool = toolStore.getActiveTool()
+      if (currentTool) {
+        currentTool.onDeactivate?.(canvasManager)
+      }
+    }
+  }, [canvasManager, toolStore])
   
   // Handle keyboard shortcuts
   useEffect(() => {

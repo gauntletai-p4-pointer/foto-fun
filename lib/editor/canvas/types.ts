@@ -46,7 +46,7 @@ export type BlendMode =
 
 export interface CanvasObject {
   id: string
-  type: 'image' | 'text' | 'shape' | 'path' | 'group'
+  type: 'image' | 'text' | 'shape' | 'path' | 'group' | 'verticalText'
   name?: string
   visible: boolean
   locked: boolean

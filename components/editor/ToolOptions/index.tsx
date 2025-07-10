@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react'
 import { useService } from '@/lib/core/AppInitializer'
-import { useStore } from '@/lib/store/base/BaseStore'
 import { EventToolStore, ToolOption } from '@/lib/store/tools/EventToolStore'
 import { OptionCheckbox } from './OptionCheckbox'
 import { OptionNumber } from './OptionNumber'
@@ -10,14 +9,16 @@ import { OptionButtonGroup } from './OptionButtonGroup'
 import { OptionSlider } from './OptionSlider'
 import { OptionColor } from './OptionColor'
 import { OptionDropdown } from './OptionDropdown'
+import { VintageEffectsOptions } from './VintageEffectsOptions'
 import { TOOL_IDS } from '@/constants'
 import { defaultToolOptions } from './defaultToolOptions'
+import { vintageEffectsTool } from '@/lib/editor/tools/filters/vintageEffectsTool'
 
 export function ToolOptions() {
   const toolStore = useService<EventToolStore>('ToolStore')
-  const toolState = useStore(toolStore)
   const activeTool = toolStore.getActiveTool()
   const [modifiers, setModifiers] = useState({ shift: false, alt: false })
+  const [isExpanded, setIsExpanded] = useState(false)
   
   // Register default options on mount
   useEffect(() => {
@@ -51,14 +52,28 @@ export function ToolOptions() {
     }
   }, [])
   
+  const handleOptionChange = (optionId: string, value: unknown) => {
+    if (activeTool) {
+      toolStore.updateOption(activeTool.id, optionId, value)
+    }
+  }
+  
   if (!activeTool) return null
+  
+  // Special handling for vintage effects tool
+  if (activeTool.id === 'vintage-effects') {
+    return (
+      <div className="flex items-center gap-6 px-4">
+        <VintageEffectsOptions
+          tool={vintageEffectsTool}
+          onChange={handleOptionChange}
+        />
+      </div>
+    )
+  }
   
   const options = toolStore.getToolOptions(activeTool.id)
   if (!options || options.length === 0) return null
-  
-  const handleOptionChange = (optionId: string, value: unknown) => {
-    toolStore.updateOption(activeTool.id, optionId, value)
-  }
   
   const renderOption = (option: ToolOption) => {
     const key = `${activeTool.id}-${option.id}`

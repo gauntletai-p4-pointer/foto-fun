@@ -1,15 +1,15 @@
 import { Type } from 'lucide-react'
-import { IText, Textbox } from 'fabric'
+import Konva from 'konva'
 import { TOOL_IDS } from '@/constants'
-import { BaseTextTool } from '../base/BaseTextTool'
-import { useSelectionStore } from '@/store/selectionStore'
-import { useCanvasStore } from '@/store/canvasStore'
+import { BaseTool } from '../base/BaseTool'
+import type { ToolEvent, Point, Selection } from '@/lib/editor/canvas/types'
+import { SelectionCreatedEvent } from '@/lib/events/canvas/ToolEvents'
 
 /**
- * Type Mask Tool - Creates selections in the shape of text
- * Instead of adding text to the canvas, it creates a selection mask
+ * Type Mask Tool - Creates text-based selection masks
+ * Konva implementation that converts text to selection
  */
-class TypeMaskTool extends BaseTextTool {
+export class TypeMaskTool extends BaseTool {
   // Tool identification
   id = TOOL_IDS.TYPE_MASK
   name = 'Type Mask Tool'
@@ -17,199 +17,334 @@ class TypeMaskTool extends BaseTextTool {
   cursor = 'text'
   shortcut = undefined // Access via tool palette
   
-  /**
-   * Override commitText to create selection instead of keeping text
-   */
-  protected commitText(): void {
-    const currentText = this.state.get('currentText')
+  // Mask state
+  private maskText: Konva.Text | null = null
+  private maskLayer: Konva.Layer | null = null
+  private textarea: HTMLTextAreaElement | null = null
+  private isCreating = false
+  
+  protected setupTool(): void {
+    const canvas = this.getCanvas()
     
-    if (!currentText || !this.canvas || this.state.get('isCommitting')) return
+    // Create a dedicated layer for mask creation
+    this.maskLayer = new Konva.Layer()
+    canvas.konvaStage.add(this.maskLayer)
+    this.maskLayer.moveToTop()
     
-    // Set guard flag to prevent re-entry
-    this.state.set('isCommitting', true)
+    // Set default text options
+    this.setOption('fontFamily', 'Arial')
+    this.setOption('fontSize', 100)
+    this.setOption('bold', true)
+    this.setOption('italic', false)
+  }
+  
+  protected cleanupTool(): void {
+    // Finish any active mask creation
+    if (this.isCreating) {
+      this.cancelMaskCreation()
+    }
     
-    try {
-      // Clean up event handlers first
-      this.cleanupTextEventHandlers()
-      
-      // Exit editing mode
-      if (currentText.isEditing) {
-        currentText.exitEditing()
-      }
-      
-      // Restore controls temporarily for proper bounds calculation
-      currentText.set({
-        hasControls: true,
-        hasBorders: true,
-        lockMovementX: false,
-        lockMovementY: false,
-        lockRotation: false,
-        lockScalingX: false,
-        lockScalingY: false
-      })
-      
-      // If text is not empty (and not just our placeholder space), convert to selection
-      if (currentText.text && currentText.text.trim() !== '') {
-        this.convertTextToSelection(currentText)
-      }
-      
-      // Always remove the text object (we only want the selection)
-      this.canvas.remove(currentText)
-      this.canvas.renderAll()
-      
-      // Reset state
-      this.state.setState({
-        currentText: null,
-        isEditing: false,
-        originalText: '',
-        isCommitting: false
-      })
-    } catch (error) {
-      console.error('Error committing text mask:', error)
-      // Ensure we reset the committing flag even on error
-      this.state.set('isCommitting', false)
+    // Clean up mask layer
+    if (this.maskLayer) {
+      this.maskLayer.destroy()
+      this.maskLayer = null
+    }
+    
+    // Reset state
+    this.maskText = null
+    this.textarea = null
+    this.isCreating = false
+  }
+  
+  async onMouseDown(event: ToolEvent): Promise<void> {
+    if (this.isCreating) return
+    
+    const point = event.point
+    
+    // Start creating text mask
+    await this.startMaskCreation(point)
+  }
+  
+  onKeyDown(event: KeyboardEvent): void {
+    // Handle escape to cancel
+    if (event.key === 'Escape' && this.isCreating) {
+      this.cancelMaskCreation()
     }
   }
   
   /**
-   * Convert text object to selection mask
+   * Start creating a text mask
    */
-  private convertTextToSelection(textObject: IText | Textbox): void {
-    if (!this.canvas) return
+  private async startMaskCreation(point: Point): Promise<void> {
+    if (!this.maskLayer) return
     
-    const { selectionManager } = useCanvasStore.getState()
-    if (!selectionManager) return
+    this.isCreating = true
     
-    // Get text bounds
-    const textBounds = textObject.getBoundingRect()
-    
-    // Create a temporary canvas to render the text
-    const tempCanvas = document.createElement('canvas')
-    tempCanvas.width = Math.ceil(textBounds.width)
-    tempCanvas.height = Math.ceil(textBounds.height)
-    const tempCtx = tempCanvas.getContext('2d')
-    
-    if (!tempCtx) return
-    
-    // Configure text rendering
-    tempCtx.font = `${textObject.fontStyle} ${textObject.fontWeight} ${textObject.fontSize}px ${textObject.fontFamily}`
-    tempCtx.textAlign = textObject.textAlign as CanvasTextAlign
-    tempCtx.textBaseline = 'top'
-    tempCtx.fillStyle = 'white'
-    
-    // Clear and fill background
-    tempCtx.fillStyle = 'black'
-    tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height)
-    
-    // Draw text in white
-    tempCtx.fillStyle = 'white'
-    
-    // Handle multi-line text
-    const lines = textObject.text?.split('\n') || []
-    const lineHeight = textObject.lineHeight ? textObject.fontSize * textObject.lineHeight : textObject.fontSize * 1.16
-    
-    lines.forEach((line, index) => {
-      const yPos = index * lineHeight
-      
-      // Calculate x position based on alignment
-      let xPos = 0
-      if (textObject.textAlign === 'center') {
-        xPos = tempCanvas.width / 2
-      } else if (textObject.textAlign === 'right') {
-        xPos = tempCanvas.width
-      }
-      
-      tempCtx.fillText(line, xPos, yPos)
+    // Create text node for mask
+    this.maskText = new Konva.Text({
+      x: point.x,
+      y: point.y,
+      text: ' ', // Start with space
+      fontFamily: this.getOption('fontFamily') as string,
+      fontSize: this.getOption('fontSize') as number,
+      fontStyle: this.getFontStyle(),
+      fill: 'rgba(255, 0, 0, 0.5)', // Red semi-transparent for visibility
+      draggable: true
     })
     
-    // Get image data and create selection from white pixels
-    const imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height)
-    const selectionData = new ImageData(this.canvas.width, this.canvas.height)
+    // Add to mask layer
+    this.maskLayer.add(this.maskText)
+    this.maskLayer.batchDraw()
     
-    // Map text pixels to selection at the correct position
-    const startX = Math.round(textBounds.left)
-    const startY = Math.round(textBounds.top)
+    // Create textarea for editing
+    this.createTextarea()
     
-    for (let y = 0; y < tempCanvas.height; y++) {
-      for (let x = 0; x < tempCanvas.width; x++) {
-        const srcIndex = (y * tempCanvas.width + x) * 4
-        const dstX = startX + x
-        const dstY = startY + y
+    // Focus textarea
+    if (this.textarea) {
+      this.textarea.focus()
+      this.textarea.select()
+    }
+  }
+  
+  /**
+   * Create textarea for text editing
+   */
+  private createTextarea(): void {
+    if (!this.maskText) return
+    
+    // Remove existing textarea if any
+    if (this.textarea) {
+      this.textarea.remove()
+    }
+    
+    // Create new textarea
+    this.textarea = document.createElement('textarea')
+    document.body.appendChild(this.textarea)
+    
+    // Get absolute position of text
+    const textPosition = this.maskText.absolutePosition()
+    const stage = this.maskText.getStage()
+    if (!stage) return
+    
+    const stageBox = stage.container().getBoundingClientRect()
+    const areaPosition = {
+      x: stageBox.left + textPosition.x,
+      y: stageBox.top + textPosition.y
+    }
+    
+    // Set textarea properties
+    this.textarea.value = ''
+    this.textarea.style.position = 'absolute'
+    this.textarea.style.top = `${areaPosition.y}px`
+    this.textarea.style.left = `${areaPosition.x}px`
+    this.textarea.style.width = '400px'
+    this.textarea.style.height = '150px'
+    this.textarea.style.padding = '5px'
+    this.textarea.style.margin = '0'
+    this.textarea.style.overflow = 'auto'
+    this.textarea.style.background = 'rgba(255, 255, 255, 0.9)'
+    this.textarea.style.border = '2px solid #ff0000'
+    this.textarea.style.borderRadius = '2px'
+    this.textarea.style.outline = 'none'
+    this.textarea.style.resize = 'both'
+    
+    // Apply text styles
+    this.textarea.style.fontFamily = this.maskText.fontFamily()
+    this.textarea.style.fontSize = '16px' // Smaller for editing
+    this.textarea.style.fontWeight = this.getOption('bold') ? 'bold' : 'normal'
+    this.textarea.style.fontStyle = this.getOption('italic') ? 'italic' : 'normal'
+    
+    // Handle input
+    this.textarea.addEventListener('input', () => {
+      this.updateMaskText()
+    })
+    
+    // Handle blur (finish mask)
+    this.textarea.addEventListener('blur', () => {
+      this.finishMaskCreation()
+    })
+    
+    // Handle special keys
+    this.textarea.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        this.cancelMaskCreation()
+      } else if (e.key === 'Enter' && e.ctrlKey) {
+        this.finishMaskCreation()
+      }
+    })
+  }
+  
+  /**
+   * Update mask text preview
+   */
+  private updateMaskText(): void {
+    if (!this.textarea || !this.maskText) return
+    
+    // Update text
+    this.maskText.text(this.textarea.value || ' ')
+    
+    // Redraw
+    if (this.maskLayer) {
+      this.maskLayer.batchDraw()
+    }
+  }
+  
+  /**
+   * Finish mask creation and convert to selection
+   */
+  private async finishMaskCreation(): Promise<void> {
+    if (!this.maskText || !this.textarea || !this.maskLayer) return
+    
+    const canvas = this.getCanvas()
+    const text = this.textarea.value
+    
+    if (text.trim()) {
+      // Convert text to path for selection
+      const bounds = this.maskText.getClientRect()
+      
+      // Create offscreen canvas to render text
+      const offscreenCanvas = document.createElement('canvas')
+      offscreenCanvas.width = Math.ceil(bounds.width + 20)
+      offscreenCanvas.height = Math.ceil(bounds.height + 20)
+      const ctx = offscreenCanvas.getContext('2d')
+      
+      if (ctx) {
+        // Clear canvas
+        ctx.clearRect(0, 0, offscreenCanvas.width, offscreenCanvas.height)
         
-        // Check bounds
-        if (dstX >= 0 && dstX < this.canvas.width && dstY >= 0 && dstY < this.canvas.height) {
-          const dstIndex = (dstY * this.canvas.width + dstX) * 4
-          
-          // Copy alpha from red channel (since we drew in white)
-          const alpha = imageData.data[srcIndex]
-          selectionData.data[dstIndex + 3] = alpha
+        // Set text properties
+        ctx.font = `${this.getFontStyle()} ${this.maskText.fontSize()}px ${this.maskText.fontFamily()}`
+        ctx.fillStyle = '#000000'
+        ctx.textBaseline = 'top'
+        
+        // Draw text
+        const lines = text.split('\n')
+        let y = 10
+        lines.forEach(line => {
+          ctx.fillText(line, 10, y)
+          y += this.maskText.fontSize() * 1.2
+        })
+        
+        // Get image data for mask
+        const imageData = ctx.getImageData(0, 0, offscreenCanvas.width, offscreenCanvas.height)
+        
+        // Create pixel mask from text alpha channel
+        const maskData = new ImageData(imageData.width, imageData.height)
+        for (let i = 0; i < imageData.data.length; i += 4) {
+          // Use alpha channel as mask
+          const alpha = imageData.data[i + 3]
+          maskData.data[i] = alpha
+          maskData.data[i + 1] = alpha
+          maskData.data[i + 2] = alpha
+          maskData.data[i + 3] = 255
+        }
+        
+        // Create selection from mask
+        const selection: Selection = {
+          type: 'pixel',
+          bounds: {
+            x: bounds.x - 10,
+            y: bounds.y - 10,
+            width: offscreenCanvas.width,
+            height: offscreenCanvas.height
+          },
+          mask: maskData
+        }
+        
+        // Set selection
+        canvas.setSelection(selection)
+        
+        // Emit event
+        if (this.executionContext) {
+          await this.executionContext.emit(new SelectionCreatedEvent(
+            'canvas',
+            selection,
+            this.executionContext.getMetadata()
+          ))
         }
       }
     }
     
-    // Apply the selection
-    const selectionMode = useSelectionStore.getState().mode
-    
-    // Calculate bounds for the selection
-    const selectionBounds = {
-      x: Math.round(textBounds.left),
-      y: Math.round(textBounds.top),
-      width: Math.ceil(textBounds.width),
-      height: Math.ceil(textBounds.height)
-    }
-    
-    // Use restoreSelection to apply the mask
-    if (selectionMode === 'replace') {
-      selectionManager.restoreSelection(selectionData, selectionBounds)
-    } else {
-      // For other modes, we need to apply the mode manually
-      // First restore the selection, then the SelectionManager will handle the mode
-      selectionManager.restoreSelection(selectionData, selectionBounds)
-    }
-    
     // Clean up
-    tempCanvas.remove()
+    this.cleanupMaskCreation()
   }
   
   /**
-   * Create a text object for mask creation
+   * Cancel mask creation
    */
-  protected createTextObject(x: number, y: number): IText {
-    // Create a new text object with visual indicators
-    const fontFamily = this.getOptionValue<string>('fontFamily') || 'Arial'
-    const fontSize = this.getOptionValue<number>('fontSize') || 60
-    const color = this.getOptionValue<string>('color') || '#000000'
-    const alignment = this.getOptionValue<string>('alignment') || 'left'
-    const bold = this.getOptionValue<boolean>('bold') || false
-    const italic = this.getOptionValue<boolean>('italic') || false
-    const underline = this.getOptionValue<boolean>('underline') || false
+  private cancelMaskCreation(): void {
+    this.cleanupMaskCreation()
+  }
+  
+  /**
+   * Clean up mask creation resources
+   */
+  private cleanupMaskCreation(): void {
+    // Remove text
+    if (this.maskText) {
+      this.maskText.destroy()
+      this.maskText = null
+    }
     
-    const text = new IText(' ', {
-      left: x,
-      top: y,
-      fontFamily,
-      fontSize,
-      fill: color,
-      textAlign: alignment,
-      fontWeight: bold ? 'bold' : 'normal',
-      fontStyle: italic ? 'italic' : 'normal',
-      underline,
-      editable: true,
-      cursorColor: color, // Match cursor color to text color
-      cursorWidth: 2,
-      cursorDelay: 500,
-      cursorDuration: 500,
-      selectionColor: 'rgba(100, 100, 255, 0.3)',
-      selectionStart: 0,
-      selectionEnd: 1, // Select the placeholder space
-      evented: true,
-      // Visual indicator that this is a mask tool
-      stroke: '#0066ff',
-      strokeWidth: 1,
-      strokeDashArray: [5, 5]
-    })
+    // Remove textarea
+    if (this.textarea) {
+      this.textarea.remove()
+      this.textarea = null
+    }
     
-    return text
+    // Clear mask layer
+    if (this.maskLayer) {
+      this.maskLayer.clear()
+      this.maskLayer.batchDraw()
+    }
+    
+    this.isCreating = false
+  }
+  
+  /**
+   * Get combined font style
+   */
+  private getFontStyle(): string {
+    const bold = this.getOption('bold')
+    const italic = this.getOption('italic')
+    
+    if (bold && italic) return 'bold italic'
+    if (bold) return 'bold'
+    if (italic) return 'italic'
+    return 'normal'
+  }
+  
+  /**
+   * Apply text mask for AI operations
+   */
+  async applyWithContext(
+    text: string,
+    position: Point,
+    options?: {
+      fontFamily?: string
+      fontSize?: number
+      bold?: boolean
+      italic?: boolean
+    }
+  ): Promise<void> {
+    // Set options if provided
+    if (options) {
+      Object.entries(options).forEach(([key, value]) => {
+        if (value !== undefined) {
+          this.setOption(key, value)
+        }
+      })
+    }
+    
+    // Start mask creation
+    await this.startMaskCreation(position)
+    
+    // Set the text
+    if (this.textarea) {
+      this.textarea.value = text
+      this.updateMaskText()
+      await this.finishMaskCreation()
+    }
   }
 }
 

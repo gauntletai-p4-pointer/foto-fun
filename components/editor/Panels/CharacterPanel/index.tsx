@@ -1,8 +1,8 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { IText, Textbox } from 'fabric'
-import { useCanvasStore } from '@/store/canvasStore'
+import { useService } from '@/lib/core/AppInitializer'
+import { TypedCanvasStore, useCanvasStore } from '@/lib/store/canvas/TypedCanvasStore'
 import { FontSelector } from './FontSelector'
 import { FontSizeInput } from './FontSizeInput'
 import { FontStyleButtons } from './FontStyleButtons'
@@ -17,35 +17,16 @@ import { Type } from 'lucide-react'
  * Shows when a text object is selected
  */
 export function CharacterPanel() {
-  const { fabricCanvas } = useCanvasStore()
-  const [activeTextObject, setActiveTextObject] = useState<IText | Textbox | null>(null)
+  const canvasStore = useService<TypedCanvasStore>('CanvasStore')
+  const canvasState = useCanvasStore(canvasStore)
+  const [activeTextObject, setActiveTextObject] = useState<any | null>(null)
   
   useEffect(() => {
-    if (!fabricCanvas) return
-    
-    const handleSelection = () => {
-      const activeObject = fabricCanvas.getActiveObject()
-      if (activeObject && (activeObject instanceof IText || activeObject instanceof Textbox)) {
-        setActiveTextObject(activeObject)
-      } else {
-        setActiveTextObject(null)
-      }
-    }
-    
-    // Initial check
-    handleSelection()
-    
-    // Listen for selection changes
-    fabricCanvas.on('selection:created', handleSelection)
-    fabricCanvas.on('selection:updated', handleSelection)
-    fabricCanvas.on('selection:cleared', () => setActiveTextObject(null))
-    
-    return () => {
-      fabricCanvas.off('selection:created', handleSelection)
-      fabricCanvas.off('selection:updated', handleSelection)
-      fabricCanvas.off('selection:cleared')
-    }
-  }, [fabricCanvas])
+    // Check if we have a text object selected
+    const selectedObjects = canvasStore.getSelectedObjects()
+    const textObject = selectedObjects.find(obj => obj.type === 'text')
+    setActiveTextObject(textObject || null)
+  }, [canvasState.selection, canvasStore])
   
   if (!activeTextObject) {
     return (
@@ -56,15 +37,15 @@ export function CharacterPanel() {
     )
   }
   
-  const updateTextProperty = <K extends keyof IText>(property: K, value: IText[K]) => {
-    if (!activeTextObject || !fabricCanvas) return
+  const updateTextProperty = (property: string, value: any) => {
+    if (!activeTextObject) return
     
-    activeTextObject.set(property, value)
-    fabricCanvas.renderAll()
-    
-    // Fire modified event for history tracking
-    fabricCanvas.fire('object:modified', { target: activeTextObject })
+    // TODO: Update this to work with the new canvas system
+    console.log('Update text property:', property, value, 'for object:', activeTextObject)
   }
+  
+  // Extract text properties from the object
+  const textStyle = activeTextObject.style || {}
   
   return (
     <div className="p-4 space-y-4">
@@ -73,7 +54,7 @@ export function CharacterPanel() {
       <div className="space-y-1">
         <label className="text-xs font-medium text-foreground">Font Family</label>
         <FontSelector
-          value={activeTextObject.fontFamily || 'Arial'}
+          value={textStyle.fontFamily || 'Arial'}
           onChange={(font) => updateTextProperty('fontFamily', font)}
         />
       </div>
@@ -81,7 +62,7 @@ export function CharacterPanel() {
       <div className="space-y-1">
         <label className="text-xs font-medium text-foreground">Font Size</label>
         <FontSizeInput
-          value={activeTextObject.fontSize || 24}
+          value={textStyle.fontSize || 24}
           onChange={(size) => updateTextProperty('fontSize', size)}
         />
       </div>
@@ -97,7 +78,7 @@ export function CharacterPanel() {
       <div className="space-y-1">
         <label className="text-xs font-medium text-foreground">Text Color</label>
         <TextColorPicker
-          value={activeTextObject.fill as string || '#000000'}
+          value={textStyle.fill || '#000000'}
           onChange={(color) => updateTextProperty('fill', color)}
         />
       </div>
@@ -105,7 +86,7 @@ export function CharacterPanel() {
       <div className="space-y-1">
         <label className="text-xs font-medium text-foreground">Letter Spacing</label>
         <LetterSpacingControl
-          value={activeTextObject.charSpacing || 0}
+          value={textStyle.charSpacing || 0}
           onChange={(spacing) => updateTextProperty('charSpacing', spacing)}
         />
       </div>
@@ -113,7 +94,7 @@ export function CharacterPanel() {
       <div className="space-y-1">
         <label className="text-xs font-medium text-foreground">Line Height</label>
         <LineHeightControl
-          value={activeTextObject.lineHeight || 1.16}
+          value={textStyle.lineHeight || 1.16}
           onChange={(height) => updateTextProperty('lineHeight', height)}
         />
       </div>

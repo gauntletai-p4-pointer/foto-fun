@@ -21,26 +21,8 @@ export function ToolPalette() {
                       tool.id.includes('brightness') || tool.id.includes('contrast') || tool.id.includes('saturation') ? 'adjustment' :
                       'other'
       
-      // Create a compatible tool object for the new system
-      const compatibleTool = {
-        id: tool.id,
-        name: tool.name,
-        icon: tool.icon,
-        cursor: tool.cursor,
-        group: tool.group,
-        shortcut: tool.shortcut,
-        isImplemented: tool.isImplemented,
-        // Stub methods for now - the actual tool implementation is being handled by another agent
-        onActivate: () => {},
-        onDeactivate: () => {},
-        onMouseDown: () => {},
-        onMouseMove: () => {},
-        onMouseUp: () => {},
-        onKeyDown: () => {},
-        onKeyUp: () => {}
-      }
-      
-      toolStore.registerTool(compatibleTool, category)
+      // Register the actual tool instance
+      toolStore.registerTool(tool as any, category)
     })
   }, [toolStore])
   

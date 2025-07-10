@@ -13,6 +13,8 @@ export class BrightnessTool extends WebGLFilterTool {
   icon = Sun
   cursor = 'default'
   shortcut = 'B'
+  isImplemented = true
+  group = 'adjustment'
   
   protected getFilterType(): string {
     return 'brightness'

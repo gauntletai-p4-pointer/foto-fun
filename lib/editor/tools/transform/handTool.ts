@@ -1,21 +1,13 @@
 import { Hand } from 'lucide-react'
 import { TOOL_IDS } from '@/constants'
-import type { Canvas } from 'fabric'
 import { BaseTool } from '../base/BaseTool'
-import { createToolState } from '../utils/toolState'
-
-// Hand tool state
-type HandToolState = {
-  isPanning: boolean
-  startX: number
-  startY: number
-}
+import type { ToolEvent, Point } from '@/lib/editor/canvas/types'
 
 /**
- * Hand Tool - Allows panning the canvas
- * Extends BaseTool for consistent tool behavior
+ * Hand Tool - Canvas panning/navigation
+ * Konva implementation with smooth panning
  */
-class HandTool extends BaseTool {
+export class HandTool extends BaseTool {
   // Tool identification
   id = TOOL_IDS.HAND
   name = 'Hand Tool'
@@ -23,101 +15,122 @@ class HandTool extends BaseTool {
   cursor = 'grab'
   shortcut = 'H'
   
-  // Encapsulated state
-  private state = createToolState<HandToolState>({
-    isPanning: false,
-    startX: 0,
-    startY: 0
-  })
+  // Panning state
+  private isPanning = false
+  private startPoint: Point | null = null
+  private startPan: Point | null = null
   
-  /**
-   * Tool setup - disable object selection
-   */
-  protected setupTool(canvas: Canvas): void {
-    // Disable object selection
-    canvas.selection = false
-    canvas.defaultCursor = 'grab'
-    canvas.hoverCursor = 'grab'
-    
-    // Make all objects non-selectable
-    canvas.forEachObject((obj) => {
-      obj.selectable = false
-      obj.evented = false
-    })
-    
-    // Set up event handlers
-    this.addCanvasEvent('mouse:down', (e: unknown) => this.handleMouseDown(e))
-    this.addCanvasEvent('mouse:move', (e: unknown) => this.handleMouseMove(e))
-    this.addCanvasEvent('mouse:up', () => this.handleMouseUp())
-    
-    canvas.renderAll()
+  protected setupTool(): void {
+    // Hand tool doesn't need special setup
   }
   
-  /**
-   * Tool cleanup
-   */
-  protected cleanup(canvas: Canvas): void {
-    // Reset cursor
-    canvas.defaultCursor = 'default'
-    canvas.hoverCursor = 'move'
-    
+  protected cleanupTool(): void {
     // Reset state
-    this.state.reset()
+    this.isPanning = false
+    this.startPoint = null
+    this.startPan = null
+  }
+  
+  onMouseDown(event: ToolEvent): void {
+    const canvas = this.getCanvas()
+    
+    // Start panning
+    this.isPanning = true
+    this.startPoint = { ...event.point }
+    this.startPan = { ...canvas.state.pan }
+    
+    // Change cursor to grabbing
+    canvas.konvaStage.container().style.cursor = 'grabbing'
+  }
+  
+  onMouseMove(event: ToolEvent): void {
+    if (!this.isPanning || !this.startPoint || !this.startPan) return
+    
+    const canvas = this.getCanvas()
+    
+    // Calculate delta
+    const dx = event.screenPoint.x - this.startPoint.x
+    const dy = event.screenPoint.y - this.startPoint.y
+    
+    // Apply pan with zoom consideration
+    const zoom = canvas.state.zoom
+    const newPan = {
+      x: this.startPan.x + dx / zoom,
+      y: this.startPan.y + dy / zoom
+    }
+    
+    // Update pan
+    canvas.setPan(newPan)
+  }
+  
+  onMouseUp(event: ToolEvent): void {
+    if (!this.isPanning) return
+    
+    const canvas = this.getCanvas()
+    
+    // Stop panning
+    this.isPanning = false
+    this.startPoint = null
+    this.startPan = null
+    
+    // Reset cursor
+    canvas.konvaStage.container().style.cursor = this.cursor
+  }
+  
+  onKeyDown(event: KeyboardEvent): void {
+    // Space bar temporarily activates hand tool
+    if (event.code === 'Space' && !event.repeat) {
+      const canvas = this.getCanvas()
+      canvas.konvaStage.container().style.cursor = 'grab'
+    }
+  }
+  
+  onKeyUp(event: KeyboardEvent): void {
+    // Release space bar deactivates temporary hand tool
+    if (event.code === 'Space') {
+      const canvas = this.getCanvas()
+      canvas.konvaStage.container().style.cursor = this.cursor
+      
+      // Stop any active panning
+      if (this.isPanning) {
+        this.isPanning = false
+        this.startPoint = null
+        this.startPan = null
+      }
+    }
   }
   
   /**
-   * Handle mouse down - start panning
+   * Pan to specific position for AI operations
    */
-  private handleMouseDown(e: unknown): void {
-    if (!this.canvas) return
+  async panToPosition(position: Point): Promise<void> {
+    const canvas = this.getCanvas()
     
-    this.track('startPanning', () => {
-      this.canvas!.setCursor('grabbing')
-      
-      // Get the event data
-      const event = e as { e: MouseEvent }
-      
-      // Update local state
-      this.state.setState({
-        isPanning: true,
-        startX: event.e.clientX,
-        startY: event.e.clientY
-      })
-      
-      // Use canvasStore for panning (it expects TPointerEventInfo<MouseEvent>)
-      this.canvasStore.startPanning(e as Parameters<typeof this.canvasStore.startPanning>[0])
-    })
+    // Calculate pan to center the position
+    const stageWidth = canvas.konvaStage.width()
+    const stageHeight = canvas.konvaStage.height()
+    
+    const newPan = {
+      x: -position.x + stageWidth / 2,
+      y: -position.y + stageHeight / 2
+    }
+    
+    canvas.setPan(newPan)
   }
   
   /**
-   * Handle mouse move - continue panning
+   * Pan by delta amount
    */
-  private handleMouseMove(e: unknown): void {
-    if (!this.canvas || !this.state.get('isPanning')) return
+  async panByDelta(delta: Point): Promise<void> {
+    const canvas = this.getCanvas()
+    const currentPan = canvas.state.pan
     
-    this.track('pan', () => {
-      // Use canvasStore for panning
-      this.canvasStore.pan(e as Parameters<typeof this.canvasStore.pan>[0])
-    })
-  }
-  
-  /**
-   * Handle mouse up - end panning
-   */
-  private handleMouseUp(): void {
-    if (!this.canvas) return
+    const newPan = {
+      x: currentPan.x + delta.x,
+      y: currentPan.y + delta.y
+    }
     
-    this.track('endPanning', () => {
-      this.canvas!.setCursor('grab')
-      this.canvasStore.endPanning()
-      
-      // Reset state
-      this.state.setState({
-        isPanning: false,
-        startX: 0,
-        startY: 0
-      })
-    })
+    canvas.setPan(newPan)
   }
 }
 

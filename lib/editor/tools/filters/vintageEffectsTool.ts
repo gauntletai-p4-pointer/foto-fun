@@ -20,6 +20,8 @@ export class VintageEffectsTool extends WebGLFilterTool {
   icon = Camera
   cursor = 'default'
   shortcut = 'V'
+  isImplemented = true
+  group = 'filter'
   
   // Available vintage effects
   private effects: VintageEffect[] = [

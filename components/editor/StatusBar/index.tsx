@@ -7,7 +7,6 @@ import { TypedCanvasStore, useCanvasStore } from '@/lib/store/canvas/TypedCanvas
 
 export function StatusBar() {
   const documentStore = useService<EventDocumentStore>('DocumentStore')
-  const documentState = useStore(documentStore)
   const canvasStore = useService<TypedCanvasStore>('CanvasStore')
   const canvasState = useCanvasStore(canvasStore)
   

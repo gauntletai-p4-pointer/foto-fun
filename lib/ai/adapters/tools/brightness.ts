@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { BaseToolAdapter } from '../base'
 import type { CanvasContext } from '@/lib/ai/tools/canvas-bridge'
 import type { ExecutionContext } from '@/lib/events/execution/ExecutionContext'
+import { brightnessTool } from '@/lib/editor/tools/adjustments/brightnessTool'
 
 // Define parameter schema
 const brightnessParameters = z.object({
@@ -24,7 +25,7 @@ interface BrightnessOutput {
  * Provides AI-compatible interface for adjusting image brightness
  */
 export class BrightnessToolAdapter extends BaseToolAdapter<BrightnessInput, BrightnessOutput> {
-  tool = { id: 'brightness', name: 'Brightness' } as any // Temporary until we implement the actual tool
+  tool = brightnessTool
   aiName = 'adjust_brightness'
   description = `Adjust the brightness of images. 
   
@@ -66,18 +67,33 @@ export class BrightnessToolAdapter extends BaseToolAdapter<BrightnessInput, Brig
         throw new Error('No images found to adjust brightness')
       }
       
-      // Apply brightness adjustment
-      // In the new architecture, we'll use the canvas manager's filter methods
-      const canvasManager = (canvas as any).manager // Temporary cast
+      // Get the tool store from service container
+      const container = (window as any).__serviceContainer
+      if (!container) {
+        throw new Error('Service container not found')
+      }
       
-      if (canvasManager) {
-        // Apply filter to each image
-        for (const image of images) {
-          await canvasManager.applyFilter({
-            type: 'brightness',
-            value: params.adjustment / 100 // Convert percentage to decimal
-          }, image) // Pass the whole image object, not image.id
-        }
+      const toolStore = container.get('ToolStore')
+      
+      // Activate the brightness tool
+      toolStore.setActiveTool(this.tool.id)
+      const activeTool = toolStore.getTool(this.tool.id)
+      
+      if (!activeTool) {
+        throw new Error('Brightness tool not found')
+      }
+      
+      // Set the adjustment value on the tool
+      activeTool.setOption('adjustment', params.adjustment)
+      
+      // If we have an execution context, set it on the tool
+      if (executionContext && 'setExecutionContext' in activeTool) {
+        (activeTool as any).setExecutionContext(executionContext)
+      }
+      
+      // Apply brightness using the tool's method
+      if ('applyBrightness' in activeTool && typeof activeTool.applyBrightness === 'function') {
+        await (activeTool as any).applyBrightness(params.adjustment)
       }
       
       return {
