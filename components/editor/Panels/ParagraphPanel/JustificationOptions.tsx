@@ -1,48 +1,49 @@
 'use client'
 
-import { IText, Textbox } from 'fabric'
+import { CanvasObject } from '@/lib/editor/canvas/types'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Checkbox } from '@/components/ui/checkbox'
+import Konva from 'konva'
 
 interface JustificationOptionsProps {
-  object: IText | Textbox
-  onChange: <K extends keyof IText>(property: K, value: IText[K]) => void
+  textObject: CanvasObject | null
+  onChange: (property: string, value: unknown) => void
 }
 
-// Extend IText with custom justification properties
-interface ExtendedTextObject extends IText {
-  justifyLastLine?: boolean
-  wordSpacing?: string
-  hyphenation?: boolean
-}
-
-export function JustificationOptions({ object, onChange }: JustificationOptionsProps) {
-  // Cast to extended type
-  const extendedObject = object as ExtendedTextObject
+export function JustificationOptions({ textObject, onChange }: JustificationOptionsProps) {
+  if (!textObject || (textObject.type !== 'text' && textObject.type !== 'verticalText')) {
+    return null
+  }
   
-  // Custom justification properties
-  const justifyLastLine = extendedObject.justifyLastLine || false
-  const wordSpacing = extendedObject.wordSpacing || 'normal'
-  const hyphenation = extendedObject.hyphenation || false
+  const textNode = textObject.node as Konva.Text
+  if (!textNode) return null
+  
+  // Custom justification properties from metadata
+  const justifyLastLine = textObject.metadata?.justifyLastLine || false
+  const wordSpacing = textObject.metadata?.wordSpacing || 'normal'
+  const hyphenation = textObject.metadata?.hyphenation || false
   
   const handleJustifyLastLineChange = (checked: boolean) => {
-    extendedObject.justifyLastLine = checked
-    onChange('dirty' as keyof IText, true as IText['dirty'])
+    const metadata = textObject.metadata || {}
+    metadata.justifyLastLine = checked
+    onChange('metadata', metadata)
   }
   
   const handleWordSpacingChange = (value: string) => {
-    extendedObject.wordSpacing = value
-    onChange('dirty' as keyof IText, true as IText['dirty'])
+    const metadata = textObject.metadata || {}
+    metadata.wordSpacing = value
+    onChange('metadata', metadata)
   }
   
   const handleHyphenationChange = (checked: boolean) => {
-    extendedObject.hyphenation = checked
-    onChange('dirty' as keyof IText, true as IText['dirty'])
+    const metadata = textObject.metadata || {}
+    metadata.hyphenation = checked
+    onChange('metadata', metadata)
   }
   
   // Only show these options when text is justified
-  const isJustified = object.textAlign === 'justify'
+  const isJustified = textNode.align() === 'justify'
   
   if (!isJustified) {
     return null

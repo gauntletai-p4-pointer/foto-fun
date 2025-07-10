@@ -4,7 +4,7 @@ import { openai } from '@ai-sdk/openai'
 import { z } from 'zod'
 import { adapterRegistry } from '@/lib/ai/adapters/registry'
 import { CanvasToolBridge } from '@/lib/ai/tools/canvas-bridge'
-import type { Canvas } from 'fabric'
+import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
 
 // Schema for generating alternatives
 const AlternativesSchema = z.object({
@@ -18,11 +18,15 @@ const AlternativesSchema = z.object({
 /**
  * Capture the current canvas state as a base64 image
  */
-async function captureCanvasState(canvas: Canvas): Promise<string> {
-  return canvas.toDataURL({
-    format: 'png',
-    quality: 0.8,
-    multiplier: 1
+async function captureCanvasState(canvas: CanvasManager): Promise<string> {
+  const blob = await canvas.exportImage('png')
+  const reader = new FileReader()
+  
+  return new Promise((resolve) => {
+    reader.onloadend = () => {
+      resolve(reader.result as string)
+    }
+    reader.readAsDataURL(blob)
   })
 }
 

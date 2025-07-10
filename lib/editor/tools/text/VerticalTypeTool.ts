@@ -3,7 +3,7 @@ import Konva from 'konva'
 import { TOOL_IDS } from '@/constants'
 import { BaseTool } from '../base/BaseTool'
 import type { ToolEvent, Point, CanvasObject } from '@/lib/editor/canvas/types'
-import { ObjectAddedEvent, ObjectModifiedEvent } from '@/lib/events/canvas/CanvasEvents'
+import { KonvaObjectAddedEvent, KonvaObjectModifiedEvent } from '@/lib/events/canvas/CanvasEvents'
 
 /**
  * Vertical Type Tool - Creates vertical text
@@ -151,9 +151,19 @@ export class VerticalTypeTool extends BaseTool {
     
     // Emit event
     if (this.executionContext) {
-      await this.executionContext.emit(new ObjectAddedEvent(
+      await this.executionContext.emit(new KonvaObjectAddedEvent(
         'canvas',
-        { ...canvasObject, node: undefined } as CanvasObject,
+        canvasObject.id,
+        canvasObject.type,
+        {
+          name: canvasObject.name,
+          visible: canvasObject.visible,
+          locked: canvasObject.locked,
+          opacity: canvasObject.opacity,
+          blendMode: canvasObject.blendMode,
+          transform: canvasObject.transform,
+          data: canvasObject.data
+        },
         activeLayer.id,
         this.executionContext.getMetadata()
       ))
@@ -339,10 +349,10 @@ export class VerticalTypeTool extends BaseTool {
       canvasObject.data = finalText
       
       if (this.executionContext) {
-        await this.executionContext.emit(new ObjectModifiedEvent(
+        await this.executionContext.emit(new KonvaObjectModifiedEvent(
           'canvas',
-          { ...canvasObject, node: undefined } as CanvasObject,
-          { ...canvasObject, data: previousData, node: undefined } as CanvasObject,
+          canvasObject.id,
+          { data: previousData },
           { data: finalText },
           this.executionContext.getMetadata()
         ))

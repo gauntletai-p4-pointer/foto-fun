@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { FilterToolAdapter } from '../base'
 import type { CanvasContext } from '@/lib/ai/tools/canvas-bridge'
 import type { ExecutionContext } from '@/lib/events/execution/ExecutionContext'
+import type { Filter } from '@/lib/editor/canvas/types'
 import { blurTool } from '@/lib/editor/tools/filters/blurTool'
 
 // Define parameter schema
@@ -50,10 +51,10 @@ export class BlurToolAdapter extends FilterToolAdapter<BlurInput, BlurOutput> {
     return 'blur'
   }
   
-  protected createFilter(params: BlurInput): any {
+  protected createFilter(params: BlurInput): Filter {
     return {
       type: 'blur',
-      blur: params.radius
+      params: { radius: params.radius }
     }
   }
   

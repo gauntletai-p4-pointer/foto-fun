@@ -370,7 +370,7 @@ async function executeMultiStepWorkflow(
       // Return a placeholder data URL for server-side
       return 'data:image/png;base64,placeholder'
     }
-  } as any // TODO: Update when Canvas is fully migrated to Konva
+  } as CanvasContext // Canvas context with minimal implementation for server-side
   
   // Create agent context with user preferences from AI settings
   const agentContext: AgentContext & {

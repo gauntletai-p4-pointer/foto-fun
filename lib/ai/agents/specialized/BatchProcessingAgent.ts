@@ -137,9 +137,10 @@ export class BatchProcessingAgent {
     
     try {
       // Load image to canvas
-      const { useCanvasStore } = await import('@/store/canvasStore')
+      const { ServiceContainer } = await import('@/lib/core/ServiceContainer')
       const { adapterRegistry } = await import('@/lib/ai/adapters/registry')
-      const canvas = useCanvasStore.getState().fabricCanvas
+      const container = ServiceContainer.getInstance()
+      const canvas = container.get('CanvasManager')
       
       if (!canvas) {
         throw new Error('No canvas available')
@@ -152,15 +153,14 @@ export class BatchProcessingAgent {
         
         const adapter = adapterRegistry.get(step.tool)
         if (adapter) {
+          const targetImages = canvas.state.layers
+            .flatMap(layer => layer.objects)
+            .filter(obj => obj.type === 'image')
+          
           await adapter.execute(step.params, {
             canvas,
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            targetImages: canvas.getObjects().filter(obj => obj.type === 'image') as any,
-            targetingMode: 'selection',
-            dimensions: {
-              width: canvas.getWidth(),
-              height: canvas.getHeight()
-            }
+            targetImages,
+            targetingMode: 'selection'
           })
           
           adjustments.push({ tool: step.tool, params: step.params })

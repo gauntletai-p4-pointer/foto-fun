@@ -158,10 +158,19 @@ export abstract class TransactionalCommand extends Command {
   protected getCanvas(): Canvas | null {
     if (this.canvas) return this.canvas
     
-    // Try to get from store
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const canvasStore = (window as any).useCanvasStore?.getState?.()
-    return canvasStore?.fabricCanvas || null
+    // Try to get from DI container
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const ServiceContainer = (window as any).ServiceContainer || (globalThis as any).ServiceContainer
+      if (ServiceContainer) {
+        const container = ServiceContainer.getInstance()
+        return container.get('CanvasManager') || null
+      }
+    } catch (error) {
+      console.warn('Failed to get canvas from ServiceContainer:', error)
+    }
+    
+    return null
   }
   
   /**

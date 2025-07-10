@@ -1,20 +1,18 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import Konva from 'konva'
 import type { CanvasObject } from '@/lib/editor/canvas/types'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Slider } from '@/components/ui/slider'
 import { Input } from '@/components/ui/input'
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
-import { TextLayerStyles, type GlowOptions } from '@/lib/editor/text/effects'
 import { cn } from '@/lib/utils'
 
-// Local interface for Shadow properties
-interface Shadow {
-  color?: string
-  offsetX?: number
-  offsetY?: number
-  blur?: number
+interface GlowOptions {
+  color: string
+  blur: number
+  opacity: number
+  inner: boolean
 }
 
 interface GlowSectionProps {
@@ -25,57 +23,71 @@ interface GlowSectionProps {
 export function GlowSection({ object, onChange }: GlowSectionProps) {
   const [enabled, setEnabled] = useState(false)
   const [options, setOptions] = useState<GlowOptions>({
-    type: 'outer',
     color: '#ffffff',
-    size: 10,
+    blur: 10,
     opacity: 0.8,
+    inner: false,
   })
   
   // Type guard for text objects
-  if (!object || (object.type !== 'text' && object.type !== 'verticalText')) {
+  if (!object || (object.type !== 'text' && object.type !== 'verticalText') || !object.node) {
     return null
   }
   
-  // Check if object has glow on mount
+  const textNode = object.node as Konva.Text
+  
+  // Check if object has glow effect on mount
   useEffect(() => {
-    // Check for outer glow (shadow with 0 offset)
-    if (object.shadow) {
-      const shadow = object.shadow as Shadow
-      if (shadow.offsetX === 0 && shadow.offsetY === 0) {
-        setEnabled(true)
-        setOptions({
-          type: 'outer',
-          color: shadow.color || '#ffffff',
-          size: shadow.blur || 10,
-          opacity: 0.8,
-        })
-      }
-    }
+    // Check for existing glow effect (using shadow properties for glow)
+    const shadowColor = textNode.shadowColor()
+    const shadowBlur = textNode.shadowBlur()
     
-    // Check for inner glow (custom property)
-    const textWithGlow = object as CanvasObject & { innerGlow?: { color: string; size: number; opacity: number } }
-    if (textWithGlow.innerGlow) {
+    if (shadowColor && shadowBlur > 5) { // Assume high blur = glow effect
       setEnabled(true)
-      const glow = textWithGlow.innerGlow
       setOptions({
-        type: 'inner',
-        color: glow.color,
-        size: glow.size,
-        opacity: glow.opacity,
+        color: shadowColor,
+        blur: shadowBlur,
+        opacity: textNode.shadowOpacity() || 0.8,
+        inner: false, // Konva doesn't have inner glow, so default to false
       })
     }
-  }, [object])
+  }, [textNode])
   
   const handleToggle = (checked: boolean) => {
     setEnabled(checked)
     
     if (checked) {
-      TextLayerStyles.applyGlow(object, options)
+      applyGlow(options)
     } else {
-      TextLayerStyles.removeGlow(object)
+      removeGlow()
     }
     
     onChange()
+  }
+  
+  const applyGlow = (glowOptions: GlowOptions) => {
+    // Apply glow effect using Konva shadow properties
+    textNode.shadowColor(glowOptions.color)
+    textNode.shadowBlur(glowOptions.blur)
+    textNode.shadowOpacity(glowOptions.opacity)
+    textNode.shadowOffsetX(0) // No offset for glow
+    textNode.shadowOffsetY(0)
+    
+    // Redraw the layer
+    const layer = textNode.getLayer()
+    if (layer) layer.batchDraw()
+  }
+  
+  const removeGlow = () => {
+    textNode.shadowColor('')
+    textNode.shadowBlur(0)
+    textNode.shadowOpacity(0)
+    textNode.shadowOffsetX(0)
+    textNode.shadowOffsetY(0)
+    
+    // Redraw the layer
+    const layer = textNode.getLayer()
+    if (layer) layer.batchDraw()
   }
   
   const updateOption = <K extends keyof GlowOptions>(
@@ -86,32 +98,7 @@ export function GlowSection({ object, onChange }: GlowSectionProps) {
     setOptions(newOptions)
     
     if (enabled) {
-      // If changing type, remove existing glow first
-      if (key === 'type') {
-        TextLayerStyles.removeGlow(object)
-      }
-      
-      TextLayerStyles.applyGlow(object, newOptions)
-      onChange()
-    }
-  }
-  
-  // Convert hex color to rgba with opacity
-  const getColorWithOpacity = (hex: string, opacity: number) => {
-    const r = parseInt(hex.slice(1, 3), 16)
-    const g = parseInt(hex.slice(3, 5), 16)
-    const b = parseInt(hex.slice(5, 7), 16)
-    return `rgba(${r}, ${g}, ${b}, ${opacity})`
-  }
-  
-  // Update glow color with opacity
-  const updateColorWithOpacity = () => {
-    if (enabled) {
-      const colorWithOpacity = getColorWithOpacity(options.color, options.opacity)
-      TextLayerStyles.applyGlow(object, {
-        ...options,
-        color: colorWithOpacity,
-      })
+      applyGlow(newOptions)
       onChange()
     }
   }
@@ -127,26 +114,6 @@ export function GlowSection({ object, onChange }: GlowSectionProps) {
       </div>
       
       <div className={cn("space-y-3", !enabled && "opacity-50 pointer-events-none")}>
-        {/* Type */}
-        <div className="space-y-2">
-          <label className="text-xs font-medium text-foreground">Type</label>
-          <ToggleGroup
-            type="single"
-            value={options.type}
-            onValueChange={(value) => {
-              if (value) updateOption('type', value as GlowOptions['type'])
-            }}
-            className="justify-start"
-          >
-            <ToggleGroupItem value="outer" className="text-xs">
-              Outer
-            </ToggleGroupItem>
-            <ToggleGroupItem value="inner" className="text-xs">
-              Inner
-            </ToggleGroupItem>
-          </ToggleGroup>
-        </div>
-        
         {/* Color */}
         <div className="flex items-center gap-2">
           <label className="text-xs font-medium w-16 text-foreground">Color:</label>
@@ -154,10 +121,7 @@ export function GlowSection({ object, onChange }: GlowSectionProps) {
             <Input
               type="color"
               value={options.color}
-              onChange={(e) => {
-                updateOption('color', e.target.value)
-                updateColorWithOpacity()
-              }}
+              onChange={(e) => updateOption('color', e.target.value)}
               className="h-8 w-16"
             />
             <span className="text-xs text-foreground/60">
@@ -166,17 +130,17 @@ export function GlowSection({ object, onChange }: GlowSectionProps) {
           </div>
         </div>
         
-        {/* Size */}
+        {/* Blur */}
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <label className="text-xs font-medium text-foreground">Size</label>
+            <label className="text-xs font-medium text-foreground">Blur</label>
             <span className="text-xs text-foreground/60">
-              {options.size}px
+              {options.blur}px
             </span>
           </div>
           <Slider
-            value={[options.size]}
-            onValueChange={([value]) => updateOption('size', value)}
+            value={[options.blur]}
+            onValueChange={([value]) => updateOption('blur', value)}
             min={0}
             max={50}
             step={1}
@@ -194,15 +158,24 @@ export function GlowSection({ object, onChange }: GlowSectionProps) {
           </div>
           <Slider
             value={[options.opacity]}
-            onValueChange={([value]) => {
-              updateOption('opacity', value)
-              updateColorWithOpacity()
-            }}
+            onValueChange={([value]) => updateOption('opacity', value)}
             min={0}
             max={1}
             step={0.01}
             className="w-full"
           />
+        </div>
+        
+        {/* Inner Glow (Note: Not supported in Konva) */}
+        <div className="flex items-center gap-2">
+          <Checkbox
+            checked={options.inner}
+                         onCheckedChange={(checked) => updateOption('inner', !!checked)}
+            disabled={true} // Disabled because Konva doesn't support inner glow
+          />
+          <label className="text-xs font-medium text-foreground/50">
+            Inner Glow (Not supported)
+          </label>
         </div>
       </div>
     </div>

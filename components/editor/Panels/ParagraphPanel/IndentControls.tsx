@@ -1,50 +1,43 @@
 'use client'
 
-import { IText, Textbox } from 'fabric'
+import { CanvasObject } from '@/lib/editor/canvas/types'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { IndentIncrease, IndentDecrease } from 'lucide-react'
+import Konva from 'konva'
 
 interface IndentControlsProps {
-  object: IText | Textbox
-  onChange: <K extends keyof IText>(property: K, value: IText[K]) => void
+  textObject: CanvasObject | null
+  onChange: (property: string, value: unknown) => void
 }
 
-// Extend IText with custom properties
-interface ExtendedTextObject extends IText {
-  leftIndent?: number
-  rightIndent?: number
-  firstLineIndent?: number
-  textIndent?: number
-}
-
-export function IndentControls({ object, onChange }: IndentControlsProps) {
-  // Cast to extended type for custom properties
-  const extendedObject = object as ExtendedTextObject
+export function IndentControls({ textObject, onChange }: IndentControlsProps) {
+  if (!textObject || (textObject.type !== 'text' && textObject.type !== 'verticalText')) {
+    return null
+  }
   
-  // Fabric.js doesn't have built-in indent properties, so we'll use custom ones
-  const leftIndent = extendedObject.leftIndent || 0
-  const rightIndent = extendedObject.rightIndent || 0
-  const firstLineIndent = extendedObject.firstLineIndent || 0
+  const textNode = textObject.node as Konva.Text
+  if (!textNode) return null
+  
+  // Get indent values from metadata
+  const leftIndent = textObject.metadata?.leftIndent || 0
+  const rightIndent = textObject.metadata?.rightIndent || 0
+  const firstLineIndent = textObject.metadata?.firstLineIndent || 0
   
   const handleIndentChange = (type: 'left' | 'right' | 'firstLine', value: number) => {
-    // Update the custom property
+    // Update metadata with custom indent properties
+    const metadata = textObject.metadata || {}
     if (type === 'left') {
-      extendedObject.leftIndent = value
+      metadata.leftIndent = value
+      // Also update padding for visual effect
+      onChange('padding', value)
     } else if (type === 'right') {
-      extendedObject.rightIndent = value
+      metadata.rightIndent = value
     } else if (type === 'firstLine') {
-      extendedObject.firstLineIndent = value
+      metadata.firstLineIndent = value
     }
-    
-    // For left indent, we can use padding
-    if (type === 'left') {
-      onChange('padding' as keyof IText, value as IText['padding'])
-    }
-    
-    // Trigger re-render
-    onChange('dirty' as keyof IText, true as IText['dirty'])
+    onChange('metadata', metadata)
   }
   
   const adjustIndent = (type: 'left' | 'right' | 'firstLine', delta: number) => {

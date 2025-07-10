@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { FilterToolAdapter } from '../base'
 import type { CanvasContext } from '@/lib/ai/tools/canvas-bridge'
 import type { ExecutionContext } from '@/lib/events/execution/ExecutionContext'
+import type { Filter } from '@/lib/editor/canvas/types'
 import { brightnessTool } from '@/lib/editor/tools/adjustments/brightnessTool'
 
 // Define parameter schema
@@ -51,7 +52,7 @@ export class BrightnessToolAdapter extends FilterToolAdapter<BrightnessInput, Br
     return 'brightness'
   }
   
-  protected createFilter(params: BrightnessInput): any {
+  protected createFilter(params: BrightnessInput): Record<string, unknown> {
     return {
       type: 'brightness',
       brightness: params.adjustment / 100 // Convert percentage to decimal

@@ -22,13 +22,11 @@ export function StrokeSection({ object, onChange }: StrokeSectionProps) {
     position: 'center',
   })
   
-  // Type guard for text objects
-  if (!object || (object.type !== 'text' && object.type !== 'verticalText')) {
-    return null
-  }
-  
   // Check if object has stroke on mount
   useEffect(() => {
+    if (!object || (object.type !== 'text' && object.type !== 'verticalText')) {
+      return
+    }
     if (object.stroke && object.strokeWidth) {
       setEnabled(true)
       setOptions({
@@ -62,6 +60,11 @@ export function StrokeSection({ object, onChange }: StrokeSectionProps) {
       TextLayerStyles.applyStroke(object, newOptions)
       onChange()
     }
+  }
+  
+  // Type guard for text objects
+  if (!object || (object.type !== 'text' && object.type !== 'verticalText')) {
+    return null
   }
   
   return (

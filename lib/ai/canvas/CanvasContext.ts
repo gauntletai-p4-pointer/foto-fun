@@ -1,4 +1,4 @@
-import type { Canvas } from 'fabric'
+import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
 
 /**
  * Canvas context interface that provides a consistent abstraction
@@ -19,16 +19,18 @@ export interface CanvasContext {
  */
 export class CanvasContextProvider {
   /**
-   * Create context from a real Fabric.js canvas (client-side)
+   * Create context from a CanvasManager instance (client-side)
    */
-  static fromClient(canvas: Canvas): CanvasContext {
+  static fromClient(canvas: CanvasManager): CanvasContext {
+    const canvasState = canvas.state
+    const objects = canvasState.layers.flatMap(layer => layer.objects)
     return {
       dimensions: { 
-        width: canvas.getWidth(), 
-        height: canvas.getHeight() 
+        width: canvasState.width, 
+        height: canvasState.height 
       },
-      hasContent: canvas.getObjects().length > 0,
-      objectCount: canvas.getObjects().length,
+      hasContent: objects.length > 0,
+      objectCount: objects.length,
       screenshot: undefined // Only capture when needed to avoid performance impact
     }
   }
@@ -36,15 +38,19 @@ export class CanvasContextProvider {
   /**
    * Create context with screenshot for server-side analysis
    */
-  static fromClientWithScreenshot(canvas: Canvas): CanvasContext {
-    return {
-      ...this.fromClient(canvas),
-      screenshot: canvas.toDataURL({ 
-        format: 'png', 
-        quality: 0.8,
-        multiplier: 1 // Required property for Fabric.js
-      })
-    }
+  static async fromClientWithScreenshot(canvas: CanvasManager): Promise<CanvasContext> {
+    const blob = await canvas.exportImage('png')
+    const reader = new FileReader()
+    
+    return new Promise((resolve) => {
+      reader.onloadend = () => {
+        resolve({
+          ...this.fromClient(canvas),
+          screenshot: reader.result as string
+        })
+      }
+      reader.readAsDataURL(blob)
+    })
   }
   
   /**

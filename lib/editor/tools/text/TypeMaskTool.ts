@@ -222,7 +222,7 @@ export class TypeMaskTool extends BaseTool {
         let y = 10
         lines.forEach(line => {
           ctx.fillText(line, 10, y)
-          y += this.maskText.fontSize() * 1.2
+          y += this.maskText?.fontSize() * 1.2 || 24
         })
         
         // Get image data for mask

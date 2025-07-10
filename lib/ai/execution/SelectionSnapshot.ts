@@ -1,5 +1,5 @@
-import type { FabricObject } from 'fabric'
-import type { Canvas } from 'fabric'
+import type { CanvasObject } from '@/lib/editor/canvas/types'
+import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
 import { nanoid } from 'nanoid'
 
 /**
@@ -12,13 +12,13 @@ import { nanoid } from 'nanoid'
 export class SelectionSnapshot {
   public readonly id: string
   public readonly timestamp: number
-  public readonly objects: ReadonlyArray<FabricObject>
+  public readonly objects: ReadonlyArray<CanvasObject>
   public readonly objectIds: ReadonlySet<string>
   public readonly isEmpty: boolean
   public readonly count: number
   public readonly types: ReadonlySet<string>
   
-  constructor(objects: FabricObject[]) {
+  constructor(objects: CanvasObject[]) {
     this.id = nanoid()
     this.timestamp = Date.now()
     this.objects = Object.freeze([...objects])
@@ -28,9 +28,8 @@ export class SelectionSnapshot {
     const types = new Set<string>()
     
     objects.forEach(obj => {
-      const id = (obj as FabricObject & { id?: string }).id
-      if (id) ids.add(id)
-      if (obj.type) types.add(obj.type)
+      ids.add(obj.id)
+      types.add(obj.type)
     })
     
     this.objectIds = Object.freeze(ids)
@@ -42,48 +41,45 @@ export class SelectionSnapshot {
   /**
    * Filter objects by type
    */
-  getObjectsByType(type: string): FabricObject[] {
+  getObjectsByType(type: string): CanvasObject[] {
     return this.objects.filter(obj => obj.type === type)
   }
   
   /**
    * Check if snapshot contains a specific object
    */
-  contains(objectOrId: FabricObject | string): boolean {
+  contains(objectOrId: CanvasObject | string): boolean {
     if (typeof objectOrId === 'string') {
       return this.objectIds.has(objectOrId)
     }
-    const id = (objectOrId as FabricObject & { id?: string }).id
-    return id ? this.objectIds.has(id) : false
+    return this.objectIds.has(objectOrId.id)
   }
   
   /**
    * Get only image objects
    */
-  getImages(): FabricObject[] {
+  getImages(): CanvasObject[] {
     return this.getObjectsByType('image')
   }
   
   /**
    * Get only text objects
    */
-  getTextObjects(): FabricObject[] {
+  getTextObjects(): CanvasObject[] {
     return this.objects.filter(obj => 
-      obj.type === 'text' || obj.type === 'i-text' || obj.type === 'textbox'
+      obj.type === 'text' || obj.type === 'verticalText'
     )
   }
   
   /**
    * Check if all objects in the snapshot still exist on canvas
    */
-  verifyIntegrity(canvas: Canvas): boolean {
-    const canvasObjects = canvas.getObjects()
-    const canvasObjectSet = new Set(canvasObjects)
-    
-    // Check if all snapshot objects still exist
+  verifyIntegrity(canvas: CanvasManager): boolean {
+    // Check if all snapshot objects still exist by ID
     for (const obj of this.objects) {
-      if (!canvasObjectSet.has(obj)) {
-        console.warn(`[SelectionSnapshot ${this.id}] Object no longer exists on canvas`)
+      const foundObject = canvas.findObject(obj.id)
+      if (!foundObject) {
+        console.warn(`[SelectionSnapshot ${this.id}] Object ${obj.id} no longer exists on canvas`)
         return false
       }
     }
@@ -94,11 +90,11 @@ export class SelectionSnapshot {
   /**
    * Get valid objects that still exist on canvas
    */
-  getValidObjects(canvas: Canvas): FabricObject[] {
-    const canvasObjects = canvas.getObjects()
-    const canvasObjectSet = new Set(canvasObjects)
-    
-    return this.objects.filter(obj => canvasObjectSet.has(obj))
+  getValidObjects(canvas: CanvasManager): CanvasObject[] {
+    return this.objects.filter(obj => {
+      const foundObject = canvas.findObject(obj.id)
+      return foundObject !== null
+    })
   }
 }
 
@@ -109,15 +105,24 @@ export class SelectionSnapshotFactory {
   /**
    * Create snapshot from current canvas selection
    */
-  static fromCanvas(canvas: Canvas): SelectionSnapshot {
-    const activeObjects = canvas.getActiveObjects()
-    return new SelectionSnapshot(activeObjects)
+  static fromCanvas(canvas: CanvasManager): SelectionSnapshot {
+    const selection = canvas.state.selection
+    const selectedObjects: CanvasObject[] = []
+    
+    if (selection?.type === 'objects') {
+      selection.objectIds.forEach(id => {
+        const obj = canvas.findObject(id)
+        if (obj) selectedObjects.push(obj)
+      })
+    }
+    
+    return new SelectionSnapshot(selectedObjects)
   }
   
   /**
    * Create snapshot from specific objects
    */
-  static fromObjects(objects: FabricObject[]): SelectionSnapshot {
+  static fromObjects(objects: CanvasObject[]): SelectionSnapshot {
     return new SelectionSnapshot(objects)
   }
   
@@ -126,17 +131,29 @@ export class SelectionSnapshotFactory {
    * If no selection, optionally include all objects of a type
    */
   static fromCanvasWithFallback(
-    canvas: Canvas,
+    canvas: CanvasManager,
     fallbackType?: string
   ): SelectionSnapshot {
-    const activeObjects = canvas.getActiveObjects()
+    const selection = canvas.state.selection
+    const selectedObjects: CanvasObject[] = []
     
-    if (activeObjects.length > 0) {
-      return new SelectionSnapshot(activeObjects)
+    if (selection?.type === 'objects' && selection.objectIds.length > 0) {
+      selection.objectIds.forEach(id => {
+        const obj = canvas.findObject(id)
+        if (obj) selectedObjects.push(obj)
+      })
+      return new SelectionSnapshot(selectedObjects)
     }
     
     if (fallbackType) {
-      const allOfType = canvas.getObjects().filter(obj => obj.type === fallbackType)
+      const allOfType: CanvasObject[] = []
+      canvas.state.layers.forEach(layer => {
+        layer.objects.forEach(obj => {
+          if (obj.type === fallbackType) {
+            allOfType.push(obj)
+          }
+        })
+      })
       return new SelectionSnapshot(allOfType)
     }
     

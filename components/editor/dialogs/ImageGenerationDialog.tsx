@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useService } from '@/lib/core/AppInitializer'
 import { useStore } from '@/lib/store/base/BaseStore'
 import { EventToolStore } from '@/lib/store/tools/EventToolStore'
+import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -27,6 +28,7 @@ export function ImageGenerationDialog() {
   const toolStore = useService<EventToolStore>('ToolStore')
   const toolState = useStore(toolStore)
   const activeTool = toolState.activeTool
+  const canvasManager = useService<CanvasManager>('CanvasManager')
   
   const [prompt, setPrompt] = useState('')
   const [negativePrompt, setNegativePrompt] = useState('')
@@ -59,12 +61,9 @@ export function ImageGenerationDialog() {
       return
     }
     
-    // TODO: Update to use CanvasManager from the new Konva-based system
-    // This will be handled as part of the tool migration
-    const fabricCanvas = null // Temporary placeholder
-    if (!fabricCanvas) {
-      console.error('Canvas not ready - ImageGeneration tool needs migration to Konva')
-      alert('Canvas not ready - ImageGeneration tool needs migration to Konva')
+    if (!canvasManager || !canvasManager.konvaStage) {
+      console.error('Canvas not ready')
+      alert('Canvas not ready. Please wait for the canvas to load.')
       return
     }
     
@@ -86,7 +85,11 @@ export function ImageGenerationDialog() {
           height,
           steps,
         },
-        { canvas: fabricCanvas }
+        { 
+          canvas: canvasManager,
+          targetImages: [],
+          targetingMode: 'auto-single' 
+        }
       )
       
       if (result.success) {

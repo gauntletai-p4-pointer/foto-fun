@@ -1,4 +1,4 @@
-import type { Canvas } from 'fabric'
+import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
 import type { UIMessage } from 'ai'
 import type { AgentContext, UserPreferences } from './types'
 import { WorkflowMemory } from './WorkflowMemory'
@@ -25,7 +25,7 @@ export type AgentType =
 
 interface CreateAgentOptions {
   type: AgentType
-  canvas: Canvas
+  canvas: CanvasManager
   conversation: UIMessage[]
   preferences?: Partial<UserPreferences>
   maxSteps?: number
@@ -42,11 +42,12 @@ export class AgentFactory {
     const workflowMemory = new WorkflowMemory(canvas)
     
     // Analyze canvas
-    const objects = canvas.getObjects()
+    const canvasState = canvas.state
+    const objects = canvasState.layers.flatMap(layer => layer.objects)
     const canvasAnalysis = {
       dimensions: {
-        width: canvas.getWidth(),
-        height: canvas.getHeight()
+        width: canvasState.width,
+        height: canvasState.height
       },
       hasContent: objects.length > 0,
       objectCount: objects.length,

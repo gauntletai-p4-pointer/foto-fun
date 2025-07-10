@@ -54,7 +54,7 @@ export function Canvas() {
         currentManager.destroy()
       }
     }
-  }, [canvasFactory])
+  }, [canvasFactory, canvasManager])
   
   // Handle tool activation
   useEffect(() => {

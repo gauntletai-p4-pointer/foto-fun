@@ -11,8 +11,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { TextWarp, WarpStyle } from '@/lib/editor/text/effects/TextWarp'
-import { ModifyCommand } from '@/lib/editor/commands/canvas/ModifyCommand'
+import { WarpStyle } from '@/lib/editor/text/effects/TextWarp'
+import { useService } from '@/lib/core/AppInitializer'
+import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
 import type { CanvasObject } from '@/lib/editor/canvas/types'
 
 interface TextWarpSectionProps {
@@ -23,46 +24,41 @@ export function TextWarpSection({ object }: TextWarpSectionProps) {
   const [warpStyle, setWarpStyle] = useState<WarpStyle>(WarpStyle.Arc)
   const [bendAmount, setBendAmount] = useState(0)
   const [isWarped, setIsWarped] = useState(false)
-  // TODO: Update for new canvas system
-  const fabricCanvas = null // Temporary placeholder
-  const executeCommand = (command: unknown) => {
-    console.log('Command execution needs migration:', command)
-  }
-  
-  // Type guard for text objects
-  if (!object || (object.type !== 'text' && object.type !== 'verticalText')) {
-    return null
-  }
+  const canvasManager = useService<CanvasManager>('CanvasManager')
   
   const applyWarp = useCallback(() => {
-    if (!object || !fabricCanvas) return
+    if (!object || !canvasManager) return
     
-    const warp = new TextWarp(warpStyle, bendAmount)
-    const warpedPath = warp.warpText(object as any) // TODO: Update for Konva
-    
-    if (warpedPath) {
-      executeCommand(new ModifyCommand(fabricCanvas, object, {
-        path: warpedPath,
+    // TODO: Update TextWarp to work with Konva text objects
+    // For now, just update the object metadata
+    console.log('Applying warp:', { warpStyle, bendAmount })
+    canvasManager.updateObject(object.id, {
+      data: {
+        ...(typeof object.data === 'object' ? object.data : {}),
         isWarped: true,
         warpStyle,
         bendAmount
-      }))
-      setIsWarped(true)
-    }
-  }, [object, fabricCanvas, warpStyle, bendAmount])
+      }
+    })
+    setIsWarped(true)
+  }, [object, canvasManager, warpStyle, bendAmount])
   
   const removeWarp = useCallback(() => {
-    if (!object || !fabricCanvas) return
+    if (!object || !canvasManager) return
     
-    executeCommand(new ModifyCommand(fabricCanvas, object, {
-      path: null,
-      isWarped: false,
-      warpStyle: null,
-      bendAmount: 0
-    }))
+    console.log('Removing warp')
+    canvasManager.updateObject(object.id, {
+      data: {
+        ...(typeof object.data === 'object' ? object.data : {}),
+        isWarped: false,
+        warpStyle: null,
+        bendAmount: 0
+      }
+    })
     setIsWarped(false)
-  }, [object, fabricCanvas])
+  }, [object, canvasManager])
   
+  // Type guard for text objects
   if (!object || (object.type !== 'text' && object.type !== 'verticalText')) {
     return null
   }
@@ -79,9 +75,7 @@ export function TextWarpSection({ object }: TextWarpSectionProps) {
             <SelectItem value={WarpStyle.Arc}>Arc</SelectItem>
             <SelectItem value={WarpStyle.ArcLower}>Arc Lower</SelectItem>
             <SelectItem value={WarpStyle.ArcUpper}>Arc Upper</SelectItem>
-            <SelectItem value={WarpStyle.Arch}>Arch</SelectItem>
             <SelectItem value={WarpStyle.Bulge}>Bulge</SelectItem>
-            <SelectItem value={WarpStyle.Shell}>Shell</SelectItem>
             <SelectItem value={WarpStyle.Flag}>Flag</SelectItem>
             <SelectItem value={WarpStyle.Wave}>Wave</SelectItem>
             <SelectItem value={WarpStyle.Fish}>Fish</SelectItem>

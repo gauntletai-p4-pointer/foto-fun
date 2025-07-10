@@ -1,21 +1,18 @@
-import type { Canvas, FabricObject } from 'fabric'
-import { ActiveSelection } from 'fabric'
+import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
+import type { CanvasObject } from '@/lib/editor/canvas/types'
 import { CanvasToolBridge } from '@/lib/ai/tools/canvas-bridge'
 import type { CanvasContext } from '@/lib/ai/tools/canvas-bridge'
-
-// Type for Fabric.js image objects
-type FabricImage = FabricObject & { type: 'image' }
 
 /**
  * Canvas Context Manager for AI Agents
  * Manages selection and targeting between workflow steps
  */
 export class CanvasContextManager {
-  private canvas: Canvas
-  private lastAddedObjects: FabricObject[] = []
+  private canvasManager: CanvasManager
+  private lastAddedObjects: CanvasObject[] = []
   
-  constructor(canvas: Canvas) {
-    this.canvas = canvas
+  constructor(canvasManager: CanvasManager) {
+    this.canvasManager = canvasManager
   }
   
   /**
@@ -36,14 +33,29 @@ export class CanvasContextManager {
   /**
    * Get current target images based on selection state
    */
-  private getCurrentTargetImages(): FabricImage[] {
-    const activeObjects = this.canvas.getActiveObjects()
-    const allObjects = this.canvas.getObjects()
-    const allImages = allObjects.filter(obj => obj.type === 'image') as FabricImage[]
+  private getCurrentTargetImages(): CanvasObject[] {
+    const selection = this.canvasManager.state.selection
+    const allImages: CanvasObject[] = []
     
-    // If there's a selection, only target selected images
-    if (activeObjects.length > 0) {
-      return activeObjects.filter(obj => obj.type === 'image') as FabricImage[]
+    // Collect all image objects from all layers
+    this.canvasManager.state.layers.forEach(layer => {
+      layer.objects.forEach(obj => {
+        if (obj.type === 'image') {
+          allImages.push(obj)
+        }
+      })
+    })
+    
+    // If there's an object-based selection, only target selected images
+    if (selection?.type === 'objects' && selection.objectIds.length > 0) {
+      const selectedImages: CanvasObject[] = []
+      selection.objectIds.forEach(id => {
+        const obj = this.canvasManager.findObject(id)
+        if (obj && obj.type === 'image') {
+          selectedImages.push(obj)
+        }
+      })
+      return selectedImages
     }
     
     // Otherwise target all images
@@ -54,7 +66,7 @@ export class CanvasContextManager {
    * Track objects added in the last operation
    * This helps us manage selection for subsequent operations
    */
-  trackAddedObjects(objects: FabricObject[]) {
+  trackAddedObjects(objects: CanvasObject[]) {
     this.lastAddedObjects = objects
   }
   
@@ -62,52 +74,47 @@ export class CanvasContextManager {
    * Select specific objects for the next operation
    * Used to ensure operations target the right objects
    */
-  selectObjects(objects: FabricObject[]) {
-    this.canvas.discardActiveObject()
-    
-    if (objects.length === 0) return
-    
-    if (objects.length === 1) {
-      this.canvas.setActiveObject(objects[0])
-    } else {
-      const activeSelection = new ActiveSelection(objects, {
-        canvas: this.canvas
-      })
-      this.canvas.setActiveObject(activeSelection)
+  async selectObjects(objects: CanvasObject[]) {
+    if (objects.length === 0) {
+      await this.canvasManager.clearSelection()
+      return
     }
     
-    this.canvas.requestRenderAll()
+    const objectIds = objects.map(obj => obj.id)
+    await this.canvasManager.selectObjects(objectIds)
   }
   
   /**
    * Smart selection based on operation type
    * Helps AI decide what to operate on
    */
-  prepareForOperation(operationType: 'image' | 'text' | 'all') {
-    const allObjects = this.canvas.getObjects()
+  async prepareForOperation(operationType: 'image' | 'text' | 'all') {
+    // Check if there's already a selection
+    const currentSelection = this.canvasManager.state.selection
+    if (currentSelection?.type === 'objects' && currentSelection.objectIds.length > 0) {
+      return // Keep existing selection
+    }
+    
+    const allObjects: CanvasObject[] = []
+    this.canvasManager.state.layers.forEach(layer => {
+      allObjects.push(...layer.objects)
+    })
     
     switch (operationType) {
       case 'image':
-        // Select all images if no current selection
-        if (this.canvas.getActiveObjects().length === 0) {
-          const images = allObjects.filter(obj => obj.type === 'image')
-          this.selectObjects(images)
-        }
+        const images = allObjects.filter(obj => obj.type === 'image')
+        await this.selectObjects(images)
         break
         
       case 'text':
-        // Select all text objects if no current selection
-        if (this.canvas.getActiveObjects().length === 0) {
-          const textObjects = allObjects.filter(obj => 
-            obj.type === 'text' || obj.type === 'i-text' || obj.type === 'textbox'
-          )
-          this.selectObjects(textObjects)
-        }
+        const textObjects = allObjects.filter(obj => 
+          obj.type === 'text' || obj.type === 'verticalText'
+        )
+        await this.selectObjects(textObjects)
         break
         
       case 'all':
-        // Select all objects
-        this.selectObjects(allObjects)
+        await this.selectObjects(allObjects)
         break
     }
   }
@@ -115,22 +122,24 @@ export class CanvasContextManager {
   /**
    * Clear selection after an operation if needed
    */
-  clearSelection() {
-    this.canvas.discardActiveObject()
-    this.canvas.requestRenderAll()
+  async clearSelection() {
+    await this.canvasManager.clearSelection()
   }
   
   /**
    * Get objects by type
    */
-  getObjectsByType(type: 'image' | 'text'): FabricObject[] {
-    const allObjects = this.canvas.getObjects()
+  getObjectsByType(type: 'image' | 'text'): CanvasObject[] {
+    const allObjects: CanvasObject[] = []
+    this.canvasManager.state.layers.forEach(layer => {
+      allObjects.push(...layer.objects)
+    })
     
     if (type === 'image') {
       return allObjects.filter(obj => obj.type === 'image')
     } else if (type === 'text') {
       return allObjects.filter(obj => 
-        obj.type === 'text' || obj.type === 'i-text' || obj.type === 'textbox'
+        obj.type === 'text' || obj.type === 'verticalText'
       )
     }
     
@@ -174,6 +183,6 @@ export class CanvasContextManager {
 /**
  * Create a context manager for a canvas
  */
-export function createCanvasContextManager(canvas: Canvas): CanvasContextManager {
-  return new CanvasContextManager(canvas)
-} 
+export function createCanvasContextManager(canvasManager: CanvasManager): CanvasContextManager {
+  return new CanvasContextManager(canvasManager)
+}

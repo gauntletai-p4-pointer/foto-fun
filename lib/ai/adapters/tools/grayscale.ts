@@ -49,7 +49,7 @@ export class GrayscaleToolAdapter extends FilterToolAdapter<GrayscaleInput, Gray
     return 'grayscale'
   }
   
-  protected createFilter(params: GrayscaleInput): any {
+  protected createFilter(): { type: string } {
     return {
       type: 'grayscale'
     }
@@ -71,11 +71,11 @@ export class GrayscaleToolAdapter extends FilterToolAdapter<GrayscaleInput, Gray
     return this.executeWithCommonPatterns(
       params,
       context,
-      async (images, execContext) => {
+      async (images, _execContext) => {
         console.log(`[GrayscaleAdapter] ${params.enabled ? 'Applying' : 'Removing'} grayscale effect`)
         
         // Apply or remove grayscale filter
-        await this.applyFilterToImages(images, params, context.canvas, execContext)
+        await this.applyFilterToImages(images, params, context.canvas, _execContext)
         
         const message = params.enabled 
           ? 'Image converted to grayscale'

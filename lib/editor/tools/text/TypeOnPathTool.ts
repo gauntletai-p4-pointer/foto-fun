@@ -107,7 +107,7 @@ export class TypeOnPathTool extends BaseTextTool {
    * Check if a canvas object is a path object
    */
   private isPathObject(obj: CanvasObject): boolean {
-    return obj.type === 'path' || obj.type === 'line' || obj.type === 'shape'
+    return obj.type === 'shape' // In Konva, paths are typically shapes
   }
   
   /**

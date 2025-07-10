@@ -29,8 +29,9 @@ export class CreativeEnhancementAgent {
         execute: async ({ style, intensity }) => {
           try {
             const { adapterRegistry } = await import('@/lib/ai/adapters/registry')
-            const { useCanvasStore } = await import('@/store/canvasStore')
-            const canvas = useCanvasStore.getState().fabricCanvas
+            const { ServiceContainer } = await import('@/lib/core/ServiceContainer')
+            const container = ServiceContainer.getInstance()
+            const canvas = container.get('CanvasManager')
             
             if (!canvas) {
               return { success: false, error: 'No canvas available' }

@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { BaseToolAdapter } from '../base'
 import { hueTool } from '@/lib/editor/tools/adjustments/hueTool'
-import type { Canvas } from 'fabric'
+import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
 import type { CanvasContext } from '@/lib/ai/tools/canvas-bridge'
 
 // Input schema following AI SDK v5 patterns
@@ -124,9 +124,11 @@ NEVER ask for exact values - always interpret the user's intent and choose an ap
     }
   }
   
-  canExecute(canvas: Canvas): boolean {
+  canExecute(canvas: CanvasManager): boolean {
     // Can only adjust hue if there are images on the canvas
-    const hasImages = canvas.getObjects().some(obj => obj.type === 'image')
+    const hasImages = canvas.state.layers.some(layer => 
+      layer.objects.some(obj => obj.type === 'image')
+    )
     if (!hasImages) {
       console.warn('Hue tool: No images on canvas')
     }

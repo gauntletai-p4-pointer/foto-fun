@@ -7,15 +7,15 @@ import type {
   AgentStep,
   StepResult
 } from './types'
-import { Canvas } from 'fabric'
+import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
 
 export class WorkflowMemory implements IWorkflowMemory {
   steps: ExecutedStep[] = []
   checkpoints: Map<string, CanvasState> = new Map()
   decisions: UserDecision[] = []
-  private canvas: Canvas
+  private canvas: CanvasManager
   
-  constructor(canvas: Canvas) {
+  constructor(canvas: CanvasManager) {
     this.canvas = canvas
   }
   
@@ -28,7 +28,15 @@ export class WorkflowMemory implements IWorkflowMemory {
   }
   
   createCheckpoint(id: string): void {
-    const canvasState = this.canvas.toJSON()
+    // Store the current canvas state
+    const canvasState = {
+      layers: this.canvas.state.layers,
+      selection: this.canvas.state.selection,
+      activeLayerId: this.canvas.state.activeLayerId,
+      backgroundColor: this.canvas.state.backgroundColor,
+      width: this.canvas.state.width,
+      height: this.canvas.state.height
+    }
     this.checkpoints.set(id, {
       id,
       timestamp: Date.now(),
@@ -42,9 +50,9 @@ export class WorkflowMemory implements IWorkflowMemory {
     
     try {
       const canvasData = JSON.parse(checkpoint.serializedCanvas)
-      this.canvas.loadFromJSON(canvasData, () => {
-        this.canvas.renderAll()
-      })
+      // Note: CanvasManager would need a restore method to fully implement this
+      // For now, we log a warning as the restore functionality needs to be implemented
+      console.warn('Canvas restore functionality needs to be implemented in CanvasManager')
       
       // Remove all steps after this checkpoint
       const checkpointTime = checkpoint.timestamp

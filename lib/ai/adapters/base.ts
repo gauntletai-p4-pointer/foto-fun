@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { tool } from 'ai'
-import type { Tool } from '@/lib/editor/canvas/types'
+import type { Tool, Filter } from '@/lib/editor/canvas/types'
 import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
 import type { CanvasObject } from '@/lib/editor/canvas/types'
 import type { CanvasContext } from '../tools/canvas-bridge'
@@ -527,7 +527,7 @@ export abstract class FilterToolAdapter<
   /**
    * Create a new filter with the given parameters
    */
-  protected abstract createFilter(params: TInput): any
+  protected abstract createFilter(params: TInput): Filter
   
   /**
    * Check if a filter should be applied (return false to remove existing filters)

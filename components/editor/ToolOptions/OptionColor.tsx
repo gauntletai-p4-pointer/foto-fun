@@ -20,12 +20,12 @@ export function OptionColor({ option, onChange }: OptionColorProps) {
   const colorStore = useService<EventColorStore>('ColorStore')
   const colorState = useStore(colorStore)
   const recentColors = colorState.recentColors
-  const addRecentColor = (color: string) => colorStore.addRecentColor(color)
   
   const handleColorChange = (color: string) => {
     setTempColor(color)
     onChange(color)
-    addRecentColor(color)
+    // This will add to recent colors automatically
+    colorStore.setPrimaryColor(color, 'picker')
     setIsOpen(false)
   }
   

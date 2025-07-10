@@ -1,7 +1,6 @@
 import { useCallback } from 'react'
 import { ClientToolExecutor } from '@/lib/ai/client/tool-executor'
 import { ServiceContainer } from '@/lib/core/ServiceContainer'
-import type { TypedCanvasStore } from '@/lib/store/canvas/TypedCanvasStore'
 import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
 import { adapterRegistry } from '@/lib/ai/adapters/registry'
 
@@ -26,7 +25,6 @@ export function useToolCallHandler({
   onAgentThinkingEnd,
   onAgentThinkingStep
 }: UseToolCallHandlerProps) {
-  const canvasStore = ServiceContainer.getInstance().get<TypedCanvasStore>('CanvasStore')
   const canvasManager = ServiceContainer.getInstance().get<CanvasManager>('CanvasManager')
   
   const handleToolCall = useCallback(async ({ toolCall }: { toolCall: {
@@ -497,7 +495,7 @@ Once you've made your selection, just tell me what you'd like to do!`,
       console.error('[AIChat] Tool execution error:', error)
       throw error
     }
-  }, [waitForReady, onAgentThinkingStart, onAgentThinkingEnd, onAgentThinkingStep, canvasManager, canvasStore])
+  }, [waitForReady, onAgentThinkingStart, onAgentThinkingEnd, onAgentThinkingStep, canvasManager])
   
   return { handleToolCall }
 } 

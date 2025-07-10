@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useService } from '@/lib/core/AppInitializer'
 import { useStore } from '@/lib/store/base/BaseStore'
 import { EventLayerStore } from '@/lib/store/layers/EventLayerStore'
@@ -205,9 +205,9 @@ export function LayersPanel() {
   const layerStore = useService<EventLayerStore>('LayerStore')
   const layerState = useStore(layerStore)
   // TODO: Update command execution for new event system
-  const executeCommand = (command: unknown) => {
+  const executeCommand = useCallback((command: unknown) => {
     console.log('Command execution needs migration:', command)
-  }
+  }, [])
   
   const [draggedLayer, setDraggedLayer] = useState<Layer | null>(null)
   const [hasInitialized, setHasInitialized] = useState(false)

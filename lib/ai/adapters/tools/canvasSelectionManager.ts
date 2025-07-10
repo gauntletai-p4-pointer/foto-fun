@@ -3,7 +3,7 @@ import { BaseToolAdapter } from '../base'
 import type { CanvasContext } from '@/lib/ai/tools/canvas-bridge'
 import { createCanvasContextManager } from '@/lib/ai/agents/utils/canvas'
 import type { Tool } from '@/types'
-import type { FabricObject } from 'fabric'
+import type { CanvasObject } from '@/lib/editor/canvas/types'
 
 // Input schema for canvas selection management
 const selectionManagerParameters = z.object({
@@ -88,8 +88,9 @@ IMPORTANT: Use this BETWEEN steps in workflows, especially:
           throw new Error('targetType is required for prepare-for-operation action')
         }
         
-        contextManager.prepareForOperation(params.targetType)
-        const selectedCount = canvas.getActiveObjects().length
+        await contextManager.prepareForOperation(params.targetType)
+        const selection = canvas.state.selection
+        const selectedCount = selection?.type === 'objects' ? selection.objectIds.length : 0
         
         return {
           success: true,
@@ -104,14 +105,13 @@ IMPORTANT: Use this BETWEEN steps in workflows, especially:
           throw new Error('objectIds are required for select-objects action')
         }
         
-        const allObjects = canvas.getObjects()
-        const objectsToSelect = allObjects.filter(obj => {
-          // Access custom properties using type assertion
-          const objWithId = obj as FabricObject & { id?: string }
-          return params.objectIds?.includes(objWithId.id || '')
+        const objectsToSelect: CanvasObject[] = []
+        params.objectIds?.forEach(id => {
+          const obj = canvas.findObject(id)
+          if (obj) objectsToSelect.push(obj)
         })
         
-        contextManager.selectObjects(objectsToSelect)
+        await contextManager.selectObjects(objectsToSelect)
         
         return {
           success: true,
@@ -122,7 +122,7 @@ IMPORTANT: Use this BETWEEN steps in workflows, especially:
       }
       
       case 'clear-selection': {
-        contextManager.clearSelection()
+        await contextManager.clearSelection()
         
         return {
           success: true,
@@ -133,27 +133,27 @@ IMPORTANT: Use this BETWEEN steps in workflows, especially:
       }
       
       case 'get-info': {
-        const allObjects = canvas.getObjects()
-        const activeObjects = canvas.getActiveObjects()
-        const activeIds = activeObjects.map(obj => {
-          const objWithId = obj as FabricObject & { id?: string }
-          return objWithId.id || 'no-id'
+        const allObjects: CanvasObject[] = []
+        canvas.state.layers.forEach(layer => {
+          allObjects.push(...layer.objects)
         })
         
+        const selection = canvas.state.selection
+        const activeIds = selection?.type === 'objects' ? Array.from(selection.objectIds) : []
+        
         const objectInfo = allObjects.map(obj => {
-          const objWithId = obj as FabricObject & { id?: string }
           return {
-            id: objWithId.id || 'no-id',
-            type: obj.type || 'unknown',
-            selected: activeIds.includes(objWithId.id || '')
+            id: obj.id,
+            type: obj.type,
+            selected: activeIds.includes(obj.id)
           }
         })
         
         return {
           success: true,
           action: params.action,
-          message: `Canvas has ${allObjects.length} objects, ${activeObjects.length} selected.`,
-          selectedCount: activeObjects.length,
+          message: `Canvas has ${allObjects.length} objects, ${activeIds.length} selected.`,
+          selectedCount: activeIds.length,
           objectInfo
         }
       }

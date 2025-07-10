@@ -1,10 +1,8 @@
 import { z } from 'zod'
-import { BaseToolAdapter } from '../base'
+import { CanvasToolAdapter } from '../base'
 import { horizontalTypeTool } from '@/lib/editor/tools/text'
-import { Canvas, IText } from 'fabric'
-import { AddTextCommand } from '@/lib/editor/commands/text'
-import { useHistoryStore } from '@/store/historyStore'
-import { ToolChain } from '@/lib/ai/execution/ToolChain'
+import type { CanvasContext } from '@/lib/ai/tools/canvas-bridge'
+import type { ExecutionContext } from '@/lib/events/execution/ExecutionContext'
 
 // Define input schema for text parameters
 const addTextInputSchema = z.object({
@@ -28,13 +26,14 @@ interface AddTextOutput {
     width: number
     height: number
   }
+  targetingMode: 'selection' | 'auto-single' | 'all' | 'none'
 }
 
 /**
  * AI adapter for adding text to the canvas
  * Allows natural language text placement and styling
  */
-export class AddTextToolAdapter extends BaseToolAdapter<AddTextInput, AddTextOutput> {
+export class AddTextToolAdapter extends CanvasToolAdapter<AddTextInput, AddTextOutput> {
   tool = horizontalTypeTool
   aiName = 'addText'
   description = `Add text overlays to existing images on the canvas. You MUST determine text properties based on user intent.
@@ -55,157 +54,121 @@ NEVER ask for exact styling - interpret the user's intent and choose appropriate
 
   inputSchema = addTextInputSchema
   
-  async execute(params: AddTextInput, context: { canvas: Canvas }): Promise<AddTextOutput> {
-    const { canvas } = context
-    
-    if (!canvas) {
-      return {
-        success: false,
-        message: 'Canvas is required but not provided'
-      }
-    }
-    
-    try {
-      // Get viewport transform for accurate positioning
-      const vpt = canvas.viewportTransform || [1, 0, 0, 1, 0, 0]
-      const zoom = vpt[0] // zoom is stored in the scale components
-      
-      // Calculate position based on position enum
-      // These are viewport dimensions (what the user sees)
-      const canvasWidth = canvas.getWidth()
-      const canvasHeight = canvas.getHeight()
-      const margin = 50 // Default margin from edges
-      
-      // Start with viewport center
-      let viewportX = canvasWidth / 2
-      let viewportY = canvasHeight / 2
-      
-      switch (params.position) {
-        case 'top':
-          viewportY = margin + 30
-          break
-        case 'bottom':
-          viewportY = canvasHeight - margin - 30
-          break
-        case 'top-left':
-          viewportX = margin + 100
-          viewportY = margin + 30
-          break
-        case 'top-right':
-          viewportX = canvasWidth - margin - 100
-          viewportY = margin + 30
-          break
-        case 'bottom-left':
-          viewportX = margin + 100
-          viewportY = canvasHeight - margin - 30
-          break
-        case 'bottom-right':
-          viewportX = canvasWidth - margin - 100
-          viewportY = canvasHeight - margin - 30
-          break
-        case 'center':
-        default:
-          // Already set to center
-          break
-      }
-      
-      // Convert viewport coordinates to object coordinates
-      const x = (viewportX - vpt[4]) / zoom
-      const y = (viewportY - vpt[5]) / zoom
-      
-      // Apply style presets
-      let fontSize = params.fontSize || 60
-      let fontWeight = 'normal' as 'normal' | 'bold'
-      const fontStyle = 'normal' as 'normal' | 'italic'
-      
-      switch (params.style) {
-        case 'title':
-          fontSize = params.fontSize || 72
-          fontWeight = 'bold'
-          break
-        case 'subtitle':
-          fontSize = params.fontSize || 48
-          break
-        case 'caption':
-          fontSize = params.fontSize || 24
-          break
-        case 'watermark':
-          fontSize = params.fontSize || 36
-          break
-      }
-      
-      // Create text object with parameters
-      const text = new IText(params.text, {
-        left: x,
-        top: y,
-        fontSize,
-        fontFamily: params.fontFamily || 'Arial',
-        fill: params.color || '#000000',
-        textAlign: 'center',
-        fontWeight,
-        fontStyle,
-        originX: 'center',
-        originY: 'center',
-        splitByGrapheme: true // Support emojis
-      })
-      
-      // Generate unique ID for the text
-      const textId = `text-${Date.now()}`
-      text.set('id' as keyof IText, textId as IText[keyof IText])
-      
-      // Add to canvas using command pattern for undo/redo
-      const command = new AddTextCommand(canvas, text)
-      
-      // Check if we're executing within a tool chain
-      if (ToolChain.isExecutingChain) {
-        // Execute directly without history recording
-        if (command.canExecute()) {
-          await command.execute()
+  protected getActionVerb(): string {
+    return 'add text'
+  }
+  
+  async execute(params: AddTextInput, context: CanvasContext, executionContext?: ExecutionContext): Promise<AddTextOutput> {
+    return this.executeWithCommonPatterns(
+      params,
+      context,
+      async () => {
+        const canvas = context.canvas
+        
+        // Calculate position based on position enum
+        const canvasWidth = canvas.state.width
+        const canvasHeight = canvas.state.height
+        const margin = 50 // Default margin from edges
+        
+        // Start with center
+        let x = canvasWidth / 2
+        let y = canvasHeight / 2
+        
+        switch (params.position) {
+          case 'top':
+            y = margin + 30
+            break
+          case 'bottom':
+            y = canvasHeight - margin - 30
+            break
+          case 'top-left':
+            x = margin + 100
+            y = margin + 30
+            break
+          case 'top-right':
+            x = canvasWidth - margin - 100
+            y = margin + 30
+            break
+          case 'bottom-left':
+            x = margin + 100
+            y = canvasHeight - margin - 30
+            break
+          case 'bottom-right':
+            x = canvasWidth - margin - 100
+            y = canvasHeight - margin - 30
+            break
+          case 'center':
+          default:
+            // Already set to center
+            break
         }
-      } else {
-        // Normal execution through history store
-        await useHistoryStore.getState().executeCommand(command)
-      }
-      
-      // Get bounds after adding to canvas
-      const bounds = text.getBoundingRect()
-      
-      return {
-        success: true,
-        message: `Added text "${params.text}" to the canvas`,
-        textId,
-        bounds: {
-          left: bounds.left,
-          top: bounds.top,
-          width: bounds.width,
-          height: bounds.height
+        
+        // Apply style presets
+        let fontSize = params.fontSize || 60
+        let fontWeight = 'normal'
+        
+        switch (params.style) {
+          case 'title':
+            fontSize = params.fontSize || 72
+            fontWeight = 'bold'
+            break
+          case 'subtitle':
+            fontSize = params.fontSize || 48
+            break
+          case 'caption':
+            fontSize = params.fontSize || 24
+            break
+          case 'watermark':
+            fontSize = params.fontSize || 36
+            break
         }
-      }
-    } catch (error) {
-      return {
-        success: false,
-        message: error instanceof Error ? error.message : 'Failed to add text'
-      }
-    }
+        
+        // Create text object using CanvasManager
+        const textObject = await canvas.addObject({
+          type: 'text',
+          data: params.text,
+          transform: {
+            x,
+            y,
+            scaleX: 1,
+            scaleY: 1,
+            rotation: 0,
+            skewX: 0,
+            skewY: 0
+          },
+          style: {
+            fontSize,
+            fontFamily: params.fontFamily || 'Arial',
+            fill: params.color || '#000000',
+            fontWeight,
+            textAlign: 'center'
+          },
+          visible: true,
+          locked: false,
+          opacity: 1,
+          blendMode: 'normal'
+        })
+        
+        return {
+          message: `Added text "${params.text}" to the canvas`,
+          textId: textObject.id,
+          bounds: {
+            left: x - 100, // Approximate bounds
+            top: y - fontSize / 2,
+            width: 200,
+            height: fontSize
+          }
+        }
+      },
+      executionContext
+    )
   }
   
   /**
    * Check if text can be added (canvas must be ready)
    */
-  canExecute(canvas: Canvas): boolean {
-    return !!canvas && canvas.getObjects().length >= 0
-  }
-  
-  /**
-   * Generate preview of text placement
-   */
-  async generatePreview(params: AddTextInput, canvas: Canvas): Promise<{ before: string; after: string }> {
-    // For now, return current state as both before and after
-    // A full implementation would create a temporary canvas for preview
-    const before = canvas.toDataURL()
-    const after = before // Simplified for now
-    
-    return { before, after }
+  canExecute(canvas: any): boolean {
+    return !!canvas && canvas.state.layers.length > 0
   }
 }
 

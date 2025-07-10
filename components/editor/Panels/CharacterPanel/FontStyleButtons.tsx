@@ -1,18 +1,37 @@
 'use client'
 
-import { IText, Textbox } from 'fabric'
+import Konva from 'konva'
+import type { CanvasObject } from '@/lib/editor/canvas/types'
 import { Toggle } from '@/components/ui/toggle'
 import { Bold, Italic, Underline } from 'lucide-react'
 
 interface FontStyleButtonsProps {
-  object: IText | Textbox
-  onChange: <K extends keyof IText>(property: K, value: IText[K]) => void
+  textObject: CanvasObject | null
+  onChange: (property: string, value: unknown) => void
 }
 
-export function FontStyleButtons({ object, onChange }: FontStyleButtonsProps) {
-  const isBold = object.fontWeight === 'bold' || object.fontWeight === 700
-  const isItalic = object.fontStyle === 'italic'
-  const isUnderline = object.underline === true
+export function FontStyleButtons({ textObject, onChange }: FontStyleButtonsProps) {
+  if (!textObject || (textObject.type !== 'text' && textObject.type !== 'verticalText')) {
+    return null
+  }
+  
+  const textNode = textObject.node as Konva.Text
+  const fontStyle = textNode.fontStyle() || 'normal'
+  const textDecoration = textNode.textDecoration() || ''
+  
+  // Parse font style for bold/italic
+  const isBold = fontStyle.includes('bold')
+  const isItalic = fontStyle.includes('italic')
+  const isUnderline = textDecoration.includes('underline')
+  
+  const updateFontStyle = (bold: boolean, italic: boolean) => {
+    let newStyle = 'normal'
+    if (bold && italic) newStyle = 'bold italic'
+    else if (bold) newStyle = 'bold'
+    else if (italic) newStyle = 'italic'
+    
+    onChange('fontStyle', newStyle)
+  }
   
   return (
     <div className="space-y-2">
@@ -22,7 +41,7 @@ export function FontStyleButtons({ object, onChange }: FontStyleButtonsProps) {
           size="sm"
           pressed={isBold}
           onPressedChange={(pressed) => {
-            onChange('fontWeight', pressed ? 'bold' : 'normal')
+            updateFontStyle(pressed, isItalic)
           }}
           aria-label="Toggle bold"
         >
@@ -33,7 +52,7 @@ export function FontStyleButtons({ object, onChange }: FontStyleButtonsProps) {
           size="sm"
           pressed={isItalic}
           onPressedChange={(pressed) => {
-            onChange('fontStyle', pressed ? 'italic' : 'normal')
+            updateFontStyle(isBold, pressed)
           }}
           aria-label="Toggle italic"
         >
@@ -44,7 +63,7 @@ export function FontStyleButtons({ object, onChange }: FontStyleButtonsProps) {
           size="sm"
           pressed={isUnderline}
           onPressedChange={(pressed) => {
-            onChange('underline', pressed)
+            onChange('textDecoration', pressed ? 'underline' : '')
           }}
           aria-label="Toggle underline"
         >

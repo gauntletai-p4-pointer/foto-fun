@@ -51,7 +51,7 @@ export class ContrastToolAdapter extends FilterToolAdapter<ContrastInput, Contra
     return 'contrast'
   }
   
-  protected createFilter(params: ContrastInput): any {
+  protected createFilter(params: ContrastInput): Record<string, unknown> {
     return {
       type: 'contrast',
       contrast: params.adjustment / 100 // Convert percentage to decimal

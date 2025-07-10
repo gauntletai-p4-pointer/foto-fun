@@ -1,19 +1,19 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import Konva from 'konva'
 import type { CanvasObject } from '@/lib/editor/canvas/types'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Slider } from '@/components/ui/slider'
 import { Input } from '@/components/ui/input'
-import { TextLayerStyles, type DropShadowOptions } from '@/lib/editor/text/effects'
 import { cn } from '@/lib/utils'
 
-// Local interface for Shadow properties
-interface Shadow {
-  color?: string
-  offsetX?: number
-  offsetY?: number
-  blur?: number
+interface DropShadowOptions {
+  color: string
+  opacity: number
+  angle: number
+  distance: number
+  blur: number
 }
 
 interface DropShadowSectionProps {
@@ -32,38 +32,72 @@ export function DropShadowSection({ object, onChange }: DropShadowSectionProps) 
   })
   
   // Type guard for text objects
-  if (!object || (object.type !== 'text' && object.type !== 'verticalText')) {
+  if (!object || (object.type !== 'text' && object.type !== 'verticalText') || !object.node) {
     return null
   }
   
+  const textNode = object.node as Konva.Text
+  
   // Check if object has shadow on mount
   useEffect(() => {
-    if (object.shadow) {
+    // Check for Konva shadow properties
+    const shadowColor = textNode.shadowColor()
+    const shadowBlur = textNode.shadowBlur()
+    const shadowOffsetX = textNode.shadowOffsetX()
+    const shadowOffsetY = textNode.shadowOffsetY()
+    
+    if (shadowColor || shadowBlur || shadowOffsetX || shadowOffsetY) {
       setEnabled(true)
-      // Try to extract shadow properties
-      const shadow = object.shadow as Shadow
-      if (shadow) {
-        setOptions({
-          color: shadow.color || '#000000',
-          opacity: 0.5, // Fabric doesn't store opacity separately
-          angle: Math.atan2(shadow.offsetY || 0, shadow.offsetX || 0) * 180 / Math.PI,
-          distance: Math.sqrt((shadow.offsetX || 0) ** 2 + (shadow.offsetY || 0) ** 2),
-          blur: shadow.blur || 5,
-        })
-      }
+      setOptions({
+        color: shadowColor || '#000000',
+        opacity: textNode.shadowOpacity() || 0.5,
+        angle: Math.atan2(shadowOffsetY || 0, shadowOffsetX || 0) * 180 / Math.PI,
+        distance: Math.sqrt((shadowOffsetX || 0) ** 2 + (shadowOffsetY || 0) ** 2),
+        blur: shadowBlur || 5,
+      })
     }
-  }, [object])
+  }, [textNode])
   
   const handleToggle = (checked: boolean) => {
     setEnabled(checked)
     
     if (checked) {
-      TextLayerStyles.applyDropShadow(object, options)
+      applyDropShadow(options)
     } else {
-      TextLayerStyles.removeDropShadow(object)
+      removeDropShadow()
     }
     
     onChange()
+  }
+  
+  const applyDropShadow = (shadowOptions: DropShadowOptions) => {
+    // Calculate offset from angle and distance
+    const radians = shadowOptions.angle * Math.PI / 180
+    const offsetX = Math.cos(radians) * shadowOptions.distance
+    const offsetY = Math.sin(radians) * shadowOptions.distance
+    
+    // Apply Konva shadow properties
+    textNode.shadowColor(shadowOptions.color)
+    textNode.shadowOpacity(shadowOptions.opacity)
+    textNode.shadowOffsetX(offsetX)
+    textNode.shadowOffsetY(offsetY)
+    textNode.shadowBlur(shadowOptions.blur)
+    
+    // Redraw the layer
+    const layer = textNode.getLayer()
+    if (layer) layer.batchDraw()
+  }
+  
+  const removeDropShadow = () => {
+    textNode.shadowColor('')
+    textNode.shadowOpacity(0)
+    textNode.shadowOffsetX(0)
+    textNode.shadowOffsetY(0)
+    textNode.shadowBlur(0)
+    
+    // Redraw the layer
+    const layer = textNode.getLayer()
+    if (layer) layer.batchDraw()
   }
   
   const updateOption = <K extends keyof DropShadowOptions>(
@@ -74,27 +108,7 @@ export function DropShadowSection({ object, onChange }: DropShadowSectionProps) 
     setOptions(newOptions)
     
     if (enabled) {
-      TextLayerStyles.applyDropShadow(object, newOptions)
-      onChange()
-    }
-  }
-  
-  // Convert hex color to rgba with opacity
-  const getColorWithOpacity = (hex: string, opacity: number) => {
-    const r = parseInt(hex.slice(1, 3), 16)
-    const g = parseInt(hex.slice(3, 5), 16)
-    const b = parseInt(hex.slice(5, 7), 16)
-    return `rgba(${r}, ${g}, ${b}, ${opacity})`
-  }
-  
-  // Update shadow color with opacity
-  const updateColorWithOpacity = () => {
-    if (enabled) {
-      const colorWithOpacity = getColorWithOpacity(options.color, options.opacity)
-      TextLayerStyles.applyDropShadow(object, {
-        ...options,
-        color: colorWithOpacity,
-      })
+      applyDropShadow(newOptions)
       onChange()
     }
   }
@@ -117,10 +131,7 @@ export function DropShadowSection({ object, onChange }: DropShadowSectionProps) 
             <Input
               type="color"
               value={options.color}
-              onChange={(e) => {
-                updateOption('color', e.target.value)
-                updateColorWithOpacity()
-              }}
+              onChange={(e) => updateOption('color', e.target.value)}
               className="h-8 w-16"
             />
             <span className="text-xs text-foreground/60">
@@ -139,10 +150,7 @@ export function DropShadowSection({ object, onChange }: DropShadowSectionProps) 
           </div>
           <Slider
             value={[options.opacity]}
-            onValueChange={([value]) => {
-              updateOption('opacity', value)
-              updateColorWithOpacity()
-            }}
+            onValueChange={([value]) => updateOption('opacity', value)}
             min={0}
             max={1}
             step={0.01}

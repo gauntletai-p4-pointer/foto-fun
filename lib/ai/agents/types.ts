@@ -1,9 +1,9 @@
-import type { Canvas } from 'fabric'
+import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
 import type { UIMessage } from 'ai'
 
 // Core agent types
 export interface AgentContext {
-  canvas: Canvas
+  canvas: CanvasManager
   conversation: UIMessage[]
   workflowMemory: WorkflowMemory
   userPreferences: UserPreferences
@@ -158,4 +158,4 @@ export class ApprovalRequiredError extends Error {
     super(`Approval required for step: ${step.description} (confidence: ${approvalInfo.confidence}, threshold: ${approvalInfo.threshold})`)
     this.name = 'ApprovalRequiredError'
   }
-} 
+}

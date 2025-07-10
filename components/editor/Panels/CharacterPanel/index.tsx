@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useService } from '@/lib/core/AppInitializer'
 import { TypedCanvasStore, useCanvasStore } from '@/lib/store/canvas/TypedCanvasStore'
 import type { CanvasObject } from '@/lib/editor/canvas/types'
+import Konva from 'konva'
 import { FontSelector } from './FontSelector'
 import { FontSizeInput } from './FontSizeInput'
 import { FontStyleButtons } from './FontStyleButtons'
@@ -25,7 +26,7 @@ export function CharacterPanel() {
   useEffect(() => {
     // Check if we have a text object selected
     const selectedObjects = canvasStore.getSelectedObjects()
-    const textObject = selectedObjects.find(obj => obj.type === 'text')
+    const textObject = selectedObjects.find(obj => obj.type === 'text' || obj.type === 'verticalText')
     setActiveTextObject(textObject || null)
   }, [canvasState.selection, canvasStore])
   
@@ -37,16 +38,59 @@ export function CharacterPanel() {
       </div>
     )
   }
-  
+
   const updateTextProperty = (property: string, value: unknown) => {
-    if (!activeTextObject) return
+    if (!activeTextObject || !activeTextObject.node) return
     
-    // TODO: Update this to work with the new canvas system
-    console.log('Update text property:', property, value, 'for object:', activeTextObject)
+    const textNode = activeTextObject.node as Konva.Text
+    
+    // Update the Konva text node properties
+    switch (property) {
+      case 'fontFamily':
+        textNode.fontFamily(value as string)
+        break
+      case 'fontSize':
+        textNode.fontSize(value as number)
+        break
+      case 'fill':
+        textNode.fill(value as string)
+        break
+      case 'fontWeight':
+        textNode.fontStyle(value as string)
+        break
+      case 'fontStyle':
+        textNode.fontStyle(value as string)
+        break
+      case 'textDecoration':
+        textNode.textDecoration(value as string)
+        break
+      case 'letterSpacing':
+        textNode.letterSpacing(value as number)
+        break
+      case 'lineHeight':
+        textNode.lineHeight(value as number)
+        break
+    }
+    
+    // Redraw the layer
+    const layer = textNode.getLayer()
+    if (layer) layer.batchDraw()
+    
+    // Update the canvas object data
+    activeTextObject.data = textNode.text()
   }
-  
-  // Extract text properties from the object
-  const textStyle = activeTextObject.style || {}
+
+  // Extract text properties from the Konva text node
+  const textNode = activeTextObject.node as Konva.Text
+  const textStyle = {
+    fontFamily: textNode?.fontFamily() || 'Arial',
+    fontSize: textNode?.fontSize() || 24,
+    fill: (textNode?.fill() as string) || '#000000',
+    fontStyle: textNode?.fontStyle() || 'normal',
+    textDecoration: textNode?.textDecoration() || '',
+    letterSpacing: textNode?.letterSpacing() || 0,
+    lineHeight: textNode?.lineHeight() || 1.16
+  }
   
   return (
     <div className="p-4 space-y-4">
@@ -55,7 +99,7 @@ export function CharacterPanel() {
       <div className="space-y-1">
         <label className="text-xs font-medium text-foreground">Font Family</label>
         <FontSelector
-          value={textStyle.fontFamily || 'Arial'}
+          value={textStyle.fontFamily}
           onChange={(font) => updateTextProperty('fontFamily', font)}
         />
       </div>
@@ -63,7 +107,7 @@ export function CharacterPanel() {
       <div className="space-y-1">
         <label className="text-xs font-medium text-foreground">Font Size</label>
         <FontSizeInput
-          value={textStyle.fontSize || 24}
+          value={textStyle.fontSize}
           onChange={(size) => updateTextProperty('fontSize', size)}
         />
       </div>
@@ -71,7 +115,7 @@ export function CharacterPanel() {
       <div className="space-y-1">
         <label className="text-xs font-medium text-foreground">Font Style</label>
         <FontStyleButtons
-          object={activeTextObject}
+          textObject={activeTextObject}
           onChange={updateTextProperty}
         />
       </div>
@@ -79,7 +123,7 @@ export function CharacterPanel() {
       <div className="space-y-1">
         <label className="text-xs font-medium text-foreground">Text Color</label>
         <TextColorPicker
-          value={textStyle.fill || '#000000'}
+          value={textStyle.fill}
           onChange={(color) => updateTextProperty('fill', color)}
         />
       </div>
@@ -87,15 +131,15 @@ export function CharacterPanel() {
       <div className="space-y-1">
         <label className="text-xs font-medium text-foreground">Letter Spacing</label>
         <LetterSpacingControl
-          value={textStyle.charSpacing || 0}
-          onChange={(spacing) => updateTextProperty('charSpacing', spacing)}
+          value={textStyle.letterSpacing}
+          onChange={(spacing) => updateTextProperty('letterSpacing', spacing)}
         />
       </div>
 
       <div className="space-y-1">
         <label className="text-xs font-medium text-foreground">Line Height</label>
         <LineHeightControl
-          value={textStyle.lineHeight || 1.16}
+          value={textStyle.lineHeight}
           onChange={(height) => updateTextProperty('lineHeight', height)}
         />
       </div>

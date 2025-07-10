@@ -1,46 +1,44 @@
 'use client'
 
-import { IText, Textbox } from 'fabric'
+import { CanvasObject } from '@/lib/editor/canvas/types'
 import { Slider } from '@/components/ui/slider'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
+import Konva from 'konva'
 
 interface SpacingControlsProps {
-  object: IText | Textbox
-  onChange: <K extends keyof IText>(property: K, value: IText[K]) => void
+  textObject: CanvasObject | null
+  onChange: (property: string, value: unknown) => void
 }
 
-// Extend IText with custom spacing properties
-interface ExtendedTextObject extends IText {
-  spaceBefore?: number
-  spaceAfter?: number
-}
-
-export function SpacingControls({ object, onChange }: SpacingControlsProps) {
-  // Cast to extended type
-  const extendedObject = object as ExtendedTextObject
+export function SpacingControls({ textObject, onChange }: SpacingControlsProps) {
+  if (!textObject || (textObject.type !== 'text' && textObject.type !== 'verticalText')) {
+    return null
+  }
+  
+  const textNode = textObject.node as Konva.Text
+  if (!textNode) return null
   
   // Line height (leading)
-  const lineHeight = object.lineHeight || 1.16
+  const lineHeight = textNode.lineHeight() || 1.16
   
-  // Paragraph spacing (custom properties)
-  const spaceBefore = extendedObject.spaceBefore || 0
-  const spaceAfter = extendedObject.spaceAfter || 0
+  // Paragraph spacing (custom properties from metadata)
+  const spaceBefore = textObject.metadata?.spaceBefore || 0
+  const spaceAfter = textObject.metadata?.spaceAfter || 0
   
   const handleLineHeightChange = (value: number) => {
-    onChange('lineHeight', value as IText['lineHeight'])
+    onChange('lineHeight', value)
   }
   
   const handleSpacingChange = (type: 'before' | 'after', value: number) => {
-    // Update the custom property
+    // Update metadata with custom spacing properties
+    const metadata = textObject.metadata || {}
     if (type === 'before') {
-      extendedObject.spaceBefore = value
+      metadata.spaceBefore = value
     } else {
-      extendedObject.spaceAfter = value
+      metadata.spaceAfter = value
     }
-    
-    // Trigger re-render
-    onChange('dirty' as keyof IText, true as IText['dirty'])
+    onChange('metadata', metadata)
   }
   
   return (

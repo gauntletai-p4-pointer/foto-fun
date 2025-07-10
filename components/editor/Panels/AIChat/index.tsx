@@ -5,7 +5,6 @@ import { DefaultChatTransport } from 'ai'
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { useService } from '@/lib/core/AppInitializer'
-import { useCanvasStore, TypedCanvasStore } from '@/lib/store/canvas/TypedCanvasStore'
 import { useAISettings } from '@/hooks/useAISettings'
 import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
 import type { CanvasObject } from '@/lib/editor/canvas/types'
@@ -56,8 +55,7 @@ export function AIChat() {
   const [quickActions, setQuickActions] = useState<string[]>([])
   const [agentThinkingSteps, setAgentThinkingSteps] = useState<ThinkingStep[]>([])
   const [isAgentThinking, setIsAgentThinking] = useState(false)
-  const canvasStore = useService<TypedCanvasStore>('CanvasStore')
-  const canvasState = useCanvasStore(canvasStore)
+  // const canvasState = useCanvasStore(canvasStore) // Unused in this component
   const canvasManager = useService<CanvasManager>('CanvasManager')
   
   // Canvas readiness helpers
@@ -68,10 +66,10 @@ export function AIChat() {
     }
   }
   
-  const hasContent = () => {
+  const hasContent = useCallback(() => {
     if (!canvasManager) return false
     return canvasManager.state.layers.some(layer => layer.objects.length > 0)
-  }
+  }, [canvasManager])
   const { settings: aiSettings } = useAISettings()
   
   // Use the custom hook for tool call handling
@@ -229,7 +227,7 @@ export function AIChat() {
         }
       }
     )
-  }, [sendMessage, hasContent, aiSettings])
+  }, [sendMessage, hasContent, aiSettings, canvasManager])
   
   return (
     <div className="flex flex-col h-full bg-background">
