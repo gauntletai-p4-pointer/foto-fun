@@ -237,42 +237,37 @@
   - [ ] Handle edge pixels correctly with selections
   - [ ] Support strength adjustment
 
-### 3.5 Update Adjustment Tools
-- [ ] **Modify lib/editor/tools/adjustments/brightnessTool.ts**
-  - [ ] Extend BaseFilterTool
-  - [ ] Use FilterPipeline for application
-  - [ ] Real-time preview with selection
-  - [ ] Optimize for smooth slider interaction
+#### 3.5 Adjustment Tools (brightness, contrast, saturation, hue, exposure, colorTemperature)
+Status: 🟡 PARTIALLY COMPLETED
 
-- [ ] **Modify lib/editor/tools/adjustments/contrastTool.ts**
-  - [ ] Extend BaseFilterTool
-  - [ ] Use FilterPipeline for application
-  - [ ] Real-time preview with selection
-  - [ ] Handle contrast algorithm correctly
-
-- [ ] **Modify lib/editor/tools/adjustments/hueTool.ts**
-  - [ ] Extend BaseFilterTool
-  - [ ] Use FilterPipeline for application
-  - [ ] Handle HSL color space with selection
-  - [ ] Support hue rotation correctly
-
-- [ ] **Modify lib/editor/tools/adjustments/saturationTool.ts**
-  - [ ] Extend BaseFilterTool
-  - [ ] Use FilterPipeline for application
-  - [ ] Handle HSL color space with selection
-  - [ ] Support both increase and decrease
-
-- [ ] **Modify lib/editor/tools/adjustments/exposureTool.ts**
-  - [ ] Extend BaseFilterTool
-  - [ ] Implement exposure algorithm
-  - [ ] Use FilterPipeline for application
-  - [ ] Handle HDR-like adjustments
-
-- [ ] **Modify lib/editor/tools/adjustments/colorTemperatureTool.ts**
-  - [ ] Extend BaseFilterTool
-  - [ ] Implement temperature shift algorithm
-  - [ ] Use FilterPipeline for application
-  - [ ] Handle color balance correctly
+##### Implementation Tasks
+- [x] Update brightness tool to use BaseFilterTool
+  - Status: ✅ COMPLETED
+  - Location: `lib/editor/tools/adjustments/brightnessTool.ts`
+  - Details: Now extends BaseFilterTool, supports selection-aware filtering
+  
+- [x] Update contrast tool to use BaseFilterTool
+  - Status: ✅ COMPLETED
+  - Location: `lib/editor/tools/adjustments/contrastTool.ts`
+  - Details: Now extends BaseFilterTool, supports selection-aware filtering
+  
+- [x] Update saturation tool to use BaseFilterTool
+  - Status: ✅ COMPLETED
+  - Location: `lib/editor/tools/adjustments/saturationTool.ts`
+  - Details: Now extends BaseFilterTool, supports selection-aware filtering
+  
+- [x] Update hue tool to use BaseFilterTool
+  - Status: ✅ COMPLETED
+  - Location: `lib/editor/tools/adjustments/hueTool.ts`
+  - Details: Now extends BaseFilterTool, supports selection-aware filtering
+  
+- [ ] Update exposure tool to use BaseFilterTool
+  - Status: ⏳ PENDING
+  - Location: `lib/editor/tools/adjustments/exposureTool.ts`
+  
+- [ ] Update colorTemperature tool to use BaseFilterTool
+  - Status: ⏳ PENDING
+  - Location: `lib/editor/tools/adjustments/colorTemperatureTool.ts`
 
 ### 3.6 Performance Optimizations
 - [ ] **Create lib/editor/filters/FilterCache.ts**

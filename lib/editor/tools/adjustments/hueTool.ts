@@ -1,16 +1,8 @@
 import { Paintbrush } from 'lucide-react'
 import { TOOL_IDS } from '@/constants'
-import { BaseTool } from '../base/BaseTool'
+import { BaseFilterTool } from '../filters/BaseFilterTool'
 import { createToolState } from '../utils/toolState'
-import type { FabricObject, Image as FabricImage } from 'fabric'
-import { filters } from 'fabric'
-import { ModifyCommand } from '@/lib/editor/commands/canvas'
-
-// Define filter type
-interface ImageFilter {
-  type?: string
-  [key: string]: unknown
-}
+import type { Canvas } from 'fabric'
 
 /**
  * Hue Tool State
@@ -18,14 +10,13 @@ interface ImageFilter {
 type HueState = {
   rotation: number
   isAdjusting: boolean
-  previousFilters: Map<string, ImageFilter[]>
 }
 
 /**
  * Hue Tool - Rotate image colors on the color wheel
- * Uses Fabric.js HueRotation filter
+ * Now supports selection-aware filtering
  */
-class HueTool extends BaseTool {
+class HueTool extends BaseFilterTool {
   // Tool identification
   id = TOOL_IDS.HUE
   name = 'Hue'
@@ -36,20 +27,29 @@ class HueTool extends BaseTool {
   // Tool state
   private state = createToolState<HueState>({
     rotation: 0,
-    isAdjusting: false,
-    previousFilters: new Map()
+    isAdjusting: false
   })
+  
+  // Required: Get filter name
+  protected getFilterName(): string {
+    return 'hue'
+  }
+  
+  // Required: Get default params
+  protected getDefaultParams(): any {
+    return { rotation: this.state.get('rotation') }
+  }
   
   /**
    * Tool setup
    */
-  protected setupTool(): void {
+  protected setupFilterTool(canvas: Canvas): void {
     // Subscribe to tool options
-    this.subscribeToToolOptions((options) => {
+    this.subscribeToToolOptions(async (options) => {
       const rotation = options.find(opt => opt.id === 'hue')?.value
       if (rotation !== undefined && typeof rotation === 'number') {
-        this.track('adjustHue', () => {
-          this.applyHue(rotation)
+        await this.track('adjustHue', async () => {
+          await this.applyHue(rotation)
         })
       }
     })
@@ -59,76 +59,24 @@ class HueTool extends BaseTool {
     if (currentRotation !== undefined && currentRotation !== 0) {
       this.applyHue(currentRotation)
     }
+    
+    // Show selection indicator on tool activation
+    this.showSelectionIndicator()
   }
   
   /**
-   * Apply hue rotation to all images on canvas
+   * Apply hue rotation
    */
-  private applyHue(rotation: number): void {
-    if (!this.canvas) return
+  private async applyHue(rotation: number): Promise<void> {
+    if (this.state.get('isAdjusting')) return
     
+    this.state.set('isAdjusting', true)
     this.state.set('rotation', rotation)
     
-    // Get all objects and filter for images
-    const objects = this.canvas.getObjects()
-    const images = objects.filter(obj => obj.type === 'image') as FabricImage[]
-    
-    if (images.length === 0) {
-      console.warn('No images found on canvas to adjust hue')
-      return
-    }
-    
-    // Apply hue rotation filter to each image
-    images.forEach(img => {
-      // Store original filters if not already stored
-      const imgId = (img as FabricObject & { id?: string }).id || img.toString()
-      if (!this.state.get('previousFilters').has(imgId)) {
-        this.state.get('previousFilters').set(imgId, img.filters ? [...img.filters] as unknown as ImageFilter[] : [])
-      }
-      
-      // Remove existing hue rotation filters
-      if (!img.filters) {
-        img.filters = []
-      } else {
-        img.filters = img.filters.filter((f) => (f as unknown as ImageFilter).type !== 'HueRotation')
-      }
-      
-      // Add new hue rotation filter if rotation is not 0
-      if (rotation !== 0) {
-        // Fabric.js HueRotation expects rotation in radians (0 to 2π)
-        // Convert degrees to radians
-        const rotationRadians = (rotation * Math.PI) / 180
-        
-        // Create hue rotation filter
-        const hueFilter = new filters.HueRotation({
-          rotation: rotationRadians
-        })
-        
-        img.filters.push(hueFilter)
-      }
-      
-      // Apply filters
-      img.applyFilters()
-    })
-    
-    // Render canvas
-    this.canvas.renderAll()
-    
-    // Record command for undo/redo
-    if (!this.state.get('isAdjusting')) {
-      this.state.set('isAdjusting', true)
-      
-      // Create modify command for each image
-      images.forEach(img => {
-        const command = new ModifyCommand(
-          this.canvas!,
-          img as FabricObject,
-          { filters: img.filters },
-          `Rotate hue by ${rotation}°`
-        )
-        this.executeCommand(command)
-      })
-      
+    try {
+      // Use the base class applyFilter method
+      await this.applyFilter({ rotation })
+    } finally {
       this.state.set('isAdjusting', false)
     }
   }
@@ -136,18 +84,17 @@ class HueTool extends BaseTool {
   /**
    * Tool cleanup
    */
-  protected cleanup(): void {
+  protected cleanupFilterTool(): void {
     // Don't reset the hue value - let it persist
-    // The user can manually reset or use undo if they want to remove the effect
-    
-    // Clear stored filters (but don't remove applied filters)
-    this.state.get('previousFilters').clear()
-    
-    // Reset only the internal state, not the actual hue
+    // Reset only the internal state
     this.state.setState({
-      isAdjusting: false,
-      previousFilters: new Map()
+      isAdjusting: false
     })
+  }
+  
+  // Required: Base cleanup (from BaseTool)
+  protected cleanup(): void {
+    this.cleanupTool()
   }
 }
 

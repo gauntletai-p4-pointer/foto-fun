@@ -42,25 +42,19 @@ export abstract class SelectionAwareFilter {
     filterParams: any,
     selection?: PixelSelection
   ): Promise<ImageData> {
-    // Get image dimensions
-    const width = image.getScaledWidth()
-    const height = image.getScaledHeight()
+    // Get the actual image element and its natural dimensions
+    const imgElement = image.getElement() as HTMLImageElement
+    const width = imgElement.naturalWidth || imgElement.width
+    const height = imgElement.naturalHeight || imgElement.height
     
-    // Create canvas for processing
+    // Create canvas for processing at natural size
     const tempCanvas = document.createElement('canvas')
     tempCanvas.width = width
     tempCanvas.height = height
     const ctx = tempCanvas.getContext('2d')!
     
-    // Draw the image to the temporary canvas
-    ctx.save()
-    const matrix = image.calcTransformMatrix()
-    ctx.setTransform(matrix[0], matrix[1], matrix[2], matrix[3], matrix[4], matrix[5])
-    
-    // Draw the image element directly
-    const imgElement = image.getElement() as HTMLImageElement
-    ctx.drawImage(imgElement, 0, 0, imgElement.width, imgElement.height)
-    ctx.restore()
+    // Draw the image at its natural size
+    ctx.drawImage(imgElement, 0, 0, width, height)
     
     // Get image data
     const imageData = ctx.getImageData(0, 0, width, height)
@@ -68,7 +62,7 @@ export abstract class SelectionAwareFilter {
     // Apply filter
     if (selection) {
       // Apply filter only to selected pixels
-      const filteredData = await this.applyToSelection(imageData, selection, filterParams)
+      const filteredData = await this.applyToSelection(imageData, selection, filterParams, image)
       return filteredData
     } else {
       // Apply filter to entire image
@@ -83,7 +77,8 @@ export abstract class SelectionAwareFilter {
   protected async applyToSelection(
     imageData: ImageData,
     selection: PixelSelection,
-    filterParams: any
+    filterParams: any,
+    image?: FabricImage
   ): Promise<ImageData> {
     // Create a copy of the image data
     const resultData = new ImageData(
@@ -94,6 +89,25 @@ export abstract class SelectionAwareFilter {
     
     // Apply filter only to selected pixels
     const { mask, bounds } = selection
+    
+    // Get transformation from canvas space to image space
+    let scaleX = 1, scaleY = 1, offsetX = 0, offsetY = 0
+    
+    if (image) {
+      // Get image transformation
+      const imgBounds = image.getBoundingRect()
+      const imgElement = image.getElement() as HTMLImageElement
+      const naturalWidth = imgElement.naturalWidth || imgElement.width
+      const naturalHeight = imgElement.naturalHeight || imgElement.height
+      
+      // Calculate scale factors
+      scaleX = naturalWidth / imgBounds.width
+      scaleY = naturalHeight / imgBounds.height
+      
+      // Calculate offset - selection bounds are relative to canvas, need to be relative to image
+      offsetX = (bounds.x - imgBounds.left) * scaleX
+      offsetY = (bounds.y - imgBounds.top) * scaleY
+    }
     
     // Report progress
     this.reportProgress(0, mask.height, 'Processing selected pixels...')
@@ -106,8 +120,9 @@ export abstract class SelectionAwareFilter {
         
         if (alpha > 0) {
           // This pixel is selected
-          const imageX = x
-          const imageY = y
+          // Transform mask coordinates to image coordinates
+          const imageX = Math.round(x * scaleX + offsetX)
+          const imageY = Math.round(y * scaleY + offsetY)
           
           if (imageX >= 0 && imageX < imageData.width && 
               imageY >= 0 && imageY < imageData.height) {

@@ -1,16 +1,8 @@
 import { Sun } from 'lucide-react'
 import { TOOL_IDS } from '@/constants'
-import { BaseTool } from '../base/BaseTool'
+import { BaseFilterTool } from '../filters/BaseFilterTool'
 import { createToolState } from '../utils/toolState'
-import type { FabricObject, Image as FabricImage } from 'fabric'
-import { filters } from 'fabric'
-import { ModifyCommand } from '@/lib/editor/commands/canvas'
-
-// Define filter type
-interface ImageFilter {
-  type?: string
-  [key: string]: unknown
-}
+import type { Canvas } from 'fabric'
 
 /**
  * Brightness Tool State
@@ -18,14 +10,13 @@ interface ImageFilter {
 type BrightnessState = {
   adjustment: number
   isAdjusting: boolean
-  previousFilters: Map<string, ImageFilter[]>
 }
 
 /**
  * Brightness Tool - Adjust image brightness
- * Uses Fabric.js brightness filter
+ * Now supports selection-aware filtering
  */
-class BrightnessTool extends BaseTool {
+class BrightnessTool extends BaseFilterTool {
   // Tool identification
   id = TOOL_IDS.BRIGHTNESS
   name = 'Brightness'
@@ -36,116 +27,50 @@ class BrightnessTool extends BaseTool {
   // Tool state
   private state = createToolState<BrightnessState>({
     adjustment: 0,
-    isAdjusting: false,
-    previousFilters: new Map()
+    isAdjusting: false
   })
+  
+  // Required: Get filter name
+  protected getFilterName(): string {
+    return 'brightness'
+  }
+  
+  // Required: Get default params
+  protected getDefaultParams(): any {
+    return { adjustment: this.state.get('adjustment') }
+  }
   
   /**
    * Tool setup
    */
-  protected setupTool(): void {
-    // Check if there's already a brightness filter applied and sync the UI
-    if (this.canvas) {
-      const objects = this.canvas.getObjects()
-      const images = objects.filter(obj => obj.type === 'image') as FabricImage[]
-      
-      if (images.length > 0) {
-        // Check the first image for existing brightness filter
-        const firstImage = images[0]
-        if (firstImage.filters) {
-          const brightnessFilter = firstImage.filters.find(
-            (f) => (f as unknown as ImageFilter).type === 'Brightness'
-          ) as unknown as { brightness?: number }
-          
-          if (brightnessFilter && brightnessFilter.brightness !== undefined) {
-            // Convert back from -1 to 1 range to -100 to 100
-            const currentValue = Math.round(brightnessFilter.brightness * 100)
-            // Update the UI to reflect the current state
-            this.toolOptionsStore.updateOption(this.id, 'adjustment', currentValue)
-          }
-        }
-      }
-    }
-    
+  protected setupFilterTool(canvas: Canvas): void {
     // Subscribe to tool options
-    this.subscribeToToolOptions((options) => {
+    this.subscribeToToolOptions(async (options) => {
       const adjustment = options.find(opt => opt.id === 'adjustment')?.value
       if (adjustment !== undefined && typeof adjustment === 'number') {
-        this.track('adjustBrightness', () => {
-          this.applyBrightness(adjustment)
+        await this.track('adjustBrightness', async () => {
+          await this.applyBrightness(adjustment)
         })
       }
     })
+    
+    // Show selection indicator on tool activation
+    this.showSelectionIndicator()
   }
   
   /**
-   * Apply brightness adjustment to all images on canvas
+   * Apply brightness adjustment
    */
-  private applyBrightness(adjustment: number): void {
-    if (!this.canvas) return
+  private async applyBrightness(adjustment: number): Promise<void> {
+    if (this.state.get('isAdjusting')) return
     
+    this.state.set('isAdjusting', true)
     this.state.set('adjustment', adjustment)
     
-    // Get all objects and filter for images
-    const objects = this.canvas.getObjects()
-    const images = objects.filter(obj => obj.type === 'image') as FabricImage[]
-    
-    if (images.length === 0) {
-      console.warn('No images found on canvas to adjust brightness')
-      return
-    }
-    
-    // Apply brightness filter to each image
-    images.forEach(img => {
-      // Store original filters if not already stored
-      const imgId = (img as FabricObject & { id?: string }).id || img.toString()
-      if (!this.state.get('previousFilters').has(imgId)) {
-        this.state.get('previousFilters').set(imgId, img.filters ? [...img.filters] as unknown as ImageFilter[] : [])
-      }
-      
-      // Remove existing brightness filters
-      if (!img.filters) {
-        img.filters = []
-      } else {
-        img.filters = img.filters.filter((f) => (f as unknown as ImageFilter).type !== 'Brightness')
-      }
-      
-      // Add new brightness filter if adjustment is not 0
-      if (adjustment !== 0) {
-        // Fabric.js v6 uses a different filter API
-        // The brightness value is between -1 and 1
-        const brightnessValue = adjustment / 100
-        
-        // Create brightness filter
-        const brightnessFilter = new filters.Brightness({
-          brightness: brightnessValue
-        })
-        
-        img.filters.push(brightnessFilter)
-      }
-      
-      // Apply filters
-      img.applyFilters()
-    })
-    
-    // Render canvas
-    this.canvas.renderAll()
-    
-    // Record command for undo/redo
-    if (!this.state.get('isAdjusting')) {
-      this.state.set('isAdjusting', true)
-      
-      // Create modify command for each image
-      images.forEach(img => {
-        const command = new ModifyCommand(
-          this.canvas!,
-          img as FabricObject,
-          { filters: img.filters },
-          `Adjust brightness to ${adjustment}%`
-        )
-        this.executeCommand(command)
-      })
-      
+    try {
+      // Use the base class applyFilter method
+      await this.applyFilter({ adjustment })
+    } finally {
       this.state.set('isAdjusting', false)
     }
   }
@@ -153,18 +78,17 @@ class BrightnessTool extends BaseTool {
   /**
    * Tool cleanup
    */
-  protected cleanup(): void {
+  protected cleanupFilterTool(): void {
     // Don't reset the adjustment value - let it persist
-    // The user can manually reset or use undo if they want to remove the effect
-    
-    // Clear stored filters (but don't remove applied filters)
-    this.state.get('previousFilters').clear()
-    
-    // Reset only the internal state, not the actual adjustment
+    // Reset only the internal state
     this.state.setState({
-      isAdjusting: false,
-      previousFilters: new Map()
+      isAdjusting: false
     })
+  }
+  
+  // Required: Base cleanup (from BaseTool)
+  protected cleanup(): void {
+    this.cleanupTool()
   }
 }
 

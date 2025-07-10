@@ -1,16 +1,8 @@
 import { Palette } from 'lucide-react'
 import { TOOL_IDS } from '@/constants'
-import { BaseTool } from '../base/BaseTool'
+import { BaseFilterTool } from '../filters/BaseFilterTool'
 import { createToolState } from '../utils/toolState'
-import type { FabricObject, Image as FabricImage } from 'fabric'
-import { filters } from 'fabric'
-import { ModifyCommand } from '@/lib/editor/commands/canvas'
-
-// Define filter type
-interface ImageFilter {
-  type?: string
-  [key: string]: unknown
-}
+import type { Canvas } from 'fabric'
 
 /**
  * Saturation Tool State
@@ -18,14 +10,13 @@ interface ImageFilter {
 type SaturationState = {
   adjustment: number
   isAdjusting: boolean
-  previousFilters: Map<string, ImageFilter[]>
 }
 
 /**
  * Saturation Tool - Adjust image color saturation
- * Uses Fabric.js saturation filter
+ * Now supports selection-aware filtering
  */
-class SaturationTool extends BaseTool {
+class SaturationTool extends BaseFilterTool {
   // Tool identification
   id = TOOL_IDS.SATURATION
   name = 'Saturation'
@@ -36,20 +27,29 @@ class SaturationTool extends BaseTool {
   // Tool state
   private state = createToolState<SaturationState>({
     adjustment: 0,
-    isAdjusting: false,
-    previousFilters: new Map()
+    isAdjusting: false
   })
+  
+  // Required: Get filter name
+  protected getFilterName(): string {
+    return 'saturation'
+  }
+  
+  // Required: Get default params
+  protected getDefaultParams(): any {
+    return { adjustment: this.state.get('adjustment') }
+  }
   
   /**
    * Tool setup
    */
-  protected setupTool(): void {
+  protected setupFilterTool(canvas: Canvas): void {
     // Subscribe to tool options
-    this.subscribeToToolOptions((options) => {
+    this.subscribeToToolOptions(async (options) => {
       const adjustment = options.find(opt => opt.id === 'adjustment')?.value
       if (adjustment !== undefined && typeof adjustment === 'number') {
-        this.track('adjustSaturation', () => {
-          this.applySaturation(adjustment)
+        await this.track('adjustSaturation', async () => {
+          await this.applySaturation(adjustment)
         })
       }
     })
@@ -59,75 +59,24 @@ class SaturationTool extends BaseTool {
     if (currentAdjustment !== undefined && currentAdjustment !== 0) {
       this.applySaturation(currentAdjustment)
     }
+    
+    // Show selection indicator on tool activation
+    this.showSelectionIndicator()
   }
   
   /**
-   * Apply saturation adjustment to all images on canvas
+   * Apply saturation adjustment
    */
-  private applySaturation(adjustment: number): void {
-    if (!this.canvas) return
+  private async applySaturation(adjustment: number): Promise<void> {
+    if (this.state.get('isAdjusting')) return
     
+    this.state.set('isAdjusting', true)
     this.state.set('adjustment', adjustment)
     
-    // Get all objects and filter for images
-    const objects = this.canvas.getObjects()
-    const images = objects.filter(obj => obj.type === 'image') as FabricImage[]
-    
-    if (images.length === 0) {
-      console.warn('No images found on canvas to adjust saturation')
-      return
-    }
-    
-    // Apply saturation filter to each image
-    images.forEach(img => {
-      // Store original filters if not already stored
-      const imgId = (img as FabricObject & { id?: string }).id || img.toString()
-      if (!this.state.get('previousFilters').has(imgId)) {
-        this.state.get('previousFilters').set(imgId, img.filters ? [...img.filters] as unknown as ImageFilter[] : [])
-      }
-      
-      // Remove existing saturation filters
-      if (!img.filters) {
-        img.filters = []
-      } else {
-        img.filters = img.filters.filter((f) => (f as unknown as ImageFilter).type !== 'Saturation')
-      }
-      
-      // Add new saturation filter if adjustment is not 0
-      if (adjustment !== 0) {
-        // Fabric.js saturation value is between -1 and 1
-        const saturationValue = adjustment / 100
-        
-        // Create saturation filter
-        const saturationFilter = new filters.Saturation({
-          saturation: saturationValue
-        })
-        
-        img.filters.push(saturationFilter)
-      }
-      
-      // Apply filters
-      img.applyFilters()
-    })
-    
-    // Render canvas
-    this.canvas.renderAll()
-    
-    // Record command for undo/redo
-    if (!this.state.get('isAdjusting')) {
-      this.state.set('isAdjusting', true)
-      
-      // Create modify command for each image
-      images.forEach(img => {
-        const command = new ModifyCommand(
-          this.canvas!,
-          img as FabricObject,
-          { filters: img.filters },
-          `Adjust saturation to ${adjustment}%`
-        )
-        this.executeCommand(command)
-      })
-      
+    try {
+      // Use the base class applyFilter method
+      await this.applyFilter({ adjustment })
+    } finally {
       this.state.set('isAdjusting', false)
     }
   }
@@ -135,18 +84,17 @@ class SaturationTool extends BaseTool {
   /**
    * Tool cleanup
    */
-  protected cleanup(): void {
+  protected cleanupFilterTool(): void {
     // Don't reset the adjustment value - let it persist
-    // The user can manually reset or use undo if they want to remove the effect
-    
-    // Clear stored filters (but don't remove applied filters)
-    this.state.get('previousFilters').clear()
-    
-    // Reset only the internal state, not the actual adjustment
+    // Reset only the internal state
     this.state.setState({
-      isAdjusting: false,
-      previousFilters: new Map()
+      isAdjusting: false
     })
+  }
+  
+  // Required: Base cleanup (from BaseTool)
+  protected cleanup(): void {
+    this.cleanupTool()
   }
 }
 

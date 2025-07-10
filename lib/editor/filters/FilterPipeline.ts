@@ -143,20 +143,8 @@ export class FilterPipeline {
         }
       }
       
-      // Create new image with filtered data
-      const newImage = await customFilter.createFilteredImage(image, filteredData)
-      
-      // Replace old image with new one
-      const objects = this.canvas.getObjects()
-      const index = objects.indexOf(image)
-      if (index !== -1) {
-        // Remove old image
-        this.canvas.remove(image)
-        // Insert new image at the same position
-        objects.splice(index, 0, newImage)
-        this.canvas._objects = objects
-        this.canvas.add(newImage)
-      }
+      // Update the existing image with filtered data
+      await this.updateImageWithFilteredData(image, filteredData)
     }
   }
   
@@ -215,9 +203,13 @@ export class FilterPipeline {
     // Dynamically import the appropriate filter
     try {
       const module = await import(`./algorithms/${filterName.toLowerCase()}`)
-      const FilterClass = module[`${filterName}Filter`] || module.default
+      
+      // Capitalize first letter for class name
+      const className = filterName.charAt(0).toUpperCase() + filterName.slice(1).toLowerCase() + 'Filter'
+      const FilterClass = module[className] || module.default
       
       if (!FilterClass) {
+        console.warn(`Filter class ${className} not found in module`, module)
         return null
       }
       
@@ -323,6 +315,51 @@ export class FilterPipeline {
     const paramStr = JSON.stringify(filterParams)
     const selectionBounds = `${selection.bounds.x},${selection.bounds.y},${selection.bounds.width},${selection.bounds.height}`
     return `${imageId}-${filterName}-${paramStr}-${selectionBounds}`
+  }
+  
+  /**
+   * Update existing image with filtered data
+   */
+  private async updateImageWithFilteredData(
+    image: FabricImage,
+    filteredData: ImageData
+  ): Promise<void> {
+    // Create a temporary canvas with the filtered data
+    const tempCanvas = document.createElement('canvas')
+    tempCanvas.width = filteredData.width
+    tempCanvas.height = filteredData.height
+    const ctx = tempCanvas.getContext('2d')!
+    ctx.putImageData(filteredData, 0, 0)
+    
+    // Convert to blob and create new image element
+    await new Promise<void>((resolve, reject) => {
+      tempCanvas.toBlob((blob) => {
+        if (!blob) {
+          reject(new Error('Failed to create blob from filtered image'))
+          return
+        }
+        
+        const url = URL.createObjectURL(blob)
+        const img = new Image()
+        
+        img.onload = () => {
+          // Update the existing fabric image's element
+          image.setElement(img)
+          image.dirty = true
+          
+          // Clean up
+          URL.revokeObjectURL(url)
+          resolve()
+        }
+        
+        img.onerror = () => {
+          URL.revokeObjectURL(url)
+          reject(new Error('Failed to load filtered image'))
+        }
+        
+        img.src = url
+      })
+    })
   }
   
   /**
