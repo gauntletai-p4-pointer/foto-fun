@@ -1,129 +1,204 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars */
 import { Thermometer } from 'lucide-react'
 import { TOOL_IDS } from '@/constants'
-import type { Canvas, Image, FabricObject } from 'fabric'
-import { BaseTool } from '../base/BaseTool'
+import { BaseFilterTool } from '../filters/BaseFilterTool'
 import { createToolState } from '../utils/toolState'
-// import { useToolOptionsStore } from '@/store/toolOptionsStore'
-import { ModifyCommand } from '@/lib/editor/commands/canvas'
-import * as fabric from 'fabric'
+import { useCanvasStore } from '@/store/canvasStore'
+import type { Canvas } from 'fabric'
 
-// Define tool state
-type ColorTemperatureToolState = {
-  isApplying: boolean
-  lastValue: number
+/**
+ * Color Temperature Tool State
+ */
+type ColorTemperatureState = {
+  temperature: number
+  isAdjusting: boolean
+  dialogShown: boolean
 }
 
-class ColorTemperatureTool extends BaseTool {
+/**
+ * Color Temperature Tool - Adjust warm/cool balance
+ * Now uses modal dialog with preview functionality
+ */
+class ColorTemperatureTool extends BaseFilterTool {
   // Tool identification
   id = TOOL_IDS.COLOR_TEMPERATURE
   name = 'Color Temperature'
   icon = Thermometer
   cursor = 'default'
-  shortcut = undefined // Access via adjustments menu
+  shortcut = undefined // No default shortcut
   
   // Tool state
-  private state = createToolState<ColorTemperatureToolState>({
-    isApplying: false,
-    lastValue: 0
+  private state = createToolState<ColorTemperatureState>({
+    temperature: 0,
+    isAdjusting: false,
+    dialogShown: false
   })
   
-  // Required: Setup
-  protected setupTool(canvas: Canvas): void {
-    // Subscribe to tool options
-    this.subscribeToToolOptions(() => {
-      const value = this.getOptionValue('temperature')
-      if (typeof value === 'number' && value !== this.state.get('lastValue')) {
-        this.applyColorTemperature(canvas, value)
-        this.state.set('lastValue', value)
-      }
-    })
+  // Required: Get filter name
+  protected getFilterName(): string {
+    return 'colorMatrix' // Color temperature uses color matrix filter
+  }
+  
+  // Required: Get default params
+  protected getDefaultParams(): any {
+    return { temperature: 0 }
+  }
+  
+  /**
+   * Tool setup - opens adjustment dialog
+   */
+  protected setupFilterTool(canvas: Canvas): void {
+    // Reset dialog shown state to ensure it opens
+    this.state.set('dialogShown', false)
     
-    // Apply initial value
-    const initialValue = this.getOptionValue('temperature')
-    if (typeof initialValue === 'number' && initialValue !== 0) {
-      this.applyColorTemperature(canvas, initialValue)
-      this.state.set('lastValue', initialValue)
+    // Get current filter value
+    const currentValue = this.getCurrentFilterValue()
+    
+    // Update state with current value
+    this.state.set('temperature', currentValue.temperature || 0)
+    
+    // Find the color temperature tool button element
+    const colorTempButton = document.querySelector(`button[data-tool-id="${this.id}"]`) as HTMLElement
+    
+    // Open the adjustment dialog
+    const canvasStore = useCanvasStore.getState()
+    
+    // Always show dialog when tool is activated
+    this.state.set('dialogShown', true)
+    
+    canvasStore.setActiveAdjustmentTool({
+      toolId: this.id,
+      toolName: this.name,
+      currentValue: 0,  // Always start slider at 0 for incremental adjustments
+      anchorElement: colorTempButton
+    })
+  }
+  
+  /**
+   * Apply color temperature preview (temporary)
+   */
+  async previewColorTemperature(temperature: number): Promise<void> {
+    if (this.state.get('isAdjusting')) {
+      return
     }
-  }
-  
-  // Required: Cleanup
-  protected cleanup(): void {
-    // Don't reset the temperature value - let it persist
-    // Reset only the internal state
-    this.state.setState({
-      isApplying: false,
-      lastValue: this.state.get('lastValue')
-    })
-  }
-  
-  private applyColorTemperature(canvas: Canvas, value: number): void {
-    if (this.state.get('isApplying')) return
     
-    this.state.set('isApplying', true)
+    this.state.set('isAdjusting', true)
     
     try {
-      const objects = canvas.getObjects()
-      const images = objects.filter((obj): obj is Image => obj.type === 'image')
+      // Get the base temperature value (what was there when dialog opened)
+      const baseTemperature = this.state.get('temperature')
+      // Apply the slider value as an increment to the base
+      const totalTemperature = baseTemperature + temperature
       
-      if (images.length === 0) return
-      
-      images.forEach(img => {
-        if (!img.filters) {
-          img.filters = []
-        }
-        
-        // Calculate new filters array
-        const existingFilters = img.filters.filter(f => {
-          const filter = f as unknown as { isColorTemp?: boolean }
-          return !filter.isColorTemp
-        })
-        
-        let newFilters: typeof img.filters
-        if (value !== 0) {
-          // Color temperature is achieved by adjusting the color matrix
-          // Positive values = warmer (more orange/red)
-          // Negative values = cooler (more blue)
-          
-          // Calculate RGB adjustments based on temperature
-          const tempAdjust = value / 100
-          
-          // Create a color matrix that shifts colors
-          // Warmer: increase red, decrease blue
-          // Cooler: decrease red, increase blue
-          const matrix = [
-            1 + tempAdjust * 0.2, 0, 0, 0, 0,    // Red channel
-            0, 1, 0, 0, 0,                       // Green channel (unchanged)
-            0, 0, 1 - tempAdjust * 0.2, 0, 0,    // Blue channel
-            0, 0, 0, 1, 0                        // Alpha channel
-          ]
-          
-          const filter = new fabric.filters.ColorMatrix({
-            matrix: matrix
-          })
-          ;(filter as { isColorTemp?: boolean }).isColorTemp = true
-          newFilters = [...existingFilters, filter] as typeof img.filters
-        } else {
-          newFilters = existingFilters as typeof img.filters
-        }
-        
-        // Create command BEFORE modifying the object
-        const command = new ModifyCommand(
-          canvas,
-          img as FabricObject,
-          { filters: newFilters },
-          `Adjust color temperature to ${value > 0 ? 'warmer' : value < 0 ? 'cooler' : 'neutral'} (${value})`
-        )
-        
-        // Execute the command (which will apply the changes and handle applyFilters)
-        this.executeCommand(command)
-      })
-      
-      canvas.renderAll()
+      // Use the base class preview method
+      await this.applyFilterPreview({ temperature: totalTemperature })
+    } catch (error) {
+      console.error('[ColorTemperatureTool] Preview failed:', error)
     } finally {
-      this.state.set('isApplying', false)
+      this.state.set('isAdjusting', false)
     }
+  }
+  
+  /**
+   * Apply color temperature adjustment (permanent)
+   */
+  async applyColorTemperature(temperature: number): Promise<void> {
+    if (this.state.get('isAdjusting')) {
+      return
+    }
+    
+    this.state.set('isAdjusting', true)
+    
+    try {
+      // Get the base temperature value (what was there when dialog opened)
+      const baseTemperature = this.state.get('temperature')
+      // Apply the slider value as an increment to the base
+      const totalTemperature = baseTemperature + temperature
+      
+      // Use the base class apply method
+      await this.applyFilter({ temperature: totalTemperature })
+    } catch (error) {
+      console.error('[ColorTemperatureTool] Apply failed:', error)
+    } finally {
+      this.state.set('isAdjusting', false)
+    }
+  }
+  
+  /**
+   * Reset color temperature to default
+   */
+  resetColorTemperature(): void {
+    // Get the base temperature value (what was there when dialog opened)
+    const baseTemperature = this.state.get('temperature')
+    
+    // Reset to the base temperature (not 0)
+    this.applyFilterPreview({ temperature: baseTemperature }).catch(error => {
+      console.error('[ColorTemperatureTool] Reset failed:', error)
+    })
+  }
+  
+  /**
+   * Override to provide custom filter creation
+   */
+  protected async createFilter(filterParams: any): Promise<any> {
+    const { filters } = await import('fabric')
+    const temperature = filterParams.temperature || 0
+    
+    // Calculate RGB adjustments based on temperature
+    const tempAdjust = temperature / 100
+    
+    // Create a color matrix that shifts colors
+    // Warmer: increase red, decrease blue
+    // Cooler: decrease red, increase blue
+    const matrix = [
+      1 + tempAdjust * 0.2, 0, 0, 0, 0,    // Red channel
+      0, 1, 0, 0, 0,                       // Green channel (unchanged)
+      0, 0, 1 - tempAdjust * 0.2, 0, 0,    // Blue channel
+      0, 0, 0, 1, 0                        // Alpha channel
+    ]
+    
+    return new filters.ColorMatrix({ matrix })
+  }
+  
+  /**
+   * Tool cleanup
+   */
+  protected cleanupFilterTool(): void {
+    // Close the dialog if it's open
+    const canvasStore = useCanvasStore.getState()
+    if (canvasStore.activeAdjustmentTool?.toolId === this.id) {
+      canvasStore.setActiveAdjustmentTool(null)
+    }
+    
+    // Reset state
+    this.state.setState({
+      temperature: 0,
+      isAdjusting: false,
+      dialogShown: false
+    })
+  }
+  
+  // Required: Base cleanup (from BaseTool)
+  protected cleanup(): void {
+    this.cleanupTool()
+  }
+  
+  // Override onActivate to log
+  onActivate(canvas: Canvas): void {
+    super.onActivate(canvas)
+  }
+  
+  // Override onDeactivate to log
+  onDeactivate(canvas: Canvas): void {
+    // Ensure dialog is closed when tool is deactivated
+    const canvasStore = useCanvasStore.getState()
+    if (canvasStore.activeAdjustmentTool?.toolId === this.id) {
+      canvasStore.setActiveAdjustmentTool(null)
+    }
+    
+    super.onDeactivate(canvas)
   }
 }
 
-// Export singleton
+// Export singleton instance
 export const colorTemperatureTool = new ColorTemperatureTool() 

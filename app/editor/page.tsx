@@ -13,6 +13,11 @@ import { ImageGenerationDialog } from '@/components/editor/dialogs/ImageGenerati
 import { ImageTransformationDialog } from '@/components/editor/dialogs/ImageTransformationDialog'
 import { ReviewImageDialog } from '@/components/editor/dialogs/ReviewImageDialog'
 import { HueAdjustmentDialog } from '@/components/editor/dialogs/HueAdjustmentDialog'
+import { BrightnessAdjustmentDialog } from '@/components/editor/dialogs/BrightnessAdjustmentDialog'
+import { ContrastAdjustmentDialog } from '@/components/editor/dialogs/ContrastAdjustmentDialog'
+import { SaturationAdjustmentDialog } from '@/components/editor/dialogs/SaturationAdjustmentDialog'
+import { ExposureAdjustmentDialog } from '@/components/editor/dialogs/ExposureAdjustmentDialog'
+import { ColorTemperatureAdjustmentDialog } from '@/components/editor/dialogs/ColorTemperatureAdjustmentDialog'
 import { useDocumentStore } from '@/store/documentStore'
 import { useToolStore } from '@/store/toolStore'
 import { createClient } from '@/lib/db/supabase/client'
@@ -140,6 +145,11 @@ export default function EditorPage() {
       <ImageTransformationDialog />
       <ReviewImageDialog />
       <HueAdjustmentDialog />
+      <BrightnessAdjustmentDialog />
+      <ContrastAdjustmentDialog />
+      <SaturationAdjustmentDialog />
+      <ExposureAdjustmentDialog />
+      <ColorTemperatureAdjustmentDialog />
     </div>
   )
 } 

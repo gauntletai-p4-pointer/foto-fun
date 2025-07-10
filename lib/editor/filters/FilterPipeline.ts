@@ -168,6 +168,21 @@ export class FilterPipeline {
       case 'hue':
         return new filters.HueRotation({ rotation: (filterParams.rotation * Math.PI) / 180 })
       
+      case 'colormatrix':
+      case 'colortemperature':
+        // Color temperature uses ColorMatrix filter
+        if (filterParams.temperature !== undefined) {
+          const tempAdjust = filterParams.temperature / 100
+          const matrix = [
+            1 + tempAdjust * 0.2, 0, 0, 0, 0,    // Red channel
+            0, 1, 0, 0, 0,                       // Green channel (unchanged)
+            0, 0, 1 - tempAdjust * 0.2, 0, 0,    // Blue channel
+            0, 0, 0, 1, 0                        // Alpha channel
+          ]
+          return new filters.ColorMatrix({ matrix })
+        }
+        return null
+      
       case 'grayscale':
         return new filters.Grayscale()
       
@@ -242,6 +257,7 @@ export class FilterPipeline {
         return filterParams.strength > 0
       
       case 'colortemperature':
+      case 'colormatrix':
         return filterParams.temperature !== 0
       
       case 'grayscale':
