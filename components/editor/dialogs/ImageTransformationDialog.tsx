@@ -33,6 +33,7 @@ export function ImageTransformationDialog() {
   const [guaidanceScale, setGuaidanceScale] = useState(7.5)
   const [steps, setSteps] = useState(20)
   const [negativePrompt, setNegativePrompt] = useState('')
+  const [inpaintError, setInpaintError] = useState('')
   
   const isOpen = activeAITool?.type === 'ai-image-transformation'
   
@@ -44,6 +45,7 @@ export function ImageTransformationDialog() {
       setGuaidanceScale(7.5)
       setSteps(20)
       setNegativePrompt('')
+      setInpaintError('')
     }
   }, [isOpen])
   
@@ -108,19 +110,39 @@ export function ImageTransformationDialog() {
           alert(result.message || 'Failed to remove background')
         }
       } else if (transformationType === 'inpaint') {
+        // Clear previous error
+        setInpaintError('')
+        
         if (!prompt.trim()) {
-          alert('Please enter a prompt for inpainting.');
-          return;
+          setInpaintError('Please enter a prompt for inpainting.')
+          return
         }
-        const adapter = new InpaintingAdapter();
-        const result = await adapter.execute({ prompt, guaidance_scale: guaidanceScale, steps, negative_prompt: negativePrompt }, { canvas: fabricCanvas });
+        
+        // Check if there's a selection
+        const { useCanvasStore } = await import('@/store/canvasStore')
+        const canvasStore = useCanvasStore.getState()
+        const selectionManager = canvasStore.selectionManager
+        
+        if (!selectionManager || !selectionManager.hasSelection()) {
+          setInpaintError('Please select a region of the image first to use the AI Inpainting feature.')
+          return
+        }
+        
+        const adapter = new InpaintingAdapter()
+        const result = await adapter.execute({ 
+          prompt, 
+          guaidance_scale: guaidanceScale, 
+          steps, 
+          negative_prompt: negativePrompt 
+        }, { canvas: fabricCanvas })
+        
         if (result.success) {
-          console.log('Inpainting successful');
-          setActiveAITool(null);
-          setActiveTool(TOOL_IDS.MOVE);
+          console.log('Inpainting successful')
+          setActiveAITool(null)
+          setActiveTool(TOOL_IDS.MOVE)
         } else {
-          console.error('Inpainting Failed:', result.message);
-          alert(result.message || 'Failed to perform inpainting');
+          console.error('Inpainting Failed:', result.message)
+          setInpaintError(result.message || 'Failed to perform inpainting')
         }
       }
     } catch (error) {
@@ -164,7 +186,11 @@ export function ImageTransformationDialog() {
                 <Input
                   id="prompt"
                   value={prompt}
-                  onChange={(e) => setPrompt(e.target.value)}
+                  onChange={(e) => {
+                    setPrompt(e.target.value)
+                    // Clear error when user starts typing
+                    if (inpaintError) setInpaintError('')
+                  }}
                   placeholder="Describe what to generate"
                 />
               </div>
@@ -176,13 +202,16 @@ export function ImageTransformationDialog() {
                 <Label>Steps ({steps})</Label>
                 <Slider min={1} max={50} step={1} value={[steps]} onValueChange={([v])=>setSteps(v)} />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="negative-prompt">Negative Prompt (Optional)</Label>
-                <Input id="negative-prompt" value={negativePrompt} onChange={(e)=>setNegativePrompt(e.target.value)} placeholder="What to avoid (e.g., blurry, distorted)" />
-              </div>
             </div>
           )}
         </div>
+        
+        {/* Error message for inpainting */}
+        {transformationType === 'inpaint' && inpaintError && (
+          <div className="bg-red-50 border border-red-200 rounded-md p-3 text-sm text-red-800">
+            {inpaintError}
+          </div>
+        )}
         
         <div className="flex justify-end gap-2">
           <Button variant="outline" onClick={handleClose} disabled={isTransforming}>

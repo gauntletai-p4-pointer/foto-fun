@@ -132,25 +132,7 @@ export function ReviewImageDialog() {
             </div>
           </div>
           
-          {/* Debug: Show mask image */}
-          {reviewModal.maskImage && (
-            <div className="space-y-2">
-              <h4 className="text-sm font-medium text-foreground/80">Debug: Generated Mask</h4>
-              <div className="border border-foreground/10 rounded-lg overflow-hidden">
-                <Image
-                  src={reviewModal.maskImage}
-                  alt="Generated mask"
-                  width={400}
-                  height={300}
-                  className="object-contain bg-gray-100"
-                  sizes="400px"
-                />
-              </div>
-              <p className="text-xs text-foreground/60">
-                White areas = selected region for inpainting, Black areas = preserved
-              </p>
-            </div>
-          )}
+
 
           {/* Action Buttons */}
           <div className="flex justify-end gap-3 pt-4 border-t border-foreground/10">
