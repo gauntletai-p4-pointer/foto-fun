@@ -23,7 +23,7 @@ export class ColorSelectedEvent extends Event {
     return null
   }
   
-  canApply(_currentState: unknown): boolean {
+  canApply(_: unknown): boolean {
     return true
   }
   

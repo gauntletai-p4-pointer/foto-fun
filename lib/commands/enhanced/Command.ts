@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import type { MiddlewarePipeline } from '@/lib/core/middleware/MiddlewarePipeline'
+import { MiddlewarePipeline as MiddlewarePipelineImpl } from '@/lib/core/middleware/MiddlewarePipeline'
 
 /**
  * Command execution context
@@ -120,7 +121,7 @@ export class CompositeCommand extends Command<void> {
   description = 'Executes multiple commands as a single unit'
   schema = z.void()
   
-  private commands: Array<ValidatedCommand<any>> = []
+  private commands: Array<ValidatedCommand<unknown>> = []
   private executeInParallel = false
   
   /**
@@ -134,7 +135,7 @@ export class CompositeCommand extends Command<void> {
   /**
    * Add multiple commands
    */
-  addMany(...commands: Array<ValidatedCommand<any>>): this {
+  addMany(...commands: Array<ValidatedCommand<unknown>>): this {
     this.commands.push(...commands)
     return this
   }
@@ -197,7 +198,7 @@ export class CommandBus {
   private middleware: MiddlewarePipeline<CommandContext>
   
   constructor(middleware?: MiddlewarePipeline<CommandContext>) {
-    this.middleware = middleware || new (require('@/lib/core/middleware/MiddlewarePipeline').MiddlewarePipeline)()
+    this.middleware = middleware || new MiddlewarePipelineImpl()
   }
   
   /**
@@ -223,7 +224,7 @@ export class CommandBus {
   /**
    * Execute multiple commands
    */
-  async executeMany(commands: Array<ValidatedCommand<any>>): Promise<void> {
+  async executeMany(commands: Array<ValidatedCommand<unknown>>): Promise<void> {
     for (const command of commands) {
       await this.execute(command)
     }

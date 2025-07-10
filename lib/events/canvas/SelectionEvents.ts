@@ -28,7 +28,7 @@ export class SelectionChangedEvent extends Event {
     )
   }
   
-  canApply(_currentState: unknown): boolean {
+  canApply(_: unknown): boolean {
     return true
   }
   
@@ -84,7 +84,7 @@ export class SelectionClearedEvent extends Event {
     )
   }
   
-  canApply(_currentState: unknown): boolean {
+  canApply(_: unknown): boolean {
     return true
   }
   
@@ -139,7 +139,7 @@ export class SelectionTransformedEvent extends SelectionEvent {
     )
   }
   
-  canApply(_currentState: unknown): boolean {
+  canApply(_: unknown): boolean {
     return true
   }
   
@@ -195,7 +195,7 @@ export class SelectionInvertedEvent extends Event {
     )
   }
   
-  canApply(_currentState: unknown): boolean {
+  canApply(_: unknown): boolean {
     return true
   }
   
@@ -241,7 +241,7 @@ export class SelectionExpandedEvent extends Event {
     )
   }
   
-  canApply(_currentState: unknown): boolean {
+  canApply(_: unknown): boolean {
     return true
   }
   
@@ -292,7 +292,7 @@ export class SelectionFeatheredEvent extends Event {
     )
   }
   
-  canApply(_currentState: unknown): boolean {
+  canApply(_: unknown): boolean {
     return true
   }
   

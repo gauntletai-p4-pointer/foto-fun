@@ -77,7 +77,7 @@ NEVER ask which effect - interpret the user's intent and choose the most appropr
       }
       
       // Get the tool store from service container
-      const container = (window as any).__serviceContainer
+      const container = (window as { __serviceContainer?: unknown }).__serviceContainer
       if (!container) {
         throw new Error('Service container not found')
       }
@@ -97,12 +97,14 @@ NEVER ask which effect - interpret the user's intent and choose the most appropr
       
       // If we have an execution context, set it on the tool
       if (executionContext && 'setExecutionContext' in activeTool) {
-        (activeTool as any).setExecutionContext(executionContext)
+        const toolWithContext = activeTool as { setExecutionContext: (context: ExecutionContext) => void }
+        toolWithContext.setExecutionContext(executionContext)
       }
       
       // Apply effect using the tool's method
       if ('applyVintageEffect' in activeTool && typeof activeTool.applyVintageEffect === 'function') {
-        await (activeTool as any).applyVintageEffect(params.effect)
+        const toolWithApply = activeTool as { applyVintageEffect: (effect: string) => Promise<void> }
+        await toolWithApply.applyVintageEffect(params.effect)
       }
       
       // Get human-readable effect name

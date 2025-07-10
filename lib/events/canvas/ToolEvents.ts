@@ -141,7 +141,7 @@ export class FilterAppliedEvent extends Event {
   constructor(
     private canvasId: string,
     private filterType: string,
-    private filterParams: Record<string, any>,
+    private filterParams: Record<string, unknown>,
     private targetObjectIds: string[],
     metadata: Event['metadata']
   ) {
@@ -254,7 +254,7 @@ export class StrokeAddedEvent extends Event {
     }
   }
 
-  canApply(_currentState: CanvasObjectState): boolean {
+  canApply(_: CanvasObjectState): boolean {
     return true
   }
 
@@ -316,8 +316,8 @@ export class StrokeModifiedEvent extends Event {
   constructor(
     private canvasId: string,
     private strokeId: string,
-    private previousData: Record<string, any>,
-    private newData: Record<string, any>,
+    private previousData: Record<string, unknown>,
+    private newData: Record<string, unknown>,
     metadata: Event['metadata']
   ) {
     super('stroke.modified', canvasId, 'canvas', metadata)
@@ -366,7 +366,7 @@ export class ImageGeneratedEvent extends Event {
     private canvasId: string,
     private imageId: string,
     private prompt: string,
-    private options: Record<string, any>,
+    private options: Record<string, unknown>,
     metadata: Event['metadata']
   ) {
     super('image.generated', canvasId, 'canvas', metadata)
@@ -379,7 +379,7 @@ export class ImageGeneratedEvent extends Event {
     }
   }
 
-  canApply(_currentState: CanvasObjectState): boolean {
+  canApply(_: CanvasObjectState): boolean {
     return true
   }
 
@@ -417,7 +417,7 @@ export class GenerationFailedEvent extends Event {
     return currentState
   }
 
-  canApply(_currentState: CanvasObjectState): boolean {
+  canApply(_: CanvasObjectState): boolean {
     return true
   }
 
@@ -446,8 +446,8 @@ export class ObjectsTransformedEvent extends Event {
     private canvasId: string,
     private transformations: Array<{
       objectId: string
-      previousTransform: Record<string, any>
-      newTransform: Record<string, any>
+      previousTransform: Record<string, unknown>
+      newTransform: Record<string, unknown>
     }>,
     metadata: Event['metadata']
   ) {
@@ -505,7 +505,7 @@ export class CanvasCroppedEvent extends Event {
     }
   }
 
-  canApply(_currentState: CanvasObjectState): boolean {
+  canApply(_: CanvasObjectState): boolean {
     return true
   }
 
@@ -547,7 +547,7 @@ export class ToolActivatedEvent extends Event {
     return currentState
   }
 
-  canApply(_currentState: unknown): boolean {
+  canApply(_: unknown): boolean {
     return true
   }
 
@@ -582,7 +582,7 @@ export class ToolOptionChangedEvent extends Event {
     return currentState
   }
 
-  canApply(_currentState: unknown): boolean {
+  canApply(_: unknown): boolean {
     return true
   }
 

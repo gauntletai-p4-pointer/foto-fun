@@ -1,7 +1,7 @@
 import { BaseStore } from '../base/BaseStore'
 import { Event } from '@/lib/events/core/Event'
 import { EventStore } from '@/lib/events/core/EventStore'
-import { Selection, Rect, CanvasObject } from '@/lib/editor/canvas/types'
+import { Selection, Rect } from '@/lib/editor/canvas/types'
 import { TypedEventBus } from '@/lib/events/core/TypedEventBus'
 
 /**

@@ -31,7 +31,7 @@ export class DocumentLoadedEvent extends Event {
     return null
   }
   
-  canApply(_currentState: unknown): boolean {
+  canApply(_: unknown): boolean {
     return true
   }
   
@@ -69,7 +69,7 @@ export class DocumentSavedEvent extends Event {
     return null
   }
   
-  canApply(_currentState: unknown): boolean {
+  canApply(_: unknown): boolean {
     return true
   }
   
@@ -114,7 +114,7 @@ export class DocumentCreatedEvent extends Event {
     return null
   }
   
-  canApply(_currentState: unknown): boolean {
+  canApply(_: unknown): boolean {
     return true
   }
   
@@ -164,7 +164,7 @@ export class CanvasResizedEvent extends Event {
     )
   }
   
-  canApply(_currentState: unknown): boolean {
+  canApply(_: unknown): boolean {
     return true
   }
   
@@ -210,7 +210,7 @@ export class CanvasBackgroundChangedEvent extends Event {
     )
   }
   
-  canApply(_currentState: unknown): boolean {
+  canApply(_: unknown): boolean {
     return true
   }
   
@@ -250,15 +250,15 @@ export class ViewportChangedEvent extends Event {
   reverse(): Event | null {
     return new ViewportChangedEvent(
       this.canvasId,
+      this.metadata,
       this.previousZoom,
       this.previousPan,
       this.zoom,
-      this.pan,
-      this.metadata
+      this.pan
     )
   }
   
-  canApply(_currentState: unknown): boolean {
+  canApply(_: unknown): boolean {
     return true
   }
   

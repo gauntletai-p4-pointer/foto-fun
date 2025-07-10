@@ -1,4 +1,4 @@
-import { TypedEventBus, EventRegistry } from '@/lib/events/core/TypedEventBus'
+import { TypedEventBus } from '@/lib/events/core/TypedEventBus'
 import type { CanvasObject, Layer, Selection, Point } from '@/lib/editor/canvas/types'
 
 export interface CanvasStoreState {
@@ -74,9 +74,9 @@ export class TypedCanvasStore {
           ...state,
           objects: {
             ...state.objects,
-            [(data.object as any).id || data.object.toString()]: {
-              id: (data.object as any).id || data.object.toString(),
-              type: data.object.type as any,
+            [(data.object as { id?: string }).id || data.object.toString()]: {
+              id: (data.object as { id?: string }).id || data.object.toString(),
+              type: data.object.type as CanvasObject['type'],
               layerId: data.layerId || state.activeLayerId || '',
               data: data.object.toObject()
             } as CanvasObject
@@ -112,7 +112,7 @@ export class TypedCanvasStore {
     this.subscriptions.push(
       this.eventBus.on('canvas.object.removed', (data) => {
         this.setState(state => {
-          const { [data.objectId]: removed, ...remainingObjects } = state.objects
+          const { [data.objectId]: _, ...remainingObjects } = state.objects
           
           return {
             ...state,
@@ -130,7 +130,7 @@ export class TypedCanvasStore {
           const updatedObjects = { ...state.objects }
           
           data.modifications.forEach(mod => {
-            const objectId = (mod.object as any).id || mod.object.toString()
+            const objectId = (mod.object as { id?: string }).id || mod.object.toString()
             const object = updatedObjects[objectId]
             if (object) {
               updatedObjects[objectId] = {

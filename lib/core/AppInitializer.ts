@@ -12,7 +12,7 @@ import { EventLayerStore } from '@/lib/store/layers/EventLayerStore'
 import { EventSelectionStore } from '@/lib/store/selection/EventSelectionStore'
 import { EventDocumentStore } from '@/lib/store/document/EventDocumentStore'
 import { EventColorStore } from '@/lib/store/color/EventColorStore'
-import { EventBasedHistoryStore } from '@/lib/events/history/EventBasedHistoryStore'
+import { useEventHistoryStore } from '@/lib/events/history/EventBasedHistoryStore'
 
 // Canvas System
 import { CanvasManagerFactory } from '@/lib/editor/canvas/CanvasManagerFactory'
@@ -27,7 +27,7 @@ import { WebGLFilterManager } from '@/lib/editor/filters/WebGLFilterManager'
 import { CommandManager } from '@/lib/commands/core/CommandManager'
 
 // AI System
-import { ToolExecutor } from '@/lib/ai/client/tool-executor'
+import { ClientToolExecutor } from '@/lib/ai/client/tool-executor'
 
 // Performance
 import { PerformanceMonitor } from '@/lib/editor/performance/PerformanceMonitor'
@@ -103,10 +103,7 @@ export class AppInitializer {
 
     // Register EventBasedHistoryStore
     container.registerSingleton('HistoryStore', () => {
-      const store = new EventBasedHistoryStore(
-        container.get('EventStore')
-      )
-      return store
+      return useEventHistoryStore
     })
     
     // Selection System
@@ -140,7 +137,7 @@ export class AppInitializer {
     
     // AI System
     container.registerSingleton('ToolExecutor', () => {
-      return new ToolExecutor()
+      return ClientToolExecutor
     })
     
     // Performance Monitoring

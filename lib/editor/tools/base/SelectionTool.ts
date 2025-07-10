@@ -2,7 +2,7 @@ import { BaseTool } from './BaseTool'
 import type { ToolEvent, Point } from '@/lib/editor/canvas/types'
 import { createToolState } from '../utils/toolState'
 import { constrainProportions, drawFromCenter } from '../utils/constraints'
-import { container } from '@/lib/di'
+import { container } from '@/lib/di/container'
 import { EventSelectionStore } from '@/lib/store/selection/EventSelectionStore'
 import type Konva from 'konva'
 
@@ -52,6 +52,7 @@ export abstract class SelectionTool extends BaseTool {
     // Keyboard events for modifiers
     this.registerEventListener('keydown', window, 'keydown', this.handleKeyDown.bind(this))
     this.registerEventListener('keyup', window, 'keyup', this.handleKeyUp.bind(this))
+  }
   
   /**
    * Tool-specific cleanup

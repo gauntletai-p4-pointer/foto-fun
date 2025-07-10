@@ -1,5 +1,5 @@
 import Konva from 'konva'
-import { FaPaintBrush } from 'react-icons/fa6'
+import { Brush } from 'lucide-react'
 import { BaseTool } from '../base/BaseTool'
 import type { ToolEvent } from '@/lib/editor/canvas/types'
 
@@ -10,7 +10,7 @@ import type { ToolEvent } from '@/lib/editor/canvas/types'
 export class BrushTool extends BaseTool {
   id = 'brush'
   name = 'Brush Tool'
-  icon = FaPaintBrush
+  icon = Brush
   cursor = 'crosshair'
   shortcut = 'B'
   
