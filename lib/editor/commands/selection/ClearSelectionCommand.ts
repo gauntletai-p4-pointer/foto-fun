@@ -27,7 +27,8 @@ export class ClearSelectionCommand extends Command {
       
       this.previousSelection = {
         mask: clonedMask,
-        bounds: { ...current.bounds }
+        bounds: { ...current.bounds },
+        shape: current.shape  // Preserve shape information
       }
     }
     
@@ -44,7 +45,7 @@ export class ClearSelectionCommand extends Command {
   
   async undo(): Promise<void> {
     if (this.previousSelection) {
-      this.selectionManager.restoreSelection(this.previousSelection.mask, this.previousSelection.bounds)
+      this.selectionManager.restoreSelection(this.previousSelection.mask, this.previousSelection.bounds, this.previousSelection.shape)
       
       // Start the selection renderer
       const { useCanvasStore } = await import('@/store/canvasStore')

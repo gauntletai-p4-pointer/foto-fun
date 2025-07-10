@@ -45,7 +45,7 @@ export class LayerAwareSelectionManager extends SelectionManager {
       // Switch to object's selection if it exists
       const objectSelection = this.objectSelections.get(objectId)
       if (objectSelection) {
-        this.restoreSelection(objectSelection.mask, objectSelection.bounds)
+        this.restoreSelection(objectSelection.mask, objectSelection.bounds, objectSelection.shape)
       } else {
         // Clear global selection when switching to new object
         this.clear()
@@ -74,7 +74,7 @@ export class LayerAwareSelectionManager extends SelectionManager {
       // Restore object selection
       const objectSelection = this.objectSelections.get(this.activeObjectId)
       if (objectSelection) {
-        this.restoreSelection(objectSelection.mask, objectSelection.bounds)
+        this.restoreSelection(objectSelection.mask, objectSelection.bounds, objectSelection.shape)
       } else {
         this.clear()
       }

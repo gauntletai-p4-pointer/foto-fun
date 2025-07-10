@@ -47,7 +47,8 @@ export class CreateRectangleSelectionCommand extends Command {
       
       this.previousSelection = {
         mask: clonedMask,
-        bounds: { ...current.bounds }
+        bounds: { ...current.bounds },
+        shape: current.shape  // Preserve shape information
       }
     }
     
@@ -67,7 +68,8 @@ export class CreateRectangleSelectionCommand extends Command {
       
       this.newSelection = {
         mask: clonedMask,
-        bounds: { ...newSel.bounds }
+        bounds: { ...newSel.bounds },
+        shape: newSel.shape  // Preserve shape information (will be rectangle)
       }
     }
   }
@@ -75,7 +77,7 @@ export class CreateRectangleSelectionCommand extends Command {
   async undo(): Promise<void> {
     if (this.previousSelection) {
       // Restore previous selection
-      this.selectionManager.restoreSelection(this.previousSelection.mask, this.previousSelection.bounds)
+      this.selectionManager.restoreSelection(this.previousSelection.mask, this.previousSelection.bounds, this.previousSelection.shape)
     } else {
       // Clear selection
       this.selectionManager.clear()
@@ -85,7 +87,7 @@ export class CreateRectangleSelectionCommand extends Command {
   async redo(): Promise<void> {
     if (this.newSelection) {
       // Restore the new selection
-      this.selectionManager.restoreSelection(this.newSelection.mask, this.newSelection.bounds)
+      this.selectionManager.restoreSelection(this.newSelection.mask, this.newSelection.bounds, this.newSelection.shape)
     } else {
       // Re-execute
       this.selectionManager.createRectangle(this.x, this.y, this.width, this.height, this.mode)

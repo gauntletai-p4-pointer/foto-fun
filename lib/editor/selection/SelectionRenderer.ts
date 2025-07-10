@@ -1,6 +1,6 @@
 import type { Canvas, FabricObject } from 'fabric'
 import { Path, Group } from 'fabric'
-import type { SelectionManager, SelectionBounds } from './SelectionManager'
+import type { SelectionManager, SelectionBounds, PixelSelection } from './SelectionManager'
 import { markAsSystemObject } from '@/lib/editor/utils/systemObjects'
 import { SystemObjectType } from '@/types/fabric'
 
@@ -78,7 +78,7 @@ export class SelectionRenderer {
     }
     
     // Create marching ants path
-    const overlay = this.createMarchingAntsPath(selection.bounds)
+    const overlay = this.createMarchingAntsPath(selection)
     
     if (overlay) {
       this.selectionOverlay = overlay
@@ -121,21 +121,63 @@ export class SelectionRenderer {
   /**
    * Create marching ants path from selection bounds
    */
-  private createMarchingAntsPath(bounds: SelectionBounds): Group | null {
+  private createMarchingAntsPath(selection: PixelSelection): Group | null {
     // Validate bounds
-    if (bounds.width <= 0 || bounds.height <= 0) {
+    if (selection.bounds.width <= 0 || selection.bounds.height <= 0) {
       return null
     }
     
-    // For now, create a simple rectangle path
-    // In a full implementation, this would trace the actual selection outline
-    const pathData = `
-      M ${bounds.x} ${bounds.y}
-      L ${bounds.x + bounds.width} ${bounds.y}
-      L ${bounds.x + bounds.width} ${bounds.y + bounds.height}
-      L ${bounds.x} ${bounds.y + bounds.height}
-      Z
-    `
+    // Create path data based on shape type
+    let pathData: string
+    
+    if (selection.shape) {
+      switch (selection.shape.type) {
+        case 'rectangle':
+          pathData = `
+            M ${selection.shape.x} ${selection.shape.y}
+            L ${selection.shape.x + selection.shape.width} ${selection.shape.y}
+            L ${selection.shape.x + selection.shape.width} ${selection.shape.y + selection.shape.height}
+            L ${selection.shape.x} ${selection.shape.y + selection.shape.height}
+            Z
+          `
+          break
+          
+        case 'ellipse':
+          // Create ellipse path using SVG arc commands
+          const { cx, cy, rx, ry } = selection.shape
+          pathData = `
+            M ${cx - rx} ${cy}
+            A ${rx} ${ry} 0 0 1 ${cx + rx} ${cy}
+            A ${rx} ${ry} 0 0 1 ${cx - rx} ${cy}
+            Z
+          `
+          break
+          
+        case 'path':
+          // Use the stored path data directly
+          pathData = selection.shape.pathData
+          break
+          
+        default:
+          // Fallback to rectangle bounds
+          pathData = `
+            M ${selection.bounds.x} ${selection.bounds.y}
+            L ${selection.bounds.x + selection.bounds.width} ${selection.bounds.y}
+            L ${selection.bounds.x + selection.bounds.width} ${selection.bounds.y + selection.bounds.height}
+            L ${selection.bounds.x} ${selection.bounds.y + selection.bounds.height}
+            Z
+          `
+      }
+    } else {
+      // No shape info, use bounds as rectangle
+      pathData = `
+        M ${selection.bounds.x} ${selection.bounds.y}
+        L ${selection.bounds.x + selection.bounds.width} ${selection.bounds.y}
+        L ${selection.bounds.x + selection.bounds.width} ${selection.bounds.y + selection.bounds.height}
+        L ${selection.bounds.x} ${selection.bounds.y + selection.bounds.height}
+        Z
+      `
+    }
     
     const path = new Path(pathData, {
       fill: '',
@@ -168,12 +210,8 @@ export class SelectionRenderer {
     const selection = this.selectionManager.getSelection()
     if (!selection) return null
     
-    // This is a simplified version - a full implementation would
-    // use marching squares or similar algorithm to trace the selection edge
-    const bounds = selection.bounds
-    
-    // For now, just return a rectangle
-    return this.createMarchingAntsPath(bounds)
+    // Use the main createMarchingAntsPath method which now properly handles shape types
+    return this.createMarchingAntsPath(selection)
   }
   
   /**
