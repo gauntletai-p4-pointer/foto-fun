@@ -10,7 +10,7 @@ export class CreateLayerCommand extends Command {
   constructor(layer: Layer) {
     super(`Create layer "${layer.name}"`)
     this.layer = layer
-    this.typedEventBus = ServiceContainer.getInstance().get<TypedEventBus>('TypedEventBus')
+    this.typedEventBus = ServiceContainer.getInstance().getSync<TypedEventBus>('TypedEventBus')
   }
   
   async execute(): Promise<void> {

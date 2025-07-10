@@ -22,7 +22,7 @@ export class CutCommand extends Command {
     this.objectIds = objects.map(obj => obj.id)
     this.layerIds = [...new Set(objects.map(obj => obj.layerId))]
     this.clipboard = ClipboardManager.getInstance()
-    this.typedEventBus = ServiceContainer.getInstance().get<TypedEventBus>('TypedEventBus')
+    this.typedEventBus = ServiceContainer.getInstance().getSync<TypedEventBus>('TypedEventBus')
   }
   
   async execute(): Promise<void> {

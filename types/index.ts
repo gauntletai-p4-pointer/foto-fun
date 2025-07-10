@@ -41,6 +41,7 @@ export type LayerType = 'raster' | 'vector' | 'text' | 'adjustment' | 'group'
 
 // Tool event type - updated for Konva
 export interface ToolEvent {
+  type: 'mousedown' | 'mousemove' | 'mouseup' | 'keydown' | 'keyup'
   point: Point
   screenPoint: Point
   pressure: number
@@ -49,6 +50,7 @@ export interface ToolEvent {
   altKey: boolean
   metaKey: boolean
   button: number
+  nativeEvent?: MouseEvent | KeyboardEvent
   target?: any // Konva.Node
 }
 

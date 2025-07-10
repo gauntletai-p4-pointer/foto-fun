@@ -12,7 +12,7 @@ export class RemoveObjectCommand extends Command {
     super(`Remove ${object.type}`)
     this.object = object
     this.layerId = layerId
-    this.typedEventBus = ServiceContainer.getInstance().get<TypedEventBus>('TypedEventBus')
+    this.typedEventBus = ServiceContainer.getInstance().getSync<TypedEventBus>('TypedEventBus')
   }
   
   async execute(): Promise<void> {

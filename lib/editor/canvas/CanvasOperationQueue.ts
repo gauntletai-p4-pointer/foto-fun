@@ -19,7 +19,7 @@ export class CanvasOperationQueue {
   private canvasStore: TypedCanvasStore
   
   constructor() {
-    this.canvasStore = ServiceContainer.getInstance().get<TypedCanvasStore>('CanvasStore')
+    this.canvasStore = ServiceContainer.getInstance().getSync<TypedCanvasStore>('CanvasStore')
     
     // Subscribe to canvas state changes
     this.canvasStore.subscribe((state) => {

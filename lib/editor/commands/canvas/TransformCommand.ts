@@ -30,7 +30,7 @@ export class TransformCommand extends Command {
     this.transformType = transformType
     this.value = value
     this.previousTransforms = new Map()
-    this.typedEventBus = ServiceContainer.getInstance().get<TypedEventBus>('TypedEventBus')
+    this.typedEventBus = ServiceContainer.getInstance().getSync<TypedEventBus>('TypedEventBus')
     
     // Store previous transforms
     objects.forEach(obj => {

@@ -14,5 +14,5 @@ import { TypedCanvasStore } from './TypedCanvasStore'
  * Should be used in classes, commands, etc.
  */
 export function getCanvasStore(): TypedCanvasStore {
-  return ServiceContainer.getInstance().get<TypedCanvasStore>('CanvasStore')
+  return ServiceContainer.getInstance().getSync<TypedCanvasStore>('CanvasStore')
 } 

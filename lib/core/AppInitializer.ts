@@ -4,6 +4,7 @@ import { ResourceManager } from './ResourceManager'
 // Event System
 import { EventStore } from '@/lib/events/core/EventStore'
 import { getTypedEventBus } from '@/lib/events/core/TypedEventBus'
+import { EventStoreBridge } from '@/lib/events/core/EventStoreBridge'
 
 // Stores
 import { TypedCanvasStore } from '@/lib/store/canvas/TypedCanvasStore'
@@ -34,6 +35,16 @@ export class AppInitializer {
     // Event System - Use singleton instance
     container.registerSingleton('EventStore', () => EventStore.getInstance())
     container.registerSingleton('TypedEventBus', () => getTypedEventBus())
+    
+    // Initialize the EventStoreBridge to connect EventStore to TypedEventBus
+    container.registerSingleton('EventStoreBridge', () => {
+      const bridge = EventStoreBridge.getInstance(
+        container.getSync('EventStore'),
+        container.getSync('TypedEventBus')
+      )
+      bridge.start()
+      return bridge
+    })
     
     // Canvas System - Use async factory for lazy loading
     container.registerSingleton('CanvasManagerFactory', async () => {
@@ -124,6 +135,9 @@ export class AppInitializer {
     container.registerSingleton('ToolExecutor', () => {
       return ClientToolExecutor
     })
+    
+    // Ensure EventStoreBridge is started
+    container.getSync('EventStoreBridge')
     
     return container
   }

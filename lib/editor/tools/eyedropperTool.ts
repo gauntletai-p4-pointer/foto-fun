@@ -224,7 +224,7 @@ export class EyedropperTool extends BaseTool {
     )
     
     // Sample color and update info
-    const color = this.sampleColor(point, false)
+    const color = this.sampleColor(point)
     if (color && this.previewDiv) {
       const colorInfo = this.previewDiv.querySelector('.eyedropper-color-info') as HTMLDivElement
       if (colorInfo) {
@@ -338,7 +338,7 @@ export class EyedropperTool extends BaseTool {
    * Sample color for AI operations
    */
   async sampleColorAt(position: Point): Promise<{ hex: string; rgb: { r: number; g: number; b: number; a: number } } | null> {
-    return this.sampleColor(position, false)
+    return this.sampleColor(position)
   }
 }
 

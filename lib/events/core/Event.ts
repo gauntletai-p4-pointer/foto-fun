@@ -109,9 +109,10 @@ export abstract class CanvasEvent extends Event {
   constructor(
     type: string,
     canvasId: string,
-    metadata: Event['metadata']
+    metadata: Event['metadata'],
+    version?: number
   ) {
-    super(type, canvasId, 'canvas', metadata)
+    super(type, canvasId, 'canvas', metadata, version)
   }
 }
 

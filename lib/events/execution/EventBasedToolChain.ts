@@ -35,7 +35,7 @@ export class EventBasedToolChain {
       options.metadata
     )
     this.canvas = options.canvas
-    this.typedEventBus = ServiceContainer.getInstance().get<TypedEventBus>('TypedEventBus')
+    this.typedEventBus = ServiceContainer.getInstance().getSync<TypedEventBus>('TypedEventBus')
   }
   
   /**

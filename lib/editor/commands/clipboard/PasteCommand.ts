@@ -17,7 +17,7 @@ export class PasteCommand extends Command {
     super('Paste')
     this.canvasManager = canvasManager
     this.clipboard = ClipboardManager.getInstance()
-    this.typedEventBus = ServiceContainer.getInstance().get<TypedEventBus>('TypedEventBus')
+    this.typedEventBus = ServiceContainer.getInstance().getSync<TypedEventBus>('TypedEventBus')
   }
   
   async execute(): Promise<void> {

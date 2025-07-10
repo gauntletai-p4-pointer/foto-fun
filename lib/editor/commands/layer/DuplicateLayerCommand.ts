@@ -11,7 +11,7 @@ export class DuplicateLayerCommand extends Command {
   constructor(originalLayerId: string) {
     super(`Duplicate layer`)
     this.originalLayerId = originalLayerId
-    this.typedEventBus = ServiceContainer.getInstance().get<TypedEventBus>('TypedEventBus')
+    this.typedEventBus = ServiceContainer.getInstance().getSync<TypedEventBus>('TypedEventBus')
   }
   
   async execute(): Promise<void> {

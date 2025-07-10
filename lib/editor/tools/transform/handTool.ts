@@ -36,7 +36,7 @@ export class HandTool extends BaseTool {
     
     // Start panning
     this.isPanning = true
-    this.startPoint = { ...event.point }
+    this.startPoint = { ...event.screenPoint } // Use screenPoint consistently
     this.startPan = { ...canvas.state.pan }
     
     // Change cursor to grabbing
@@ -48,15 +48,14 @@ export class HandTool extends BaseTool {
     
     const canvas = this.getCanvas()
     
-    // Calculate delta
+    // Calculate delta in screen coordinates
     const dx = event.screenPoint.x - this.startPoint.x
     const dy = event.screenPoint.y - this.startPoint.y
     
-    // Apply pan with zoom consideration
-    const zoom = canvas.state.zoom
+    // Apply pan directly (no zoom adjustment needed for screen coordinates)
     const newPan = {
-      x: this.startPan.x + dx / zoom,
-      y: this.startPan.y + dy / zoom
+      x: this.startPan.x + dx,
+      y: this.startPan.y + dy
     }
     
     // Update pan

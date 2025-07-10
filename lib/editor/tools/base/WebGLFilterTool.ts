@@ -3,6 +3,7 @@ import type { CanvasObject } from '@/lib/editor/canvas/types'
 import type { WebGLFilterManager } from '@/lib/editor/filters/WebGLFilterManager'
 import { FilterAppliedEvent, FilterRemovedEvent } from '@/lib/events/canvas/ToolEvents'
 import type Konva from 'konva'
+import { ServiceContainer } from '@/lib/core/ServiceContainer'
 
 /**
  * Base class for WebGL-powered filter tools
@@ -20,13 +21,13 @@ export abstract class WebGLFilterTool extends BaseTool {
   
   protected setupTool(): void {
     // Get WebGLFilterManager from DI container
-    const container = (window as Window & { __serviceContainer?: { get: (name: string) => unknown } }).__serviceContainer
-    if (!container) {
-      console.error('[WebGLFilterTool] Service container not found')
+    try {
+      const container = ServiceContainer.getInstance()
+      this.filterManager = container.getSync<WebGLFilterManager>('WebGLFilterManager')
+    } catch (error) {
+      console.error('[WebGLFilterTool] Failed to get WebGLFilterManager:', error)
       return
     }
-    
-    this.filterManager = container.get('WebGLFilterManager')
     
     // Initialize with default parameters
     const defaultParams = this.getDefaultParams()
@@ -189,12 +190,15 @@ export abstract class WebGLFilterTool extends BaseTool {
       const firstObject = this.findObject(selection.objectIds[0])
       if (firstObject && firstObject.type === 'image') {
         // Check filter metadata stored on object
-        const filterData = firstObject.metadata?.filters?.[this.getFilterType()]
-        if (filterData) {
-          // Restore options from metadata
-          Object.entries(filterData).forEach(([key, value]) => {
-            this.setOption(key, value)
-          })
+        const filters = firstObject.metadata?.filters as Record<string, Record<string, unknown>> | undefined
+        if (filters) {
+          const filterData = filters[this.getFilterType()]
+          if (filterData) {
+            // Restore options from metadata
+            Object.entries(filterData).forEach(([key, value]) => {
+              this.setOption(key, value)
+            })
+          }
         }
       }
     }
@@ -253,11 +257,14 @@ export abstract class WebGLFilterTool extends BaseTool {
    * Support for AI operations with specific targets
    */
   async applyWithContext(params: Record<string, unknown>, targetObjects?: CanvasObject[]): Promise<void> {
+    // Convert params to the correct type
+    const webglParams = this.convertOptionsToWebGLParams(params)
+    
     if (targetObjects) {
       // Apply to specific objects (AI workflow)
       for (const obj of targetObjects) {
         if (obj.type === 'image') {
-          await this.applyFilterToImage(obj, params)
+          await this.applyFilterToImage(obj, webglParams)
         }
       }
     } else {

@@ -32,9 +32,10 @@ export class ObjectAddedEvent extends CanvasEvent {
     private canvasId: string,
     private object: CanvasObject,
     private layerId: string | undefined,
-    metadata: CanvasEvent['metadata']
+    metadata: CanvasEvent['metadata'],
+    version?: number
   ) {
-    super('canvas.object.added', canvasId, metadata)
+    super('canvas.object.added', canvasId, metadata, version)
   }
   
   apply(currentState: CanvasState): CanvasState {
@@ -93,9 +94,10 @@ export class ObjectRemovedEvent extends CanvasEvent {
   constructor(
     private canvasId: string,
     private object: CanvasObject,
-    metadata: CanvasEvent['metadata']
+    metadata: CanvasEvent['metadata'],
+    version?: number
   ) {
-    super('canvas.object.removed', canvasId, metadata)
+    super('canvas.object.removed', canvasId, metadata, version)
   }
   
   apply(currentState: CanvasState): CanvasState {
@@ -149,9 +151,10 @@ export class ObjectModifiedEvent extends CanvasEvent {
     private object: CanvasObject,
     previousState: Record<string, unknown>,
     private newState: Record<string, unknown>,
-    metadata: CanvasEvent['metadata']
+    metadata: CanvasEvent['metadata'],
+    version?: number
   ) {
-    super('canvas.object.modified', canvasId, metadata)
+    super('canvas.object.modified', canvasId, metadata, version)
     this.previousState = previousState
   }
   
@@ -454,7 +457,7 @@ export class KonvaObjectAddedEvent extends CanvasEvent {
       },
       node: null as unknown as Konva.Node, // Will be set by the canvas manager
       layerId: this.layerId,
-      data: this.objectData.data
+      data: this.objectData.data as string | Record<string, unknown> | HTMLImageElement | undefined
     }
     
     return {

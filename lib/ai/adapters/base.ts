@@ -126,7 +126,7 @@ export abstract class BaseToolAdapter<
   ): Promise<void> {
     // Get the tool store from DI container
     const container = ServiceContainer.getInstance()
-    const toolStore = container.get<EventToolStore>('ToolStore')
+    const toolStore = container.getSync<EventToolStore>('ToolStore')
     
     const tool = toolStore.getTool(toolId)
     
@@ -276,7 +276,7 @@ export abstract class BaseToolAdapter<
  */
 export type ToolAdapter = BaseToolAdapter<unknown, unknown>
 
-// Type for Canvas image objects (replaces FabricImage)
+// Type for Canvas image objects
 type CanvasImage = CanvasObject & { type: 'image' }
 
 /**
@@ -486,7 +486,7 @@ export abstract class CanvasToolAdapter<
    */
   protected async activateTool(): Promise<void> {
     const container = ServiceContainer.getInstance()
-    const toolStore = container.get<EventToolStore>('ToolStore')
+    const toolStore = container.getSync<EventToolStore>('ToolStore')
     await toolStore.activateTool(this.tool.id)
     
     // Small delay to ensure tool is activated and subscribed
@@ -498,7 +498,7 @@ export abstract class CanvasToolAdapter<
    */
   protected async updateToolOption(optionName: string, value: unknown): Promise<void> {
     const container = ServiceContainer.getInstance()
-    const toolStore = container.get<EventToolStore>('ToolStore')
+    const toolStore = container.getSync<EventToolStore>('ToolStore')
     toolStore.updateOption(this.tool.id, optionName, value)
   }
   

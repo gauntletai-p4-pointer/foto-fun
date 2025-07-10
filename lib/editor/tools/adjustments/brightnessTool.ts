@@ -57,7 +57,7 @@ export class BrightnessTool extends WebGLFilterTool {
       await this.removeFilter()
     } else {
       // Apply last used value or default
-      const lastValue = this.lastAppliedParams?.amount
+      const lastValue = this.lastAppliedParams && typeof this.lastAppliedParams.amount === 'number'
         ? this.lastAppliedParams.amount * 100
         : 20
       this.setOption('adjustment', lastValue)

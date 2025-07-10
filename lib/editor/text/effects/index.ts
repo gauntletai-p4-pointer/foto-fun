@@ -1,4 +1,4 @@
-export { TextLayerStyles as FabricTextLayerStyles, type TextEffects, type DropShadowOptions, type StrokeOptions, type GlowOptions, type GradientOptions } from './LayerStyles'
+export { type TextEffects, type DropShadowOptions, type StrokeOptions, type GlowOptions, type GradientOptions } from './LayerStyles'
 export { TextWarp, type WarpStyle, type WarpOptions } from './TextWarp'
 
 // Konva-compatible text layer styles

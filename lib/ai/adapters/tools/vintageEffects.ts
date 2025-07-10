@@ -84,7 +84,7 @@ NEVER ask which effect - interpret the user's intent and choose the most appropr
       
       // Apply vintage effect using the tool
       const container = ServiceContainer.getInstance()
-      const toolStore = container.get<EventToolStore>('ToolStore')
+      const toolStore = container.getSync<EventToolStore>('ToolStore')
       
       // Activate the tool
       await toolStore.activateTool(this.tool.id)

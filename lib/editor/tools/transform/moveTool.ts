@@ -175,8 +175,8 @@ export class MoveTool extends BaseTool {
         'canvas',
         [{
           objectId: this.dragState.target.id,
-          previousTransform: this.dragState.originalTransform,
-          newTransform: finalTransform
+          previousTransform: { ...this.dragState.originalTransform } as Record<string, unknown>,
+          newTransform: { ...finalTransform } as Record<string, unknown>
         }],
         this.executionContext.getMetadata()
       ))
@@ -221,8 +221,15 @@ export class MoveTool extends BaseTool {
     // Search through all layers
     for (const layer of canvas.state.layers) {
       for (const obj of layer.objects) {
-        if (obj.node === node || (obj.node.findOne && obj.node.findOne((n: Konva.Node) => n === node))) {
+        if (obj.node === node) {
           return obj
+        }
+        // Check if node is a child of a group
+        if (obj.node instanceof Konva.Group || obj.node instanceof Konva.Container) {
+          const found = obj.node.findOne((n: Konva.Node) => n === node)
+          if (found) {
+            return obj
+          }
         }
       }
     }

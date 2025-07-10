@@ -11,7 +11,7 @@ export class UpdateLayerCommand extends Command {
     super(`Update layer`)
     this.layerId = layerId
     this.updates = updates
-    this.typedEventBus = ServiceContainer.getInstance().get<TypedEventBus>('TypedEventBus')
+    this.typedEventBus = ServiceContainer.getInstance().getSync<TypedEventBus>('TypedEventBus')
   }
   
   async execute(): Promise<void> {

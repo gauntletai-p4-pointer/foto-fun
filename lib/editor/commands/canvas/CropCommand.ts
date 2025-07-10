@@ -24,7 +24,7 @@ export class CropCommand extends Command {
     super(description || 'Crop canvas')
     this.canvasManager = canvasManager
     this.cropRect = cropRect
-    this.typedEventBus = ServiceContainer.getInstance().get<TypedEventBus>('TypedEventBus')
+    this.typedEventBus = ServiceContainer.getInstance().getSync<TypedEventBus>('TypedEventBus')
     
     // Store previous state
     this.previousState = {

@@ -35,5 +35,5 @@ export function useLayerStore() {
  * Should be used in classes, commands, etc.
  */
 export function getLayerStore(): EventLayerStore {
-  return ServiceContainer.getInstance().get<EventLayerStore>('LayerStore')
+  return ServiceContainer.getInstance().getSync<EventLayerStore>('LayerStore')
 } 

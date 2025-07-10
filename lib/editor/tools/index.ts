@@ -38,12 +38,12 @@ function adaptTool(tool: CanvasTool): Tool {
     cursor: tool.cursor,
     shortcut: tool.shortcut,
     isImplemented: true, // All exported tools are implemented
-    // Ensure onActivate is defined (required by UI Tool interface)
-    onActivate: tool.onActivate || (() => {}),
-    onDeactivate: tool.onDeactivate,
-    onMouseDown: tool.onMouseDown,
-    onMouseMove: tool.onMouseMove,
-    onMouseUp: tool.onMouseUp,
+    // Bind methods to preserve 'this' context
+    onActivate: tool.onActivate ? tool.onActivate.bind(tool) : (() => {}),
+    onDeactivate: tool.onDeactivate ? tool.onDeactivate.bind(tool) : undefined,
+    onMouseDown: tool.onMouseDown ? tool.onMouseDown.bind(tool) : undefined,
+    onMouseMove: tool.onMouseMove ? tool.onMouseMove.bind(tool) : undefined,
+    onMouseUp: tool.onMouseUp ? tool.onMouseUp.bind(tool) : undefined,
   }
 }
 

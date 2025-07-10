@@ -10,6 +10,7 @@ import { EventToolStore } from '@/lib/store/tools/EventToolStore'
 import { getTypedEventBus } from '@/lib/events/core/TypedEventBus'
 import { useFileHandler } from '@/hooks/useFileHandler'
 import { ServiceContainer } from '@/lib/core/ServiceContainer'
+import type { ToolEvent } from '@/lib/editor/canvas/types'
 
 export function Canvas() {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -162,14 +163,107 @@ export function Canvas() {
     }
   }, [canvasManager, toolStore])
   
-  // Handle keyboard shortcuts
+  // Handle mouse events for tools
   useEffect(() => {
-    if (!canvasManager) return
+    if (!canvasManager || !toolStore) return
+    
+    const stage = canvasManager.konvaStage
+    const container = stage.container()
+    
+    // Helper to create ToolEvent from mouse event
+    const createToolEvent = (type: 'mousedown' | 'mousemove' | 'mouseup', e: MouseEvent): ToolEvent => {
+      const rect = container.getBoundingClientRect()
+      const pointerPos = stage.getPointerPosition() || { x: 0, y: 0 }
+      
+      // Calculate canvas coordinates considering zoom and pan
+      const zoom = canvasManager.state.zoom
+      const pan = canvasManager.state.pan
+      
+      // Screen coordinates (relative to viewport)
+      const screenPoint = {
+        x: e.clientX - rect.left,
+        y: e.clientY - rect.top
+      }
+      
+      // Canvas coordinates (considering zoom and pan)
+      const point = {
+        x: (screenPoint.x - pan.x) / zoom,
+        y: (screenPoint.y - pan.y) / zoom
+      }
+      
+      return {
+        type,
+        point,
+        screenPoint,
+        pressure: 1, // TODO: Support pressure-sensitive devices
+        shiftKey: e.shiftKey,
+        ctrlKey: e.ctrlKey,
+        altKey: e.altKey,
+        metaKey: e.metaKey,
+        button: e.button,
+        nativeEvent: e
+      }
+    }
+    
+    // Mouse event handlers
+    const handleMouseDown = (e: MouseEvent) => {
+      const activeTool = toolStore.getActiveTool()
+      if (activeTool?.onMouseDown) {
+        const toolEvent = createToolEvent('mousedown', e)
+        activeTool.onMouseDown(toolEvent)
+      }
+    }
+    
+    const handleMouseMove = (e: MouseEvent) => {
+      const activeTool = toolStore.getActiveTool()
+      if (activeTool?.onMouseMove) {
+        const toolEvent = createToolEvent('mousemove', e)
+        activeTool.onMouseMove(toolEvent)
+      }
+    }
+    
+    const handleMouseUp = (e: MouseEvent) => {
+      const activeTool = toolStore.getActiveTool()
+      if (activeTool?.onMouseUp) {
+        const toolEvent = createToolEvent('mouseup', e)
+        activeTool.onMouseUp(toolEvent)
+      }
+    }
+    
+    // Add event listeners
+    container.addEventListener('mousedown', handleMouseDown)
+    container.addEventListener('mousemove', handleMouseMove)
+    container.addEventListener('mouseup', handleMouseUp)
+    
+    // Also listen on window for mouseup to catch drags that end outside canvas
+    window.addEventListener('mouseup', handleMouseUp)
+    window.addEventListener('mousemove', handleMouseMove)
+    
+    return () => {
+      container.removeEventListener('mousedown', handleMouseDown)
+      container.removeEventListener('mousemove', handleMouseMove)
+      container.removeEventListener('mouseup', handleMouseUp)
+      window.removeEventListener('mouseup', handleMouseUp)
+      window.removeEventListener('mousemove', handleMouseMove)
+    }
+  }, [canvasManager, toolStore])
+  
+  // Handle keyboard events for tools
+  useEffect(() => {
+    if (!canvasManager || !toolStore) return
     
     const handleKeyDown = (e: KeyboardEvent) => {
       // Check if input is focused
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
         return
+      }
+      
+      // First, let the active tool handle the event
+      const activeTool = toolStore.getActiveTool()
+      if (activeTool?.onKeyDown) {
+        activeTool.onKeyDown(e)
+        // If the tool handled it, it should preventDefault
+        if (e.defaultPrevented) return
       }
       
       const isMeta = e.metaKey || e.ctrlKey
@@ -213,12 +307,27 @@ export function Canvas() {
       }
     }
     
+    const handleKeyUp = (e: KeyboardEvent) => {
+      // Check if input is focused
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        return
+      }
+      
+      // Let the active tool handle the event
+      const activeTool = toolStore.getActiveTool()
+      if (activeTool?.onKeyUp) {
+        activeTool.onKeyUp(e)
+      }
+    }
+    
     window.addEventListener('keydown', handleKeyDown)
+    window.addEventListener('keyup', handleKeyUp)
     
     return () => {
       window.removeEventListener('keydown', handleKeyDown)
+      window.removeEventListener('keyup', handleKeyUp)
     }
-  }, [canvasManager])
+  }, [canvasManager, toolStore])
   
   // Handle window resize
   useEffect(() => {
@@ -252,15 +361,33 @@ export function Canvas() {
     <div 
       ref={containerRef}
       data-canvas-container
-      className="relative flex-1 bg-content-background p-4 min-w-0 overflow-hidden"
+      className="relative flex-1 bg-content-background min-w-0"
+      style={{ 
+        overflow: 'auto',
+        position: 'relative'
+      }}
       onDrop={handleDrop}
       onDragOver={handleDragOver}
     >
-      {/* Konva will create the canvas elements inside the container */}
+      {/* Canvas wrapper with proper dimensions */}
+      <div 
+        style={{
+          position: 'relative',
+          margin: '16px', // Equivalent to p-4
+          minWidth: canvasManager ? `${canvasManager.state.width}px` : '800px',
+          minHeight: canvasManager ? `${canvasManager.state.height}px` : '600px',
+          backgroundColor: canvasManager?.state.backgroundColor || '#ffffff',
+          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
+          borderRadius: '4px',
+          overflow: 'hidden' // Only hide overflow on the actual canvas area
+        }}
+      >
+        {/* Konva will create the canvas elements inside this wrapper */}
+      </div>
       
       {/* Zoom indicator */}
       {canvasManager && (
-        <div className="absolute bottom-4 right-4 bg-background/90 backdrop-blur-sm text-foreground px-3 py-1 rounded-md text-sm font-mono border border-foreground/10 shadow-lg">
+        <div className="fixed bottom-8 right-8 bg-background/90 backdrop-blur-sm text-foreground px-3 py-1 rounded-md text-sm font-mono border border-foreground/10 shadow-lg z-10">
           {Math.round(canvasManager.state.zoom * 100)}%
         </div>
       )}

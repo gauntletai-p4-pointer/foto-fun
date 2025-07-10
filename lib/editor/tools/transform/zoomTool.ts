@@ -46,7 +46,7 @@ export class ZoomTool extends BaseTool {
     
     if (event.altKey) {
       // Alt+click for zoom out
-      this.zoomOut(event.point)
+      this.zoomOut(event.screenPoint)
     } else {
       // Start marquee zoom or click zoom
       this.marqueeStart = { ...event.screenPoint }
@@ -83,9 +83,9 @@ export class ZoomTool extends BaseTool {
       // Click zoom
       const zoomMode = this.getOption('zoomMode') as string
       if (zoomMode === 'out' || event.altKey) {
-        this.zoomOut(event.point)
+        this.zoomOut(event.screenPoint)
       } else {
-        this.zoomIn(event.point)
+        this.zoomIn(event.screenPoint)
       }
     } else {
       // Marquee zoom
@@ -180,7 +180,12 @@ export class ZoomTool extends BaseTool {
       this.zoomToPoint(point, newZoom)
     } else {
       // Zoom to center
-      canvas.setZoom(newZoom)
+      const stage = canvas.konvaStage
+      const centerPoint = {
+        x: stage.width() / 2,
+        y: stage.height() / 2
+      }
+      this.zoomToPoint(centerPoint, newZoom)
     }
   }
   
@@ -197,7 +202,12 @@ export class ZoomTool extends BaseTool {
       this.zoomToPoint(point, newZoom)
     } else {
       // Zoom from center
-      canvas.setZoom(newZoom)
+      const stage = canvas.konvaStage
+      const centerPoint = {
+        x: stage.width() / 2,
+        y: stage.height() / 2
+      }
+      this.zoomToPoint(centerPoint, newZoom)
     }
   }
   
@@ -211,31 +221,29 @@ export class ZoomTool extends BaseTool {
   }
   
   /**
-   * Zoom to specific point
+   * Zoom to specific point (in screen coordinates)
    */
-  private zoomToPoint(point: Point, newZoom: number): void {
+  private zoomToPoint(screenPoint: Point, newZoom: number): void {
     const canvas = this.getCanvas()
     const stage = canvas.konvaStage
     const oldZoom = canvas.state.zoom
+    const oldPan = canvas.state.pan
     
-    // Get current position
-    const mousePointTo = {
-      x: point.x / oldZoom - stage.x() / oldZoom,
-      y: point.y / oldZoom - stage.y() / oldZoom
+    // Convert screen point to world coordinates before zoom
+    const worldPoint = {
+      x: (screenPoint.x - oldPan.x) / oldZoom,
+      y: (screenPoint.y - oldPan.y) / oldZoom
     }
     
-    // Set new zoom
+    // Calculate new pan to keep the world point at the same screen position
+    const newPan = {
+      x: screenPoint.x - worldPoint.x * newZoom,
+      y: screenPoint.y - worldPoint.y * newZoom
+    }
+    
+    // Apply zoom and pan
     canvas.setZoom(newZoom)
-    
-    // Calculate new position
-    const newPos = {
-      x: -(mousePointTo.x - point.x / newZoom) * newZoom,
-      y: -(mousePointTo.y - point.y / newZoom) * newZoom
-    }
-    
-    // Apply new position
-    stage.position(newPos)
-    canvas.setPan({ x: newPos.x, y: newPos.y })
+    canvas.setPan(newPan)
   }
   
   /**
@@ -251,34 +259,48 @@ export class ZoomTool extends BaseTool {
     const rect = this.marqueeRect.getBoundingClientRect()
     const stageRect = stage.container().getBoundingClientRect()
     
-    // Convert to stage coordinates
-    const x1 = (rect.left - stageRect.left) / canvas.state.zoom
-    const y1 = (rect.top - stageRect.top) / canvas.state.zoom
-    const x2 = (rect.right - stageRect.left) / canvas.state.zoom
-    const y2 = (rect.bottom - stageRect.top) / canvas.state.zoom
+    // Get current zoom and pan
+    const currentZoom = canvas.state.zoom
+    const currentPan = canvas.state.pan
     
-    // Calculate zoom to fit
-    const marqueeWidth = x2 - x1
-    const marqueeHeight = y2 - y1
+    // Convert marquee screen coordinates to canvas coordinates
+    const marqueeScreenBounds = {
+      x: rect.left - stageRect.left,
+      y: rect.top - stageRect.top,
+      width: rect.width,
+      height: rect.height
+    }
+    
+    // Convert to world coordinates
+    const worldBounds = {
+      x: (marqueeScreenBounds.x - currentPan.x) / currentZoom,
+      y: (marqueeScreenBounds.y - currentPan.y) / currentZoom,
+      width: marqueeScreenBounds.width / currentZoom,
+      height: marqueeScreenBounds.height / currentZoom
+    }
+    
+    // Calculate zoom to fit the marquee area in the viewport
     const stageWidth = stage.width()
     const stageHeight = stage.height()
     
-    const scaleX = stageWidth / marqueeWidth
-    const scaleY = stageHeight / marqueeHeight
-    const newZoom = Math.min(scaleX, scaleY, this.MAX_ZOOM)
+    const scaleX = stageWidth / worldBounds.width
+    const scaleY = stageHeight / worldBounds.height
+    const newZoom = Math.min(scaleX, scaleY, this.MAX_ZOOM) * 0.9 // 90% to add some padding
     
-    // Calculate center point
-    const centerX = (x1 + x2) / 2
-    const centerY = (y1 + y2) / 2
-    
-    // Set zoom and center
-    canvas.setZoom(newZoom)
-    
-    const newPan = {
-      x: -centerX * newZoom + stageWidth / 2,
-      y: -centerY * newZoom + stageHeight / 2
+    // Calculate center of marquee in world coordinates
+    const worldCenter = {
+      x: worldBounds.x + worldBounds.width / 2,
+      y: worldBounds.y + worldBounds.height / 2
     }
     
+    // Calculate new pan to center the marquee
+    const newPan = {
+      x: stageWidth / 2 - worldCenter.x * newZoom,
+      y: stageHeight / 2 - worldCenter.y * newZoom
+    }
+    
+    // Apply zoom and pan
+    canvas.setZoom(newZoom)
     canvas.setPan(newPan)
   }
   

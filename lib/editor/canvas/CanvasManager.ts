@@ -62,11 +62,21 @@ export class CanvasManager implements ICanvasManager {
     this.typedEventBus = new TypedEventBus()
     this.resourceManager = resourceManager
     
-    // Initialize stage
+    // Create a wrapper div for the Konva stage
+    const stageContainer = document.createElement('div')
+    stageContainer.style.width = '100%'
+    stageContainer.style.height = '100%'
+    stageContainer.style.position = 'relative'
+    container.appendChild(stageContainer)
+    
+    // Initialize stage with proper dimensions
+    const defaultWidth = 800
+    const defaultHeight = 600
+    
     this.stage = new Konva.Stage({
-      container: container,
-      width: container.offsetWidth,
-      height: container.offsetHeight
+      container: stageContainer,
+      width: defaultWidth,
+      height: defaultHeight
     })
     
     // Create layers
@@ -79,10 +89,13 @@ export class CanvasManager implements ICanvasManager {
     this.stage.add(this.selectionLayer)
     this.stage.add(this.overlayLayer)
     
+    // Draw background
+    this.drawBackground()
+    
     // Initialize state
     this._state = {
-      width: container.offsetWidth,
-      height: container.offsetHeight,
+      width: defaultWidth,
+      height: defaultHeight,
       zoom: 1,
       pan: { x: 0, y: 0 },
       layers: [],
@@ -285,13 +298,20 @@ export class CanvasManager implements ICanvasManager {
     layer.objects.push(object)
     layer.konvaLayer.draw()
     
-    // Emit event - events store the full object internally but serialize for storage
-    this.eventStore.append(new ObjectAddedEvent(
+    // Get current version for this canvas
+    const currentVersion = this.eventStore.getAggregateVersion(this.stage.id())
+    
+    // Create event with correct version
+    const event = new ObjectAddedEvent(
       this.stage.id(),
       object, // Pass full object, event will handle serialization
       targetLayerId,
-      { source: 'user' }
-    ))
+      { source: 'user' },
+      currentVersion + 1
+    )
+    
+    // Emit event
+    this.eventStore.append(event)
     
     return object
   }
@@ -306,10 +326,12 @@ export class CanvasManager implements ICanvasManager {
         layer.konvaLayer.draw()
         
         // Emit event
+        const currentVersion = this.eventStore.getAggregateVersion(this.stage.id())
         this.eventStore.append(new ObjectRemovedEvent(
           this.stage.id(),
           object,
-          { source: 'user' }
+          { source: 'user' },
+          currentVersion + 1
         ))
         
         break
@@ -632,20 +654,19 @@ export class CanvasManager implements ICanvasManager {
       activeLayer.konvaLayer.draw()
       
       // Emit event
+      const currentVersion = this.eventStore.getAggregateVersion(this.stage.id())
+      const event = new ObjectAddedEvent(
+        this.stage.id(),
+        canvasObject,
+        activeLayer.id,
+        this.executionContext?.getMetadata() || { source: 'user' },
+        currentVersion + 1
+      )
+      
       if (this.executionContext) {
-        this.executionContext.emit(new ObjectAddedEvent(
-          this.stage.id(),
-          canvasObject,
-          activeLayer.id,
-          this.executionContext.getMetadata()
-        ))
+        this.executionContext.emit(event)
       } else {
-        this.eventStore.append(new ObjectAddedEvent(
-          this.stage.id(),
-          canvasObject,
-          activeLayer.id,
-          { source: 'user' }
-        ))
+        this.eventStore.append(event)
       }
     }
   }
@@ -737,13 +758,15 @@ export class CanvasManager implements ICanvasManager {
       }
       
       // Emit event
-              const event = new ObjectModifiedEvent(
-          this.stage.id(),
-          obj,
-          { ...obj },
-          { filters: [filter] },
-          this.executionContext?.getMetadata() || { source: 'user' }
-        )
+      const currentVersion = this.eventStore.getAggregateVersion(this.stage.id())
+      const event = new ObjectModifiedEvent(
+        this.stage.id(),
+        obj,
+        { ...obj },
+        { filters: [filter] },
+        this.executionContext?.getMetadata() || { source: 'user' },
+        currentVersion + 1
+      )
       
       if (this.executionContext) {
         await this.executionContext.emit(event)
@@ -774,14 +797,26 @@ export class CanvasManager implements ICanvasManager {
     this.stage.width(width)
     this.stage.height(height)
     
+    // Update background
+    this.drawBackground()
+    
+    // Update container min dimensions
+    const wrapper = this.container.querySelector('div[style*="minWidth"]') as HTMLDivElement
+    if (wrapper) {
+      wrapper.style.minWidth = `${width}px`
+      wrapper.style.minHeight = `${height}px`
+    }
+    
     // Emit resize event
+    const currentVersion = this.eventStore.getAggregateVersion(this.stage.id())
     const event = new CanvasResizedEvent(
       this.stage.id(),
       width,
       height,
       previousWidth,
       previousHeight,
-      this.executionContext?.getMetadata() || { source: 'user' }
+      this.executionContext?.getMetadata() || { source: 'user' },
+      currentVersion + 1
     )
     
     if (this.executionContext) {
@@ -815,12 +850,14 @@ export class CanvasManager implements ICanvasManager {
       }
       
       // Emit event
+      const currentVersion = this.eventStore.getAggregateVersion(this.stage.id())
       const event = new ObjectModifiedEvent(
         this.stage.id(),
         obj,
         previousTransform,
         { transform: obj.transform },
-        this.executionContext?.getMetadata() || { source: 'user' }
+        this.executionContext?.getMetadata() || { source: 'user' },
+        currentVersion + 1
       )
       
       if (this.executionContext) {
@@ -855,12 +892,14 @@ export class CanvasManager implements ICanvasManager {
       }
       
       // Emit event
+      const currentVersion = this.eventStore.getAggregateVersion(this.stage.id())
       const event = new ObjectModifiedEvent(
         this.stage.id(),
         obj,
         previousTransform,
         { transform: obj.transform },
-        this.executionContext?.getMetadata() || { source: 'user' }
+        this.executionContext?.getMetadata() || { source: 'user' },
+        currentVersion + 1
       )
       
       if (this.executionContext) {
@@ -993,12 +1032,6 @@ export class CanvasManager implements ICanvasManager {
     }
     
     return null
-  }
-  
-  findObjectByFabricId(fabricId: string): CanvasObject | null {
-    // This is for compatibility during migration
-    // In the new system, we use our own IDs
-    return this.findObject(fabricId)
   }
   
   // Helper to set execution context
@@ -1295,45 +1328,93 @@ export class CanvasManager implements ICanvasManager {
     return null
   }
 
-  async updateObject(id: string, updates: Partial<CanvasObject>): Promise<void> {
-    const object = this.getObjectById(id)
-    if (!object) return
+  async updateObject(objectId: string, updates: Partial<CanvasObject>): Promise<void> {
+    const obj = this.findObject(objectId)
+    if (!obj) return
     
-    // Apply updates
-    Object.assign(object, updates)
+    const previousState = { ...obj }
     
-    // Update Konva node if transform changed
-    if (updates.transform && object.node) {
-      object.node.setAttrs({
-        x: object.transform.x,
-        y: object.transform.y,
-        scaleX: object.transform.scaleX,
-        scaleY: object.transform.scaleY,
-        rotation: object.transform.rotation,
-        skewX: object.transform.skewX,
-        skewY: object.transform.skewY
+    // Apply updates to the object
+    if (updates.transform) {
+      Object.assign(obj.transform, updates.transform)
+      obj.node.setAttrs({
+        x: obj.transform.x,
+        y: obj.transform.y,
+        scaleX: obj.transform.scaleX,
+        scaleY: obj.transform.scaleY,
+        rotation: obj.transform.rotation,
+        skewX: obj.transform.skewX,
+        skewY: obj.transform.skewY
       })
     }
     
-    // Update visibility
-    if (updates.visible !== undefined && object.node) {
-      object.node.visible(updates.visible)
+    if (updates.opacity !== undefined) {
+      obj.opacity = updates.opacity
+      obj.node.opacity(updates.opacity)
     }
     
-    // Update opacity
-    if (updates.opacity !== undefined && object.node) {
-      object.node.opacity(updates.opacity)
+    if (updates.visible !== undefined) {
+      obj.visible = updates.visible
+      obj.node.visible(updates.visible)
     }
     
-    this.renderAll()
+    if (updates.locked !== undefined) {
+      obj.locked = updates.locked
+      obj.node.listening(!updates.locked)
+      obj.node.draggable(!updates.locked)
+    }
     
-    // Emit event
-    this.typedEventBus.emit('canvas.object.modified', {
-      canvasId: this.id,
-      objectId: id,
-      previousState: {},
-      newState: updates
-    })
+    if (updates.blendMode !== undefined) {
+      obj.blendMode = updates.blendMode
+      // Map our blend modes to Konva's globalCompositeOperation
+      const blendModeMap: Record<BlendMode, GlobalCompositeOperation> = {
+        'normal': 'source-over',
+        'multiply': 'multiply',
+        'screen': 'screen',
+        'overlay': 'overlay',
+        'darken': 'darken',
+        'lighten': 'lighten',
+        'color-dodge': 'color-dodge',
+        'color-burn': 'color-burn',
+        'hard-light': 'hard-light',
+        'soft-light': 'soft-light',
+        'difference': 'difference',
+        'exclusion': 'exclusion',
+        'hue': 'source-over', // Not supported by canvas, use normal
+        'saturation': 'source-over', // Not supported by canvas, use normal
+        'color': 'source-over', // Not supported by canvas, use normal
+        'luminosity': 'source-over' // Not supported by canvas, use normal
+      }
+      obj.node.globalCompositeOperation(blendModeMap[updates.blendMode] || 'source-over')
+    }
+    
+    // Update the layer
+    const layer = this._state.layers.find(l => l.id === obj.layerId)
+    if (layer) {
+      layer.konvaLayer.batchDraw()
+    }
+    
+    // Create and append event to EventStore
+    const currentVersion = this.eventStore.getAggregateVersion(this.stage.id())
+    const event = new ObjectModifiedEvent(
+      this.stage.id(),
+      obj,
+      previousState,
+      updates,
+      this.executionContext?.getMetadata() || { source: 'user' },
+      currentVersion + 1
+    )
+    
+    if (this.executionContext) {
+      // If we have an execution context, emit through it (will be committed later)
+      await this.executionContext.emit(event)
+    } else {
+      // Otherwise, append directly to EventStore
+      await this.eventStore.append(event)
+      
+      // EventStore will notify its handlers, which will trigger TypedEventBus updates
+      // We don't need to emit to TypedEventBus directly - that happens in EventStore
+    }
   }
 
   getSelectionData(): any {
@@ -1415,5 +1496,25 @@ export class CanvasManager implements ICanvasManager {
    */
   private renderAll(): void {
     this.stage.batchDraw()
+  }
+
+  /**
+   * Draw background pattern or color
+   */
+  private drawBackground(): void {
+    // Clear existing background
+    this.backgroundLayer.destroyChildren()
+    
+    // Create background rect
+    const bg = new Konva.Rect({
+      x: 0,
+      y: 0,
+      width: this._state.width,
+      height: this._state.height,
+      fill: this._state.backgroundColor
+    })
+    
+    this.backgroundLayer.add(bg)
+    this.backgroundLayer.draw()
   }
 } 

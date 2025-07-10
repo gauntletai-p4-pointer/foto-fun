@@ -75,10 +75,10 @@ export class TypedCanvasStore {
           objects: {
             ...state.objects,
             [(data.object as { id?: string }).id || data.object.toString()]: {
-              id: (data.object as { id?: string }).id || data.object.toString(),
-              type: data.object.type as CanvasObject['type'],
-              layerId: data.layerId || state.activeLayerId || '',
-              data: data.object.toObject()
+              // Spread the object first, then override specific properties if needed
+              ...data.object,
+              // Only override layerId if not present in the object
+              layerId: (data.object as { layerId?: string }).layerId || data.layerId || state.activeLayerId || ''
             } as CanvasObject
           },
           isDirty: true,
@@ -93,14 +93,22 @@ export class TypedCanvasStore {
           const object = state.objects[data.objectId]
           if (!object) return state
           
+          // Safely merge the new state
+          const updatedObject = { ...object }
+          
+          // If data property exists and is an object, merge it
+          if (object.data && typeof object.data === 'object' && !(object.data instanceof HTMLImageElement)) {
+            updatedObject.data = { ...object.data, ...data.newState }
+          } else {
+            // Otherwise, replace the whole object with new state
+            Object.assign(updatedObject, data.newState)
+          }
+          
           return {
             ...state,
             objects: {
               ...state.objects,
-              [data.objectId]: {
-                ...object,
-                data: { ...object.data, ...data.newState }
-              }
+              [data.objectId]: updatedObject
             },
             isDirty: true,
             lastModified: data.timestamp
@@ -134,10 +142,18 @@ export class TypedCanvasStore {
             const objectId = (mod.object as { id?: string }).id || mod.object.toString()
             const object = updatedObjects[objectId]
             if (object) {
-              updatedObjects[objectId] = {
-                ...object,
-                data: { ...object.data, ...mod.newState }
+              // Safely merge the new state
+              const updatedObject = { ...object }
+              
+              // If data property exists and is an object, merge it
+              if (object.data && typeof object.data === 'object' && !(object.data instanceof HTMLImageElement)) {
+                updatedObject.data = { ...object.data, ...mod.newState }
+              } else {
+                // Otherwise, replace properties with new state
+                Object.assign(updatedObject, mod.newState)
               }
+              
+              updatedObjects[objectId] = updatedObject
             }
           })
           

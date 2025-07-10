@@ -100,7 +100,7 @@ export class ChainAdapter extends BaseToolAdapter<ExecuteChainInput, ExecuteChai
       
       // Get required services
       const container = ServiceContainer.getInstance()
-      const eventStore = container.get<EventStore>('EventStore')
+      const eventStore = container.getSync<EventStore>('EventStore')
       const canvas = context.canvas
       
       if (!canvas) {

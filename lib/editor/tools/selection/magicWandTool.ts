@@ -376,6 +376,7 @@ export class MagicWandTool extends BaseTool {
     
     // Simulate mouse click at the point
     await this.onMouseDown({
+      type: 'mousedown',
       point,
       screenPoint: point,
       pressure: 1,

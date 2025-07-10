@@ -35,5 +35,5 @@ export function useToolStore() {
  * Should be used in classes, commands, etc.
  */
 export function getToolStore(): EventToolStore {
-  return ServiceContainer.getInstance().get<EventToolStore>('ToolStore')
+  return ServiceContainer.getInstance().getSync<EventToolStore>('ToolStore')
 } 

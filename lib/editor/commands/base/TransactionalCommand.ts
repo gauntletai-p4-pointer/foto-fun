@@ -229,7 +229,7 @@ export abstract class TransactionalCommand extends Command {
     // Try to get from DI container
     try {
       const container = ServiceContainer.getInstance()
-      const manager = container.get<CanvasManager>('CanvasManager')
+      const manager = container.getSync<CanvasManager>('CanvasManager')
       return manager || null
     } catch (error) {
       console.warn('Failed to get CanvasManager from ServiceContainer:', error)

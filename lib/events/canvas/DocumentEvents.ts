@@ -143,9 +143,10 @@ export class CanvasResizedEvent extends Event {
     public readonly height: number,
     public readonly previousWidth: number,
     public readonly previousHeight: number,
-    metadata: Event['metadata']
+    metadata: Event['metadata'],
+    version?: number
   ) {
-    super('CanvasResizedEvent', canvasId, 'canvas', metadata)
+    super('CanvasResizedEvent', canvasId, 'canvas', metadata, version)
   }
   
   apply(currentState: unknown): unknown {

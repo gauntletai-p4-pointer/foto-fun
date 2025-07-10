@@ -27,7 +27,7 @@ export class AddTextCommand extends Command {
     this.text = text
     this.position = position
     this.style = style
-    this.typedEventBus = ServiceContainer.getInstance().get<TypedEventBus>('TypedEventBus')
+    this.typedEventBus = ServiceContainer.getInstance().getSync<TypedEventBus>('TypedEventBus')
   }
   
   async execute(): Promise<void> {

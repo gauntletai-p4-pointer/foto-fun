@@ -2,7 +2,7 @@ import { BaseTool } from './BaseTool'
 import type { ToolEvent, Point } from '@/lib/editor/canvas/types'
 import { createToolState } from '../utils/toolState'
 import { constrainProportions, drawFromCenter } from '../utils/constraints'
-import { container } from '@/lib/di/container'
+import { ServiceContainer } from '@/lib/core/ServiceContainer'
 import { EventSelectionStore } from '@/lib/store/selection/EventSelectionStore'
 import type Konva from 'konva'
 
@@ -31,8 +31,10 @@ export abstract class SelectionTool extends BaseTool {
     altPressed: false
   })
   
-  // Store reference
-  protected selectionStore = container.get(EventSelectionStore)
+  // Store reference - lazy initialization
+  protected get selectionStore(): EventSelectionStore {
+    return ServiceContainer.getInstance().getSync<EventSelectionStore>('SelectionStore')
+  }
   
   // Visual feedback element
   protected feedbackElement: Konva.Shape | null = null

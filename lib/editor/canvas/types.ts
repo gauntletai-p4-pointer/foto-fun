@@ -130,6 +130,7 @@ export interface Tool {
 }
 
 export interface ToolEvent {
+  type: 'mousedown' | 'mousemove' | 'mouseup' | 'keydown' | 'keyup'
   point: Point // Canvas coordinates
   screenPoint: Point // Screen coordinates
   pressure: number
@@ -138,6 +139,7 @@ export interface ToolEvent {
   altKey: boolean
   metaKey: boolean
   button: number
+  nativeEvent?: MouseEvent | KeyboardEvent
 }
 
 export interface Filter {
@@ -307,14 +309,6 @@ export interface CanvasContext {
     type: 'none' | 'objects' | 'pixels'
     data?: unknown
   }
-}
-
-// Tool event types (missing from migration)
-export interface ToolEvent {
-  type: 'mousedown' | 'mousemove' | 'mouseup' | 'keydown' | 'keyup'
-  point: { x: number; y: number }
-  nativeEvent?: MouseEvent | KeyboardEvent
-  pressure: number
 }
 
 export interface ToolContext {

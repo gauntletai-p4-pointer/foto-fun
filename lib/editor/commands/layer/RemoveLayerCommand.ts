@@ -9,7 +9,7 @@ export class RemoveLayerCommand extends Command {
   constructor(layerId: string) {
     super(`Remove layer`)
     this.layerId = layerId
-    this.typedEventBus = ServiceContainer.getInstance().get<TypedEventBus>('TypedEventBus')
+    this.typedEventBus = ServiceContainer.getInstance().getSync<TypedEventBus>('TypedEventBus')
   }
   
   async execute(): Promise<void> {
