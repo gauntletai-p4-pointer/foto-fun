@@ -160,7 +160,9 @@ export class FilterPipeline {
         return new filters.Brightness({ brightness: filterParams.adjustment / 100 })
       
       case 'contrast':
-        return new filters.Contrast({ contrast: filterParams.adjustment / 100 })
+        const contrastValue = filterParams.adjustment / 100
+        console.log('[FilterPipeline] Creating Contrast filter with value:', contrastValue)
+        return new filters.Contrast({ contrast: contrastValue })
       
       case 'saturation':
         return new filters.Saturation({ saturation: filterParams.adjustment / 100 })

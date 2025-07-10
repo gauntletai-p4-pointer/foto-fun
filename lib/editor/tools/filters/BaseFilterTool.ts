@@ -74,7 +74,29 @@ export abstract class BaseFilterTool extends BaseTool {
       
       if (filterTypeMap[filterName] && filterType === filterTypeMap[filterName].type) {
         const paramName = filterTypeMap[filterName].param
-        return { [paramName]: (filter as any)[paramName] || this.getDefaultParams()[paramName] }
+        const filterValue = (filter as any)[paramName]
+        console.log(`[BaseFilterTool] Found ${filterName} filter with ${paramName}:`, filterValue)
+        
+        // For contrast, convert from fabric.js value (-1 to 1) back to percentage (-100 to 100)
+        if (filterName === 'contrast' && filterValue !== undefined) {
+          const adjustmentPercentage = filterValue * 100
+          console.log('[BaseFilterTool] Converting contrast value to percentage:', adjustmentPercentage)
+          return { adjustment: adjustmentPercentage }
+        }
+        
+        // For brightness, also return adjustment property
+        if (filterName === 'brightness' && filterValue !== undefined) {
+          const adjustmentPercentage = filterValue * 100
+          return { adjustment: adjustmentPercentage }
+        }
+        
+        // For saturation, also return adjustment property
+        if (filterName === 'saturation' && filterValue !== undefined) {
+          const adjustmentPercentage = filterValue * 100
+          return { adjustment: adjustmentPercentage }
+        }
+        
+        return { [paramName]: filterValue || this.getDefaultParams()[paramName] }
       }
     }
     

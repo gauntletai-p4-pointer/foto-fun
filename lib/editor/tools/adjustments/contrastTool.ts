@@ -48,14 +48,18 @@ class ContrastTool extends BaseFilterTool {
    * Tool setup - opens adjustment dialog
    */
   protected setupFilterTool(canvas: Canvas): void {
+    console.log('[ContrastTool] setupFilterTool called')
+    
     // Reset dialog shown state to ensure it opens
     this.state.set('dialogShown', false)
     
     // Get current filter value
     const currentValue = this.getCurrentFilterValue()
+    console.log('[ContrastTool] Current filter value:', currentValue)
     
     // Update state with current value
     this.state.set('adjustment', currentValue.adjustment)
+    console.log('[ContrastTool] Base adjustment set to:', currentValue.adjustment)
     
     // Find the contrast tool button element
     const contrastButton = document.querySelector(`button[data-tool-id="${this.id}"]`) as HTMLElement
@@ -72,13 +76,18 @@ class ContrastTool extends BaseFilterTool {
       currentValue: 0,  // Always start slider at 0 for incremental adjustments
       anchorElement: contrastButton
     })
+    
+    console.log('[ContrastTool] Dialog opened with slider starting at 0')
   }
   
   /**
    * Apply contrast preview (temporary)
    */
   async previewContrast(adjustment: number): Promise<void> {
+    console.log('[ContrastTool] previewContrast called with adjustment:', adjustment)
+    
     if (this.state.get('isAdjusting')) {
+      console.log('[ContrastTool] Already adjusting, skipping preview')
       return
     }
     
@@ -87,11 +96,21 @@ class ContrastTool extends BaseFilterTool {
     try {
       // Get the base adjustment value (what was there when dialog opened)
       const baseAdjustment = this.state.get('adjustment')
+      console.log('[ContrastTool] Base adjustment:', baseAdjustment)
+      console.log('[ContrastTool] Slider adjustment:', adjustment)
+      
       // Apply the slider value as an increment to the base
       const totalAdjustment = baseAdjustment + adjustment
+      console.log('[ContrastTool] Total adjustment to apply:', totalAdjustment)
+      
+      // Check if total adjustment is within valid range
+      if (totalAdjustment < -100 || totalAdjustment > 100) {
+        console.warn('[ContrastTool] Total adjustment out of range:', totalAdjustment)
+      }
       
       // Use the base class preview method
       await this.applyFilterPreview({ adjustment: totalAdjustment })
+      console.log('[ContrastTool] Preview applied successfully')
     } catch (error) {
       console.error('[ContrastTool] Preview failed:', error)
     } finally {
@@ -103,7 +122,10 @@ class ContrastTool extends BaseFilterTool {
    * Apply contrast adjustment (permanent)
    */
   async applyContrast(adjustment: number): Promise<void> {
+    console.log('[ContrastTool] applyContrast called with adjustment:', adjustment)
+    
     if (this.state.get('isAdjusting')) {
+      console.log('[ContrastTool] Already adjusting, skipping apply')
       return
     }
     
@@ -112,11 +134,21 @@ class ContrastTool extends BaseFilterTool {
     try {
       // Get the base adjustment value (what was there when dialog opened)
       const baseAdjustment = this.state.get('adjustment')
+      console.log('[ContrastTool] Base adjustment:', baseAdjustment)
+      console.log('[ContrastTool] Slider adjustment:', adjustment)
+      
       // Apply the slider value as an increment to the base
       const totalAdjustment = baseAdjustment + adjustment
+      console.log('[ContrastTool] Total adjustment to apply:', totalAdjustment)
+      
+      // Check if total adjustment is within valid range
+      if (totalAdjustment < -100 || totalAdjustment > 100) {
+        console.warn('[ContrastTool] Total adjustment out of range:', totalAdjustment)
+      }
       
       // Use the base class apply method
       await this.applyFilter({ adjustment: totalAdjustment })
+      console.log('[ContrastTool] Contrast applied successfully')
     } catch (error) {
       console.error('[ContrastTool] Apply failed:', error)
     } finally {
@@ -128,8 +160,11 @@ class ContrastTool extends BaseFilterTool {
    * Reset contrast to default
    */
   resetContrast(): void {
+    console.log('[ContrastTool] resetContrast called')
+    
     // Get the base adjustment value (what was there when dialog opened)
     const baseAdjustment = this.state.get('adjustment')
+    console.log('[ContrastTool] Resetting to base adjustment:', baseAdjustment)
     
     // Reset to the base adjustment (not 0)
     this.applyFilterPreview({ adjustment: baseAdjustment }).catch(error => {
@@ -141,6 +176,8 @@ class ContrastTool extends BaseFilterTool {
    * Tool cleanup
    */
   protected cleanupFilterTool(): void {
+    console.log('[ContrastTool] cleanupFilterTool called')
+    
     // Close the dialog if it's open
     const canvasStore = useCanvasStore.getState()
     if (canvasStore.activeAdjustmentTool?.toolId === this.id) {
@@ -153,6 +190,8 @@ class ContrastTool extends BaseFilterTool {
       isAdjusting: false,
       dialogShown: false
     })
+    
+    console.log('[ContrastTool] Cleanup complete')
   }
   
   // Required: Base cleanup (from BaseTool)
@@ -162,11 +201,14 @@ class ContrastTool extends BaseFilterTool {
   
   // Override onActivate to log
   onActivate(canvas: Canvas): void {
+    console.log('[ContrastTool] Tool activated')
     super.onActivate(canvas)
   }
   
   // Override onDeactivate to log
   onDeactivate(canvas: Canvas): void {
+    console.log('[ContrastTool] Tool deactivated')
+    
     // Ensure dialog is closed when tool is deactivated
     const canvasStore = useCanvasStore.getState()
     if (canvasStore.activeAdjustmentTool?.toolId === this.id) {

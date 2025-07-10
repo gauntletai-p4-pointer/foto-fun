@@ -133,7 +133,7 @@
   - [x] Handle filter chaining and composition
   - [x] Manage performance optimizations
 
-### 3.2 Implement Filter Algorithms ✅ (Core filters completed)
+### 3.2 Implement Filter Algorithms ✅ (All filters completed)
 - [x] **Create lib/editor/filters/algorithms/brightness.ts**
   - [x] Pure function for brightness adjustment
   - [x] Accept pixel data and mask parameters
@@ -168,16 +168,17 @@
   - [x] Simple pixel value inversion
   - [x] Accept pixel data and mask parameters
 
-- [ ] **Create lib/editor/filters/algorithms/blur.ts**
-  - [ ] Implement Gaussian blur algorithm
-  - [ ] Handle mask boundaries correctly
-  - [ ] Optimize with separable kernels
-  - [ ] Add radius parameter support
+- [x] **Create lib/editor/filters/algorithms/blur.ts**
+  - [x] Implement Gaussian blur algorithm (box blur approximation)
+  - [x] Handle mask boundaries correctly
+  - [x] Optimize with separable kernels
+  - [x] Add radius parameter support
 
-- [ ] **Create lib/editor/filters/algorithms/sharpen.ts**
-  - [ ] Implement unsharp mask algorithm
-  - [ ] Handle mask boundaries correctly
-  - [ ] Add strength parameter support
+- [x] **Create lib/editor/filters/algorithms/sharpen.ts**
+  - [x] Implement unsharp mask algorithm
+  - [x] Handle mask boundaries correctly
+  - [x] Add strength parameter support
+  - [x] Alternative high-pass filter implementation for more control
 
 ### 3.3 Create New Command Types ✅
 - [x] **Create lib/editor/commands/filters/ApplyFilterToSelectionCommand.ts**
