@@ -1,11 +1,9 @@
 import { Contrast } from 'lucide-react'
 import { TOOL_IDS } from '@/constants'
 import type { Canvas } from 'fabric'
-import { FabricImage, filters } from 'fabric'
-import { BaseTool } from '../base/BaseTool'
+import { BaseFilterTool } from './BaseFilterTool'
 import { createToolState } from '../utils/toolState'
 import { useToolOptionsStore } from '@/store/toolOptionsStore'
-import { ModifyCommand } from '@/lib/editor/commands/canvas'
 
 // Define tool state
 type InvertToolState = {
@@ -13,7 +11,7 @@ type InvertToolState = {
   isInverted: boolean
 }
 
-class InvertTool extends BaseTool {
+class InvertTool extends BaseFilterTool {
   // Tool identification
   id = TOOL_IDS.INVERT
   name = 'Invert'
@@ -27,22 +25,35 @@ class InvertTool extends BaseTool {
     isInverted: false
   })
   
+  // Required: Get filter name
+  protected getFilterName(): string {
+    return 'invert'
+  }
+  
+  // Required: Get default params
+  protected getDefaultParams(): any {
+    return {} // Invert has no parameters
+  }
+  
   // Required: Setup
-  protected setupTool(canvas: Canvas): void {
+  protected setupFilterTool(canvas: Canvas): void {
     // Subscribe to tool options
-    this.subscribeToToolOptions(() => {
+    this.subscribeToToolOptions(async () => {
       const action = this.getOptionValue('action')
       
       if (action === 'toggle') {
-        this.toggleInvert(canvas)
+        await this.toggleInvert()
         // Reset the action
         useToolOptionsStore.getState().updateOption(this.id, 'action', null)
       }
     })
+    
+    // Show selection indicator on tool activation
+    this.showSelectionIndicator()
   }
   
   // Required: Cleanup
-  protected cleanup(): void {
+  protected cleanupFilterTool(): void {
     // Don't reset the invert state - let it persist
     this.state.setState({
       isApplying: false,
@@ -50,45 +61,21 @@ class InvertTool extends BaseTool {
     })
   }
   
-  private toggleInvert(canvas: Canvas): void {
+  // Required: Base cleanup (from BaseTool)
+  protected cleanup(): void {
+    this.cleanupTool()
+  }
+  
+  private async toggleInvert(): Promise<void> {
     if (this.state.get('isApplying')) return
     
     this.state.set('isApplying', true)
     const newState = !this.state.get('isInverted')
     
     try {
-      const objects = canvas.getObjects()
+      // Use the base class applyFilter method
+      await this.applyFilter(this.getDefaultParams())
       
-      // Apply to all image objects
-      objects.forEach((obj) => {
-        if (obj instanceof FabricImage) {
-          // Calculate new filters array
-          const existingFilters = obj.filters?.filter(
-            (f: unknown) => !(f instanceof filters.Invert)
-          ) || []
-          
-          let newFilters: typeof obj.filters
-          if (newState) {
-            const invertFilter = new filters.Invert()
-            newFilters = [...existingFilters, invertFilter] as typeof obj.filters
-          } else {
-            newFilters = existingFilters as typeof obj.filters
-          }
-          
-          // Create command BEFORE modifying the object
-          const command = new ModifyCommand(
-            canvas,
-            obj,
-            { filters: newFilters },
-            newState ? 'Apply invert' : 'Remove invert'
-          )
-          
-          // Execute the command (which will apply the changes and handle applyFilters)
-          this.executeCommand(command)
-        }
-      })
-      
-      canvas.renderAll()
       this.state.set('isInverted', newState)
     } finally {
       this.state.set('isApplying', false)

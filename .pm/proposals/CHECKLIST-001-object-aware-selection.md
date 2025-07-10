@@ -115,162 +115,255 @@
   - [x] Add visual mode indicators
   - [x] Connect to tool options store
 
-## Phase 3: Filter Integration (Weeks 5-6)
+## Phase 3: Filter Integration (Weeks 5-6) 🟡 PARTIALLY COMPLETED
 
-### 3.1 Create Filter Base Class
-- [ ] **Create lib/editor/tools/filters/FilterBase.ts**
-  - [ ] Abstract base class for all filters
-  - [ ] Add applyFilter() method with selection awareness
-  - [ ] Add applyFilterToSelection() method
-  - [ ] Add applyFilterToGlobalSelection() method
-  - [ ] Add applyFilterToAllObjects() method
-  - [ ] Handle command creation for undo/redo
+### 3.1 Create Selection-Aware Image Processing Pipeline ✅
+- [x] **Create lib/editor/filters/SelectionAwareFilter.ts**
+  - [x] Base class for selection-aware image processing
+  - [x] Implement applyToSelection() method
+  - [x] Add pixel-level masking logic
+  - [x] Handle image data extraction and re-injection
+  - [x] Add progress callbacks for long operations
+  - [x] Implement caching for repeated operations
 
-### 3.1.1 Create Selection-Aware Utilities
-- [ ] **Create lib/editor/tools/utils/SelectionAwareMixin.ts**
-  - [ ] Implement reusable selection checking logic
-  - [ ] Create applyWithSelection() method
-  - [ ] Add selection bounds validation
-  - [ ] Handle edge cases (empty selection, out of bounds)
-  - [ ] Optimize for performance with caching
+- [x] **Create lib/editor/filters/FilterPipeline.ts**
+  - [x] Orchestrate filter application based on selection state
+  - [x] Route to fabric.js filters when no selection
+  - [x] Route to custom pipeline when selection active
+  - [x] Handle filter chaining and composition
+  - [x] Manage performance optimizations
 
-- [ ] **Create lib/editor/tools/utils/FilterCache.ts**
-  - [ ] Implement filter result caching
+### 3.2 Implement Filter Algorithms ✅ (Core filters completed)
+- [x] **Create lib/editor/filters/algorithms/brightness.ts**
+  - [x] Pure function for brightness adjustment
+  - [x] Accept pixel data and mask parameters
+  - [x] Implement efficient pixel processing
+  - [x] Handle edge cases and bounds checking
+
+- [x] **Create lib/editor/filters/algorithms/contrast.ts**
+  - [x] Pure function for contrast adjustment
+  - [x] Accept pixel data and mask parameters
+  - [x] Implement contrast algorithm
+  - [x] Optimize for performance
+
+- [x] **Create lib/editor/filters/algorithms/saturation.ts**
+  - [x] Pure function for saturation adjustment
+  - [x] RGB to HSL conversion and back
+  - [x] Accept pixel data and mask parameters
+  - [x] Handle color space conversions efficiently
+
+- [x] **Create lib/editor/filters/algorithms/hue.ts**
+  - [x] Pure function for hue adjustment
+  - [x] RGB to HSL conversion and back
+  - [x] Accept pixel data and mask parameters
+  - [x] Handle hue wrapping correctly
+
+- [x] **Create lib/editor/filters/algorithms/grayscale.ts**
+  - [x] Pure function for grayscale conversion
+  - [x] Implement weighted average algorithm
+  - [x] Accept pixel data and mask parameters
+
+- [x] **Create lib/editor/filters/algorithms/invert.ts**
+  - [x] Pure function for color inversion
+  - [x] Simple pixel value inversion
+  - [x] Accept pixel data and mask parameters
+
+- [ ] **Create lib/editor/filters/algorithms/blur.ts**
+  - [ ] Implement Gaussian blur algorithm
+  - [ ] Handle mask boundaries correctly
+  - [ ] Optimize with separable kernels
+  - [ ] Add radius parameter support
+
+- [ ] **Create lib/editor/filters/algorithms/sharpen.ts**
+  - [ ] Implement unsharp mask algorithm
+  - [ ] Handle mask boundaries correctly
+  - [ ] Add strength parameter support
+
+### 3.3 Create New Command Types ✅
+- [x] **Create lib/editor/commands/filters/ApplyFilterToSelectionCommand.ts**
+  - [x] New command for selection-based filter application
+  - [x] Store before/after image data
+  - [x] Handle undo/redo at pixel level
+  - [x] Optimize memory usage with compression
+  - [x] Support partial image updates
+
+- [x] **Create lib/editor/commands/filters/ApplyFilterCommand.ts**
+  - [x] Unified command for both selected and non-selected filtering
+  - [x] Detect selection state and route appropriately
+  - [x] Maintain compatibility with existing commands
+  - [x] Handle command merging for rapid adjustments
+
+### 3.4 Update Filter Tools with Dual Pipeline ✅ (Base and examples completed)
+- [x] **Create lib/editor/tools/filters/BaseFilterTool.ts**
+  - [x] Abstract base class for all filter tools
+  - [x] Implement selection detection logic
+  - [x] Route to appropriate filter pipeline
+  - [x] Handle command creation
+  - [x] Add performance monitoring
+
+- [ ] **Modify lib/editor/tools/filters/brightnessContrastTool.ts**
+  - [ ] Extend BaseFilterTool
+  - [ ] Use FilterPipeline for application
+  - [ ] Support both fabric.js and custom pipeline
+  - [ ] Update UI to show selection indicator
+
+- [x] **Modify lib/editor/tools/filters/grayscaleTool.ts**
+  - [x] Extend BaseFilterTool
+  - [x] Use FilterPipeline for application
+  - [x] Support toggle with selection awareness
+  - [x] Show selection state in UI
+
+- [x] **Modify lib/editor/tools/filters/invertTool.ts**
+  - [x] Extend BaseFilterTool
+  - [x] Use FilterPipeline for application
+  - [x] Support toggle with selection awareness
+  - [x] Show selection state in UI
+
+- [ ] **Modify lib/editor/tools/filters/sepiaTool.ts**
+  - [ ] Extend BaseFilterTool
+  - [ ] Implement sepia algorithm for selections
+  - [ ] Use FilterPipeline for application
+  - [ ] Support intensity with selection awareness
+
+- [ ] **Modify lib/editor/tools/filters/blurTool.ts**
+  - [ ] Extend BaseFilterTool
+  - [ ] Use custom blur algorithm for selections
+  - [ ] Handle edge pixels correctly with selections
+  - [ ] Support radius adjustment
+
+- [ ] **Modify lib/editor/tools/filters/sharpenTool.ts**
+  - [ ] Extend BaseFilterTool
+  - [ ] Use custom sharpen algorithm for selections
+  - [ ] Handle edge pixels correctly with selections
+  - [ ] Support strength adjustment
+
+### 3.5 Update Adjustment Tools
+- [ ] **Modify lib/editor/tools/adjustments/brightnessTool.ts**
+  - [ ] Extend BaseFilterTool
+  - [ ] Use FilterPipeline for application
+  - [ ] Real-time preview with selection
+  - [ ] Optimize for smooth slider interaction
+
+- [ ] **Modify lib/editor/tools/adjustments/contrastTool.ts**
+  - [ ] Extend BaseFilterTool
+  - [ ] Use FilterPipeline for application
+  - [ ] Real-time preview with selection
+  - [ ] Handle contrast algorithm correctly
+
+- [ ] **Modify lib/editor/tools/adjustments/hueTool.ts**
+  - [ ] Extend BaseFilterTool
+  - [ ] Use FilterPipeline for application
+  - [ ] Handle HSL color space with selection
+  - [ ] Support hue rotation correctly
+
+- [ ] **Modify lib/editor/tools/adjustments/saturationTool.ts**
+  - [ ] Extend BaseFilterTool
+  - [ ] Use FilterPipeline for application
+  - [ ] Handle HSL color space with selection
+  - [ ] Support both increase and decrease
+
+- [ ] **Modify lib/editor/tools/adjustments/exposureTool.ts**
+  - [ ] Extend BaseFilterTool
+  - [ ] Implement exposure algorithm
+  - [ ] Use FilterPipeline for application
+  - [ ] Handle HDR-like adjustments
+
+- [ ] **Modify lib/editor/tools/adjustments/colorTemperatureTool.ts**
+  - [ ] Extend BaseFilterTool
+  - [ ] Implement temperature shift algorithm
+  - [ ] Use FilterPipeline for application
+  - [ ] Handle color balance correctly
+
+### 3.6 Performance Optimizations
+- [ ] **Create lib/editor/filters/FilterCache.ts**
+  - [ ] Implement caching for filtered results
   - [ ] Cache key generation from filter params + selection
   - [ ] LRU eviction policy
   - [ ] Memory usage tracking
+  - [ ] Invalidation on selection change
 
-### 3.2 Create Masked Filter
-- [ ] **Create lib/editor/filters/MaskedFilter.ts**
-  - [ ] Extend fabric.filters.BaseFilter
-  - [ ] Accept selection mask in constructor
-  - [ ] Override applyTo() to respect mask
-  - [ ] Handle pixel-by-pixel masking
-  - [ ] Optimize performance
+- [ ] **Create lib/editor/workers/FilterWorker.ts**
+  - [ ] Web Worker for CPU-intensive filters
+  - [ ] Implement message protocol
+  - [ ] Handle filter algorithms in worker
+  - [ ] Progress reporting
+  - [ ] Graceful fallback for unsupported browsers
 
-### 3.3 Update Existing Filters
-- [ ] **Modify lib/editor/tools/filters/brightnessContrastTool.ts**
-  - [ ] Extend FilterBase
-  - [ ] Use selection-aware application
-  - [ ] Handle per-object selections
+- [ ] **Create lib/editor/filters/WebGLFilterRenderer.ts**
+  - [ ] WebGL implementation for performance
+  - [ ] Shader-based filter algorithms
+  - [ ] Texture-based selection masking
+  - [ ] Fallback to Canvas 2D
+  - [ ] Support for filter chaining
 
-- [ ] **Modify lib/editor/tools/filters/grayscaleTool.ts**
-  - [ ] Extend FilterBase
-  - [ ] Use selection-aware application
-  - [ ] Handle per-object selections
-
-- [ ] **Modify lib/editor/tools/filters/invertTool.ts**
-  - [ ] Extend FilterBase
-  - [ ] Use selection-aware application
-  - [ ] Handle per-object selections
-
-- [ ] **Modify lib/editor/tools/filters/sepiaTool.ts**
-  - [ ] Extend FilterBase
-  - [ ] Use selection-aware application
-  - [ ] Handle per-object selections
-
-- [ ] **Modify lib/editor/tools/filters/blurTool.ts**
-  - [ ] Extend FilterBase
-  - [ ] Use selection-aware application
-  - [ ] Handle per-object selections
-
-- [ ] **Modify lib/editor/tools/filters/sharpenTool.ts**
-  - [ ] Extend FilterBase
-  - [ ] Use selection-aware application
-  - [ ] Handle per-object selections
-
-### 3.3.1 Update Adjustment Tools
-- [ ] **Modify lib/editor/tools/adjustments/brightnessTool.ts**
-  - [ ] Extend FilterBase
-  - [ ] Use selection-aware application
-  - [ ] Handle per-object selections
-  - [ ] Respect selection bounds in adjustment
-
-- [ ] **Modify lib/editor/tools/adjustments/contrastTool.ts**
-  - [ ] Extend FilterBase
-  - [ ] Use selection-aware application
-  - [ ] Handle per-object selections
-  - [ ] Respect selection bounds in adjustment
-
-- [ ] **Modify lib/editor/tools/adjustments/hueTool.ts**
-  - [ ] Extend FilterBase
-  - [ ] Use selection-aware application
-  - [ ] Handle per-object selections
-  - [ ] Respect selection bounds in adjustment
-
-- [ ] **Modify lib/editor/tools/adjustments/saturationTool.ts**
-  - [ ] Extend FilterBase
-  - [ ] Use selection-aware application
-  - [ ] Handle per-object selections
-  - [ ] Respect selection bounds in adjustment
-
-- [ ] **Modify lib/editor/tools/adjustments/exposureTool.ts**
-  - [ ] Extend FilterBase
-  - [ ] Use selection-aware application
-  - [ ] Handle per-object selections
-  - [ ] Respect selection bounds in adjustment
-
-- [ ] **Modify lib/editor/tools/adjustments/colorTemperatureTool.ts**
-  - [ ] Extend FilterBase
-  - [ ] Use selection-aware application
-  - [ ] Handle per-object selections
-  - [ ] Respect selection bounds in adjustment
-
-### 3.4 Update AI Tool Adapters
+### 3.7 Update AI Tool Adapters
 - [ ] **Modify lib/ai/adapters/tools/brightness.ts**
-  - [ ] Check for active selections
+  - [ ] Detect active selections via FilterPipeline
   - [ ] Apply to selected regions only
-  - [ ] Update result reporting
+  - [ ] Update result reporting with selection info
 
 - [ ] **Modify lib/ai/adapters/tools/saturation.ts**
-  - [ ] Check for active selections
+  - [ ] Detect active selections via FilterPipeline
   - [ ] Apply to selected regions only
-  - [ ] Update result reporting
+  - [ ] Update result reporting with selection info
 
 - [ ] **Modify lib/ai/adapters/tools/contrast.ts**
   - [ ] Check for active selections before applying
-  - [ ] Pass selection context to tool execution
+  - [ ] Use FilterPipeline for execution
   - [ ] Update result messages to indicate selection scope
 
 - [ ] **Modify lib/ai/adapters/tools/hue.ts**
   - [ ] Check for active selections before applying
-  - [ ] Pass selection context to tool execution
+  - [ ] Use FilterPipeline for execution
   - [ ] Update result messages to indicate selection scope
 
 - [ ] **Modify lib/ai/adapters/tools/exposure.ts**
   - [ ] Check for active selections before applying
-  - [ ] Pass selection context to tool execution
+  - [ ] Use FilterPipeline for execution
   - [ ] Update result messages to indicate selection scope
 
 - [ ] **Modify lib/ai/adapters/tools/colorTemperature.ts**
   - [ ] Check for active selections before applying
-  - [ ] Pass selection context to tool execution
+  - [ ] Use FilterPipeline for execution
   - [ ] Update result messages to indicate selection scope
 
 - [ ] **Modify lib/ai/adapters/tools/blur.ts**
   - [ ] Check for active selections before applying
-  - [ ] Pass selection context to tool execution
+  - [ ] Use FilterPipeline for execution
   - [ ] Update result messages to indicate selection scope
 
 - [ ] **Modify lib/ai/adapters/tools/sharpen.ts**
   - [ ] Check for active selections before applying
-  - [ ] Pass selection context to tool execution
+  - [ ] Use FilterPipeline for execution
   - [ ] Update result messages to indicate selection scope
 
 - [ ] **Modify lib/ai/adapters/tools/grayscale.ts**
   - [ ] Check for active selections before applying
-  - [ ] Pass selection context to tool execution
+  - [ ] Use FilterPipeline for execution
   - [ ] Update result messages to indicate selection scope
 
 - [ ] **Modify lib/ai/adapters/tools/sepia.ts**
   - [ ] Check for active selections before applying
-  - [ ] Pass selection context to tool execution
+  - [ ] Use FilterPipeline for execution
   - [ ] Update result messages to indicate selection scope
 
 - [ ] **Modify lib/ai/adapters/tools/invert.ts**
   - [ ] Check for active selections before applying
-  - [ ] Pass selection context to tool execution
+  - [ ] Use FilterPipeline for execution
   - [ ] Update result messages to indicate selection scope
+
+### 3.8 Testing Infrastructure
+- [ ] **Create tests/filters/algorithms/*.test.ts**
+  - [ ] Unit tests for each filter algorithm
+  - [ ] Test with various mask configurations
+  - [ ] Performance benchmarks
+  - [ ] Edge case testing
+
+- [ ] **Create tests/filters/FilterPipeline.test.ts**
+  - [ ] Test routing logic
+  - [ ] Test filter composition
+  - [ ] Test performance optimizations
+  - [ ] Test fallback mechanisms
 
 ## Phase 4: UI/UX Enhancements (Weeks 7-8)
 
@@ -335,11 +428,24 @@
   - [ ] Test mode switching
   - [ ] Test multi-object handling
 
-- [ ] **Create tests/maskedFilter.test.ts**
-  - [ ] Test mask application
-  - [ ] Test filter accuracy
-  - [ ] Test performance
-  - [ ] Test edge cases
+- [ ] **Create tests/filters/SelectionAwareFilter.test.ts**
+  - [ ] Test applyToSelection method
+  - [ ] Test pixel masking accuracy
+  - [ ] Test image data extraction and re-injection
+  - [ ] Test performance with large images
+  - [ ] Test memory usage patterns
+
+- [ ] **Create tests/filters/FilterPipeline.test.ts**
+  - [ ] Test routing logic between fabric.js and custom pipeline
+  - [ ] Test selection state detection
+  - [ ] Test filter chaining
+  - [ ] Test error handling and fallbacks
+
+- [ ] **Create tests/commands/filters/ApplyFilterToSelectionCommand.test.ts**
+  - [ ] Test command execution
+  - [ ] Test undo/redo functionality
+  - [ ] Test memory optimization
+  - [ ] Test command merging
 
 ### 5.2 Integration Tests
 - [ ] **Create tests/integration/selectionWorkflow.test.ts**
@@ -457,10 +563,16 @@
 ### Functional Requirements
 - [ ] Can select pixels within specific image objects
 - [ ] Filters apply only to selected regions when active
+- [ ] Dual filter pipeline works seamlessly:
+  - [ ] Fabric.js filters apply when no selection active
+  - [ ] Custom pipeline processes selection-based filtering
+  - [ ] User experience remains consistent across both pipelines
 - [ ] Selection tools respect object boundaries in object mode
 - [ ] All selection modes (auto, canvas, object, layer) work correctly
 - [ ] Undo/redo works with object selections
+- [ ] Undo/redo works with selection-based filter applications
 - [ ] Selections persist when switching tools
+- [ ] Filter previews update in real-time with selections
 
 ### Performance Requirements
 - [ ] Selection creation < 50ms for 2048x2048 images
@@ -468,6 +580,12 @@
 - [ ] Memory usage increase < 20% with typical usage
 - [ ] Smooth real-time feedback during selection
 - [ ] No performance regression for existing features
+- [ ] Filter performance targets:
+  - [ ] Non-selected filters maintain fabric.js performance
+  - [ ] Selection-based filters < 100ms for 1024x1024 areas
+  - [ ] WebGL acceleration available for large operations
+  - [ ] Worker-based processing for filters > 200ms
+  - [ ] Progressive rendering for real-time preview
 
 ### User Experience Requirements
 - [ ] Clear visual indicators for selection mode
@@ -487,6 +605,13 @@
 - [ ] Layer system must be functional
 - [ ] Command system for undo/redo
 - [ ] Tool options system
+
+### Architectural Notes
+- [ ] **Custom Filter Pipeline**: Due to fabric.js filter limitations, we implement a dual-pipeline approach:
+  - [ ] Fabric.js filters for non-selected operations (performance)
+  - [ ] Custom pixel-level processing for selection-based operations (flexibility)
+  - [ ] Unified interface through FilterPipeline class
+  - [ ] Maintains backward compatibility while enabling new features
 
 ## Risk Mitigation
 

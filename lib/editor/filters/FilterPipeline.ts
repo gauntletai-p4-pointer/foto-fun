@@ -1,0 +1,349 @@
+import type { Canvas, FabricObject } from 'fabric'
+import { FabricImage } from 'fabric'
+import type { LayerAwareSelectionManager } from '../selection/LayerAwareSelectionManager'
+import { SelectionAwareFilter } from './SelectionAwareFilter'
+import type { PixelSelection } from '@/types'
+
+export interface FilterPipelineOptions {
+  enableCaching?: boolean
+  enableWebGL?: boolean
+  enableWorkers?: boolean
+}
+
+/**
+ * FilterPipeline - Orchestrates filter application based on selection state
+ * 
+ * This class decides whether to use fabric.js filters (when no selection)
+ * or custom pixel-level processing (when selection is active).
+ */
+export class FilterPipeline {
+  private canvas: Canvas
+  private selectionManager: LayerAwareSelectionManager
+  private options: FilterPipelineOptions
+  private filterCache: Map<string, ImageData>
+  
+  constructor(
+    canvas: Canvas,
+    selectionManager: LayerAwareSelectionManager,
+    options: FilterPipelineOptions = {}
+  ) {
+    this.canvas = canvas
+    this.selectionManager = selectionManager
+    this.options = {
+      enableCaching: true,
+      enableWebGL: true,
+      enableWorkers: true,
+      ...options
+    }
+    this.filterCache = new Map()
+  }
+  
+  /**
+   * Apply filter based on current selection state
+   */
+  async applyFilter(
+    filterName: string,
+    filterParams: any,
+    targetImages?: FabricImage[]
+  ): Promise<void> {
+    // Get target images
+    const images = targetImages || this.getTargetImages()
+    if (images.length === 0) {
+      console.warn('No images found to apply filter')
+      return
+    }
+    
+    // Check if we have an active selection
+    const hasSelection = this.hasActiveSelection()
+    
+    if (hasSelection) {
+      // Use custom filter pipeline for selection-based filtering
+      await this.applyWithSelection(filterName, filterParams, images)
+    } else {
+      // Use fabric.js filters for non-selected filtering
+      await this.applyWithFabric(filterName, filterParams, images)
+    }
+    
+    // Render canvas
+    this.canvas.renderAll()
+  }
+  
+  /**
+   * Apply filter using fabric.js (no selection)
+   */
+  private async applyWithFabric(
+    filterName: string,
+    filterParams: any,
+    images: FabricImage[]
+  ): Promise<void> {
+    // Import the appropriate fabric filter
+    const fabricFilter = await this.createFabricFilter(filterName, filterParams)
+    if (!fabricFilter) {
+      throw new Error(`Unsupported fabric filter: ${filterName}`)
+    }
+    
+    // Apply to each image
+    for (const image of images) {
+      if (!image.filters) {
+        image.filters = []
+      }
+      
+      // Remove existing filters of the same type
+      image.filters = image.filters.filter((f: any) => {
+        return f.constructor.name !== fabricFilter.constructor.name
+      })
+      
+      // Add new filter if params indicate it should be applied
+      if (this.shouldApplyFilter(filterName, filterParams)) {
+        image.filters.push(fabricFilter)
+      }
+      
+      // Apply filters
+      image.applyFilters()
+    }
+  }
+  
+  /**
+   * Apply filter using custom selection-aware pipeline
+   */
+  private async applyWithSelection(
+    filterName: string,
+    filterParams: any,
+    images: FabricImage[]
+  ): Promise<void> {
+    // Get selection
+    const selection = this.getActiveSelection()
+    if (!selection) {
+      // Fallback to fabric.js if no selection found
+      return this.applyWithFabric(filterName, filterParams, images)
+    }
+    
+    // Create custom filter
+    const customFilter = await this.createCustomFilter(filterName)
+    if (!customFilter) {
+      throw new Error(`Unsupported custom filter: ${filterName}`)
+    }
+    
+    // Apply to each image
+    for (const image of images) {
+      // Generate cache key
+      const cacheKey = this.generateCacheKey(image, filterName, filterParams, selection)
+      
+      // Check cache
+      let filteredData: ImageData
+      if (this.options.enableCaching && this.filterCache.has(cacheKey)) {
+        filteredData = this.filterCache.get(cacheKey)!
+      } else {
+        // Apply filter
+        filteredData = await customFilter.applyToImage(image, filterParams, selection)
+        
+        // Cache result
+        if (this.options.enableCaching) {
+          this.filterCache.set(cacheKey, filteredData)
+        }
+      }
+      
+      // Create new image with filtered data
+      const newImage = await customFilter.createFilteredImage(image, filteredData)
+      
+      // Replace old image with new one
+      const objects = this.canvas.getObjects()
+      const index = objects.indexOf(image)
+      if (index !== -1) {
+        // Remove old image
+        this.canvas.remove(image)
+        // Insert new image at the same position
+        objects.splice(index, 0, newImage)
+        this.canvas._objects = objects
+        this.canvas.add(newImage)
+      }
+    }
+  }
+  
+  /**
+   * Create fabric.js filter instance
+   */
+  private async createFabricFilter(filterName: string, filterParams: any): Promise<any | null> {
+    const { filters } = await import('fabric')
+    
+    switch (filterName.toLowerCase()) {
+      case 'brightness':
+        return new filters.Brightness({ brightness: filterParams.adjustment / 100 })
+      
+      case 'contrast':
+        return new filters.Contrast({ contrast: filterParams.adjustment / 100 })
+      
+      case 'saturation':
+        return new filters.Saturation({ saturation: filterParams.adjustment / 100 })
+      
+      case 'hue':
+        return new filters.HueRotation({ rotation: (filterParams.rotation * Math.PI) / 180 })
+      
+      case 'grayscale':
+        return new filters.Grayscale()
+      
+      case 'invert':
+        return new filters.Invert()
+      
+      case 'sepia':
+        return new filters.Sepia()
+      
+      case 'blur':
+        return new filters.Blur({ blur: filterParams.radius / 100 })
+      
+      case 'sharpen':
+        // Sharpen uses Convolute filter
+        const intensity = 1 + (filterParams.strength / 25)
+        return new filters.Convolute({
+          matrix: [
+            0, -1, 0,
+            -1, intensity, -1,
+            0, -1, 0
+          ],
+          opaque: false
+        })
+      
+      default:
+        return null
+    }
+  }
+  
+  /**
+   * Create custom filter instance
+   */
+  private async createCustomFilter(filterName: string): Promise<SelectionAwareFilter | null> {
+    // Dynamically import the appropriate filter
+    try {
+      const module = await import(`./algorithms/${filterName.toLowerCase()}`)
+      const FilterClass = module[`${filterName}Filter`] || module.default
+      
+      if (!FilterClass) {
+        return null
+      }
+      
+      return new FilterClass(this.canvas, this.selectionManager)
+    } catch (error) {
+      console.warn(`Failed to load custom filter: ${filterName}`, error)
+      return null
+    }
+  }
+  
+  /**
+   * Check if filter should be applied based on params
+   */
+  private shouldApplyFilter(filterName: string, filterParams: any): boolean {
+    switch (filterName.toLowerCase()) {
+      case 'brightness':
+      case 'contrast':
+      case 'saturation':
+      case 'exposure':
+        return filterParams.adjustment !== 0
+      
+      case 'hue':
+        return filterParams.rotation !== 0
+      
+      case 'blur':
+        return filterParams.radius > 0
+      
+      case 'sharpen':
+        return filterParams.strength > 0
+      
+      case 'colortemperature':
+        return filterParams.temperature !== 0
+      
+      case 'grayscale':
+      case 'invert':
+      case 'sepia':
+        return true // Toggle filters are always applied when called
+      
+      default:
+        return true
+    }
+  }
+  
+  /**
+   * Get images to apply filter to
+   */
+  private getTargetImages(): FabricImage[] {
+    const objects = this.canvas.getObjects()
+    return objects.filter(obj => obj instanceof FabricImage) as FabricImage[]
+  }
+  
+  /**
+   * Check if there's an active selection
+   */
+  private hasActiveSelection(): boolean {
+    // Check global selection
+    if (this.selectionManager.hasSelection()) {
+      return true
+    }
+    
+    // Check object-specific selection if in object mode
+    const selectionMode = this.selectionManager.getSelectionMode()
+    if (selectionMode === 'object') {
+      const activeObjectId = this.selectionManager.getActiveObjectId()
+      if (activeObjectId) {
+        return this.selectionManager.getObjectSelection(activeObjectId) !== null
+      }
+    }
+    
+    return false
+  }
+  
+  /**
+   * Get the active selection
+   */
+  private getActiveSelection(): PixelSelection | null {
+    // Check for object-specific selection first
+    const selectionMode = this.selectionManager.getSelectionMode()
+    if (selectionMode === 'object') {
+      const activeObjectId = this.selectionManager.getActiveObjectId()
+      if (activeObjectId) {
+        const objectSelection = this.selectionManager.getObjectSelection(activeObjectId)
+        if (objectSelection) {
+          return objectSelection
+        }
+      }
+    }
+    
+    // Fall back to global selection
+    return this.selectionManager.getSelection()
+  }
+  
+  /**
+   * Generate cache key for filtered results
+   */
+  private generateCacheKey(
+    image: FabricImage,
+    filterName: string,
+    filterParams: any,
+    selection: PixelSelection
+  ): string {
+    const imageId = image.get('id') || image.toString()
+    const paramStr = JSON.stringify(filterParams)
+    const selectionBounds = `${selection.bounds.x},${selection.bounds.y},${selection.bounds.width},${selection.bounds.height}`
+    return `${imageId}-${filterName}-${paramStr}-${selectionBounds}`
+  }
+  
+  /**
+   * Clear filter cache
+   */
+  clearCache(): void {
+    this.filterCache.clear()
+  }
+  
+  /**
+   * Invalidate cache for specific image
+   */
+  invalidateImageCache(imageId: string): void {
+    // Remove all cache entries for this image
+    const keysToDelete: string[] = []
+    for (const key of this.filterCache.keys()) {
+      if (key.startsWith(imageId)) {
+        keysToDelete.push(key)
+      }
+    }
+    
+    keysToDelete.forEach(key => this.filterCache.delete(key))
+  }
+} 

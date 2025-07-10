@@ -11,4 +11,8 @@ export * from './layer'
 export * from './selection'
 
 // TODO: Add clipboard commands when clipboard system is implemented
-export * from './clipboard' 
+export * from './clipboard'
+
+// Filter commands
+export * from './filters/ApplyFilterCommand'
+export * from './filters/ApplyFilterToSelectionCommand' 
