@@ -20,7 +20,7 @@ export interface DrawingOptions {
   pressureSensitivity: boolean
   hardness: number // 0-100, brush edge hardness
   spacing: number // Distance between brush stamps as percentage of size
-  blendMode?: globalCompositeOperationType
+  blendMode?: GlobalCompositeOperation
 }
 
 export interface DrawingContext {
@@ -61,15 +61,15 @@ export abstract class EnhancedDrawingTool extends BaseTool {
   protected drawingLayer: Konva.Layer | null = null
   protected tempLayer: Konva.Layer | null = null
   
-  constructor(id: string, name: string, icon: string) {
-    super(id, name, icon)
+  constructor() {
+    super()
   }
   
   /**
    * Initialize drawing layers
    */
   protected initializeDrawingLayers(canvas: CanvasManager): void {
-    const stage = canvas.getStage()
+    const stage = canvas.konvaStage
     if (!stage) return
     
     // Create temporary drawing layer for live preview
@@ -79,7 +79,7 @@ export abstract class EnhancedDrawingTool extends BaseTool {
     stage.add(this.tempLayer)
     
     // Get or create main drawing layer
-    this.drawingLayer = canvas.getActiveLayer()
+    this.drawingLayer = canvas.getActiveLayer()?.konvaLayer || null
   }
   
   /**
@@ -355,7 +355,7 @@ export abstract class EnhancedDrawingTool extends BaseTool {
    * Get point from event
    */
   protected getEventPoint(event: ToolEvent, canvas: CanvasManager): DrawingPoint | null {
-    const stage = canvas.getStage()
+    const stage = canvas.konvaStage
     if (!stage) return null
     
     const pointerPosition = stage.getPointerPosition()
@@ -411,20 +411,16 @@ export abstract class EnhancedDrawingTool extends BaseTool {
   handleEvent(event: ToolEvent, context: ToolContext): void {
     switch (event.type) {
       case 'mousedown':
-      case 'touchstart':
         this.startDrawing(event, context)
         break
         
       case 'mousemove':
-      case 'touchmove':
         if (this.drawingContext.isDrawing) {
           this.continueDrawing(event, context)
         }
         break
         
       case 'mouseup':
-      case 'touchend':
-      case 'mouseleave':
         if (this.drawingContext.isDrawing) {
           this.endDrawing(event, context)
         }
@@ -435,16 +431,16 @@ export abstract class EnhancedDrawingTool extends BaseTool {
   /**
    * Activate tool
    */
-  activate(context: ToolContext): void {
-    super.activate(context)
-    this.initializeDrawingLayers(context.canvas)
+  onActivate(canvas: CanvasManager): void {
+    super.onActivate(canvas)
+    this.initializeDrawingLayers(canvas)
   }
   
   /**
    * Deactivate tool
    */
-  deactivate(context: ToolContext): void {
-    super.deactivate(context)
+  onDeactivate(canvas: CanvasManager): void {
+    super.onDeactivate(canvas)
     
     // Clean up temporary layer
     if (this.tempLayer) {
@@ -455,7 +451,4 @@ export abstract class EnhancedDrawingTool extends BaseTool {
     // Reset drawing context
     this.resetDrawingContext()
   }
-}
-
-// Export types
-export type { DrawingPoint, DrawingOptions, DrawingContext } 
+} 

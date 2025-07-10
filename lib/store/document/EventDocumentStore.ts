@@ -221,8 +221,12 @@ export class EventDocumentStore extends BaseStore<DocumentStoreState> {
             }
           })
           
-          // TODO: Load image into canvas using CanvasManager
-          // This should be handled by a separate service that listens to document events
+          // Emit image ready event for canvas to load the image
+          this.typedEventBus.emit('document.image.ready', {
+            documentId: newDocument.id,
+            imageElement: img,
+            dataUrl: e.target?.result as string
+          })
           
           resolve()
         }

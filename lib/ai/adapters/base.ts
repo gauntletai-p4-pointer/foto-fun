@@ -245,6 +245,18 @@ export abstract class BaseToolAdapter<
    * Capture the current state of an object
    */
   protected captureObjectState(obj: CanvasObject): Record<string, unknown> {
+    // Handle different types of data property
+    let dataValue: unknown = undefined
+    if (obj.data) {
+      if (typeof obj.data === 'object' && !(obj.data instanceof HTMLImageElement)) {
+        // It's a Record<string, unknown>, safe to spread
+        dataValue = { ...obj.data }
+      } else {
+        // It's a string or HTMLImageElement, store as-is
+        dataValue = obj.data
+      }
+    }
+    
     return {
       id: obj.id,
       type: obj.type,
@@ -254,7 +266,7 @@ export abstract class BaseToolAdapter<
       opacity: obj.opacity,
       visible: obj.visible,
       locked: obj.locked,
-      data: obj.data ? { ...obj.data } : undefined
+      data: dataValue
     }
   }
 }

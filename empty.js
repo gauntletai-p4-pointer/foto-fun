@@ -1,0 +1,1 @@
+// Empty file used as a stub for canvas module in client-side builds 

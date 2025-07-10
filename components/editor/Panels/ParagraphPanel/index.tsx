@@ -98,10 +98,7 @@ export function ParagraphPanel() {
       {/* Indentation */}
       <div className="space-y-1">
         <label className="text-xs font-medium text-foreground">Indentation</label>
-        <IndentControls
-          textObject={activeTextObject}
-          onChange={updateTextProperty}
-        />
+        <IndentControls />
       </div>
 
       {/* Spacing */}
@@ -116,10 +113,7 @@ export function ParagraphPanel() {
       {/* Justification */}
       <div className="space-y-1">
         <label className="text-xs font-medium text-foreground">Justification</label>
-        <JustificationOptions
-          textObject={activeTextObject}
-          onChange={updateTextProperty}
-        />
+        <JustificationOptions />
       </div>
 
       {/* Text Direction */}

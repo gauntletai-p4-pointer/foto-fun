@@ -1,10 +1,11 @@
 'use client'
 
+import React from 'react'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
-import { useService } from '@/lib/core/ServiceContainer'
+import { useService } from '@/lib/core/AppInitializer'
 import { useStore } from '@/lib/store/base/BaseStore'
 import { EventTextStore } from '@/lib/store/text/EventTextStore'
 import { EventSelectionStore } from '@/lib/store/selection/EventSelectionStore'

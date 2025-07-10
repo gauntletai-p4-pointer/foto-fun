@@ -242,6 +242,48 @@ export class TextLayerStyles {
   }
   
   /**
+   * Store effect data in text object metadata
+   */
+  private static storeEffectData(textObject: TextObject, effectType: string, data: DropShadowOptions | StrokeOptions | GlowOptions | GradientOptions): void {
+    if (!textObject.metadata || typeof textObject.metadata !== 'object') {
+      textObject.metadata = {}
+    }
+    const metadata = textObject.metadata as Record<string, unknown>
+    if (!metadata.textEffects || typeof metadata.textEffects !== 'object') {
+      metadata.textEffects = {}
+    }
+    const textEffects = metadata.textEffects as Record<string, unknown>
+    textEffects[effectType] = data
+  }
+  
+  /**
+   * Remove effect data from text object metadata
+   */
+  private static removeEffectData(textObject: TextObject, effectType: string): void {
+    if (textObject.metadata && typeof textObject.metadata === 'object') {
+      const metadata = textObject.metadata as Record<string, unknown>
+      if (metadata.textEffects && typeof metadata.textEffects === 'object') {
+        const textEffects = metadata.textEffects as Record<string, unknown>
+        delete textEffects[effectType]
+      }
+    }
+  }
+  
+  /**
+   * Get effects data from text object
+   */
+  private static getEffectsData(textObject: TextObject): TextEffectsData {
+    if (!textObject.metadata || typeof textObject.metadata !== 'object') {
+      textObject.metadata = {}
+    }
+    const metadata = textObject.metadata as Record<string, unknown>
+    if (!metadata.textEffects || typeof metadata.textEffects !== 'object') {
+      metadata.textEffects = {}
+    }
+    return metadata.textEffects as TextEffectsData
+  }
+  
+  /**
    * Remove all effects from text
    */
   static removeAllEffects(textObject: TextObject): void {
@@ -259,35 +301,10 @@ export class TextLayerStyles {
     }
     
     // Clear all effects data
-    textObject.metadata = textObject.metadata || {}
-    delete textObject.metadata.textEffects
-  }
-  
-  /**
-   * Store effect data in text object metadata
-   */
-  private static storeEffectData(textObject: TextObject, effectType: string, data: DropShadowOptions | StrokeOptions | GlowOptions | GradientOptions): void {
-    textObject.metadata = textObject.metadata || {}
-    textObject.metadata.textEffects = textObject.metadata.textEffects || {}
-    textObject.metadata.textEffects[effectType] = data
-  }
-  
-  /**
-   * Remove effect data from text object metadata
-   */
-  private static removeEffectData(textObject: TextObject, effectType: string): void {
-    if (textObject.metadata?.textEffects) {
-      delete textObject.metadata.textEffects[effectType]
+    if (textObject.metadata && typeof textObject.metadata === 'object') {
+      const metadata = textObject.metadata as Record<string, unknown>
+      delete metadata.textEffects
     }
-  }
-  
-  /**
-   * Get effects data from text object
-   */
-  private static getEffectsData(textObject: TextObject): TextEffectsData {
-    textObject.metadata = textObject.metadata || {}
-    textObject.metadata.textEffects = textObject.metadata.textEffects || {}
-    return textObject.metadata.textEffects as TextEffectsData
   }
 }
 

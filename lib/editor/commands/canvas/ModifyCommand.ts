@@ -1,6 +1,6 @@
 import { Command } from '../base'
 import type { CanvasManager, CanvasObject } from '@/lib/editor/canvas/types'
-import { ServiceContainer } from '@/lib/core/ServiceContainer'
+import { getTypedEventBus } from '@/lib/events/core/TypedEventBus'
 import type { TypedEventBus } from '@/lib/events/core/TypedEventBus'
 
 /**
@@ -57,12 +57,14 @@ export class ModifyCommand extends Command {
     this.canvasManager = canvasManager
     this.objectId = object.id
     this.newProperties = deepClone(properties) as Record<string, unknown>
-    this.typedEventBus = ServiceContainer.getInstance().get<TypedEventBus>('TypedEventBus')
+    this.typedEventBus = getTypedEventBus()
     
     // Capture old properties with deep cloning
     this.oldProperties = {}
     for (const key in properties) {
-      const value = (object as Record<string, unknown>)[key]
+      // Use bracket notation with proper type assertion
+      const objectAsAny = object as any
+      const value = objectAsAny[key]
       this.oldProperties[key] = deepClone(value)
     }
   }

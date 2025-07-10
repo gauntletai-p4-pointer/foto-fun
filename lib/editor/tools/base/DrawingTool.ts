@@ -87,7 +87,7 @@ export abstract class DrawingTool extends BaseTool {
     })
     
     // Begin stroke
-    this.beginStroke(point, event)
+    this.beginStroke(point)
   }
   
   /**
@@ -96,20 +96,18 @@ export abstract class DrawingTool extends BaseTool {
   onMouseMove(event: ToolEvent): void {
     if (!this.canvas || !this.state.get('isDrawing')) return
     
-    this.track('continueStroke', () => {
-      const point = event.point
-      const lastPoint = this.state.get('lastPoint')
+    const point = event.point
+    const lastPoint = this.state.get('lastPoint')
+    
+    if (lastPoint && this.shouldDrawSegment(lastPoint, point)) {
+      // Add to path
+      const currentPath = [...this.state.get('currentPath'), point]
+      this.state.set('currentPath', currentPath)
+      this.state.set('lastPoint', point)
       
-      if (lastPoint && this.shouldDrawSegment(lastPoint, point)) {
-        // Add to path
-        const currentPath = [...this.state.get('currentPath'), point]
-        this.state.set('currentPath', currentPath)
-        this.state.set('lastPoint', point)
-        
-        // Update stroke
-        this.updateStroke(point, event)
-      }
-    })
+      // Update stroke
+      this.updateStroke()
+    }
   }
   
   /**
@@ -118,21 +116,19 @@ export abstract class DrawingTool extends BaseTool {
   onMouseUp(_event: ToolEvent): void {
     if (!this.canvas || !this.state.get('isDrawing')) return
     
-    this.track('endStroke', () => {
-      const currentPath = this.state.get('currentPath')
-      
-      if (currentPath.length > 1) {
-        // Finalize the stroke
-        this.finalizeStroke()
-      }
-      
-      // Reset drawing state
-      this.state.setState({
-        isDrawing: false,
-        lastPoint: null,
-        currentPath: [],
-        currentStroke: null
-      })
+    const currentPath = this.state.get('currentPath')
+    
+    if (currentPath.length > 1) {
+      // Finalize the stroke
+      this.finalizeStroke()
+    }
+    
+    // Reset drawing state
+    this.state.setState({
+      isDrawing: false,
+      lastPoint: null,
+      currentPath: [],
+      currentStroke: null
     })
   }
   
@@ -162,7 +158,7 @@ export abstract class DrawingTool extends BaseTool {
       opacity: this.opacity,
       lineCap: 'round',
       lineJoin: 'round',
-      globalCompositeOperation: this.getBlendMode()
+      globalCompositeOperation: this.getBlendMode() as GlobalCompositeOperation
     })
     
     previewLayer.add(path)
@@ -246,7 +242,7 @@ export abstract class DrawingTool extends BaseTool {
   /**
    * Get blend mode for the tool
    */
-  protected abstract getBlendMode(): string
+  protected abstract getBlendMode(): GlobalCompositeOperation
   
   /**
    * Update tool properties from options

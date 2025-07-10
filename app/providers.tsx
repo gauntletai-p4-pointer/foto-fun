@@ -8,26 +8,44 @@ import { AppInitializer, ServiceContainerProvider } from '@/lib/core/AppInitiali
 export function Providers({ children }: { children: React.ReactNode }) {
   const [container, setContainer] = useState<ServiceContainer | null>(null)
   const [isInitialized, setIsInitialized] = useState(false)
+  const [error, setError] = useState<Error | null>(null)
 
   useEffect(() => {
+    console.log('[Providers] Starting app initialization...')
+    
     // Initialize the service container
     AppInitializer.initialize()
       .then((serviceContainer) => {
+        console.log('[Providers] App initialized successfully')
         setContainer(serviceContainer)
         setIsInitialized(true)
       })
       .catch((error) => {
-        console.error('Failed to initialize app:', error)
+        console.error('[Providers] Failed to initialize app:', error)
+        setError(error)
       })
   }, [])
 
-  if (!isInitialized) {
-    // Show loading state while initializing
+  if (error) {
     return (
-      <div className="h-screen flex items-center justify-center bg-[#1e1e1e] text-gray-200">
+      <div className="flex items-center justify-center min-h-screen p-4">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-gray-400 mx-auto mb-4"></div>
-          <p className="text-sm text-gray-400">Initializing application...</p>
+          <h1 className="text-2xl font-bold text-red-600 mb-2">Initialization Error</h1>
+          <p className="text-gray-600 mb-4">Failed to initialize the application</p>
+          <pre className="text-left bg-gray-100 p-4 rounded-md text-sm overflow-auto max-w-2xl">
+            {error.message}
+          </pre>
+        </div>
+      </div>
+    )
+  }
+
+  if (!isInitialized || !container) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-gray-900 mx-auto mb-4"></div>
+          <p className="text-gray-600">Initializing application...</p>
         </div>
       </div>
     )
@@ -35,7 +53,12 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   return (
     <ServiceContainerProvider value={container}>
-      <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+      <ThemeProvider
+        attribute="class"
+        defaultTheme="dark"
+        enableSystem
+        disableTransitionOnChange
+      >
         {children}
       </ThemeProvider>
     </ServiceContainerProvider>

@@ -69,6 +69,7 @@
     "@types/react-dom": "^19",
     "@types/uuid": "^10.0.0",
     "@vitejs/plugin-react": "^4.6.0",
+    "canvas": "^3.1.2",
     "drizzle-kit": "^0.31.4",
     "eslint": "^9",
     "eslint-config-next": "15.3.5",

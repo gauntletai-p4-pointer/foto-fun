@@ -33,6 +33,7 @@ export interface ToolState {
   // Tool options
   toolOptions: Map<string, Record<string, string | number | boolean>>
   defaultOptions: Map<string, Record<string, string | number | boolean>>
+  toolOptionsConfigs: Map<string, ToolOptionsConfig> // Store full configurations
   
   // Tool state
   isToolLocked: boolean
@@ -56,6 +57,7 @@ export class EventToolStore extends BaseStore<ToolState> {
         previousTool: null,
         toolOptions: new Map(),
         defaultOptions: new Map(),
+        toolOptionsConfigs: new Map(),
         isToolLocked: false,
         toolHistory: []
       },
@@ -124,6 +126,27 @@ export class EventToolStore extends BaseStore<ToolState> {
           
           const newToolOptions = new Map(state.toolOptions)
           newToolOptions.set(data.toolId, newOptions)
+          
+          // Update the configuration value as well
+          const config = state.toolOptionsConfigs.get(data.toolId)
+          if (config) {
+            const updatedConfig = {
+              ...config,
+              options: config.options.map(opt => 
+                opt.id === data.optionKey 
+                  ? { ...opt, value: data.value as string | number | boolean }
+                  : opt
+              )
+            }
+            const newConfigs = new Map(state.toolOptionsConfigs)
+            newConfigs.set(data.toolId, updatedConfig)
+            
+            return {
+              ...state,
+              toolOptions: newToolOptions,
+              toolOptionsConfigs: newConfigs
+            }
+          }
           
           return {
             ...state,
@@ -194,10 +217,14 @@ export class EventToolStore extends BaseStore<ToolState> {
         newDefaultOptions.set(config.toolId, options)
       }
       
+      const newConfigs = new Map(state.toolOptionsConfigs)
+      newConfigs.set(config.toolId, config)
+      
       return {
         ...state,
         toolOptions: newToolOptions,
-        defaultOptions: newDefaultOptions
+        defaultOptions: newDefaultOptions,
+        toolOptionsConfigs: newConfigs
       }
     })
   }
@@ -230,6 +257,22 @@ export class EventToolStore extends BaseStore<ToolState> {
   getToolOptions(toolId: string): Record<string, string | number | boolean> {
     const state = this.getState()
     return state.toolOptions.get(toolId) || state.defaultOptions.get(toolId) || {}
+  }
+  
+  /**
+   * Get tool options configuration
+   */
+  getToolOptionsConfig(toolId: string): ToolOption[] {
+    const state = this.getState()
+    const config = state.toolOptionsConfigs.get(toolId)
+    if (!config) return []
+    
+    // Return options with current values
+    const currentValues = this.getToolOptions(toolId)
+    return config.options.map(opt => ({
+      ...opt,
+      value: currentValues[opt.id] ?? opt.value
+    }))
   }
   
   /**

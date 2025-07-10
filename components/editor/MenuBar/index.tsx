@@ -1,7 +1,8 @@
 'use client'
 
-import { useState } from 'react'
-import { useService } from '@/lib/core/ServiceContainer'
+import React, { useState, useEffect, useCallback } from 'react'
+import { Button } from '@/components/ui/button'
+import { useService } from '@/lib/core/AppInitializer'
 import { useStore } from '@/lib/store/base/BaseStore'
 import { EventDocumentStore } from '@/lib/store/document/EventDocumentStore'
 import { EventSelectionStore } from '@/lib/store/selection/EventSelectionStore'

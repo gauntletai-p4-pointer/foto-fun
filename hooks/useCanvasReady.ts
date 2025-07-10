@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useService } from '@/lib/core/ServiceContainer'
+import { useService } from '@/lib/core/AppInitializer'
 import type { TypedCanvasStore } from '@/lib/store/canvas/TypedCanvasStore'
 import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
 

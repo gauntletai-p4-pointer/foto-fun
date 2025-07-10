@@ -1,6 +1,6 @@
 'use client'
 
-import { CanvasObject } from '@/lib/editor/canvas/types'
+import { CanvasObject, getMetadataValue } from '@/lib/editor/canvas/types'
 import { Slider } from '@/components/ui/slider'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
@@ -23,8 +23,8 @@ export function SpacingControls({ textObject, onChange }: SpacingControlsProps) 
   const lineHeight = textNode.lineHeight() || 1.16
   
   // Paragraph spacing (custom properties from metadata)
-  const spaceBefore = textObject.metadata?.spaceBefore || 0
-  const spaceAfter = textObject.metadata?.spaceAfter || 0
+  const spaceBefore = getMetadataValue(textObject, 'spaceBefore', 0) as number
+  const spaceAfter = getMetadataValue(textObject, 'spaceAfter', 0) as number
   
   const handleLineHeightChange = (value: number) => {
     onChange('lineHeight', value)

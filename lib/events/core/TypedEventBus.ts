@@ -93,6 +93,11 @@ export interface EventRegistry {
     documentId: string
     name: string
   }
+  'document.image.ready': {
+    documentId: string
+    imageElement: HTMLImageElement
+    dataUrl: string
+  }
   
   // Text events
   'text.created': {

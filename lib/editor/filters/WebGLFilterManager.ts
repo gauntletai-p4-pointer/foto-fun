@@ -146,19 +146,29 @@ export class WebGLFilterManager {
   ): void {
     switch (filterType) {
       case 'brightness':
-        instance.addFilter('brightness', params.amount || 0)
+        const brightnessAmount = typeof params.amount === 'number' ? params.amount : 0
+        instance.addFilter('brightness', brightnessAmount)
         break
         
       case 'contrast':
-        instance.addFilter('contrast', params.amount || 0)
+        const contrastAmount = typeof params.amount === 'number' ? params.amount : 0
+        instance.addFilter('contrast', contrastAmount)
         break
         
       case 'saturation':
-        instance.addFilter('saturation', params.amount || 0)
+        const saturationAmount = typeof params.amount === 'number' ? params.amount : 0
+        instance.addFilter('saturation', saturationAmount)
         break
         
       case 'hue':
-        instance.addFilter('hue', params.rotation || 0)
+        const hueRotation = typeof params.rotation === 'number' ? params.rotation : 0
+        instance.addFilter('hue', hueRotation)
+        break
+        
+      case 'blur':
+        // WebGLImageFilter doesn't support gaussian blur
+        // Fallback to Konva's blur if needed
+        console.warn('Blur filter not supported in WebGL mode')
         break
         
       case 'grayscale':
@@ -174,15 +184,18 @@ export class WebGLFilterManager {
         break
         
       case 'pixelate':
-        instance.addFilter('pixelate', params.size || 8)
+        const pixelateSize = typeof params.size === 'number' ? params.size : 8
+        instance.addFilter('pixelate', pixelateSize)
         break
         
       case 'emboss':
-        instance.addFilter('emboss', params.size || 1)
+        const embossSize = typeof params.size === 'number' ? params.size : 1
+        instance.addFilter('emboss', embossSize)
         break
         
       case 'sharpen':
-        instance.addFilter('sharpen', params.amount || 1)
+        const sharpenAmount = typeof params.amount === 'number' ? params.amount : 1
+        instance.addFilter('sharpen', sharpenAmount)
         break
         
       // Vintage effects

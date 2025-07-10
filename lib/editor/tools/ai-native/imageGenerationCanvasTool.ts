@@ -2,9 +2,10 @@ import { Sparkles } from 'lucide-react'
 import Konva from 'konva'
 import { TOOL_IDS } from '@/constants'
 import { BaseTool } from '../base/BaseTool'
-import type { Point, CanvasObject } from '@/lib/editor/canvas/types'
+import type { Point, CanvasObject, ToolEvent } from '@/lib/editor/canvas/types'
 import { ImageGeneratedEvent, GenerationFailedEvent } from '@/lib/events/canvas/ToolEvents'
 import { ObjectAddedEvent } from '@/lib/events/canvas/CanvasEvents'
+import { serializeCanvasObject } from '@/lib/editor/canvas/types'
 
 /**
  * Image Generation Tool - AI-powered image generation
@@ -12,7 +13,7 @@ import { ObjectAddedEvent } from '@/lib/events/canvas/CanvasEvents'
  */
 export class ImageGenerationTool extends BaseTool {
   // Tool identification
-  id = TOOL_IDS.IMAGE_GENERATION
+  id = TOOL_IDS.AI_IMAGE_GENERATION
   name = 'AI Image Generation'
   icon = Sparkles
   cursor = 'crosshair'
@@ -209,7 +210,7 @@ export class ImageGenerationTool extends BaseTool {
         // Object added event
         await this.executionContext.emit(new ObjectAddedEvent(
           'canvas',
-          { ...canvasObject, node: undefined },
+          canvasObject,
           activeLayer.id,
           this.executionContext.getMetadata()
         ))

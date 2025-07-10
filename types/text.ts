@@ -1,5 +1,7 @@
 // Text-specific types for FotoFun
 
+import type Konva from 'konva'
+
 export interface TextStyle {
   fontFamily: string
   fontSize: number
@@ -43,7 +45,7 @@ export interface FontInfo {
 }
 
 export interface TextToolState {
-  currentText: import('fabric').IText | null
+  currentText: Konva.Text | null
   isEditing: boolean
   originalText: string
   lastClickTime: number
@@ -52,7 +54,7 @@ export interface TextToolState {
 
 export interface TextOnPathOptions {
   text: string
-  path: import('fabric').Path
+  path: Konva.Path
   fontSize?: number
   fontFamily?: string
   fill?: string

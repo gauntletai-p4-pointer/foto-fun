@@ -5,6 +5,8 @@ import { EventBasedToolChain } from '@/lib/events/execution/EventBasedToolChain'
 import { adapterRegistry } from '../adapters/registry'
 import { BaseToolAdapter } from '../adapters/base'
 import type { Tool } from '@/lib/editor/canvas/types'
+import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
+import type { CanvasContext } from '@/lib/ai/tools/canvas-bridge'
 import { ServiceContainer } from '@/lib/core/ServiceContainer'
 import { EventStore } from '@/lib/events/core/EventStore'
 
@@ -92,14 +94,14 @@ export class ChainAdapter extends BaseToolAdapter<ExecuteChainInput, ExecuteChai
   /**
    * Execute the tool chain
    */
-  async execute(params: ExecuteChainInput, context?: { canvas?: unknown }): Promise<ExecuteChainOutput> {
+  async execute(params: ExecuteChainInput, context: CanvasContext): Promise<ExecuteChainOutput> {
     try {
       console.log('[ChainAdapter] Executing chain with steps:', params.steps)
       
       // Get required services
       const container = ServiceContainer.getInstance()
       const eventStore = container.get<EventStore>('EventStore')
-      const canvas = context?.canvas
+      const canvas = context.canvas
       
       if (!canvas) {
         throw new Error('Canvas is required for chain execution')
@@ -108,7 +110,7 @@ export class ChainAdapter extends BaseToolAdapter<ExecuteChainInput, ExecuteChai
       // Create event-based tool chain
       const chain = new EventBasedToolChain({
         canvasId: canvas.id,
-        canvas,
+        canvas: canvas as CanvasManager,
         eventStore,
         workflowId: `workflow_${Date.now()}`,
         metadata: {

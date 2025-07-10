@@ -3,7 +3,8 @@ import { CanvasToolAdapter } from '../base'
 import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
 import type { CanvasContext } from '@/lib/ai/tools/canvas-bridge'
 import type { ExecutionContext } from '@/lib/events/execution/ExecutionContext'
-import type { Tool } from '@/lib/editor/canvas/types'
+import type { Tool, CanvasObject } from '@/lib/editor/canvas/types'
+import { isImageData } from '@/lib/editor/canvas/types'
 
 // Define parameter schema
 const imageGenerationParameters = z.object({
@@ -139,8 +140,14 @@ Be specific in your descriptions for better results. The generated image will be
       const canvasHeight = canvas.state.height
       
       // Get image dimensions from the loaded object
-      const imgWidth = imageObject.data?.naturalWidth || 512
-      const imgHeight = imageObject.data?.naturalHeight || 512
+      let imgWidth = 512
+      let imgHeight = 512
+      
+      if (imageObject.data && isImageData(imageObject.data)) {
+        const imageData = imageObject.data as HTMLImageElement
+        imgWidth = imageData.naturalWidth || 512
+        imgHeight = imageData.naturalHeight || 512
+      }
       
       const scaleX = canvasWidth / imgWidth
       const scaleY = canvasHeight / imgHeight
@@ -212,15 +219,26 @@ Be specific in your descriptions for better results. The generated image will be
   /**
    * Check if a position would overlap with existing objects
    */
-  private hasOverlap(left: number, top: number, width: number, height: number, objects: Array<{ transform: { x: number; y: number; scaleX?: number; scaleY?: number }; data?: { naturalWidth?: number; naturalHeight?: number } }>): boolean {
+  private hasOverlap(left: number, top: number, width: number, height: number, objects: CanvasObject[]): boolean {
     const newRight = left + width
     const newBottom = top + height
     
     return objects.some(obj => {
       const objLeft = obj.transform.x
       const objTop = obj.transform.y
-      const objRight = objLeft + (obj.data?.naturalWidth || 100) * (obj.transform.scaleX || 1)
-      const objBottom = objTop + (obj.data?.naturalHeight || 100) * (obj.transform.scaleY || 1)
+      
+      // Get object dimensions
+      let objWidth = 100 // Default width
+      let objHeight = 100 // Default height
+      
+      if (obj.data && isImageData(obj.data)) {
+        const imageData = obj.data as HTMLImageElement
+        objWidth = imageData.naturalWidth || 100
+        objHeight = imageData.naturalHeight || 100
+      }
+      
+      const objRight = objLeft + objWidth * (obj.transform.scaleX || 1)
+      const objBottom = objTop + objHeight * (obj.transform.scaleY || 1)
       
       return !(newRight < objLeft || left > objRight || newBottom < objTop || top > objBottom)
     })

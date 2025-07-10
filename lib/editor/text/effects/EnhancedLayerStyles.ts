@@ -142,7 +142,7 @@ export class EnhancedLayerStyles {
     
     // Apply blend mode
     if (styles.blendMode) {
-      group.globalCompositeOperation(styles.blendMode as globalCompositeOperationType)
+      group.globalCompositeOperation(styles.blendMode as GlobalCompositeOperation)
     }
     
     // Apply effects in correct order for proper stacking
@@ -162,8 +162,10 @@ export class EnhancedLayerStyles {
       this.applyStroke(node, styles.stroke, group)
     }
     
-    // Add the main node
-    group.add(node)
+    // Add the main node - cast to proper type for Konva
+    if (node instanceof Konva.Shape || node instanceof Konva.Group) {
+      group.add(node)
+    }
     
     // 4. Inner effects (on top of main node)
     if (styles.innerShadow?.enabled) {
@@ -190,7 +192,7 @@ export class EnhancedLayerStyles {
     if (canvasObject) {
       this.typedEventBus.emit('layer.styles.applied', {
         objectId: canvasObject.id,
-        styles
+        styles: styles as Record<string, unknown>
       })
     }
     
@@ -489,7 +491,7 @@ export class EnhancedLayerStyles {
     
     if (hasComplexEffects) {
       group.cache()
-      group.drawHitFromCache()
+      // drawHitFromCache doesn't exist on Group, only on Shape
     }
   }
   

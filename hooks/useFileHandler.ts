@@ -1,15 +1,79 @@
 import { useCallback, useRef } from 'react'
 import { useService } from '@/lib/core/AppInitializer'
 import { EventDocumentStore } from '@/lib/store/document/EventDocumentStore'
+import { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
+import { ServiceContainer } from '@/lib/core/ServiceContainer'
 import { MAX_FILE_SIZE } from '@/constants'
 
 export function useFileHandler(mode: 'open' | 'insert' = 'open') {
   const documentStore = useService<EventDocumentStore>('DocumentStore')
+  
   const openDocument = (file: File) => documentStore.openDocument(file)
-  const insertImage = (file: File) => {
-    // TODO: Implement insertImage for new canvas system
-    console.log('insertImage needs implementation for Konva', file)
+  
+  const insertImage = async (file: File) => {
+    // Get the canvas manager from the container
+    try {
+      const container = ServiceContainer.getInstance()
+      const canvasManager = container.getSync<CanvasManager>('CanvasManager')
+      
+      if (!canvasManager) {
+        console.error('CanvasManager not available')
+        alert('Canvas not ready. Please wait a moment and try again.')
+        return
+      }
+      
+      // Read the file as data URL
+      const reader = new FileReader()
+      
+      return new Promise<void>((resolve, reject) => {
+        reader.onload = async (e) => {
+          const img = new Image()
+          
+          img.onload = async () => {
+            try {
+              // Add the image to the canvas
+              await canvasManager.addObject({
+                type: 'image',
+                data: img,
+                name: file.name,
+                transform: {
+                  x: 50, // Offset from top-left
+                  y: 50,
+                  scaleX: 1,
+                  scaleY: 1,
+                  rotation: 0,
+                  skewX: 0,
+                  skewY: 0
+                }
+              })
+              
+              console.log('[FileHandler] Image inserted successfully')
+              resolve()
+            } catch (error) {
+              console.error('[FileHandler] Failed to insert image:', error)
+              reject(error)
+            }
+          }
+          
+          img.onerror = () => {
+            reject(new Error('Failed to load image'))
+          }
+          
+          img.src = e.target?.result as string
+        }
+        
+        reader.onerror = () => {
+          reject(new Error('Failed to read file'))
+        }
+        
+        reader.readAsDataURL(file)
+      })
+    } catch (error) {
+      console.error('[FileHandler] Failed to get CanvasManager:', error)
+      throw error
+    }
   }
+  
   const fileInputRef = useRef<HTMLInputElement>(null)
   
   const validateFile = (file: File): string | null => {
@@ -49,7 +113,7 @@ export function useFileHandler(mode: 'open' | 'insert' = 'open') {
       console.error('Failed to handle file:', error)
       alert('Failed to handle file. Please try again.')
     }
-  }, [openDocument, insertImage, mode])
+  }, [openDocument, mode])
   
   const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]

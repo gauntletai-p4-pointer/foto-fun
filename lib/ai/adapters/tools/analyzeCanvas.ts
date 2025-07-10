@@ -4,6 +4,8 @@ import { BaseToolAdapter } from '../base'
 import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
 import type { CanvasObject } from '@/lib/editor/canvas/types'
 import type { Tool } from '@/types'
+import type { CanvasContext } from '@/lib/ai/tools/canvas-bridge'
+import type { ExecutionContext } from '@/lib/events/execution/ExecutionContext'
 
 export interface AnalyzeCanvasInput {
   includeHistogram?: boolean
@@ -58,9 +60,22 @@ Use this when you need to understand what's currently on the canvas.`
   
   async execute(
     params: AnalyzeCanvasInput,
-    context: { canvas: CanvasManager }
+    context: CanvasContext,
+    executionContext?: ExecutionContext
   ): Promise<AnalyzeCanvasOutput> {
     const { canvas } = context
+    
+    if (!canvas) {
+      return {
+        success: false,
+        analysis: {
+          dimensions: { width: 0, height: 0 },
+          hasContent: false,
+          objectCount: 0,
+          description: 'Canvas not available'
+        }
+      }
+    }
     
     try {
       // Get basic canvas info
@@ -95,10 +110,10 @@ Use this when you need to understand what's currently on the canvas.`
       if (params.includeObjectDetails) {
         analysis.objects = objects.map(obj => ({
           type: obj.type || 'unknown',
-          position: { x: obj.transform.position.x || 0, y: obj.transform.position.y || 0 },
+          position: { x: obj.transform.x || 0, y: obj.transform.y || 0 },
           size: { 
-            width: (obj.originalWidth || 100) * obj.transform.scale.x, 
-            height: (obj.originalHeight || 100) * obj.transform.scale.y 
+            width: 100 * obj.transform.scaleX, 
+            height: 100 * obj.transform.scaleY 
           }
         }))
       }
@@ -194,4 +209,4 @@ Use this when you need to understand what's currently on the canvas.`
 }
 
 // Export both named and default
-export default AnalyzeCanvasAdapter
+export default AnalyzeCanvasAdapter 

@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { useService } from '@/lib/core/AppInitializer'
+import { useService, useAsyncService } from '@/lib/core/AppInitializer'
 import { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
 import { CanvasManagerFactory } from '@/lib/editor/canvas/CanvasManagerFactory'
 import { useCanvasStore as useTypedCanvasStore } from '@/lib/store/canvas/TypedCanvasStore'
@@ -9,15 +9,22 @@ import { TypedCanvasStore } from '@/lib/store/canvas/TypedCanvasStore'
 import { EventToolStore } from '@/lib/store/tools/EventToolStore'
 import { getTypedEventBus } from '@/lib/events/core/TypedEventBus'
 import { useFileHandler } from '@/hooks/useFileHandler'
+import { ServiceContainer } from '@/lib/core/ServiceContainer'
 
 export function Canvas() {
   const containerRef = useRef<HTMLDivElement>(null)
   const [canvasManager, setCanvasManager] = useState<CanvasManager | null>(null)
   
-  // Get services from DI container
-  const canvasFactory = useService<CanvasManagerFactory>('CanvasManagerFactory')
+  // Get services
   const canvasStore = useService<TypedCanvasStore>('CanvasStore')
   const toolStore = useService<EventToolStore>('ToolStore')
+  const eventBus = useService<ReturnType<typeof getTypedEventBus>>('TypedEventBus')
+  
+  // Get the async CanvasManagerFactory
+  const { service: canvasFactory, loading } = useAsyncService<CanvasManagerFactory>('CanvasManagerFactory')
+  
+  // Get the service container to update the CanvasManager instance
+  const container = ServiceContainer.getInstance()
   
   // Use the typed canvas store (removed unused variable)
   useTypedCanvasStore(canvasStore)
@@ -26,16 +33,19 @@ export function Canvas() {
   
   // Initialize canvas
   useEffect(() => {
-    const container = containerRef.current
-    if (!container || !canvasFactory) return
+    if (!containerRef.current || !canvasFactory || loading) return
     
     console.log('[Canvas] Starting Konva initialization...')
     const startTime = Date.now()
     
     try {
       // Create canvas manager
-      const manager = canvasFactory.create(container)
+      const manager = canvasFactory.create(containerRef.current)
+      
       setCanvasManager(manager)
+      
+      // Register the active CanvasManager instance in the container
+      container.updateInstance('CanvasManager', manager)
       
       // Add initial layer
       manager.addLayer({ name: 'Layer 1' })
@@ -46,15 +56,66 @@ export function Canvas() {
     }
     
     return () => {
-      console.log('[Canvas] Disposing canvas...')
-      // Canvas manager will be cleaned up by ResourceManager
-      // Store the manager in a variable to avoid ref issues
+      // Clean up
       const currentManager = canvasManager
       if (currentManager) {
         currentManager.destroy()
       }
+      setCanvasManager(null)
+      
+      // Clear the CanvasManager from the container
+      container.updateInstance('CanvasManager', null)
     }
-  }, [canvasFactory, canvasManager])
+  }, [canvasFactory, loading, canvasStore, toolStore, eventBus, container])
+  
+  // Handle document image loading
+  useEffect(() => {
+    if (!canvasManager) return
+    
+    const unsubscribe = eventBus.on('document.image.ready', async (data) => {
+      console.log('[Canvas] Loading document image...')
+      
+      try {
+        // Clear existing content
+        const layers = [...canvasManager.state.layers]
+        layers.forEach(layer => {
+          layer.objects.forEach(obj => {
+            canvasManager.removeObject(obj.id)
+          })
+        })
+        
+        // Resize canvas to match image
+        await canvasManager.resize(data.imageElement.width, data.imageElement.height)
+        
+        // Add the image to the canvas
+        await canvasManager.addObject({
+          type: 'image',
+          data: data.imageElement,
+          name: 'Background',
+          transform: {
+            x: 0,
+            y: 0,
+            scaleX: 1,
+            scaleY: 1,
+            rotation: 0,
+            skewX: 0,
+            skewY: 0
+          }
+        })
+        
+        // Fit to screen
+        canvasManager.fitToScreen()
+        
+        console.log('[Canvas] Document image loaded successfully')
+      } catch (error) {
+        console.error('[Canvas] Failed to load document image:', error)
+      }
+    })
+    
+    return () => {
+      unsubscribe()
+    }
+  }, [canvasManager, eventBus])
   
   // Handle tool activation
   useEffect(() => {
@@ -175,9 +236,22 @@ export function Canvas() {
     return () => window.removeEventListener('resize', handleResize)
   }, [canvasManager])
   
+  // Show loading state while canvas factory is being loaded
+  if (loading) {
+    return (
+      <div className="relative flex-1 bg-content-background p-4 min-w-0 overflow-hidden flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-gray-400 mx-auto mb-2"></div>
+          <p className="text-sm text-gray-400">Loading canvas...</p>
+        </div>
+      </div>
+    )
+  }
+  
   return (
     <div 
       ref={containerRef}
+      data-canvas-container
       className="relative flex-1 bg-content-background p-4 min-w-0 overflow-hidden"
       onDrop={handleDrop}
       onDragOver={handleDragOver}

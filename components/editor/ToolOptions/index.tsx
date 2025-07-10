@@ -71,7 +71,7 @@ export function ToolOptions() {
     )
   }
   
-  const options = toolStore.getToolOptions(activeTool.id)
+  const options = toolStore.getToolOptionsConfig(activeTool.id)
   if (!options || options.length === 0) return null
   
   const renderOption = (option: ToolOption) => {

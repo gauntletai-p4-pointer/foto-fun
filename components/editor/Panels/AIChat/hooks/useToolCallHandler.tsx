@@ -1,7 +1,8 @@
-import { useCallback } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { ClientToolExecutor } from '@/lib/ai/client/tool-executor'
-import { ServiceContainer } from '@/lib/core/ServiceContainer'
+import { useAsyncService } from '@/lib/core/AppInitializer'
 import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
+import type { CanvasManagerFactory } from '@/lib/editor/canvas/CanvasManagerFactory'
 import { adapterRegistry } from '@/lib/ai/adapters/registry'
 
 interface ThinkingStep {
@@ -25,7 +26,24 @@ export function useToolCallHandler({
   onAgentThinkingEnd,
   onAgentThinkingStep
 }: UseToolCallHandlerProps) {
-  const canvasManager = ServiceContainer.getInstance().get<CanvasManager>('CanvasManager')
+  const { service: canvasFactory } = useAsyncService<CanvasManagerFactory>('CanvasManagerFactory')
+  const [canvasManager, setCanvasManager] = useState<CanvasManager | null>(null)
+  
+  // Get canvas manager from factory
+  useEffect(() => {
+    if (!canvasFactory) return
+    
+    // Find the canvas container
+    const container = document.querySelector('[data-canvas-container]') as HTMLDivElement
+    if (!container) return
+    
+    try {
+      const manager = canvasFactory.create(container)
+      setCanvasManager(manager)
+    } catch (error) {
+      console.error('[AIChat] Failed to get canvas manager:', error)
+    }
+  }, [canvasFactory])
   
   const handleToolCall = useCallback(async ({ toolCall }: { toolCall: {
     toolName?: string

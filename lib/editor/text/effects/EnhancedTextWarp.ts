@@ -101,7 +101,7 @@ export class EnhancedTextWarp {
     this.typedEventBus.emit('text.warped', {
       textId: textObject.id,
       warpStyle,
-      warpOptions: options
+      warpOptions: { ...options }
     })
     
     return path

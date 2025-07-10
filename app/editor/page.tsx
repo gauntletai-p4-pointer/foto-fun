@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import dynamic from 'next/dynamic'
 import { MenuBar } from '@/components/editor/MenuBar'
 import { ToolPalette } from '@/components/editor/ToolPalette'
-import { Canvas } from '@/components/editor/Canvas'
 import { Panels } from '@/components/editor/Panels'
 import { OptionsBar } from '@/components/editor/OptionsBar'
 import { StatusBar } from '@/components/editor/StatusBar'
@@ -17,7 +17,24 @@ import { EventToolStore } from '@/lib/store/tools/EventToolStore'
 import { createClient } from '@/lib/db/supabase/client'
 import { eventHistoryKeyboardHandlers } from '@/lib/events/history/EventBasedHistoryStore'
 
-export default function EditorPage() {
+// Dynamically import Canvas to avoid SSR issues with Konva
+const Canvas = dynamic(
+  () => import('@/components/editor/Canvas').then(mod => ({ default: mod.Canvas })),
+  { 
+    ssr: false,
+    loading: () => (
+      <div className="relative flex-1 bg-content-background p-4 min-w-0 overflow-hidden flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-gray-400 mx-auto mb-2"></div>
+          <p className="text-sm text-gray-400">Loading canvas...</p>
+        </div>
+      </div>
+    )
+  }
+)
+
+// Inner component that uses services
+function EditorContent() {
   const documentStore = useService<EventDocumentStore>('DocumentStore')
   const documentState = useStore(documentStore)
   const currentDocument = documentState.currentDocument
@@ -25,27 +42,7 @@ export default function EditorPage() {
   const toolStore = useService<EventToolStore>('ToolStore')
   const toolState = useStore(toolStore)
   
-  const router = useRouter()
   const [showNewDocumentDialog, setShowNewDocumentDialog] = useState(false)
-  const [authChecked, setAuthChecked] = useState(false)
-  
-  useEffect(() => {
-    // Check authentication on mount
-    const checkAuth = async () => {
-      const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      
-      if (!user) {
-        // Redirect to sign-in page if not authenticated
-        router.push('/auth/signin')
-      } else {
-        // Only set authChecked to true if user is authenticated
-        setAuthChecked(true)
-      }
-    }
-    
-    checkAuth()
-  }, [router])
   
   // Create default document on mount if none exists
   useEffect(() => {
@@ -113,18 +110,6 @@ export default function EditorPage() {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [currentDocument, documentStore, toolState.tools, toolStore])
   
-  // Show loading state while checking auth
-  if (!authChecked) {
-    return (
-      <div className="h-screen flex items-center justify-center bg-[#1e1e1e] text-gray-200">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-gray-400 mx-auto mb-4"></div>
-          <p className="text-sm text-gray-400">Loading editor...</p>
-        </div>
-      </div>
-    )
-  }
-  
   return (
     <div className="h-screen flex flex-col bg-[#1e1e1e] text-gray-200 overflow-hidden">
       <MenuBar />
@@ -140,6 +125,59 @@ export default function EditorPage() {
         onOpenChange={setShowNewDocumentDialog}
       />
       <ImageGenerationDialog />
+    </div>
+  )
+}
+
+// Main component that handles auth and service initialization
+export default function EditorPage() {
+  const router = useRouter()
+  const [authChecked, setAuthChecked] = useState(false)
+  const [isAuthenticated, setIsAuthenticated] = useState(false)
+  
+  useEffect(() => {
+    // Check authentication on mount
+    const checkAuth = async () => {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      
+      if (!user) {
+        // Redirect to sign-in page if not authenticated
+        router.push('/auth/signin')
+      } else {
+        // Only set authChecked to true if user is authenticated
+        setIsAuthenticated(true)
+        setAuthChecked(true)
+      }
+    }
+    
+    checkAuth()
+  }, [router])
+  
+  // Show loading state while checking auth
+  if (!authChecked) {
+    return (
+      <div className="h-screen flex items-center justify-center bg-[#1e1e1e] text-gray-200">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-gray-400 mx-auto mb-4"></div>
+          <p className="text-sm text-gray-400">Loading editor...</p>
+        </div>
+      </div>
+    )
+  }
+  
+  // If authenticated, render the editor content
+  if (isAuthenticated) {
+    return <EditorContent />
+  }
+  
+  // Otherwise, show loading (redirect will happen)
+  return (
+    <div className="h-screen flex items-center justify-center bg-[#1e1e1e] text-gray-200">
+      <div className="text-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-gray-400 mx-auto mb-4"></div>
+        <p className="text-sm text-gray-400">Redirecting to sign in...</p>
+      </div>
     </div>
   )
 } 

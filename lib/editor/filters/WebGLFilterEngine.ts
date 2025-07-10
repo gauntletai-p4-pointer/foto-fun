@@ -146,25 +146,29 @@ export class WebGLFilterEngine {
     switch (filter.type) {
       case 'brightness':
         // WebGLImageFilter expects amount where 1 = 2x brightness, -1 = half brightness
-        const brightnessAmount = (filter.params.value || 0) / 100
+        const brightnessValue = filter.params.value
+        const brightnessAmount = (typeof brightnessValue === 'number' ? brightnessValue : 0) / 100
         instance.addFilter('brightness', brightnessAmount)
         break
         
       case 'contrast':
         // Similar scaling for contrast
-        const contrastAmount = (filter.params.value || 0) / 100
+        const contrastValue = filter.params.value
+        const contrastAmount = (typeof contrastValue === 'number' ? contrastValue : 0) / 100
         instance.addFilter('contrast', contrastAmount)
         break
         
       case 'saturation':
         // Saturation: 1 = 2x saturation, -1 = desaturated
-        const saturationAmount = (filter.params.value || 0) / 100
+        const saturationValue = filter.params.value
+        const saturationAmount = (typeof saturationValue === 'number' ? saturationValue : 0) / 100
         instance.addFilter('saturation', saturationAmount)
         break
         
       case 'hue':
         // Hue rotation in degrees (0-360)
-        instance.addFilter('hue', filter.params.value || 0)
+        const hueValue = filter.params.value
+        instance.addFilter('hue', typeof hueValue === 'number' ? hueValue : 0)
         break
         
       case 'blur':
@@ -186,15 +190,18 @@ export class WebGLFilterEngine {
         break
         
       case 'pixelate':
-        instance.addFilter('pixelate', filter.params.size || 8)
+        const pixelateSize = filter.params.size
+        instance.addFilter('pixelate', typeof pixelateSize === 'number' ? pixelateSize : 8)
         break
         
       case 'emboss':
-        instance.addFilter('emboss', filter.params.strength || 1)
+        const embossStrength = filter.params.strength
+        instance.addFilter('emboss', typeof embossStrength === 'number' ? embossStrength : 1)
         break
         
       case 'sharpen':
-        instance.addFilter('sharpen', filter.params.amount || 1)
+        const sharpenAmount = filter.params.amount
+        instance.addFilter('sharpen', typeof sharpenAmount === 'number' ? sharpenAmount : 1)
         break
         
       // Vintage effects

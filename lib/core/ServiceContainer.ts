@@ -89,9 +89,29 @@ export class ServiceContainer {
   }
   
   /**
-   * Get a service by token
+   * Update an existing service instance
+   * Useful for services that are created outside the container
    */
-  get<T>(token: string): T {
+  updateInstance(token: string, instance: unknown): void {
+    // If not registered, register it as a singleton first
+    if (!this.metadata.has(token)) {
+      this.registerSingleton(token, () => instance)
+      return
+    }
+    
+    const metadata = this.metadata.get(token)!
+    
+    if (metadata.lifecycle === 'singleton') {
+      this.singletons.set(token, instance)
+    } else {
+      this.services.set(token, instance)
+    }
+  }
+  
+  /**
+   * Get a service by token (supports async factories)
+   */
+  async get<T>(token: string): Promise<T> {
     // Check if it's a registered value
     if (this.services.has(token)) {
       return this.services.get(token) as T
@@ -114,7 +134,51 @@ export class ServiceContainer {
     this.checkCircularDependencies(token)
     
     // Create instance with dependency injection
-    const instance = factory(this) as T
+    const instance = await factory(this) as T
+    
+    // Cache if singleton
+    if (metadata.lifecycle === 'singleton') {
+      this.singletons.set(token, instance)
+    }
+    
+    return instance
+  }
+  
+  /**
+   * Get a service synchronously (for backward compatibility)
+   * Only use this if you're sure the service doesn't have async dependencies
+   */
+  getSync<T>(token: string): T {
+    // Check if it's a registered value
+    if (this.services.has(token)) {
+      return this.services.get(token) as T
+    }
+    
+    // Check if singleton already exists
+    if (this.singletons.has(token)) {
+      return this.singletons.get(token) as T
+    }
+    
+    // Create new instance
+    const factory = this.factories.get(token)
+    if (!factory) {
+      throw new ServiceNotFoundError(token)
+    }
+    
+    const metadata = this.metadata.get(token)!
+    
+    // Check for circular dependencies
+    this.checkCircularDependencies(token)
+    
+    // Create instance with dependency injection
+    const result = factory(this)
+    
+    // If the factory returns a promise, throw an error
+    if (result instanceof Promise) {
+      throw new Error(`Service '${token}' has async dependencies. Use get() instead of getSync()`)
+    }
+    
+    const instance = result as T
     
     // Cache if singleton
     if (metadata.lifecycle === 'singleton') {
@@ -203,7 +267,7 @@ export class ScopedContainer {
   
   constructor(private parent: ServiceContainer) {}
   
-  get<T>(token: string): T {
+  async get<T>(token: string): Promise<T> {
     // Check scoped instances first
     if (this.scopedInstances.has(token)) {
       return this.scopedInstances.get(token) as T
@@ -212,12 +276,8 @@ export class ScopedContainer {
     const metadata = this.parent.getMetadata(token)
     
     if (metadata?.lifecycle === 'scoped') {
-      // Create scoped instance
-      const factory = (this.parent as ServiceContainer).factories.get(token) as ServiceFactory<T> | undefined
-      if (!factory) {
-        throw new ServiceNotFoundError(token)
-      }
-      const instance = factory(this) as T
+      // Use parent's get method to handle factory resolution
+      const instance = await this.parent.get<T>(token)
       this.scopedInstances.set(token, instance)
       return instance
     }
@@ -238,7 +298,7 @@ export class ScopedContainer {
 }
 
 // Types
-export type ServiceFactory<T> = (container: ServiceContainer | ScopedContainer) => T
+export type ServiceFactory<T> = (container: ServiceContainer | ScopedContainer) => T | Promise<T>
 
 export type ServiceLifecycle = 'singleton' | 'transient' | 'scoped' | 'value'
 
@@ -270,21 +330,6 @@ export class CircularDependencyError extends Error {
     super(`Circular dependency detected: ${chain.join(' -> ')} -> ${token}`)
     this.name = 'CircularDependencyError'
   }
-}
-
-// React Hook
-import { useContext, createContext } from 'react'
-
-const ContainerContext = createContext<ServiceContainer | null>(null)
-
-export const ContainerProvider = ContainerContext.Provider
-
-export function useService<T>(token: string): T {
-  const container = useContext(ContainerContext)
-  if (!container) {
-    throw new Error('useService must be used within ContainerProvider')
-  }
-  return container.get<T>(token)
 }
 
 // Decorators (for future use)

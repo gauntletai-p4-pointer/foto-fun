@@ -1,5 +1,7 @@
 import { z } from 'zod'
 import type { tool as createTool } from 'ai'
+import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
+import type { CanvasObject } from '@/lib/editor/canvas/types'
 
 // Type for the tool function from AI SDK v5
 export type AISDKTool<TInput = unknown, TOutput = unknown> = ReturnType<typeof createTool<TInput, TOutput>>
@@ -79,11 +81,11 @@ export type ToolCategory =
   | 'analysis'
 
 export interface ToolExecutionContext {
-  canvas?: fabric.Canvas
+  canvas?: CanvasManager
   canvasStore?: unknown // Will be typed with actual store
   documentStore?: unknown
   toolStore?: unknown
-  selection?: fabric.Object[]
+  selection?: CanvasObject[]
 }
 
 export interface ToolPreview {
