@@ -18,7 +18,7 @@ interface RotateOutput {
   success: boolean
   angle: number
   message: string
-  targetingMode: 'selection' | 'all-images' | 'auto-single'
+  targetingMode: 'selection' | 'auto-single'
 }
 
 // Create adapter class

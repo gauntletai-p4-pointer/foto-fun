@@ -16,7 +16,7 @@ interface InvertOutput {
   success: boolean
   enabled: boolean
   message: string
-  targetingMode: 'selection' | 'all-images' | 'auto-single'
+  targetingMode: 'selection' | 'auto-single'
 }
 
 // Create adapter class

@@ -23,7 +23,7 @@ interface CropOutput {
     height: number
   }
   scale?: number
-  targetingMode: 'selection' | 'all-images' | 'auto-single'
+  targetingMode: 'selection' | 'auto-single'
   message?: string
 }
 

@@ -204,14 +204,16 @@ export function AIChat() {
         body: { 
           canvasContext,
           aiSettings: {
-            autoApproveThreshold: 0.8,
-            showConfidenceScores: true,
-            showApprovalDecisions: true
+            autoApproveThreshold: aiSettings.autoApproveThreshold,
+            showConfidenceScores: aiSettings.showConfidenceScores,
+            showApprovalDecisions: aiSettings.showApprovalDecisions,
+            showEducationalContent: aiSettings.showEducationalContent,
+            stepByStepMode: aiSettings.stepByStepMode
           }
         }
       }
     )
-  }, [sendMessage, hasContent])
+  }, [sendMessage, hasContent, aiSettings])
   
   return (
     <div className="flex flex-col h-full bg-background">

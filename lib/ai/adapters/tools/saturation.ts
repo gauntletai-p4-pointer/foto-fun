@@ -20,7 +20,7 @@ interface SaturationOutput {
   previousValue: number
   newValue: number
   affectedImages: number
-  targetingMode: 'selection' | 'all-images' | 'auto-single'
+  targetingMode: 'selection' | 'auto-single'
   message?: string
 }
 

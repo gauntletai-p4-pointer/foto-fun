@@ -1,5 +1,5 @@
-import { AlertTriangle } from 'lucide-react'
-import { AgentWorkflowDisplay } from '../AgentWorkflowDisplay'
+import { AlertTriangle, ChevronRight, ChevronDown } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
 import { AgentStatusDisplay } from '../AgentStatusDisplay'
 import { UnifiedToolDisplay } from './UnifiedToolDisplay'
 import { EvaluationResultDisplay } from './EvaluationResultDisplay'
@@ -68,6 +68,12 @@ interface AgentWorkflowOutput {
   }>
   iterationCount?: number
   maxIterations?: number
+  workflowSteps?: Array<{
+    icon: string
+    name: string
+    description: string
+    step: number
+  }>
 }
 
 interface ToolPartRendererProps {
@@ -104,6 +110,9 @@ export function ToolPartRenderer({
     output?: Record<string, unknown>
     error?: string
   }>>({})
+  
+  // State for expandable sections
+  const [isDetailsExpanded, setIsDetailsExpanded] = useState(false)
   
   // Effect to update step results when chain completes
   useEffect(() => {
@@ -231,7 +240,7 @@ export function ToolPartRenderer({
   // Handle agent workflow approval required
   if (isAgentExecution && toolOutput?.approvalRequired && toolOutput?.step) {
     return (
-      <div className="space-y-2">
+      <div className="space-y-2 max-w-full">
         {/* Show status updates if available */}
         {toolOutput.statusUpdates && toolOutput.statusUpdates.length > 0 && (
           <AgentStatusDisplay 
@@ -241,34 +250,109 @@ export function ToolPartRenderer({
         )}
         
         <div className="text-sm text-muted-foreground">
+          {/* Show workflow steps if available */}
+          {toolOutput.workflowSteps && toolOutput.workflowSteps.length > 0 && (
+            <div className="mb-3 p-3 bg-muted/30 rounded-md max-h-32 overflow-y-auto">
+              <p className="text-xs font-medium mb-2">Agent Workflow:</p>
+              <div className="space-y-1">
+                {toolOutput.workflowSteps.map((step) => (
+                  <div key={step.step} className="flex items-center gap-2 text-xs">
+                    <span>{step.icon}</span>
+                    <span className="font-medium">{step.name}:</span>
+                    <span className="text-muted-foreground">{step.description}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          
+          {/* Show detailed status updates if available */}
+          {toolOutput.statusUpdates && toolOutput.statusUpdates.length > 0 && (
+            <div className="mb-3 p-3 bg-muted/30 rounded-md">
+              <button
+                onClick={() => setIsDetailsExpanded(!isDetailsExpanded)}
+                className="w-full flex items-center justify-between text-xs font-medium hover:opacity-80 transition-opacity"
+              >
+                <span>Detailed Analysis Steps</span>
+                {isDetailsExpanded ? (
+                  <ChevronDown className="w-3 h-3" />
+                ) : (
+                  <ChevronRight className="w-3 h-3" />
+                )}
+              </button>
+              {isDetailsExpanded && (
+                <div className="mt-2 space-y-1 max-h-32 overflow-y-auto">
+                  {toolOutput.statusUpdates.map((update, idx) => (
+                    <div key={idx} className="text-xs">
+                      <div className="flex items-start gap-2">
+                        <span className="text-muted-foreground">•</span>
+                        <div className="flex-1">
+                          <span className="font-medium">{update.message}</span>
+                          {update.details && (
+                            <div className="text-muted-foreground mt-0.5">{update.details}</div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+          
           <p className="mb-2">
             I&apos;ve analyzed your request and created a plan with {toolOutput.toolExecutions?.length || 0} steps.
           </p>
           <p className="mb-2">
-            <span className="font-medium">Confidence:</span> {Math.round(toolOutput.step.confidence * 100)}% 
-            (threshold: {Math.round(toolOutput.step.threshold * 100)}%)
+            <span className="font-medium">Confidence:</span> {Math.round((toolOutput.agentStatus?.confidence || 0) * 100)}% 
+            (threshold: {Math.round((toolOutput.agentStatus?.threshold || 1) * 100)}%)
           </p>
           
-          {/* Show the planned tools using UnifiedToolDisplay */}
-          {toolOutput.toolExecutions && toolOutput.toolExecutions.length > 0 && (
-            <div className="mb-3 space-y-2">
-              <p className="font-medium mb-1">Planned operations:</p>
-              {toolOutput.toolExecutions.map((exec, idx) => (
-                <UnifiedToolDisplay
-                  key={`${exec.toolName}-${idx}`}
-                  toolName={exec.toolName}
-                  state="input-available"
-                  input={exec.params as Record<string, unknown>}
-                  description={exec.description}
-                  confidence={exec.confidence}
-                  showConfidence={aiSettings.showConfidenceScores}
-                  isPartOfChain={true}
-                />
-              ))}
+          {/* Show vision insights/reasoning if available */}
+          {toolOutput.workflow?.reasoning && (
+            <div className="mb-3 p-3 bg-muted/30 rounded-md max-h-40 overflow-y-auto">
+              <p className="text-xs font-medium mb-1">AI Vision Analysis:</p>
+              <p className="text-xs text-muted-foreground whitespace-pre-wrap">
+                {toolOutput.workflow.reasoning}
+              </p>
             </div>
           )}
           
-          <p className="text-sm italic">
+          {/* Show the planned tools using UnifiedToolDisplay */}
+          {toolOutput.toolExecutions && toolOutput.toolExecutions.length > 0 && (
+            <div className="space-y-2 mb-4">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <span>Planned enhancements:</span>
+              </div>
+              <div className="max-h-60 overflow-y-auto space-y-2">
+                {toolOutput.toolExecutions.map((tool, idx) => (
+                  <div key={idx} className="rounded-lg border p-3 space-y-1">
+                    <div className="flex items-center gap-2">
+                      <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                      <Badge 
+                        variant="default" 
+                        className="bg-primary text-primary-foreground hover:bg-primary/90"
+                      >
+                        {tool.toolName}
+                      </Badge>
+                      {aiSettings.showConfidenceScores && tool.confidence !== undefined && (
+                        <Badge variant="outline" className="text-xs">
+                          {Math.round(tool.confidence * 100)}%
+                        </Badge>
+                      )}
+                    </div>
+                    {tool.description && (
+                      <p className="text-sm text-muted-foreground pl-6">
+                        {tool.description}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          
+          <p className="text-sm italic mt-4">
             Type <span className="font-medium">&quot;approve&quot;</span> to execute this plan, or provide feedback to adjust it.
           </p>
         </div>
@@ -279,7 +363,7 @@ export function ToolPartRenderer({
   // Show agent workflow display if available
   if (isAgentExecution && toolOutput?.workflow && toolOutput?.agentStatus) {
     return (
-      <div className="space-y-2">
+      <div className="space-y-2 max-w-full">
         {/* Show status updates if available */}
         {toolOutput.statusUpdates && toolOutput.statusUpdates.length > 0 && (
           <AgentStatusDisplay 
@@ -288,16 +372,113 @@ export function ToolPartRenderer({
           />
         )}
         
-        <AgentWorkflowDisplay
-          workflow={toolOutput.workflow}
-          agentStatus={toolOutput.agentStatus}
-          statusUpdates={toolOutput.statusUpdates || []}
-          showSettings={{
-            showConfidenceScores: aiSettings.showConfidenceScores,
-            showApprovalDecisions: aiSettings.showApprovalDecisions,
-            showEducationalContent: aiSettings.showEducationalContent
-          }}
-        />
+        <div className="text-sm text-muted-foreground">
+          {/* Show workflow steps if available */}
+          {toolOutput.workflowSteps && toolOutput.workflowSteps.length > 0 && (
+            <div className="mb-3 p-3 bg-muted/30 rounded-md max-h-32 overflow-y-auto">
+              <p className="text-xs font-medium mb-2">Agent Workflow:</p>
+              <div className="space-y-1">
+                {toolOutput.workflowSteps.map((step) => (
+                  <div key={step.step} className="flex items-center gap-2 text-xs">
+                    <span>{step.icon}</span>
+                    <span className="font-medium">{step.name}:</span>
+                    <span className="text-muted-foreground">{step.description}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          
+          {/* Show detailed status updates if available */}
+          {toolOutput.statusUpdates && toolOutput.statusUpdates.length > 0 && (
+            <div className="mb-3 p-3 bg-muted/30 rounded-md">
+              <button
+                onClick={() => setIsDetailsExpanded(!isDetailsExpanded)}
+                className="w-full flex items-center justify-between text-xs font-medium hover:opacity-80 transition-opacity"
+              >
+                <span>Detailed Analysis Steps</span>
+                {isDetailsExpanded ? (
+                  <ChevronDown className="w-3 h-3" />
+                ) : (
+                  <ChevronRight className="w-3 h-3" />
+                )}
+              </button>
+              {isDetailsExpanded && (
+                <div className="mt-2 space-y-1 max-h-32 overflow-y-auto">
+                  {toolOutput.statusUpdates.map((update, idx) => (
+                    <div key={idx} className="text-xs">
+                      <div className="flex items-start gap-2">
+                        <span className="text-muted-foreground">•</span>
+                        <div className="flex-1">
+                          <span className="font-medium">{update.message}</span>
+                          {update.details && (
+                            <div className="text-muted-foreground mt-0.5">{update.details}</div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+          
+          <p className="mb-2">
+            I&apos;ve analyzed your request and created a plan with {toolOutput.toolExecutions?.length || 0} steps.
+          </p>
+          <p className="mb-2">
+            <span className="font-medium">Confidence:</span> {Math.round((toolOutput.agentStatus?.confidence || 0) * 100)}% 
+            (threshold: {Math.round((toolOutput.agentStatus?.threshold || 1) * 100)}%)
+          </p>
+          
+          {/* Show vision insights/reasoning if available */}
+          {toolOutput.workflow?.reasoning && (
+            <div className="mb-3 p-3 bg-muted/30 rounded-md max-h-40 overflow-y-auto">
+              <p className="text-xs font-medium mb-1">AI Vision Analysis:</p>
+              <p className="text-xs text-muted-foreground whitespace-pre-wrap">
+                {toolOutput.workflow.reasoning}
+              </p>
+            </div>
+          )}
+          
+          {/* Show the planned tools using UnifiedToolDisplay */}
+          {toolOutput.toolExecutions && toolOutput.toolExecutions.length > 0 && (
+            <div className="space-y-2 mb-4">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <span>Planned enhancements:</span>
+              </div>
+              <div className="max-h-60 overflow-y-auto space-y-2">
+                {toolOutput.toolExecutions.map((tool, idx) => (
+                  <div key={idx} className="rounded-lg border p-3 space-y-1">
+                    <div className="flex items-center gap-2">
+                      <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                      <Badge 
+                        variant="default" 
+                        className="bg-primary text-primary-foreground hover:bg-primary/90"
+                      >
+                        {tool.toolName}
+                      </Badge>
+                      {aiSettings.showConfidenceScores && tool.confidence !== undefined && (
+                        <Badge variant="outline" className="text-xs">
+                          {Math.round(tool.confidence * 100)}%
+                        </Badge>
+                      )}
+                    </div>
+                    {tool.description && (
+                      <p className="text-sm text-muted-foreground pl-6">
+                        {tool.description}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          
+          <p className="text-sm italic mt-4">
+            Type <span className="font-medium">&quot;approve&quot;</span> to execute this plan, or provide feedback to adjust it.
+          </p>
+        </div>
       </div>
     )
   }

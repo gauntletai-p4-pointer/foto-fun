@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { adapterRegistry, autoDiscoverAdapters } from '@/lib/ai/adapters/registry'
 import type { Canvas } from 'fabric'
+import type { CanvasContext } from '@/lib/ai/tools/canvas-bridge'
 
 export async function GET() {
   try {
@@ -32,16 +33,18 @@ export async function GET() {
         filters: [],
         applyFilters: () => console.log('Mock applyFilters called')
       }],
-      renderAll: () => console.log('Mock renderAll called')
+      renderAll: () => console.log('Mock renderAll called'),
+      getWidth: () => 800,
+      getHeight: () => 600
     }
     
     console.log('Executing saturation adapter with mock canvas...')
     
     // Create a proper CanvasContext for the adapter
-    const canvasContext = {
+    const canvasContext: CanvasContext = {
       canvas: mockCanvas as unknown as Canvas,
-      targetImages: [], // No images in mock canvas
-      targetingMode: 'all-images' as const,
+      targetImages: [],
+      targetingMode: 'selection',
       dimensions: {
         width: 800,
         height: 600

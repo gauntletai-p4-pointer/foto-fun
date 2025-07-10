@@ -1,6 +1,7 @@
 import { useCallback } from 'react'
 import { useCanvasStore } from '@/store/canvasStore'
 import { ClientToolExecutor } from '@/lib/ai/client/tool-executor'
+import { adapterRegistry } from '@/lib/ai/adapters/registry'
 
 interface ThinkingStep {
   id: string
@@ -381,10 +382,49 @@ export function useToolCallHandler({
         return args
       }
       
-      // Default tool execution
-      console.log('[AIChat] === EXECUTING INDIVIDUAL TOOL ===')
-      console.log('[AIChat] Final tool name:', toolName)
-      console.log('[AIChat] Final args:', args)
+      // Handle client-side tool execution
+      const adapter = adapterRegistry.get(toolName)
+      if (!adapter) {
+        console.error('No adapter found for tool:', toolName)
+        return { error: `Tool ${toolName} not found` }
+      }
+      
+      // SELECTION ENFORCEMENT: Check if tool requires selection
+      const requiresSelection = adapter.metadata?.category === 'canvas-editing' && 
+                              adapter.metadata?.worksOn !== 'new-image'
+      
+      if (requiresSelection) {
+        // Get current canvas state
+        const canvasStore = useCanvasStore.getState()
+        const { fabricCanvas } = canvasStore
+        
+        if (fabricCanvas) {
+          const objectCount = fabricCanvas.getObjects().length
+          const selectionCount = fabricCanvas.getActiveObjects().length
+          
+          // Check if we have multiple objects with no selection
+          if (objectCount > 1 && selectionCount === 0) {
+            console.log(`[SelectionEnforcement] BLOCKED: ${toolName} - Multiple objects with no selection`)
+            
+            return {
+              success: false,
+              error: 'selection-required',
+              message: `I see you have ${objectCount} objects on the canvas. Please select the ones you'd like me to edit first.
+
+To select objects:
+- Click on an object to select it
+- Hold Shift and click to select multiple objects
+- Or use Cmd/Ctrl+A to select all
+
+Once you've made your selection, just tell me what you'd like to do!`,
+              objectCount,
+              requiresSelection: true
+            }
+          }
+        }
+      }
+      
+      console.log('Executing tool on client:', toolName)
       
       // Get fresh state from store
       const currentState = useCanvasStore.getState()

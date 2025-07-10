@@ -215,11 +215,27 @@ export abstract class CanvasToolAdapter<
       console.log(`[${this.constructor.name}] Target images:`, images.length)
       console.log(`[${this.constructor.name}] Targeting mode:`, context.targetingMode)
       
-      // Check multi-object targeting for AI awareness
-      this.checkMultiObjectTargeting(context)
-      
+      // STRICT SELECTION ENFORCEMENT
       if (images.length === 0) {
-        throw new Error(`No images found to ${this.getActionVerb()}. Please load an image or select images first.`)
+        // Check why we have no target images
+        const allImages = context.canvas.getObjects().filter(obj => obj.type === 'image')
+        
+        if (allImages.length === 0) {
+          throw new Error(`No images found on canvas. Please load an image first.`)
+        } else if (allImages.length > 1) {
+          // Multiple images but no selection
+          throw new Error(`Multiple images found but none selected. Please select the images you want to ${this.getActionVerb()}.`)
+        } else {
+          // This shouldn't happen with our logic, but just in case
+          throw new Error(`No images available to ${this.getActionVerb()}.`)
+        }
+      }
+      
+      // Log targeting info for debugging
+      if (context.targetingMode === 'auto-single') {
+        console.log(`[${this.constructor.name}] Auto-targeting single image on canvas`)
+      } else if (context.targetingMode === 'selection') {
+        console.log(`[${this.constructor.name}] Operating on user's selection of ${images.length} images`)
       }
       
       // Execute tool-specific logic
@@ -383,20 +399,6 @@ export abstract class CanvasToolAdapter<
    * Override in subclasses for better error messages
    */
   protected abstract getActionVerb(): string
-  
-  /**
-   * Check if operation will affect multiple objects without explicit selection
-   * This helps AI provide better feedback to users
-   */
-  protected checkMultiObjectTargeting(context: CanvasContext): void {
-    if (context.targetImages.length > 1 && context.targetingMode === 'all-images') {
-      console.log(`[${this.constructor.name}] Operating on ${context.targetImages.length} images (no selection) - AI should inform user`)
-    } else if (context.targetingMode === 'auto-single') {
-      console.log(`[${this.constructor.name}] Auto-targeting single image on canvas`)
-    } else if (context.targetingMode === 'selection') {
-      console.log(`[${this.constructor.name}] Operating on user's selection of ${context.targetImages.length} images`)
-    }
-  }
   
   /**
    * Common canExecute implementation - checks for images on canvas

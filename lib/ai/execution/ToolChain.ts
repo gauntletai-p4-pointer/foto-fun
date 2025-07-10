@@ -40,7 +40,7 @@ export interface ChainResult {
   totalTime: number
   context: {
     targetImages: number
-    targetingMode: 'selection' | 'all-images' | 'auto-single'
+    targetingMode: 'selection' | 'auto-single'
   }
 }
 
@@ -464,7 +464,7 @@ export class ToolChain implements ICommand {
       totalTime: this.executionResults.reduce((sum, r) => sum + r.duration, 0),
       context: {
         targetImages: this.lockedTargetIds.length,
-        targetingMode: this.initialContext.targetingMode
+        targetingMode: 'selection' // Always 'selection' - no more 'all-images'
       }
     }
   }
@@ -598,7 +598,7 @@ export class ToolChain implements ICommand {
     return {
       ...currentContext,
       targetImages: snapshotImages as FabricImage[],
-      targetingMode: this.selectionSnapshot.isEmpty ? 'all-images' : 'selection'
+      targetingMode: 'selection' // Always 'selection' - no more 'all-images'
     }
   }
 }

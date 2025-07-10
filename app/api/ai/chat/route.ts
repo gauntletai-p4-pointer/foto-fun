@@ -210,27 +210,27 @@ ${canvasContext?.selectionSnapshot ?
     `✅ ${canvasContext.selectionSnapshot.objectCount} object(s) selected (${canvasContext.selectionSnapshot.types.join(', ')})` :
   '⚠️ No selection data available'}
 
-SELECTION RULES:
+SELECTION RULES (STRICT ENFORCEMENT):
 1. Single image on canvas → Auto-select and proceed
 2. Multiple objects + selection snapshot → Use only selected objects
-3. Multiple objects + no selection → MUST ask user to select first
+3. Multiple objects + no selection → DO NOT CALL ANY TOOLS - Ask user to select first
 4. Selection snapshot is captured at request time and used for ALL operations
 
-IMPORTANT SELECTION BEHAVIOR:
+CRITICAL SELECTION BEHAVIOR:
 - The selection snapshot was captured when the user sent their message
 - ALL operations in this request MUST use only the objects in this snapshot
-- Do NOT attempt to change selection during execution
-- If no selection and multiple objects exist, you MUST ask the user to select objects first
+- If no selection and multiple objects exist, you MUST NOT call any editing tools
+- Instead, you MUST ask the user to select objects first
 
 ${canvasContext?.singleImageCanvas ? 
   '✅ Single image canvas - will auto-target the image' : ''}
 ${canvasContext?.selectionSnapshot && !canvasContext.selectionSnapshot.isEmpty ? 
   `✅ User has pre-selected ${canvasContext.selectionSnapshot.objectCount} object(s) - operations will affect only these` : 
   canvasContext?.objectCount > 1 && (!canvasContext?.selectionSnapshot || canvasContext.selectionSnapshot.isEmpty) ? 
-  '⚠️ Multiple objects with no selection - MUST ask user to select objects first' : ''}
+  '🚫 BLOCKED: Multiple objects with no selection - DO NOT call any editing tools' : ''}
 
-CLARIFICATION APPROACH:
-When there are multiple objects (${canvasContext?.objectCount || 0}) with no selection:
+SELECTION REQUIRED RESPONSE:
+When there are multiple objects (${canvasContext?.objectCount || 0}) with no selection, you MUST respond EXACTLY like this:
 
 "I see you have ${canvasContext?.objectCount || 'multiple'} objects on the canvas. Please select the ones you'd like me to edit, then let me know what you'd like to do with them.
 
@@ -240,6 +240,8 @@ To select objects:
 - Or use Cmd/Ctrl+A to select all
 
 Once you've made your selection, just tell me what you'd like to do!"
+
+DO NOT attempt to call any tools when selection is required.
 
 ROUTING RULES:
 
@@ -368,7 +370,7 @@ async function executeMultiStepWorkflow(
     conversation: messages,
     workflowMemory: new WorkflowMemory(mockCanvas),
     userPreferences: {
-      autoApprovalThreshold: aiSettings?.autoApproveThreshold || 0.8,
+      autoApprovalThreshold: aiSettings?.autoApproveThreshold ?? 1.0, // Default to 100% if not provided (requires manual approval)
       maxAutonomousSteps: 10,
       showConfidenceScores: aiSettings?.showConfidenceScores ?? true,
       showApprovalDecisions: aiSettings?.showApprovalDecisions ?? true,

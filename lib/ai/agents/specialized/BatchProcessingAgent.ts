@@ -156,7 +156,7 @@ export class BatchProcessingAgent {
             canvas,
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             targetImages: canvas.getObjects().filter(obj => obj.type === 'image') as any,
-            targetingMode: 'all-images' as const,
+            targetingMode: 'selection',
             dimensions: {
               width: canvas.getWidth(),
               height: canvas.getHeight()

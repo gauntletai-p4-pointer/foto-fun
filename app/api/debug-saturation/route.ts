@@ -4,6 +4,7 @@ import { generateObject } from 'ai'
 import { z } from 'zod'
 import { openai } from '@/lib/ai/providers'
 import type { Canvas } from 'fabric'
+import type { CanvasContext } from '@/lib/ai/tools/canvas-bridge'
 
 // Route analysis schema (copied from MasterRoutingAgent)
 const routeAnalysisSchema = z.object({
@@ -119,10 +120,10 @@ Be precise with percentage values when specified.`
         }
         
         // Create a proper CanvasContext for the adapter
-        const canvasContext = {
+        const canvasContext: CanvasContext = {
           canvas: mockCanvas as unknown as Canvas,
           targetImages: [], // No images in mock canvas
-          targetingMode: 'all-images' as const,
+          targetingMode: 'selection',
           dimensions: {
             width: 800,
             height: 600

@@ -190,6 +190,7 @@ Your workflow:
 3. Use createPlan to create specific improvements
 4. Use provideExecutionPlan to return the final plan
 
+IMPORTANT: When calling provideExecutionPlan, include the vision analysis results in the visionInsights parameter.
 Be specific with adjustment values based on the vision analysis.`,
         prompt: `Improve this image based on: "${request}"
         
@@ -235,12 +236,44 @@ Canvas: ${context.canvasAnalysis.dimensions.width}x${context.canvasAnalysis.dime
               type: 'execution-plan',
               toolExecutions: plan.steps,
               statusUpdates: this.statusUpdates,
+              workflowSteps: [
+                {
+                  step: 1,
+                  name: 'Analyzing Request',
+                  description: 'Understanding your request',
+                  icon: '🤔'
+                },
+                {
+                  step: 2,
+                  name: 'Capturing Screenshot',
+                  description: 'Taking a snapshot of the current canvas',
+                  icon: '📸'
+                },
+                {
+                  step: 3,
+                  name: 'Computer Vision Analysis',
+                  description: 'Using AI to analyze the image and identify improvements',
+                  icon: '🔍'
+                },
+                {
+                  step: 4,
+                  name: 'Creating Plan',
+                  description: 'Building a specific improvement plan based on analysis',
+                  icon: '📝'
+                },
+                {
+                  step: 5,
+                  name: 'Finalizing Plan',
+                  description: 'Preparing the enhancement plan for execution',
+                  icon: '✨'
+                }
+              ],
               workflow: {
                 description: plan.summary,
                 steps: plan.steps,
                 agentType: 'image-improvement',
                 totalSteps: plan.steps.length,
-                reasoning: 'Computer vision analysis determined optimal adjustments',
+                reasoning: plan.visionInsights || 'Computer vision analysis determined optimal adjustments',
                 visionInsights: plan.visionInsights
               },
               agentStatus: {

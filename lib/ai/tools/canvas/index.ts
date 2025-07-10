@@ -15,18 +15,18 @@ export const checkSelectionState = {
       }
     }
     
-    const { targetingMode, inferenceMetadata } = context
+    const { targetingMode } = context
     const totalImages = context.canvas.getObjects().filter(obj => obj.type === 'image').length
     
     return {
-      needsClarification: totalImages > 1 && targetingMode === 'all-images' && !inferenceMetadata?.userHadSelection,
+      needsClarification: false, // We no longer check for 'all-images' mode
+      reason: totalImages > 1 ? 'Multiple images require selection' : 'Single image or no images',
+      selectionCount: context.selection?.length || 0,
       totalImages,
       targetingMode,
-      hasSelection: inferenceMetadata?.userHadSelection || false,
-      autoTargeting: inferenceMetadata?.autoTargeted || false,
-      message: totalImages > 1 && targetingMode === 'all-images' ? 
-        `Multiple images found (${totalImages}) with no selection. Clarification recommended.` :
-        'No clarification needed - clear targeting available.'
+      message: totalImages > 1 && !context.selection?.length ? 
+        'Multiple images on canvas - selection required' : 
+        'Ready to proceed'
     }
   }
 } 

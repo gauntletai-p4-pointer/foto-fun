@@ -11,7 +11,7 @@ export interface CanvasContext extends Omit<ToolExecutionContext, 'canvas' | 'se
   imageData?: ImageData
   selection?: FabricObject[]
   targetImages: FabricImage[]  // Pre-filtered images based on selection
-  targetingMode: 'selection' | 'all-images' | 'auto-single'  // How targeting was determined
+  targetingMode: 'selection' | 'auto-single'  // How targeting was determined (removed 'all-images')
   dimensions: {
     width: number
     height: number
@@ -101,7 +101,7 @@ export class CanvasToolBridge {
     
     // Check if we have a request-time selection snapshot
     let targetImages: FabricImage[]
-    let targetingMode: 'selection' | 'all-images' | 'auto-single'
+    let targetingMode: 'selection' | 'auto-single'
     
     if (this.requestSelectionSnapshot && this.requestSelectionSnapshot.objects.length > 0) {
       // Use request-time selection snapshot with actual object references
@@ -118,30 +118,26 @@ export class CanvasToolBridge {
         matchedImages: targetImages.length
       })
     } else {
-      // Fallback to current selection logic
-      console.log('[CanvasToolBridge] No request snapshot, using current selection')
+      // STRICT SELECTION ENFORCEMENT
+      console.log('[CanvasToolBridge] No request snapshot, checking current state')
       
       // Get selected images (if any)
       const selectedImages = activeSelection.filter(obj => obj.type === 'image') as FabricImage[]
       
-      // ENHANCED: Smart targeting logic with auto-selection for single images
       if (selectedImages.length > 0) {
         // Explicit selection takes priority
         targetImages = selectedImages
         targetingMode = 'selection'
       } else if (allImages.length === 1) {
-        // Single image on canvas - auto-target it
+        // Single image on canvas - auto-target it (still predictable)
         targetImages = allImages
         targetingMode = 'auto-single'
         console.log('[CanvasToolBridge] Auto-targeting single image on canvas')
-      } else if (allImages.length > 1) {
-        // Multiple images, no selection - target all
-        targetImages = allImages
-        targetingMode = 'all-images'
-        console.log('[CanvasToolBridge] Multiple images found, targeting all')
       } else {
+        // STRICT ENFORCEMENT: Multiple images, no selection = no targets
         targetImages = []
-        targetingMode = 'all-images'
+        targetingMode = 'selection' // Changed from 'all-images'
+        console.log('[CanvasToolBridge] Multiple images with no selection - returning empty targets')
       }
     }
     
