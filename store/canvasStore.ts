@@ -322,6 +322,7 @@ export const useCanvasStore = create<CanvasStore>()(
         fabricCanvas.selection = enabled
         fabricCanvas.forEachObject((obj) => {
           obj.selectable = enabled
+          obj.evented = enabled // This prevents objects from responding to mouse events
         })
         
         // Clear any existing selection when disabling
@@ -354,6 +355,12 @@ export const useCanvasStore = create<CanvasStore>()(
             const obj = e.target
             // Ignore selection overlays and other temporary objects
             if (obj && !obj.excludeFromExport) {
+              // Apply current canvas selection state to newly added objects
+              if (!state.fabricCanvas!.selection) {
+                obj.selectable = false
+                obj.evented = false
+              }
+              
               // Defer update to avoid blocking UI
               requestAnimationFrame(() => {
                 objectRegistry.updatePixelMap()
