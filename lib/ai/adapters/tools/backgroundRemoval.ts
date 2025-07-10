@@ -165,6 +165,17 @@ The user will then be shown a review modal to compare the original and processed
         requestTimestamp: new Date().toISOString()
       })
       
+      // Additional debugging for the specific error
+      console.log('[BackgroundRemovalAdapter] Image data validation before API call:', {
+        startsWithDataImage: imageUrl.startsWith('data:image/'),
+        hasBase64: imageUrl.includes(';base64,'),
+        isJPEG: imageUrl.startsWith('data:image/jpeg'),
+        isPNG: imageUrl.startsWith('data:image/png'),
+        base64Length: imageUrl.split(';base64,')[1]?.length || 0,
+        totalLength: imageUrl.length,
+        sizeMB: Math.round(imageUrl.length / 1024 / 1024 * 100) / 100
+      })
+      
       // Log detailed debugging info for non-deterministic issue tracking
       console.log('[BackgroundRemovalAdapter] Final validation before API call:', {
         imageUrlValid: this.isValidImageDataUrl(imageUrl),
@@ -351,13 +362,17 @@ The user will then be shown a review modal to compare the original and processed
         return originalUrl
       }
       
-      // Try multiple export strategies
+      // Try multiple export strategies - optimized for Bria model compatibility
       const exportStrategies = [
-        { format: 'png', quality: 1.0, multiplier: exportMultiplier, description: 'PNG high quality' },
-        { format: 'jpeg', quality: 0.95, multiplier: exportMultiplier, description: 'JPEG high quality' },
-        { format: 'jpeg', quality: 0.8, multiplier: exportMultiplier * 0.8, description: 'JPEG medium quality' },
-        { format: 'png', quality: 1.0, multiplier: exportMultiplier * 0.5, description: 'PNG smaller size' },
-        { format: 'jpeg', quality: 0.7, multiplier: exportMultiplier * 0.5, description: 'JPEG low quality' }
+        { format: 'jpeg', quality: 0.95, multiplier: exportMultiplier * 0.8, description: 'JPEG high quality (Bria optimized)' },
+        { format: 'jpeg', quality: 0.85, multiplier: exportMultiplier * 0.6, description: 'JPEG medium quality (Bria optimized)' },
+        { format: 'png', quality: 1.0, multiplier: exportMultiplier * 0.5, description: 'PNG smaller size (Bria optimized)' },
+        { format: 'jpeg', quality: 0.75, multiplier: exportMultiplier * 0.4, description: 'JPEG lower quality (Bria optimized)' },
+        { format: 'png', quality: 1.0, multiplier: exportMultiplier * 0.3, description: 'PNG very small (Bria optimized)' },
+        // Conservative fallback strategies
+        { format: 'jpeg', quality: 0.6, multiplier: 0.25, description: 'JPEG ultra-conservative (fallback)' },
+        { format: 'png', quality: 1.0, multiplier: 0.2, description: 'PNG ultra-conservative (fallback)' },
+        { format: 'jpeg', quality: 0.5, multiplier: 0.15, description: 'JPEG minimal quality (last resort)' }
       ]
       
       for (const strategy of exportStrategies) {
@@ -409,17 +424,36 @@ The user will then be shown a review modal to compare the original and processed
             continue
           }
           
+          // Additional validation: try to load the image in the browser to ensure it's actually valid
+          const isActuallyValid = await this.validateImageCanLoad(imageUrl)
+          if (!isActuallyValid) {
+            console.log(`[BackgroundRemovalAdapter] Image failed browser load test for ${strategy.description}, trying next strategy`)
+            continue
+          }
+          
           // Test if it's a valid image by trying to parse the base64
           try {
             const base64Index = imageUrl.indexOf(';base64,')
             if (base64Index !== -1) {
               const base64Data = imageUrl.substring(base64Index + 8)
-              // Try to decode to verify it's valid base64
-              atob(base64Data.substring(0, 100)) // Test first 100 chars
+              // Try to decode the entire base64 string to verify it's valid
+              const decodedData = atob(base64Data)
               console.log(`[BackgroundRemovalAdapter] Base64 validation passed for ${strategy.description}`)
+              console.log(`[BackgroundRemovalAdapter] Decoded size: ${decodedData.length} bytes`)
+              
+              // Additional validation - check if it starts with image file signatures
+              const firstBytes = decodedData.substring(0, 8)
+              const isPNG = firstBytes.startsWith('\x89PNG\r\n\x1a\n')
+              const isJPEG = firstBytes.startsWith('\xff\xd8\xff')
+              console.log(`[BackgroundRemovalAdapter] Image format validation: PNG=${isPNG}, JPEG=${isJPEG}`)
+              
+              if (!isPNG && !isJPEG) {
+                console.warn(`[BackgroundRemovalAdapter] Invalid image format signature for ${strategy.description}`)
+                continue
+              }
             }
-          } catch {
-            console.warn(`[BackgroundRemovalAdapter] Base64 validation failed for ${strategy.description}`)
+          } catch (base64Error) {
+            console.warn(`[BackgroundRemovalAdapter] Base64 validation failed for ${strategy.description}:`, base64Error)
             continue
           }
           
@@ -470,6 +504,63 @@ The user will then be shown a review modal to compare the original and processed
     }
   }
   
+  /**
+   * Validate that the image can actually be loaded in the browser
+   */
+  private async validateImageCanLoad(dataUrl: string): Promise<boolean> {
+    try {
+      console.log('[BackgroundRemovalAdapter] Testing if image can be loaded in browser...')
+      
+      return new Promise<boolean>((resolve) => {
+        const img = new Image()
+        
+        const timeout = setTimeout(() => {
+          console.warn('[BackgroundRemovalAdapter] Image load test timed out')
+          resolve(false)
+        }, 5000) // 5 second timeout
+        
+        img.onload = () => {
+          clearTimeout(timeout)
+          console.log('[BackgroundRemovalAdapter] Image load test passed:', {
+            width: img.width,
+            height: img.height,
+            naturalWidth: img.naturalWidth,
+            naturalHeight: img.naturalHeight
+          })
+          
+          // Additional validation - ensure the image has valid dimensions
+          const hasValidDimensions = img.width > 0 && img.height > 0 && img.naturalWidth > 0 && img.naturalHeight > 0
+          if (!hasValidDimensions) {
+            console.warn('[BackgroundRemovalAdapter] Image has invalid dimensions')
+            resolve(false)
+            return
+          }
+          
+          // Check if dimensions are reasonable (not too large)
+          const maxDimension = 8192 // 8K max
+          if (img.naturalWidth > maxDimension || img.naturalHeight > maxDimension) {
+            console.warn('[BackgroundRemovalAdapter] Image dimensions too large:', img.naturalWidth, 'x', img.naturalHeight)
+            resolve(false)
+            return
+          }
+          
+          resolve(true)
+        }
+        
+        img.onerror = (error) => {
+          clearTimeout(timeout)
+          console.warn('[BackgroundRemovalAdapter] Image load test failed:', error)
+          resolve(false)
+        }
+        
+        img.src = dataUrl
+      })
+    } catch (error) {
+      console.error('[BackgroundRemovalAdapter] Error in validateImageCanLoad:', error)
+      return false
+    }
+  }
+
   /**
    * Validate that the image data URL is in a supported format
    */
@@ -570,8 +661,15 @@ The user will then be shown a review modal to compare the original and processed
       
       // Strategy 1: Try exact URL match
       originalImage = imageObjects.find(obj => {
-        const objSrc = (obj as any).getSrc as (() => string) | undefined
-        return objSrc?.() === originalUrl
+        try {
+          const objSrc = (obj as any).getSrc as (() => string) | undefined
+          if (!objSrc) return false
+          const srcValue = objSrc()
+          return srcValue === originalUrl
+        } catch (error) {
+          console.warn('[BackgroundRemovalAdapter] Error getting src for object:', error)
+          return false
+        }
       })
       
       if (!originalImage) {
@@ -579,20 +677,26 @@ The user will then be shown a review modal to compare the original and processed
         
         // Strategy 2: Try fuzzy matching for data URLs (compare significant parts)
         originalImage = imageObjects.find(obj => {
-          const objSrc = (obj as any).getSrc as (() => string) | undefined
-          const srcValue = objSrc?.()
-          if (!srcValue || !originalUrl) return false
-          
-          // For data URLs, compare the base64 data part
-          if (srcValue.startsWith('data:') && originalUrl.startsWith('data:')) {
-            const objBase64 = srcValue.split(';base64,')[1]
-            const origBase64 = originalUrl.split(';base64,')[1]
-            if (objBase64 && origBase64) {
-              // Compare first 100 characters of base64 (should be enough to identify)
-              return objBase64.substring(0, 100) === origBase64.substring(0, 100)
+          try {
+            const objSrc = (obj as any).getSrc as (() => string) | undefined
+            if (!objSrc) return false
+            const srcValue = objSrc()
+            if (!srcValue || !originalUrl) return false
+            
+            // For data URLs, compare the base64 data part
+            if (srcValue.startsWith('data:') && originalUrl.startsWith('data:')) {
+              const objBase64 = srcValue.split(';base64,')[1]
+              const origBase64 = originalUrl.split(';base64,')[1]
+              if (objBase64 && origBase64) {
+                // Compare first 100 characters of base64 (should be enough to identify)
+                return objBase64.substring(0, 100) === origBase64.substring(0, 100)
+              }
             }
+            return false
+          } catch (error) {
+            console.warn('[BackgroundRemovalAdapter] Error getting src for fuzzy matching:', error)
+            return false
           }
-          return false
         })
       }
       
