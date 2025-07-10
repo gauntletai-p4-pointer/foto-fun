@@ -4,6 +4,7 @@ import { Path } from 'fabric'
 import { createToolState } from '../utils/toolState'
 import { constrainProportions, drawFromCenter, type Point } from '../utils/constraints'
 import { useSelectionStore } from '@/store/selectionStore'
+import { useCanvasStore } from '@/store/canvasStore'
 
 // Selection tool state interface - use type instead of interface for index signature
 type SelectionToolState = {
@@ -42,6 +43,27 @@ export abstract class SelectionTool extends BaseTool {
   protected get selectionMode(): 'new' | 'add' | 'subtract' | 'intersect' {
     const mode = this.toolOptionsStore.getOptionValue<string>(this.id, 'selectionMode')
     return (mode as 'new' | 'add' | 'subtract' | 'intersect') || 'new'
+  }
+  
+  /**
+   * Clear previous selection when starting a new selection
+   */
+  protected clearPreviousSelection(): void {
+    const canvasStore = useCanvasStore.getState()
+    const selectionStore = useSelectionStore.getState()
+    
+    if (canvasStore.selectionManager && canvasStore.selectionManager.hasSelection()) {
+      // Clear the previous selection
+      canvasStore.selectionManager.clear()
+      
+      // Stop the selection renderer to hide the visual highlight
+      if (canvasStore.selectionRenderer) {
+        canvasStore.selectionRenderer.stopRendering()
+      }
+      
+      // Update the selection store state
+      selectionStore.updateSelectionState(false, null)
+    }
   }
   
   /**
@@ -92,6 +114,9 @@ export abstract class SelectionTool extends BaseTool {
 
     // Track performance
     this.track('mouseDown', () => {
+      // Clear previous selection when starting a new selection
+      this.clearPreviousSelection()
+      
       // Use Fabric's getPointer method to get the correct transformed coordinates
       const pointer = this.canvas!.getPointer(e.e)
       const point = { x: pointer.x, y: pointer.y }
