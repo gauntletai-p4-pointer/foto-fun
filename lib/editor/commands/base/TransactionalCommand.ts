@@ -1,15 +1,35 @@
 import { Command, type ICommand } from './Command'
-import type { Canvas } from 'fabric'
+import type { CanvasManager, BlendMode } from '@/lib/editor/canvas/types'
 import { CommandExecutionError } from '@/lib/ai/errors'
+import { ServiceContainer } from '@/lib/core/ServiceContainer'
 
 /**
  * Canvas state snapshot for rollback
  */
-export interface CanvasState {
-  json: string
-  viewport?: number[]
-  zoom?: number
-  selection?: string[]
+export interface CanvasStateSnapshot {
+  layers: Array<{
+    id: string
+    objects: Array<{
+      id: string
+      type: 'image' | 'text' | 'shape' | 'path' | 'group' | 'verticalText'
+      transform: any
+      data: any
+      visible: boolean
+      locked: boolean
+      opacity: number
+      blendMode: BlendMode
+    }>
+  }>
+  selection: {
+    type: string
+    data: any
+  } | null
+  activeLayerId: string | null
+  backgroundColor: string
+  width: number
+  height: number
+  zoom: number
+  pan: { x: number; y: number }
 }
 
 /**
@@ -20,11 +40,12 @@ export interface CanvasState {
  * - Rollback on error
  * - Nested transaction support
  * - Performance tracking
+ * - Event-driven architecture compatible
  */
 export abstract class TransactionalCommand extends Command {
-  private checkpoint: CanvasState | null = null
+  private checkpoint: CanvasStateSnapshot | null = null
   private executionTime: number = 0
-  protected canvas: Canvas | null = null
+  protected canvasManager: CanvasManager | null = null
   
   /**
    * The actual command implementation
@@ -97,77 +118,113 @@ export abstract class TransactionalCommand extends Command {
   /**
    * Save current canvas state
    */
-  protected async saveCanvasState(): Promise<CanvasState | null> {
-    const canvas = this.getCanvas()
+  protected async saveCanvasState(): Promise<CanvasStateSnapshot | null> {
+    const canvas = this.getCanvasManager()
     if (!canvas) return null
     
-    return {
-      json: JSON.stringify(canvas.toJSON()),
-      viewport: canvas.viewportTransform ? [...canvas.viewportTransform] : undefined,
-      zoom: canvas.getZoom(),
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      selection: canvas.getActiveObjects().map(obj => obj.get('id' as any) || '')
+    const state = canvas.state
+    
+    // Deep clone the state to create a snapshot
+    const snapshot: CanvasStateSnapshot = {
+      layers: state.layers.map(layer => ({
+        id: layer.id,
+        objects: layer.objects.map(obj => ({
+          id: obj.id,
+          type: obj.type,
+          transform: { ...obj.transform },
+          data: obj.data,
+          visible: obj.visible,
+          locked: obj.locked,
+          opacity: obj.opacity,
+          blendMode: obj.blendMode
+        }))
+      })),
+      selection: state.selection ? {
+        type: state.selection.type,
+        data: JSON.parse(JSON.stringify(state.selection))
+      } : null,
+      activeLayerId: state.activeLayerId,
+      backgroundColor: state.backgroundColor,
+      width: state.width,
+      height: state.height,
+      zoom: state.zoom,
+      pan: { ...state.pan }
     }
+    
+    return snapshot
   }
   
   /**
    * Restore canvas state
    */
-  protected async restoreCanvasState(state: CanvasState): Promise<void> {
-    const canvas = this.getCanvas()
+  protected async restoreCanvasState(snapshot: CanvasStateSnapshot): Promise<void> {
+    const canvas = this.getCanvasManager()
     if (!canvas) return
     
-    return new Promise((resolve) => {
-      canvas.loadFromJSON(state.json, () => {
-        // Restore viewport
-        if (state.viewport && state.viewport.length === 6) {
-          canvas.setViewportTransform(state.viewport as [number, number, number, number, number, number])
-        }
-        
-        // Restore zoom
-        if (state.zoom) {
-          canvas.setZoom(state.zoom)
-        }
-        
-        // Restore selection
-        if (state.selection && state.selection.length > 0) {
-          const objects = canvas.getObjects()
-          const toSelect = objects.filter(obj => 
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            state.selection!.includes(obj.get('id' as any) || '')
-          )
-          if (toSelect.length > 0) {
-            canvas.setActiveObject(
-              toSelect.length === 1 
-                ? toSelect[0]
-                : new fabric.ActiveSelection(toSelect, { canvas })
-            )
-          }
-        }
-        
-        canvas.renderAll()
-        resolve()
+    // Clear existing layers
+    const currentLayers = [...canvas.state.layers]
+    for (const layer of currentLayers) {
+      canvas.removeLayer(layer.id)
+    }
+    
+    // Restore layers and objects
+    for (const layerData of snapshot.layers) {
+      const layer = canvas.addLayer({
+        id: layerData.id,
+        name: `Layer ${layerData.id}`
       })
-    })
+      
+      // Restore objects in the layer
+      for (const objData of layerData.objects) {
+        await canvas.addObject({
+          ...objData,
+          layerId: layer.id
+        }, layer.id)
+      }
+    }
+    
+    // Restore canvas properties
+    await canvas.resize(snapshot.width, snapshot.height)
+    canvas.setZoom(snapshot.zoom)
+    canvas.setPan(snapshot.pan)
+    
+    // Restore selection
+    if (snapshot.selection) {
+      if (snapshot.selection.type === 'objects' && snapshot.selection.data.objectIds) {
+        canvas.setSelection({
+          type: 'objects',
+          objectIds: snapshot.selection.data.objectIds
+        })
+      } else {
+        canvas.setSelection(snapshot.selection.data as any)
+      }
+    } else {
+      canvas.setSelection(null)
+    }
+    
+    // Restore active layer
+    if (snapshot.activeLayerId) {
+      canvas.setActiveLayer(snapshot.activeLayerId)
+    }
+    
+    // Force redraw
+    canvas.konvaStage.batchDraw()
   }
   
   /**
-   * Get canvas instance
+   * Get canvas manager instance
    * Override this if your command gets canvas differently
    */
-  protected getCanvas(): Canvas | null {
-    if (this.canvas) return this.canvas
+  protected getCanvasManager(): CanvasManager | null {
+    if (this.canvasManager) return this.canvasManager
     
     // Try to get from DI container
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const ServiceContainer = (window as any).ServiceContainer || (globalThis as any).ServiceContainer
-      if (ServiceContainer) {
-        const container = ServiceContainer.getInstance()
-        return container.get('CanvasManager') || null
-      }
+      const container = ServiceContainer.getInstance()
+      const manager = container.get<CanvasManager>('CanvasManager')
+      return manager || null
     } catch (error) {
-      console.warn('Failed to get canvas from ServiceContainer:', error)
+      console.warn('Failed to get CanvasManager from ServiceContainer:', error)
     }
     
     return null
@@ -258,8 +315,4 @@ export function transaction(
   ...commands: ICommand[]
 ): CompositeTransactionalCommand {
   return new CompositeTransactionalCommand(description, commands)
-}
-
-// Re-export fabric for convenience
-import { ActiveSelection } from 'fabric'
-const fabric = { ActiveSelection } 
+} 

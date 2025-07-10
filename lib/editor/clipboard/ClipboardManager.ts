@@ -1,275 +1,154 @@
-import type { Canvas, FabricObject, Image as FabricImage } from 'fabric'
-import { Image as FabricImageConstructor } from 'fabric'
-import type { SelectionManager } from '../selection'
-import { useLayerStore } from '@/store/layerStore'
-import type { CustomFabricObjectProps } from '@/types'
+import type { CanvasManager, CanvasObject } from '@/lib/editor/canvas/types'
+import { nanoid } from 'nanoid'
 
 export interface ClipboardData {
-  imageData: ImageData
-  bounds: { x: number; y: number; width: number; height: number }
+  objects: CanvasObject[]
+  timestamp: number
 }
 
 /**
- * ClipboardManager - Handles copy, cut, and paste operations
- * 
- * This class manages clipboard operations for selections and objects,
- * integrating with the SelectionManager for pixel-based operations.
+ * Manages clipboard operations for the canvas
+ * Handles copy, cut, and paste operations with proper serialization
  */
 export class ClipboardManager {
-  private canvas: Canvas
-  private selectionManager: SelectionManager
-  private clipboardData: ClipboardData | null = null
+  private static instance: ClipboardManager
+  private clipboard: ClipboardData | null = null
   
-  constructor(canvas: Canvas, selectionManager: SelectionManager) {
-    this.canvas = canvas
-    this.selectionManager = selectionManager
+  private constructor() {}
+  
+  static getInstance(): ClipboardManager {
+    if (!ClipboardManager.instance) {
+      ClipboardManager.instance = new ClipboardManager()
+    }
+    return ClipboardManager.instance
   }
   
   /**
-   * Copy the current selection or selected objects to clipboard
+   * Copy objects to clipboard
    */
-  async copy(): Promise<boolean> {
-    // Check if we have a pixel selection
-    if (this.selectionManager.hasSelection()) {
-      return this.copySelection()
+  async copy(objects: CanvasObject[]): Promise<void> {
+    if (objects.length === 0) return
+    
+    // Deep clone objects for clipboard
+    const clonedObjects = objects.map(obj => this.cloneObject(obj))
+    
+    this.clipboard = {
+      objects: clonedObjects,
+      timestamp: Date.now()
     }
     
-    // Otherwise, check for selected objects
-    const activeObject = this.canvas.getActiveObject()
-    if (activeObject) {
-      return this.copyObject(activeObject)
-    }
-    
-    return false
-  }
-  
-  /**
-   * Cut the current selection or selected objects
-   */
-  async cut(): Promise<boolean> {
-    const copied = await this.copy()
-    if (!copied) return false
-    
-    // If we have a selection, fill it with background color
-    if (this.selectionManager.hasSelection()) {
-      await this.deleteSelection()
-    } else {
-      // Otherwise, delete the selected object
-      const activeObject = this.canvas.getActiveObject()
-      if (activeObject) {
-        this.canvas.remove(activeObject)
-        this.canvas.discardActiveObject()
-        this.canvas.renderAll()
+    // Also copy to system clipboard as JSON if possible
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      try {
+        const json = JSON.stringify(this.clipboard)
+        await navigator.clipboard.writeText(json)
+      } catch (error) {
+        console.warn('Failed to copy to system clipboard:', error)
       }
     }
-    
-    return true
   }
   
   /**
-   * Paste from clipboard
+   * Cut objects (copy and mark for deletion)
    */
-  async paste(): Promise<boolean> {
-    if (!this.clipboardData) return false
-    
-    // Create a temporary canvas to hold the pasted image
-    const tempCanvas = document.createElement('canvas')
-    tempCanvas.width = this.clipboardData.bounds.width
-    tempCanvas.height = this.clipboardData.bounds.height
-    
-    const tempCtx = tempCanvas.getContext('2d')!
-    tempCtx.putImageData(this.clipboardData.imageData, 0, 0)
-    
-    // Convert to data URL
-    const dataURL = tempCanvas.toDataURL()
-    
-    // Create Fabric image from data URL
-    return new Promise((resolve) => {
-      const img = FabricImageConstructor.fromURL(dataURL)
-      
-      img.then((fabricImg: FabricImage) => {
-        if (!fabricImg) {
-          resolve(false)
-          return
+  async cut(objects: CanvasObject[]): Promise<void> {
+    await this.copy(objects)
+    // The actual deletion is handled by the CutCommand
+  }
+  
+  /**
+   * Paste objects from clipboard
+   */
+  async paste(canvas: CanvasManager): Promise<CanvasObject[]> {
+    // Try to read from system clipboard first
+    if (navigator.clipboard && navigator.clipboard.readText) {
+      try {
+        const text = await navigator.clipboard.readText()
+        const data = JSON.parse(text) as ClipboardData
+        if (data.objects && Array.isArray(data.objects)) {
+          this.clipboard = data
         }
-        
-        // Create a new layer for the pasted content
-        const layerStore = useLayerStore.getState()
-        const pastedLayer = layerStore.addLayer({
-          name: 'Pasted Layer',
-          type: 'image'
-        })
-        
-        // Generate unique ID for the pasted object
-        const pasteId = `paste_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
-        
-        // Position at the original location or center of viewport
-        const zoom = this.canvas.getZoom()
-        const vpt = this.canvas.viewportTransform
-        
-        if (vpt) {
-          fabricImg.set({
-            left: (this.clipboardData!.bounds.x - vpt[4]) / zoom,
-            top: (this.clipboardData!.bounds.y - vpt[5]) / zoom,
-          })
-        } else {
-          fabricImg.set({
-            left: this.clipboardData!.bounds.x,
-            top: this.clipboardData!.bounds.y,
-          })
-        }
-        
-        // Set layer association
-        const imgWithProps = fabricImg as FabricImage & CustomFabricObjectProps
-        imgWithProps.id = pasteId
-        imgWithProps.layerId = pastedLayer.id
-        
-        // Add to canvas
-        this.canvas.add(fabricImg)
-        this.canvas.setActiveObject(fabricImg)
-        
-        // Update layer with object ID
-        layerStore.updateLayer(pastedLayer.id, {
-          objectIds: [pasteId]
-        })
-        
-        this.canvas.renderAll()
-        
-        console.log('[ClipboardManager] Pasted content on new layer:', pastedLayer.name)
-        
-        resolve(true)
-      }).catch(() => {
-        resolve(false)
-      })
-    })
-  }
-  
-  /**
-   * Copy the current selection to clipboard
-   */
-  private async copySelection(): Promise<boolean> {
-    const selection = this.selectionManager.getSelection()
-    if (!selection) return false
-    
-    // Get the canvas image data
-    const ctx = this.canvas.getContext()
-    const canvasData = ctx.getImageData(0, 0, this.canvas.width!, this.canvas.height!)
-    
-    // Get selected pixels
-    const selectedPixels = this.selectionManager.getSelectedPixels(canvasData)
-    if (!selectedPixels) return false
-    
-    // Store in clipboard
-    this.clipboardData = {
-      imageData: selectedPixels,
-      bounds: selection.bounds
-    }
-    
-    // Also try to copy to system clipboard if available
-    await this.copyToSystemClipboard(selectedPixels, selection.bounds)
-    
-    return true
-  }
-  
-  /**
-   * Copy an object to clipboard
-   */
-  private async copyObject(obj: FabricObject): Promise<boolean> {
-    // Render object to image data
-    const tempCanvas = document.createElement('canvas')
-    const bounds = obj.getBoundingRect()
-    
-    tempCanvas.width = Math.ceil(bounds.width)
-    tempCanvas.height = Math.ceil(bounds.height)
-    
-    const tempCtx = tempCanvas.getContext('2d')!
-    
-    // Render the object
-    tempCtx.save()
-    tempCtx.translate(-bounds.left, -bounds.top)
-    obj.render(tempCtx as CanvasRenderingContext2D)
-    tempCtx.restore()
-    
-    // Get image data
-    const imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height)
-    
-    // Store in clipboard
-    this.clipboardData = {
-      imageData,
-      bounds: {
-        x: bounds.left,
-        y: bounds.top,
-        width: bounds.width,
-        height: bounds.height
+      } catch (error) {
+        // Fall back to internal clipboard
       }
     }
     
-    return true
+    if (!this.clipboard || this.clipboard.objects.length === 0) {
+      return []
+    }
+    
+    // Create new objects with offset
+    const pastedObjects: CanvasObject[] = []
+    const offset = 20 // Offset for pasted objects
+    
+    for (const obj of this.clipboard.objects) {
+      const newObj = this.cloneObject(obj)
+      
+      // Generate new ID
+      newObj.id = nanoid()
+      
+      // Offset position
+      newObj.transform.x += offset
+      newObj.transform.y += offset
+      
+      // Add to canvas
+      const addedObj = await canvas.addObject(newObj)
+      pastedObjects.push(addedObj)
+    }
+    
+    return pastedObjects
   }
   
   /**
-   * Delete the current selection (fill with background)
+   * Check if clipboard has content
    */
-  private async deleteSelection(): Promise<void> {
-    const selection = this.selectionManager.getSelection()
-    if (!selection) return
-    
-    // Get background color
-    const bgColor = this.canvas.backgroundColor || '#ffffff'
-    
-    // TODO: Implement actual deletion by modifying canvas pixels
-    // For now, just clear the selection
-    this.selectionManager.clear()
-    
-    console.log('Delete selection - fill with background:', bgColor)
+  hasContent(): boolean {
+    return this.clipboard !== null && this.clipboard.objects.length > 0
   }
   
   /**
-   * Try to copy image data to system clipboard
+   * Clear clipboard
    */
-  private async copyToSystemClipboard(imageData: ImageData, bounds: { width: number; height: number }): Promise<void> {
-    try {
-      // Check if Clipboard API is available
-      if (!navigator.clipboard || !window.ClipboardItem) {
-        return
-      }
-      
-      // Create a temporary canvas
-      const tempCanvas = document.createElement('canvas')
-      tempCanvas.width = bounds.width
-      tempCanvas.height = bounds.height
-      
-      const tempCtx = tempCanvas.getContext('2d')!
-      tempCtx.putImageData(imageData, 0, 0)
-      
-      // Convert to blob
-      const blob = await new Promise<Blob | null>((resolve) => {
-        tempCanvas.toBlob(resolve, 'image/png')
-      })
-      
-      if (blob) {
-        // Copy to system clipboard
-        await navigator.clipboard.write([
-          new ClipboardItem({ 'image/png': blob })
-        ])
-      }
-    } catch (error) {
-      // Clipboard API might not be available or might fail
-      console.log('System clipboard copy failed:', error)
+  clear(): void {
+    this.clipboard = null
+  }
+  
+  /**
+   * Clone a canvas object
+   */
+  private cloneObject(obj: CanvasObject): CanvasObject {
+    return {
+      id: obj.id,
+      type: obj.type,
+      name: obj.name,
+      visible: obj.visible,
+      locked: obj.locked,
+      opacity: obj.opacity,
+      blendMode: obj.blendMode,
+      transform: { ...obj.transform },
+      node: null as any, // Will be created when added to canvas
+      layerId: obj.layerId,
+      data: obj.data ? this.cloneData(obj.data) : undefined,
+      filters: obj.filters ? [...obj.filters] : undefined,
+      style: obj.style ? { ...obj.style } : undefined,
+      metadata: obj.metadata ? { ...obj.metadata } : undefined
     }
   }
   
   /**
-   * Check if clipboard has data
+   * Clone object data based on type
    */
-  hasClipboardData(): boolean {
-    return this.clipboardData !== null
-  }
-  
-  /**
-   * Clear clipboard data
-   */
-  clearClipboard(): void {
-    this.clipboardData = null
+  private cloneData(data: any): any {
+    if (data instanceof HTMLImageElement) {
+      // For images, we'll need to reload them
+      return data.src
+    }
+    if (typeof data === 'string') {
+      return data
+    }
+    if (typeof data === 'object') {
+      return { ...data }
+    }
+    return data
   }
 } 

@@ -1,6 +1,5 @@
 import { CanvasToolBridge, type CanvasContext } from '../tools/canvas-bridge'
 import { adapterRegistry } from '../adapters/registry'
-import { useEventHistoryStore } from '@/lib/events/history/EventBasedHistoryStore'
 
 /**
  * Tool chain for executing multiple AI tools in sequence
@@ -14,7 +13,6 @@ export class ToolChain {
   }> = []
   
   private context: CanvasContext | null = null
-  private historyStore = useEventHistoryStore
   
   constructor() {
     // Initialize context
@@ -50,14 +48,6 @@ export class ToolChain {
     
     const results: unknown[] = []
     
-    // Start history tracking
-    const canvas = this.context.canvas
-    const historyContext = await this.historyStore.getState().startExecution(
-      canvas,
-      'ai',
-      `tool-chain-${Date.now()}`
-    )
-    
     try {
       for (let i = 0; i < this.steps.length; i++) {
         const step = this.steps[i]
@@ -77,13 +67,10 @@ export class ToolChain {
         this.updateContext()
       }
       
-      // Commit all changes
-      await this.historyStore.getState().commitExecution(historyContext)
-      
       return results
     } catch (error) {
-      // Rollback on error
-      this.historyStore.getState().rollbackExecution(historyContext)
+      // Log error for debugging
+      console.error('[ToolChain] Execution failed:', error)
       throw error
     }
   }

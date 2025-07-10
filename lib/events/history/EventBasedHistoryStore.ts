@@ -1,322 +1,339 @@
-import { create } from 'zustand'
-import { devtools } from 'zustand/middleware'
-import { EventStore } from '../core/EventStore'
 import { Event } from '../core/Event'
-import { ExecutionContext, ExecutionContextFactory } from '../execution/ExecutionContext'
-import type { Canvas } from 'fabric'
+import { EventStore } from '../core/EventStore'
+import { BaseStore } from '@/lib/store/base/BaseStore'
+import type { CanvasManager } from '@/lib/editor/canvas/types'
 
-/**
- * History entry in the new event-based system
- */
-export interface EventHistoryEntry {
-  event: Event
-  timestamp: number
-  description: string
+export interface HistoryState {
   canUndo: boolean
-  contextId: string
+  canRedo: boolean
+  undoStack: Event[]
+  redoStack: Event[]
+  currentEventId: string | null
 }
 
 /**
- * Event-based history state
+ * Event-based history store for undo/redo functionality
+ * 
+ * This store tracks all events and provides time-travel debugging
+ * capabilities by replaying events from the beginning.
  */
-interface EventHistoryState {
-  // Event tracking
-  entries: EventHistoryEntry[]
-  currentIndex: number
-  maxHistorySize: number
+export class EventBasedHistoryStore extends BaseStore<HistoryState> {
+  private historyEventStore: EventStore
+  private canvasManager: CanvasManager | null = null
   
-  // Execution state
-  isExecuting: boolean
-  isUndoing: boolean
-  isRedoing: boolean
+  constructor(eventStore: EventStore) {
+    super({
+      canUndo: false,
+      canRedo: false,
+      undoStack: [],
+      redoStack: [],
+      currentEventId: null
+    }, eventStore)
+    
+    this.historyEventStore = eventStore
+  }
   
-  // Current execution context
-  activeContext: ExecutionContext | null
+  /**
+   * Define event handlers for history tracking
+   */
+  protected getEventHandlers(): Map<string, (event: Event) => void> {
+    const handlers = new Map<string, (event: Event) => void>()
+    
+    // Subscribe to all non-history events
+    handlers.set('*', this.handleEvent.bind(this))
+    
+    return handlers
+  }
   
-  // Actions
-  startExecution: (canvas: Canvas, source: Event['metadata']['source'], workflowId?: string) => Promise<ExecutionContext>
-  commitExecution: (context: ExecutionContext) => Promise<void>
-  rollbackExecution: (context: ExecutionContext) => void
+  /**
+   * Set the canvas manager for applying events
+   */
+  setCanvasManager(canvasManager: CanvasManager): void {
+    this.canvasManager = canvasManager
+  }
   
-  // Undo/Redo
-  undo: () => Promise<void>
-  redo: () => Promise<void>
-  canUndo: () => boolean
-  canRedo: () => boolean
-  
-  // History management
-  clear: () => void
-  getHistory: () => EventHistoryEntry[]
-  
-  // Event subscription
-  subscribeToEvents: () => () => void
-}
-
-/**
- * Event-based history store that replaces the command-based one
- */
-export const useEventHistoryStore = create<EventHistoryState>()(
-  devtools(
-    (set, get) => ({
-      // Initial state
-      entries: [],
-      currentIndex: -1,
-      maxHistorySize: 100, // More history with events
-      isExecuting: false,
-      isUndoing: false,
-      isRedoing: false,
-      activeContext: null,
-      
-      // Start a new execution context
-      startExecution: async (canvas, source, workflowId) => {
-        // Create new execution context
-        const context = await ExecutionContextFactory.fromCanvas(canvas, source, { workflowId })
-        
-        set({ activeContext: context })
-        
-        return context
-      },
-      
-      // Commit an execution context
-      commitExecution: async (context) => {
-        const state = get()
-        
-        if (state.isExecuting || state.isUndoing || state.isRedoing) {
-          throw new Error('Cannot commit while another operation is in progress')
-        }
-        
-        set({ isExecuting: true })
-        
-        try {
-          // Commit the context (this appends all events to the store)
-          await context.commit()
-          
-          // Clear active context
-          set({ 
-            activeContext: null,
-            isExecuting: false 
-          })
-        } catch (error) {
-          console.error('Failed to commit execution:', error)
-          set({ isExecuting: false })
-          throw error
-        }
-      },
-      
-      // Rollback an execution context
-      rollbackExecution: (context) => {
-        context.rollback()
-        
-        const state = get()
-        if (state.activeContext === context) {
-          set({ activeContext: null })
-        }
-      },
-      
-      // Undo the last event
-      undo: async () => {
-        const state = get()
-        
-        if (!state.canUndo()) {
-          return
-        }
-        
-        if (state.isExecuting || state.isUndoing || state.isRedoing) {
-          console.warn('Cannot undo while another operation is in progress')
-          return
-        }
-        
-        set({ isUndoing: true })
-        
-        try {
-          const entry = state.entries[state.currentIndex]
-          const reverseEvent = entry.event.reverse()
-          
-          if (!reverseEvent) {
-            console.warn('Event cannot be undone:', entry.description)
-            set({ isUndoing: false })
-            return
-          }
-          
-          // Create a new context for the undo operation
-          const canvas = get().activeContext?.['canvas'] || null
-          if (!canvas) {
-            throw new Error('No canvas available for undo')
-          }
-          
-          const undoContext = await ExecutionContextFactory.fromCanvas(canvas, 'system')
-          
-          // Emit the reverse event
-          await undoContext.emit(reverseEvent)
-          await undoContext.commit()
-          
-          // Update index
-          set({ 
-            currentIndex: state.currentIndex - 1,
-            isUndoing: false 
-          })
-        } catch (error) {
-          console.error('Undo failed:', error)
-          set({ isUndoing: false })
-          throw error
-        }
-      },
-      
-      // Redo the next event
-      redo: async () => {
-        const state = get()
-        
-        if (!state.canRedo()) {
-          return
-        }
-        
-        if (state.isExecuting || state.isUndoing || state.isRedoing) {
-          console.warn('Cannot redo while another operation is in progress')
-          return
-        }
-        
-        set({ isRedoing: true })
-        
-        try {
-          const nextIndex = state.currentIndex + 1
-          const entry = state.entries[nextIndex]
-          
-          // Re-apply the original event
-          const canvas = get().activeContext?.['canvas'] || null
-          if (!canvas) {
-            throw new Error('No canvas available for redo')
-          }
-          
-          const redoContext = await ExecutionContextFactory.fromCanvas(canvas, 'system')
-          
-          // Clone and re-emit the event
-          await redoContext.emit(entry.event)
-          await redoContext.commit()
-          
-          set({ 
-            currentIndex: nextIndex,
-            isRedoing: false 
-          })
-        } catch (error) {
-          console.error('Redo failed:', error)
-          set({ isRedoing: false })
-          throw error
-        }
-      },
-      
-      // Check if undo is available
-      canUndo: () => {
-        const state = get()
-        return state.currentIndex >= 0 && 
-               !state.isExecuting && 
-               !state.isUndoing && 
-               !state.isRedoing &&
-               state.entries[state.currentIndex]?.canUndo
-      },
-      
-      // Check if redo is available
-      canRedo: () => {
-        const state = get()
-        return state.currentIndex < state.entries.length - 1 && 
-               !state.isExecuting && 
-               !state.isUndoing && 
-               !state.isRedoing
-      },
-      
-      // Clear all history
-      clear: () => {
-        set({
-          entries: [],
-          currentIndex: -1,
-          isExecuting: false,
-          isUndoing: false,
-          isRedoing: false,
-          activeContext: null
-        })
-      },
-      
-      // Get the full history
-      getHistory: () => {
-        return get().entries
-      },
-      
-      // Subscribe to events from the event store
-      subscribeToEvents: () => {
-        const eventStore = EventStore.getInstance()
-        
-        // Subscribe to all events
-        const unsubscribe = eventStore.subscribe('*', (event: Event) => {
-          const state = get()
-          
-          // Skip if this is an undo/redo event
-          if (state.isUndoing || state.isRedoing) {
-            return
-          }
-          
-          // Skip system events that shouldn't be in history
-          if (event.metadata.source === 'system' && !event.reverse()) {
-            return
-          }
-          
-          // Create history entry
-          const entry: EventHistoryEntry = {
-            event,
-            timestamp: event.timestamp,
-            description: event.getDescription(),
-            canUndo: event.reverse() !== null,
-            contextId: event.metadata.correlationId || ''
-          }
-          
-          // Remove any entries after current index (branching history)
-          const newEntries = state.entries.slice(0, state.currentIndex + 1)
-          
-          // Add new entry
-          newEntries.push(entry)
-          
-          // Trim to max size
-          if (newEntries.length > state.maxHistorySize) {
-            newEntries.shift()
-          }
-          
-          set({
-            entries: newEntries,
-            currentIndex: newEntries.length - 1
-          })
-        })
-        
-        return unsubscribe
-      }
-    }),
-    {
-      name: 'event-history-store'
+  /**
+   * Handle new events
+   */
+  private handleEvent(event: Event): void {
+    // Skip history events
+    if (event.type.startsWith('history.')) {
+      return
     }
-  )
-)
-
-// Initialize event subscription when store is created
-const unsubscribe = useEventHistoryStore.getState().subscribeToEvents()
-
-// Cleanup on window unload
-if (typeof window !== 'undefined') {
-  window.addEventListener('beforeunload', unsubscribe)
+    
+    // Add to undo stack
+    this.setState(state => ({
+      ...state,
+      undoStack: [...state.undoStack, event],
+      redoStack: [], // Clear redo stack on new action
+      currentEventId: event.id,
+      canUndo: true,
+      canRedo: false
+    }))
+  }
+  
+  /**
+   * Undo the last event
+   */
+  async undo(): Promise<void> {
+    const state = this.getState()
+    if (!state.canUndo || state.undoStack.length === 0) {
+      return
+    }
+    
+    const eventToUndo = state.undoStack[state.undoStack.length - 1]
+    
+    // Get the reverse event
+    const reverseEvent = eventToUndo.reverse()
+    if (!reverseEvent) {
+      console.warn('Event cannot be undone:', eventToUndo.type)
+      return
+    }
+    
+    // Apply the reverse event
+    await this.historyEventStore.append(reverseEvent)
+    
+    // Update state
+    this.setState(state => ({
+      ...state,
+      undoStack: state.undoStack.slice(0, -1),
+      redoStack: [...state.redoStack, eventToUndo],
+      currentEventId: reverseEvent.id,
+      canUndo: state.undoStack.length > 1,
+      canRedo: true
+    }))
+    
+    // Emit history event
+    const historyEvent = new HistoryUndoEvent(eventToUndo.id)
+    await this.historyEventStore.append(historyEvent)
+  }
+  
+  /**
+   * Redo the last undone event
+   */
+  async redo(): Promise<void> {
+    const state = this.getState()
+    if (!state.canRedo || state.redoStack.length === 0) {
+      return
+    }
+    
+    const eventToRedo = state.redoStack[state.redoStack.length - 1]
+    
+    // Re-apply the original event
+    await this.historyEventStore.append(eventToRedo)
+    
+    // Update state
+    this.setState(state => ({
+      ...state,
+      undoStack: [...state.undoStack, eventToRedo],
+      redoStack: state.redoStack.slice(0, -1),
+      currentEventId: eventToRedo.id,
+      canUndo: true,
+      canRedo: state.redoStack.length > 1
+    }))
+    
+    // Emit history event
+    const historyEvent = new HistoryRedoEvent(eventToRedo.id)
+    await this.historyEventStore.append(historyEvent)
+  }
+  
+  /**
+   * Clear history
+   */
+  clear(): void {
+    this.setState(() => ({
+      canUndo: false,
+      canRedo: false,
+      undoStack: [],
+      redoStack: [],
+      currentEventId: null
+    }))
+  }
+  
+  /**
+   * Get history entries for display
+   */
+  getHistory(): Array<{
+    id: string
+    description: string
+    timestamp: number
+    canUndo: boolean
+  }> {
+    const state = this.getState()
+    
+    return state.undoStack.map((event, index) => ({
+      id: event.id,
+      description: event.getDescription(),
+      timestamp: event.timestamp,
+      canUndo: index === state.undoStack.length - 1
+    }))
+  }
+  
+  /**
+   * Time travel to a specific event
+   */
+  async timeTravel(targetEventId: string): Promise<void> {
+    const state = this.getState()
+    const targetIndex = state.undoStack.findIndex(e => e.id === targetEventId)
+    
+    if (targetIndex === -1) {
+      console.warn('Event not found in history:', targetEventId)
+      return
+    }
+    
+    // Calculate how many steps to undo/redo
+    const currentIndex = state.undoStack.findIndex(e => e.id === state.currentEventId)
+    const steps = currentIndex - targetIndex
+    
+    if (steps > 0) {
+      // Undo
+      for (let i = 0; i < steps; i++) {
+        await this.undo()
+      }
+    } else if (steps < 0) {
+      // Redo
+      for (let i = 0; i < Math.abs(steps); i++) {
+        await this.redo()
+      }
+    }
+  }
 }
 
-// Export keyboard handlers for consistency
+/**
+ * History undo event
+ */
+class HistoryUndoEvent extends Event {
+  constructor(private undoneEventId: string) {
+    super(
+      'history.undo',
+      undoneEventId,
+      'workflow',
+      {
+        source: 'system',
+        correlationId: `undo_${Date.now()}`
+      }
+    )
+  }
+  
+  apply(state: any): any {
+    return state // No state change, just tracking
+  }
+  
+  reverse(): Event | null {
+    return null // Cannot undo an undo
+  }
+  
+  canApply(): boolean {
+    return true
+  }
+  
+  getDescription(): string {
+    return `Undo event ${this.undoneEventId}`
+  }
+  
+  protected getEventData(): Record<string, unknown> {
+    return {
+      undoneEventId: this.undoneEventId
+    }
+  }
+}
+
+/**
+ * History redo event
+ */
+class HistoryRedoEvent extends Event {
+  constructor(private redoneEventId: string) {
+    super(
+      'history.redo',
+      redoneEventId,
+      'workflow',
+      {
+        source: 'system',
+        correlationId: `redo_${Date.now()}`
+      }
+    )
+  }
+  
+  apply(state: any): any {
+    return state // No state change, just tracking
+  }
+  
+  reverse(): Event | null {
+    return null // Cannot undo a redo
+  }
+  
+  canApply(): boolean {
+    return true
+  }
+  
+  getDescription(): string {
+    return `Redo event ${this.redoneEventId}`
+  }
+  
+  protected getEventData(): Record<string, unknown> {
+    return {
+      redoneEventId: this.redoneEventId
+    }
+  }
+}
+
+// Singleton instance
+let historyStoreInstance: EventBasedHistoryStore | null = null
+
+/**
+ * Get or create the singleton history store instance
+ */
+export function getHistoryStore(eventStore: EventStore): EventBasedHistoryStore {
+  if (!historyStoreInstance) {
+    historyStoreInstance = new EventBasedHistoryStore(eventStore)
+  }
+  return historyStoreInstance
+}
+
+/**
+ * React hook for using the history store
+ */
+export function useEventHistoryStore() {
+  // This is a simplified version - in a real app, you'd use proper React context
+  // For now, we'll return a simple interface that matches what's expected
+  return {
+    undo: async () => {
+      if (historyStoreInstance) {
+        await historyStoreInstance.undo()
+      }
+    },
+    redo: async () => {
+      if (historyStoreInstance) {
+        await historyStoreInstance.redo()
+      }
+    },
+    canUndo: historyStoreInstance?.getState().canUndo ?? false,
+    canRedo: historyStoreInstance?.getState().canRedo ?? false,
+    clear: () => {
+      if (historyStoreInstance) {
+        historyStoreInstance.clear()
+      }
+    },
+    getHistory: () => {
+      return historyStoreInstance?.getHistory() ?? []
+    }
+  }
+}
+
+/**
+ * Keyboard handlers for history operations
+ */
 export const eventHistoryKeyboardHandlers = {
   handleUndo: (e: KeyboardEvent) => {
-    if ((e.metaKey || e.ctrlKey) && e.key === 'z' && !e.shiftKey) {
-      e.preventDefault()
-      useEventHistoryStore.getState().undo()
+    e.preventDefault()
+    if (historyStoreInstance) {
+      historyStoreInstance.undo()
     }
   },
-  
   handleRedo: (e: KeyboardEvent) => {
-    if ((e.metaKey || e.ctrlKey) && (
-      (e.key === 'z' && e.shiftKey) || 
-      e.key === 'y'
-    )) {
-      e.preventDefault()
-      useEventHistoryStore.getState().redo()
+    e.preventDefault()
+    if (historyStoreInstance) {
+      historyStoreInstance.redo()
     }
   }
 } 

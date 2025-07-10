@@ -1,4 +1,5 @@
 import type Konva from 'konva'
+import type { SelectionManager } from '@/lib/editor/selection/SelectionManager'
 
 /**
  * Core canvas types for the new Konva-based architecture
@@ -117,8 +118,8 @@ export interface Tool {
   shortcut?: string
   
   // Tool lifecycle
-  onActivate(canvas: CanvasManager): void
-  onDeactivate(canvas: CanvasManager): void
+  onActivate?(canvas: CanvasManager): void
+  onDeactivate?(canvas: CanvasManager): void
   
   // Event handlers
   onMouseDown?(event: ToolEvent): void
@@ -172,6 +173,7 @@ export interface CanvasManager {
   setSelection(selection: Selection | null): void
   selectAll(): void
   deselectAll(): void
+  getSelectionManager(): SelectionManager
   
   // Pixel operations
   getImageData(rect?: Rect): ImageData

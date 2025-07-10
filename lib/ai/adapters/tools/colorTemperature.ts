@@ -107,14 +107,18 @@ Range: -100 (very cool/blue) to +100 (very warm/orange)`
         success: true,
         adjustment: params.adjustment,
         message,
-        targetingMode: context.targetingMode
+        targetingMode: context.targetingMode === 'selection' || context.targetingMode === 'auto-single' 
+          ? context.targetingMode 
+          : 'auto-single' // Default to auto-single for 'all' or 'none'
       }
     } catch (error) {
       return {
         success: false,
         adjustment: 0,
         message: error instanceof Error ? error.message : 'Failed to adjust color temperature',
-        targetingMode: context.targetingMode
+        targetingMode: context.targetingMode === 'selection' || context.targetingMode === 'auto-single' 
+          ? context.targetingMode 
+          : 'auto-single' // Default to auto-single for 'all' or 'none'
       }
     }
   }

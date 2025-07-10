@@ -7,9 +7,11 @@ import {
   ObjectRemovedEvent, 
   ObjectModifiedEvent
 } from '../canvas/CanvasEvents'
-import type { Canvas, FabricObject } from 'fabric'
+import type { CanvasManager, CanvasObject } from '@/lib/editor/canvas/types'
 
 /**
+ * @deprecated This adapter is being phased out as commands are migrated to event-driven architecture
+ * 
  * CommandAdapter - Temporary bridge during migration from Command pattern to Event Sourcing
  * 
  * This adapter intercepts command executions and converts them to events.
@@ -111,18 +113,21 @@ export class CommandAdapter {
     }
   }
   
-  private createAddObjectEvent(command: ICommand & { object?: FabricObject; canvas?: Canvas; layerId?: string }, metadata: Event['metadata']): Event | null {
+  private createAddObjectEvent(command: ICommand & { object?: CanvasObject; canvasManager?: CanvasManager; layerId?: string }, metadata: Event['metadata']): Event | null {
     try {
       // Access private properties through type assertion
       const object = command.object
-      const canvas = command.canvas
+      const canvasManager = command.canvasManager
       const layerId = command.layerId
       
-      if (!object || !canvas) return null
+      if (!object || !canvasManager) return null
+      
+      // Create a compatible object for the legacy event
+      const legacyObject = this.createLegacyObject(object)
       
       return new ObjectAddedEvent(
-        canvas.toString(), // Use canvas instance as ID for now
-        object,
+        'main', // Use default canvas ID
+        legacyObject,
         layerId,
         metadata
       )
@@ -132,16 +137,18 @@ export class CommandAdapter {
     }
   }
   
-  private createRemoveObjectEvent(command: ICommand & { object?: FabricObject; canvas?: Canvas }, metadata: Event['metadata']): Event | null {
+  private createRemoveObjectEvent(command: ICommand & { object?: CanvasObject; canvasManager?: CanvasManager }, metadata: Event['metadata']): Event | null {
     try {
       const object = command.object
-      const canvas = command.canvas
+      const canvasManager = command.canvasManager
       
-      if (!object || !canvas) return null
+      if (!object || !canvasManager) return null
+      
+      const legacyObject = this.createLegacyObject(object)
       
       return new ObjectRemovedEvent(
-        canvas.toString(),
-        object,
+        'main',
+        legacyObject,
         metadata
       )
     } catch (error) {
@@ -150,18 +157,20 @@ export class CommandAdapter {
     }
   }
   
-  private createModifyEvent(command: ICommand & { object?: FabricObject; canvas?: Canvas; previousState?: Record<string, unknown>; modifications?: Record<string, unknown> }, metadata: Event['metadata']): Event | null {
+  private createModifyEvent(command: ICommand & { object?: CanvasObject; canvasManager?: CanvasManager; previousState?: Record<string, unknown>; modifications?: Record<string, unknown> }, metadata: Event['metadata']): Event | null {
     try {
       const object = command.object
-      const canvas = command.canvas
+      const canvasManager = command.canvasManager
       const previousState = command.previousState || {}
       const newState = command.modifications || {}
       
-      if (!object || !canvas) return null
+      if (!object || !canvasManager) return null
+      
+      const legacyObject = this.createLegacyObject(object)
       
       return new ObjectModifiedEvent(
-        canvas.toString(),
-        object,
+        'main',
+        legacyObject,
         previousState,
         newState,
         metadata
@@ -172,13 +181,45 @@ export class CommandAdapter {
     }
   }
   
-  private createTransformEvent(command: ICommand & { object?: FabricObject; canvas?: Canvas; previousState?: Record<string, unknown>; modifications?: Record<string, unknown> }, metadata: Event['metadata']): Event | null {
+  private createTransformEvent(command: ICommand & { object?: CanvasObject; canvasManager?: CanvasManager; previousState?: Record<string, unknown>; modifications?: Record<string, unknown> }, metadata: Event['metadata']): Event | null {
     // Transform is a type of modification
     return this.createModifyEvent(command, metadata)
   }
   
-  private createCropEvent(command: ICommand & { object?: FabricObject; canvas?: Canvas; previousState?: Record<string, unknown>; modifications?: Record<string, unknown> }, metadata: Event['metadata']): Event | null {
+  private createCropEvent(command: ICommand & { object?: CanvasObject; canvasManager?: CanvasManager; previousState?: Record<string, unknown>; modifications?: Record<string, unknown> }, metadata: Event['metadata']): Event | null {
     // Crop modifies the object bounds
     return this.createModifyEvent(command, metadata)
+  }
+  
+  /**
+   * Create a legacy-compatible object for events that still expect old format
+   */
+  private createLegacyObject(obj: CanvasObject): any {
+    return {
+      id: obj.id,
+      type: obj.type,
+      name: obj.name,
+      visible: obj.visible,
+      locked: obj.locked,
+      opacity: obj.opacity,
+      blendMode: obj.blendMode,
+      left: obj.transform.x,
+      top: obj.transform.y,
+      scaleX: obj.transform.scaleX,
+      scaleY: obj.transform.scaleY,
+      angle: obj.transform.rotation,
+      skewX: obj.transform.skewX,
+      skewY: obj.transform.skewY,
+      layerId: obj.layerId,
+      // Add any other properties that might be needed
+      set: () => {},
+      setCoords: () => {},
+      getBoundingRect: () => ({
+        left: obj.transform.x,
+        top: obj.transform.y,
+        width: 100,
+        height: 100
+      })
+    }
   }
 } 

@@ -65,28 +65,31 @@ Range: 0 (no sharpening) to 50 (maximum sharpening)`
       const { SelectionSnapshotFactory } = await import('@/lib/ai/execution/SelectionSnapshot')
       const selectionSnapshot = SelectionSnapshotFactory.fromObjects(images)
       
-      // Activate the sharpen tool first
-      const { useToolStore } = await import('@/store/toolStore')
-      useToolStore.getState().setActiveTool(this.tool.id)
-      
-      // Set selection snapshot on the tool
-      const tool = useToolStore.getState().getTool(this.tool.id)
-      if (tool && 'setSelectionSnapshot' in tool && typeof tool.setSelectionSnapshot === 'function') {
-        tool.setSelectionSnapshot(selectionSnapshot)
-      }
+      // Tool activation is handled by the base class applyToolOperation method
       
       // Small delay to ensure tool is activated and subscribed
       await new Promise(resolve => setTimeout(resolve, 50))
       
       try {
+        // TODO: Implement tool options when stores are migrated
+        /*
         // Get the sharpen tool options and update them
         const { useToolOptionsStore } = await import('@/store/toolOptionsStore')
-        useToolOptionsStore.getState().updateOption(this.tool.id, 'sharpen', params.amount)
+        const store = useToolOptionsStore.getState()
+        
+        // Update the intensity value
+        store.updateOption(this.tool.id, 'intensity', params.intensity)
+        */
+        
+        // For now, just apply the sharpen directly
+        await this.applyToolOperation(this.tool.id, 'intensity', params.amount, context.canvas, selectionSnapshot)
       } finally {
         // Clear selection snapshot
+        /*
         if (tool && 'setSelectionSnapshot' in tool && typeof tool.setSelectionSnapshot === 'function') {
           tool.setSelectionSnapshot(null)
         }
+        */
       }
       
       console.log('[SharpenAdapter] Sharpen adjustment applied successfully')
@@ -112,14 +115,18 @@ Range: 0 (no sharpening) to 50 (maximum sharpening)`
         success: true,
         amount: params.amount,
         message,
-        targetingMode: context.targetingMode
+        targetingMode: context.targetingMode === 'selection' || context.targetingMode === 'auto-single' 
+          ? context.targetingMode 
+          : 'auto-single' // Default to auto-single for 'all' or 'none'
       }
     } catch (error) {
       return {
         success: false,
         amount: 0,
-        message: error instanceof Error ? error.message : 'Failed to apply sharpening',
-        targetingMode: context.targetingMode
+        message: error instanceof Error ? error.message : 'Failed to sharpen image',
+        targetingMode: context.targetingMode === 'selection' || context.targetingMode === 'auto-single' 
+          ? context.targetingMode 
+          : 'auto-single' // Default to auto-single for 'all' or 'none'
       }
     }
   }

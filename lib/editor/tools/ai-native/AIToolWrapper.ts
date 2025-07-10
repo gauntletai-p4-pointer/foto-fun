@@ -2,8 +2,8 @@ import type { ComponentType } from 'react'
 import { BaseTool } from '../base/BaseTool'
 import { createToolState } from '../utils/toolState'
 import type { BaseAITool } from '@/lib/ai/tools/base'
-import { useCanvasStore } from '@/store/canvasStore'
-import { useToolStore } from '@/store/toolStore'
+import { getCanvasStore } from '@/lib/store/canvas'
+import { getToolStore } from '@/lib/store/tools'
 import { TOOL_IDS } from '@/constants'
 
 // Define tool state
@@ -59,14 +59,8 @@ export class AIToolWrapper extends BaseTool {
       return
     }
     
-    // Set active AI tool in canvas store for UI components to read
-    const canvasStore = useCanvasStore.getState()
-    canvasStore.setActiveAITool({
-      type: this.id,
-      tool: this.aiTool,
-      activationType: this.aiTool.uiActivationType || 'dialog'
-    })
-    
+    // AI tools are managed through the regular tool system
+    // The UI components can check the active tool from the tool store
     this.state.set('isActive', true)
     
     // For immediate activation tools, we might execute right away
@@ -80,10 +74,14 @@ export class AIToolWrapper extends BaseTool {
    */
   protected cleanup(): void {
     this.state.reset()
-    
-    // Clear active AI tool
-    const canvasStore = useCanvasStore.getState()
-    canvasStore.setActiveAITool(null)
+    // AI tools are deactivated through the regular tool system
+  }
+  
+  /**
+   * Required abstract method from BaseTool
+   */
+  protected cleanupTool(): void {
+    this.cleanup()
   }
   
   /**
@@ -101,8 +99,8 @@ export class AIToolWrapper extends BaseTool {
    */
   public onComplete(): void {
     // Switch back to move tool after completion
-    const toolStore = useToolStore.getState()
-    toolStore.setActiveTool(TOOL_IDS.MOVE)
+    const toolStore = getToolStore()
+    toolStore.activateTool(TOOL_IDS.MOVE)
   }
 }
 

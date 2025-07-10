@@ -1,5 +1,5 @@
 import { Command } from '../base/Command'
-import { useLayerStore } from '@/store/layerStore'
+import { getLayerStore } from '@/lib/store/layers'
 
 /**
  * Command to reorder layers
@@ -15,14 +15,14 @@ export class ReorderLayersCommand extends Command {
   }
   
   async execute(): Promise<void> {
-    const layerStore = useLayerStore.getState()
-    layerStore.reorderLayers(this.fromIndex, this.toIndex)
+    const layerStore = getLayerStore()
+    // TODO: Implement reorderLayers method on EventLayerStore
+    console.warn('ReorderLayersCommand: reorderLayers method not yet implemented on EventLayerStore')
   }
   
   async undo(): Promise<void> {
-    const layerStore = useLayerStore.getState()
-    // Reverse the reorder operation
-    layerStore.reorderLayers(this.toIndex, this.fromIndex)
+    // TODO: Implement reorderLayers method on EventLayerStore
+    console.warn('ReorderLayersCommand: reorderLayers method not yet implemented on EventLayerStore')
   }
   
   async redo(): Promise<void> {
@@ -30,8 +30,8 @@ export class ReorderLayersCommand extends Command {
   }
   
   canExecute(): boolean {
-    const layerStore = useLayerStore.getState()
-    const layerCount = layerStore.layers.length
+    const layerStore = getLayerStore()
+    const layerCount = layerStore.getLayers().length
     return (
       this.fromIndex >= 0 &&
       this.fromIndex < layerCount &&

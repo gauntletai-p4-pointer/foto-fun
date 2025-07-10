@@ -3,6 +3,7 @@
 import { Button } from '@/components/ui/button'
 import type { CanvasObject } from '@/lib/editor/canvas/types'
 import { TextLayerStyles } from '@/lib/editor/text/effects'
+import type Konva from 'konva'
 
 interface TextPresetsSectionProps {
   object: CanvasObject | null
@@ -55,7 +56,21 @@ export function TextPresetsSection({ object, onChange }: TextPresetsSectionProps
             position: 'outside',
           },
         })
-        object.set({ fill: '#ffffff' })
+        // Update fill color using Konva node
+        const textNode = object.node as Konva.Text
+        if (textNode && textNode.fill) {
+          textNode.fill('#ffffff')
+          // Store in metadata
+          object.metadata = {
+            ...object.metadata,
+            fill: '#ffffff'
+          }
+          // Force redraw
+          const layer = textNode.getLayer()
+          if (layer) {
+            layer.batchDraw()
+          }
+        }
         break
     }
     

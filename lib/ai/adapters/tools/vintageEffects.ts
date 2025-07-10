@@ -3,10 +3,12 @@ import { BaseToolAdapter } from '../base'
 import type { CanvasContext } from '@/lib/ai/tools/canvas-bridge'
 import type { ExecutionContext } from '@/lib/events/execution/ExecutionContext'
 import { vintageEffectsTool } from '@/lib/editor/tools/filters/vintageEffectsTool'
+import { ServiceContainer } from '@/lib/core/ServiceContainer'
+import type { EventToolStore } from '@/lib/store/tools/EventToolStore'
 
 // Define parameter schema
 const vintageEffectsParameters = z.object({
-  effect: z.enum(['brownie', 'vintage-pinhole', 'kodachrome', 'technicolor', 'polaroid'])
+  effect: z.enum(['sepia', 'blackAndWhite', 'vintage1970s', 'vintagePolaroid'])
     .describe('The vintage effect to apply')
 })
 
@@ -76,34 +78,37 @@ NEVER ask which effect - interpret the user's intent and choose the most appropr
         throw new Error('No images found to apply vintage effect')
       }
       
-      // Get the tool store from service container
-      const container = (window as { __serviceContainer?: unknown }).__serviceContainer
-      if (!container) {
-        throw new Error('Service container not found')
-      }
+      // Create a selection snapshot from the target images
+      const { SelectionSnapshotFactory } = await import('@/lib/ai/execution/SelectionSnapshot')
+      const selectionSnapshot = SelectionSnapshotFactory.fromObjects(images)
       
-      const toolStore = container.get('ToolStore')
+      // Apply vintage effect using the tool
+      const container = ServiceContainer.getInstance()
+      const toolStore = container.get<EventToolStore>('ToolStore')
       
-      // Activate the vintage effects tool
-      toolStore.setActiveTool(this.tool.id)
-      const activeTool = toolStore.getTool(this.tool.id)
+      // Activate the tool
+      await toolStore.activateTool(this.tool.id)
       
-      if (!activeTool) {
-        throw new Error('Vintage effects tool not found')
+      // Set selection snapshot on the tool
+      const tool = toolStore.getTool(this.tool.id)
+      if (tool && 'setSelectionSnapshot' in tool && typeof tool.setSelectionSnapshot === 'function') {
+        tool.setSelectionSnapshot(selectionSnapshot)
       }
       
       // Set the effect on the tool
-      activeTool.setOption('effect', params.effect)
+      if (tool && 'setOption' in tool && typeof tool.setOption === 'function') {
+        tool.setOption('effect', params.effect)
+      }
       
       // If we have an execution context, set it on the tool
-      if (executionContext && 'setExecutionContext' in activeTool) {
-        const toolWithContext = activeTool as { setExecutionContext: (context: ExecutionContext) => void }
+      if (tool && executionContext && 'setExecutionContext' in tool) {
+        const toolWithContext = tool as { setExecutionContext: (context: ExecutionContext) => void }
         toolWithContext.setExecutionContext(executionContext)
       }
       
       // Apply effect using the tool's method
-      if ('applyVintageEffect' in activeTool && typeof activeTool.applyVintageEffect === 'function') {
-        const toolWithApply = activeTool as { applyVintageEffect: (effect: string) => Promise<void> }
+      if (tool && 'applyVintageEffect' in tool && typeof tool.applyVintageEffect === 'function') {
+        const toolWithApply = tool as { applyVintageEffect: (effect: string) => Promise<void> }
         await toolWithApply.applyVintageEffect(params.effect)
       }
       
@@ -117,20 +122,24 @@ NEVER ask which effect - interpret the user's intent and choose the most appropr
       }
       
       const effectName = effectNames[params.effect] || params.effect
+      const message = `Applied ${effectName} effect to ${images.length} image${images.length !== 1 ? 's' : ''}`
       
       return {
         success: true,
         effect: params.effect,
-        message: `Applied ${effectName} effect to ${images.length} image${images.length !== 1 ? 's' : ''}`,
-        targetingMode: context.targetingMode
+        message,
+        targetingMode: context.targetingMode === 'selection' || context.targetingMode === 'auto-single' 
+          ? context.targetingMode 
+          : 'auto-single' // Default to auto-single for 'all' or 'none'
       }
-      
     } catch (error) {
       return {
         success: false,
-        effect: params.effect,
+        effect: '',
         message: error instanceof Error ? error.message : 'Failed to apply vintage effect',
-        targetingMode: context.targetingMode
+        targetingMode: context.targetingMode === 'selection' || context.targetingMode === 'auto-single' 
+          ? context.targetingMode 
+          : 'auto-single' // Default to auto-single for 'all' or 'none'
       }
     }
   }

@@ -129,7 +129,9 @@ Range: -100 (very dark) to +100 (very bright)`
       adjustment: params.adjustment,
       affectedImages: images.length,
       message,
-      targetingMode: context.targetingMode
+      targetingMode: context.targetingMode === 'selection' || context.targetingMode === 'auto-single' 
+        ? context.targetingMode 
+        : 'auto-single' // Default to auto-single for 'all' or 'none'
     }
   }
   

@@ -1,9 +1,22 @@
 import { nanoid } from 'nanoid'
-import type { Canvas, FabricObject } from 'fabric'
+import type { CanvasManager, CanvasObject } from '@/lib/editor/canvas/types'
 import { EventStore } from '../core/EventStore'
 import { Event } from '../core/Event'
-import { SelectionSnapshot } from '@/lib/ai/execution/SelectionSnapshot'
+import { SelectionSnapshot, SelectionSnapshotFactory } from '@/lib/ai/execution/SelectionSnapshot'
 import type { CanvasContext } from '@/lib/ai/tools/canvas-bridge'
+
+/**
+ * Tool execution tracking
+ */
+interface ToolExecution {
+  toolId: string
+  startTime: number
+  endTime?: number
+  params: Record<string, unknown>
+  result?: any
+  error?: string
+  status: 'running' | 'completed' | 'failed'
+}
 
 /**
  * Execution context provides an isolated environment for operations
@@ -26,22 +39,36 @@ export class ExecutionContext {
   private committed = false
   
   // Canvas reference
-  private canvas: Canvas
+  private eventStore: EventStore
+  private canvasId: string
   
-  constructor(options: {
-    canvas: Canvas
-    selectionSnapshot: SelectionSnapshot
-    source: ExecutionContext['source']
-    workflowId?: string
-    parentContextId?: string
-  }) {
+  // Tool execution tracking
+  private toolExecutions = new Map<string, ToolExecution>()
+  private workflowStatus: 'running' | 'completed' | 'failed' = 'running'
+  
+  constructor(
+    eventStore: EventStore,
+    canvasId: string,
+    workflowId?: string,
+    metadata?: Record<string, unknown>
+  ) {
     this.id = nanoid()
     this.createdAt = Date.now()
-    this.canvas = options.canvas
-    this.selectionSnapshot = options.selectionSnapshot
-    this.source = options.source
-    this.workflowId = options.workflowId
-    this.parentContextId = options.parentContextId
+    this.eventStore = eventStore
+    this.canvasId = canvasId
+    this.workflowId = workflowId
+    this.source = (metadata?.source as any) || 'system'
+    this.parentContextId = metadata?.parentContextId as string
+    
+    // Create empty selection snapshot for now
+    this.selectionSnapshot = new SelectionSnapshot([])
+  }
+  
+  /**
+   * Set selection snapshot
+   */
+  setSelectionSnapshot(snapshot: SelectionSnapshot): void {
+    Object.assign(this, { selectionSnapshot: snapshot })
   }
   
   /**
@@ -54,14 +81,14 @@ export class ExecutionContext {
   /**
    * Get target objects based on the locked selection
    */
-  getTargetObjects(): FabricObject[] {
-    return this.selectionSnapshot.getValidObjects(this.canvas)
+  getTargetObjects(canvas: any): CanvasObject[] {
+    return this.selectionSnapshot.getValidObjects(canvas)
   }
   
   /**
    * Get images from the locked selection
    */
-  getTargetImages(): FabricObject[] {
+  getTargetImages(): CanvasObject[] {
     return this.selectionSnapshot.getImages()
   }
   
@@ -70,6 +97,56 @@ export class ExecutionContext {
    */
   hasTargets(): boolean {
     return !this.selectionSnapshot.isEmpty
+  }
+  
+  /**
+   * Start tool execution tracking
+   */
+  startTool(toolId: string, params: Record<string, unknown>): void {
+    this.toolExecutions.set(toolId, {
+      toolId,
+      startTime: Date.now(),
+      params,
+      status: 'running'
+    })
+  }
+  
+  /**
+   * Complete tool execution
+   */
+  completeTool(toolId: string, success: boolean, result?: any): void {
+    const execution = this.toolExecutions.get(toolId)
+    if (execution) {
+      execution.endTime = Date.now()
+      execution.status = success ? 'completed' : 'failed'
+      execution.result = result
+    }
+  }
+  
+  /**
+   * Fail tool execution
+   */
+  failTool(toolId: string, error: string): void {
+    const execution = this.toolExecutions.get(toolId)
+    if (execution) {
+      execution.endTime = Date.now()
+      execution.status = 'failed'
+      execution.error = error
+    }
+  }
+  
+  /**
+   * Complete the workflow
+   */
+  completeWorkflow(): void {
+    this.workflowStatus = 'completed'
+  }
+  
+  /**
+   * Fail the workflow
+   */
+  failWorkflow(error: string): void {
+    this.workflowStatus = 'failed'
   }
   
   /**
@@ -103,11 +180,9 @@ export class ExecutionContext {
       throw new Error('Context already committed')
     }
     
-    const eventStore = EventStore.getInstance()
-    
     // Append all events in order
     for (const event of this.events) {
-      await eventStore.append(event)
+      await this.eventStore.append(event)
     }
     
     this.committed = true
@@ -131,29 +206,32 @@ export class ExecutionContext {
     source?: ExecutionContext['source']
     workflowId?: string
   } = {}): ExecutionContext {
-    return new ExecutionContext({
-      canvas: this.canvas,
-      selectionSnapshot: this.selectionSnapshot, // Inherit selection
-      source: options.source || this.source,
-      workflowId: options.workflowId || this.workflowId,
-      parentContextId: this.id
-    })
+    const childContext = new ExecutionContext(
+      this.eventStore,
+      this.canvasId,
+      options.workflowId || this.workflowId,
+      {
+        source: options.source || this.source,
+        parentContextId: this.id
+      }
+    )
+    
+    // Inherit selection snapshot
+    childContext.setSelectionSnapshot(this.selectionSnapshot)
+    
+    return childContext
   }
   
   /**
    * Get canvas context for tool execution
    */
-  getCanvasContext(): CanvasContext {
+  getCanvasContext(canvas: any): CanvasContext {
     const targetImages = this.getTargetImages()
     
     return {
-      canvas: this.canvas,
-      targetImages: targetImages as FabricImage[], // Type cast for compatibility
-      targetingMode: targetImages.length === 1 ? 'auto-single' : 'selection',
-      dimensions: {
-        width: this.canvas.getWidth(),
-        height: this.canvas.getHeight()
-      }
+      canvas: canvas as any, // Type compatibility layer
+      targetImages: targetImages as any[], // Type cast for compatibility
+      targetingMode: targetImages.length === 1 ? 'auto-single' : 'selection'
     }
   }
   
@@ -169,10 +247,21 @@ export class ExecutionContext {
       causationId: this.parentContextId
     }
   }
+  
+  /**
+   * Get tool execution summary
+   */
+  getToolExecutions(): ToolExecution[] {
+    return Array.from(this.toolExecutions.values())
+  }
+  
+  /**
+   * Get workflow status
+   */
+  getWorkflowStatus(): typeof this.workflowStatus {
+    return this.workflowStatus
+  }
 }
-
-// Type for Fabric.js image objects
-type FabricImage = FabricObject & { type: 'image' }
 
 /**
  * Factory for creating execution contexts
@@ -181,62 +270,72 @@ export class ExecutionContextFactory {
   /**
    * Create context from current canvas state
    */
-  static async fromCanvas(
-    canvas: Canvas,
+  static fromCanvas(
+    canvas: any,
+    eventStore: EventStore,
     source: ExecutionContext['source'],
     options: {
       workflowId?: string
     } = {}
-  ): Promise<ExecutionContext> {
-    const { SelectionSnapshotFactory } = await import('@/lib/ai/execution/SelectionSnapshot')
+  ): ExecutionContext {
     const selectionSnapshot = SelectionSnapshotFactory.fromCanvas(canvas)
     
-    return new ExecutionContext({
-      canvas,
-      selectionSnapshot,
-      source,
-      workflowId: options.workflowId
-    })
+    const context = new ExecutionContext(
+      eventStore,
+      'main', // TODO: Get canvas ID from somewhere
+      options.workflowId,
+      { source }
+    )
+    
+    context.setSelectionSnapshot(selectionSnapshot)
+    return context
   }
   
   /**
    * Create context with specific selection
    */
-  static async fromSelection(
-    canvas: Canvas,
-    objects: FabricObject[],
+  static fromSelection(
+    canvas: any,
+    objects: CanvasObject[],
+    eventStore: EventStore,
     source: ExecutionContext['source'],
     options: {
       workflowId?: string
     } = {}
-  ): Promise<ExecutionContext> {
-    const { SelectionSnapshotFactory } = await import('@/lib/ai/execution/SelectionSnapshot')
+  ): ExecutionContext {
     const selectionSnapshot = SelectionSnapshotFactory.fromObjects(objects)
     
-    return new ExecutionContext({
-      canvas,
-      selectionSnapshot,
-      source,
-      workflowId: options.workflowId
-    })
+    const context = new ExecutionContext(
+      eventStore,
+      'main', // TODO: Get canvas ID from somewhere
+      options.workflowId,
+      { source }
+    )
+    
+    context.setSelectionSnapshot(selectionSnapshot)
+    return context
   }
   
   /**
    * Create context from existing snapshot
    */
   static fromSnapshot(
-    canvas: Canvas,
+    canvas: any,
     selectionSnapshot: SelectionSnapshot,
+    eventStore: EventStore,
     source: ExecutionContext['source'],
     options: {
       workflowId?: string
     } = {}
   ): ExecutionContext {
-    return new ExecutionContext({
-      canvas,
-      selectionSnapshot,
-      source,
-      workflowId: options.workflowId
-    })
+    const context = new ExecutionContext(
+      eventStore,
+      'main', // TODO: Get canvas ID from somewhere
+      options.workflowId,
+      { source }
+    )
+    
+    context.setSelectionSnapshot(selectionSnapshot)
+    return context
   }
 } 

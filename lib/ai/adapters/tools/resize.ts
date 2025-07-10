@@ -78,6 +78,8 @@ NEVER ask for exact dimensions - interpret the user's intent.`
       const { SelectionSnapshotFactory } = await import('@/lib/ai/execution/SelectionSnapshot')
       const selectionSnapshot = SelectionSnapshotFactory.fromObjects(images)
       
+      // TODO: Implement tool activation when stores are migrated
+      /*
       // Activate the resize tool first
       const { useToolStore } = await import('@/store/toolStore')
       useToolStore.getState().setActiveTool(this.tool.id)
@@ -87,11 +89,14 @@ NEVER ask for exact dimensions - interpret the user's intent.`
       if (tool && 'setSelectionSnapshot' in tool && typeof tool.setSelectionSnapshot === 'function') {
         tool.setSelectionSnapshot(selectionSnapshot)
       }
+      */
       
       // Small delay to ensure tool is activated and subscribed
       await new Promise(resolve => setTimeout(resolve, 50))
       
       try {
+        // TODO: Implement tool options when stores are migrated
+        /*
         // Get the resize tool options and update them
         const { useToolOptionsStore } = await import('@/store/toolOptionsStore')
         const store = useToolOptionsStore.getState()
@@ -118,11 +123,17 @@ NEVER ask for exact dimensions - interpret the user's intent.`
             store.updateOption(this.tool.id, 'height', calculatedHeight)
           }
         }
+        */
+        
+        // For now, just apply the resize directly
+        await this.applyToolOperation(this.tool.id, 'resize', params, context.canvas, selectionSnapshot)
       } finally {
         // Clear selection snapshot
+        /*
         if (tool && 'setSelectionSnapshot' in tool && typeof tool.setSelectionSnapshot === 'function') {
           tool.setSelectionSnapshot(null)
         }
+        */
       }
       
       const finalDimensions = params.mode === 'percentage' 
@@ -170,15 +181,19 @@ NEVER ask for exact dimensions - interpret the user's intent.`
         mode: params.mode,
         dimensions: finalDimensions,
         message,
-        targetingMode: context.targetingMode
+        targetingMode: context.targetingMode === 'selection' || context.targetingMode === 'auto-single' 
+          ? context.targetingMode 
+          : 'auto-single' // Default to auto-single for 'all' or 'none'
       }
     } catch (error) {
       return {
         success: false,
         mode: '',
         dimensions: { width: 0, height: 0 },
-        message: error instanceof Error ? error.message : 'Failed to resize image',
-        targetingMode: context.targetingMode
+        message: error instanceof Error ? error.message : 'Failed to resize',
+        targetingMode: context.targetingMode === 'selection' || context.targetingMode === 'auto-single' 
+          ? context.targetingMode 
+          : 'auto-single' // Default to auto-single for 'all' or 'none'
       }
     }
   }

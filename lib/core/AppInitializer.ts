@@ -12,7 +12,7 @@ import { EventLayerStore } from '@/lib/store/layers/EventLayerStore'
 import { EventSelectionStore } from '@/lib/store/selection/EventSelectionStore'
 import { EventDocumentStore } from '@/lib/store/document/EventDocumentStore'
 import { EventColorStore } from '@/lib/store/color/EventColorStore'
-import { useEventHistoryStore } from '@/lib/events/history/EventBasedHistoryStore'
+import { getHistoryStore } from '@/lib/events/history/EventBasedHistoryStore'
 
 // Canvas System
 import { CanvasManagerFactory } from '@/lib/editor/canvas/CanvasManagerFactory'
@@ -96,7 +96,7 @@ export class AppInitializer {
 
     // Register EventBasedHistoryStore
     container.registerSingleton('HistoryStore', () => {
-      return useEventHistoryStore
+      return getHistoryStore(container.get('EventStore'))
     })
     
     // Font System

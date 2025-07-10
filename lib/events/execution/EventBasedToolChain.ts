@@ -120,11 +120,13 @@ export class EventBasedToolChain {
     
     // Create selection snapshot if needed
     if (requiresSelection && this.originalSelection.length > 0) {
-      this.selectionSnapshot = SelectionSnapshot.fromCanvas(this.canvas)
+      const { SelectionSnapshotFactory } = await import('@/lib/ai/execution/SelectionSnapshot')
+      this.selectionSnapshot = SelectionSnapshotFactory.fromCanvas(this.canvas as any)
     }
     
-    // Emit preparation event
-    this.typedEventBus.emit('workflow.ai.prepare', {
+    // Emit preparation event - workflow events are not in the registry yet
+    // So we'll track this differently for now
+    console.log('[EventBasedToolChain] Preparing for AI operation', {
       canvasId: this.options.canvasId,
       hasSelection: this.originalSelection.length > 0,
       selectionCount: this.originalSelection.length
@@ -139,8 +141,9 @@ export class EventBasedToolChain {
     if (modifiedObjects && modifiedObjects.length > 0) {
       const modifications = modifiedObjects.map(obj => {
         const original = this.originalSelection.find(o => o.id === obj.id)
+        const foundObj = this.findObject(obj.id)
         return {
-          objectId: obj.id,
+          object: foundObj || obj,
           previousState: original ? this.captureObjectState(original) : {},
           newState: this.captureObjectState(obj)
         }
@@ -164,8 +167,8 @@ export class EventBasedToolChain {
     this.selectionSnapshot = null
     this.originalSelection = []
     
-    // Emit completion event
-    this.typedEventBus.emit('workflow.ai.complete', {
+    // Log completion instead of emitting non-existent event
+    console.log('[EventBasedToolChain] AI operation completed', {
       canvasId: this.options.canvasId,
       modifiedCount: modifiedObjects?.length || 0
     })
@@ -177,7 +180,8 @@ export class EventBasedToolChain {
   private async restoreSelection(): Promise<void> {
     if (!this.selectionSnapshot) return
     
-    const objectIds = this.selectionSnapshot.getSelectedIds()
+    // Get the object IDs from the snapshot
+    const objectIds = Array.from(this.selectionSnapshot.objectIds)
     if (objectIds.length > 0) {
       // Restore object selection
       this.canvas.setSelection({

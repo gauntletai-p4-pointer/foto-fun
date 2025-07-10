@@ -1,5 +1,7 @@
 import { Command } from '../base'
-import type { Canvas, FabricObject } from 'fabric'
+import type { CanvasManager, CanvasObject } from '@/lib/editor/canvas/types'
+import { ServiceContainer } from '@/lib/core/ServiceContainer'
+import type { TypedEventBus } from '@/lib/events/core/TypedEventBus'
 
 /**
  * Deep clone a value to ensure proper undo/redo
@@ -23,10 +25,10 @@ function deepClone(value: unknown): unknown {
     return cloned
   }
   
-  // For class instances (like Fabric filters), we need to handle them specially
+  // For class instances (like filters), we need to handle them specially
   if (typeof value === 'object' && 'type' in value) {
-    // This is likely a Fabric filter or similar object
-    // We'll store it as-is since Fabric will handle the recreation
+    // This is likely a filter or similar object
+    // We'll store it as-is since the system will handle the recreation
     return value
   }
   
@@ -36,87 +38,86 @@ function deepClone(value: unknown): unknown {
 
 /**
  * Command to modify object properties (color, opacity, etc.)
+ * Uses the event-driven architecture for state changes
  */
 export class ModifyCommand extends Command {
-  private canvas: Canvas
-  private object: FabricObject
+  private canvasManager: CanvasManager
+  private objectId: string
   private oldProperties: Record<string, unknown>
   private newProperties: Record<string, unknown>
+  private typedEventBus: TypedEventBus
   
   constructor(
-    canvas: Canvas, 
-    object: FabricObject, 
+    canvasManager: CanvasManager, 
+    object: CanvasObject, 
     properties: Record<string, unknown>,
     description?: string
   ) {
     super(description || `Modify ${object.type || 'object'} properties`)
-    this.canvas = canvas
-    this.object = object
+    this.canvasManager = canvasManager
+    this.objectId = object.id
     this.newProperties = deepClone(properties) as Record<string, unknown>
+    this.typedEventBus = ServiceContainer.getInstance().get<TypedEventBus>('TypedEventBus')
     
     // Capture old properties with deep cloning
     this.oldProperties = {}
     for (const key in properties) {
-      const value = object.get(key as keyof typeof object)
+      const value = (object as any)[key]
       this.oldProperties[key] = deepClone(value)
     }
   }
   
   async execute(): Promise<void> {
-    this.object.set(this.newProperties)
-    
-    // If we're setting filters, we need to apply them
-    if ('filters' in this.newProperties && 'applyFilters' in this.object) {
-      const imageObject = this.object as FabricObject & { applyFilters: () => void }
-      imageObject.applyFilters()
+    // Find the object
+    const object = this.findObject(this.objectId)
+    if (!object) {
+      throw new Error(`Object ${this.objectId} not found`)
     }
     
-    // Update object coordinates if position or transformation properties changed
-    const transformProps = ['left', 'top', 'angle', 'scaleX', 'scaleY', 'skewX', 'skewY', 'flipX', 'flipY', 'width', 'height']
-    const hasTransformChange = Object.keys(this.newProperties).some(key => transformProps.includes(key))
-    if (hasTransformChange) {
-      this.object.setCoords()
-    }
+    // Emit modification event
+    this.typedEventBus.emit('canvas.object.modified', {
+      canvasId: 'main', // TODO: Get actual canvas ID
+      objectId: this.objectId,
+      previousState: this.oldProperties,
+      newState: this.newProperties
+    })
     
-    this.canvas.renderAll()
+    // Update the object through canvas manager
+    await this.canvasManager.updateObject(this.objectId, this.newProperties)
   }
   
   async undo(): Promise<void> {
-    this.object.set(this.oldProperties)
-    
-    // If we're setting filters, we need to apply them
-    if ('filters' in this.oldProperties && 'applyFilters' in this.object) {
-      const imageObject = this.object as FabricObject & { applyFilters: () => void }
-      imageObject.applyFilters()
+    // Find the object
+    const object = this.findObject(this.objectId)
+    if (!object) {
+      throw new Error(`Object ${this.objectId} not found`)
     }
     
-    // Update object coordinates if position or transformation properties changed
-    const transformProps = ['left', 'top', 'angle', 'scaleX', 'scaleY', 'skewX', 'skewY', 'flipX', 'flipY', 'width', 'height']
-    const hasTransformChange = Object.keys(this.oldProperties).some(key => transformProps.includes(key))
-    if (hasTransformChange) {
-      this.object.setCoords()
-    }
+    // Emit modification event with reversed properties
+    this.typedEventBus.emit('canvas.object.modified', {
+      canvasId: 'main', // TODO: Get actual canvas ID
+      objectId: this.objectId,
+      previousState: this.newProperties,
+      newState: this.oldProperties
+    })
     
-    this.canvas.renderAll()
+    // Update the object through canvas manager
+    await this.canvasManager.updateObject(this.objectId, this.oldProperties)
   }
   
   async redo(): Promise<void> {
-    this.object.set(this.newProperties)
-    
-    // If we're setting filters, we need to apply them
-    if ('filters' in this.newProperties && 'applyFilters' in this.object) {
-      const imageObject = this.object as FabricObject & { applyFilters: () => void }
-      imageObject.applyFilters()
+    await this.execute()
+  }
+  
+  /**
+   * Find object by ID
+   */
+  private findObject(id: string): CanvasObject | null {
+    for (const layer of this.canvasManager.state.layers) {
+      const obj = layer.objects.find(o => o.id === id)
+      if (obj) return obj
     }
-    
-    // Update object coordinates if position or transformation properties changed
-    const transformProps = ['left', 'top', 'angle', 'scaleX', 'scaleY', 'skewX', 'skewY', 'flipX', 'flipY', 'width', 'height']
-    const hasTransformChange = Object.keys(this.newProperties).some(key => transformProps.includes(key))
-    if (hasTransformChange) {
-      this.object.setCoords()
-    }
-    
-    this.canvas.renderAll()
+    return null
   }
   
   /**
@@ -125,7 +126,7 @@ export class ModifyCommand extends Command {
    */
   canMergeWith(other: Command): boolean {
     return other instanceof ModifyCommand && 
-           other.object === this.object &&
+           other.objectId === this.objectId &&
            // Only merge if commands are close in time (within 500ms)
            Math.abs(other.timestamp - this.timestamp) < 500
   }

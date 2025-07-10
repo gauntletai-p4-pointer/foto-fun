@@ -112,25 +112,23 @@ export class MarqueeRectTool extends BaseTool {
     // Only create selection if it has a minimum size
     const minSize = 2
     if (bounds.width >= minSize && bounds.height >= minSize) {
-      // Create pixel-aware selection
-      const selection: Selection = {
-        type: 'rectangle',
-        bounds,
-        feather: 0,
-        antiAlias: true
-      }
+      // Get the selection manager
+      const selectionManager = canvas.getSelectionManager()
       
-      // Set selection on canvas
-      canvas.setSelection(selection)
+      // Get the current selection mode
+      const mode = this.getOption('mode') as 'new' | 'add' | 'subtract' | 'intersect' || 'new'
+      const selectionMode = mode === 'new' ? 'replace' : mode
       
-      // Emit event if in ExecutionContext
-      if (this.executionContext) {
-        await this.executionContext.emit(new SelectionCreatedEvent(
-          'canvas', // Use a fixed canvas ID for now
-          selection,
-          this.executionContext.getMetadata()
-        ))
-      }
+      // Create pixel-based rectangular selection
+      selectionManager.createRectangle(
+        bounds.x,
+        bounds.y,
+        bounds.width,
+        bounds.height,
+        selectionMode
+      )
+      
+      // The selection events will be emitted by the SelectionManager
     }
     
     // Clean up visual feedback

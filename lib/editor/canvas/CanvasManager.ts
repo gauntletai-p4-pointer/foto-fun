@@ -17,6 +17,8 @@ import { ObjectAddedEvent, ObjectModifiedEvent, ObjectRemovedEvent } from '@/lib
 import { TypedEventBus } from '@/lib/events/core/TypedEventBus'
 import { ResourceManager } from '@/lib/core/ResourceManager'
 import { CanvasResizedEvent } from '@/lib/events/canvas/DocumentEvents'
+import { SelectionManager } from '@/lib/editor/selection/SelectionManager'
+import { SelectionRenderer } from '@/lib/editor/selection/SelectionRenderer'
 
 /**
  * Main canvas manager implementation
@@ -29,6 +31,10 @@ export class CanvasManager implements ICanvasManager {
   private typedEventBus: TypedEventBus
   private resourceManager: ResourceManager
   private executionContext: ExecutionContext | null = null
+  
+  // Selection system
+  private selectionManager: SelectionManager
+  private selectionRenderer: SelectionRenderer
   
   // Canvas ID
   public readonly id: string = nanoid()
@@ -84,6 +90,10 @@ export class CanvasManager implements ICanvasManager {
       canRedo: false
     }
     
+    // Initialize selection system
+    this.selectionManager = new SelectionManager(this, this.typedEventBus)
+    this.selectionRenderer = new SelectionRenderer(this, this.selectionManager)
+    
     // Subscribe to events
     this.subscribeToEvents()
   }
@@ -100,10 +110,19 @@ export class CanvasManager implements ICanvasManager {
    * Subscribe to event store for history tracking
    */
   private subscribeToEvents(): void {
-    this.eventStore.subscribe('*', () => {
-      // Update undo/redo state based on event store
-      // This will be implemented by the history store
-      this.updateHistoryState()
+    // Listen for selection changes from SelectionManager
+    this.typedEventBus.on('selection.changed', (data) => {
+      this._state.selection = data.selection
+      if (data.selection) {
+        this.selectionRenderer.startRendering()
+      } else {
+        this.selectionRenderer.stopRendering()
+      }
+    })
+    
+    this.typedEventBus.on('selection.cleared', () => {
+      this._state.selection = null
+      this.selectionRenderer.stopRendering()
     })
   }
   
@@ -257,8 +276,8 @@ export class CanvasManager implements ICanvasManager {
       layerId: targetLayerId
     }
     
-    // Add to Konva layer - Konva.Layer.add() accepts any Konva.Node
-    layer.konvaLayer.add(node)
+    // Add to Konva layer - cast to Shape or Group which are the valid types
+    layer.konvaLayer.add(node as Konva.Shape | Konva.Group)
     layer.objects.push(object)
     layer.konvaLayer.draw()
     
@@ -333,8 +352,37 @@ export class CanvasManager implements ICanvasManager {
   
   // Selection operations
   setSelection(selection: Selection | null): void {
+    // Update state first
     this._state.selection = selection
-    this.renderSelection()
+    
+    // Handle pixel-based selections
+    if (selection?.type === 'pixel' && selection.mask) {
+      // Restore the pixel selection
+      this.selectionManager.restoreSelection(selection.mask, selection.bounds)
+      this.selectionRenderer.startRendering()
+    } else if (selection?.type === 'rectangle') {
+      // Create rectangular selection
+      const bounds = selection.bounds
+      this.selectionManager.createRectangle(bounds.x, bounds.y, bounds.width, bounds.height)
+      this.selectionRenderer.startRendering()
+    } else if (selection?.type === 'ellipse') {
+      // Create elliptical selection
+      const bounds = selection.bounds
+      const cx = bounds.x + bounds.width / 2
+      const cy = bounds.y + bounds.height / 2
+      const rx = bounds.width / 2
+      const ry = bounds.height / 2
+      this.selectionManager.createEllipse(cx, cy, rx, ry)
+      this.selectionRenderer.startRendering()
+    } else if (selection?.type === 'objects') {
+      // Handle object-based selection (existing implementation)
+      this.renderSelection()
+    } else {
+      // Clear selection
+      this.selectionManager.clear()
+      this.selectionRenderer.stopRendering()
+      this.renderSelection()
+    }
   }
   
   selectAll(): void {
@@ -919,6 +967,11 @@ export class CanvasManager implements ICanvasManager {
   }
   
   destroy(): void {
+    // Clean up selection system
+    this.selectionRenderer.destroy()
+    this.selectionManager.dispose()
+    
+    // Destroy stage
     this.stage.destroy()
   }
   
@@ -982,5 +1035,102 @@ export class CanvasManager implements ICanvasManager {
   // Helper to set execution context
   setExecutionContext(context: ExecutionContext | null): void {
     this.executionContext = context
+  }
+
+  /**
+   * Get all objects across all layers
+   */
+  getObjects(): CanvasObject[] {
+    const objects: CanvasObject[] = []
+    this._state.layers.forEach(layer => {
+      objects.push(...layer.objects)
+    })
+    return objects
+  }
+
+  /**
+   * Get canvas width
+   */
+  getWidth(): number {
+    return this._state.width
+  }
+
+  /**
+   * Get canvas height
+   */
+  getHeight(): number {
+    return this._state.height
+  }
+
+  /**
+   * Clear current selection
+   */
+  async clearSelection(): Promise<void> {
+    this.deselectAll()
+  }
+
+  /**
+   * Select specific objects by ID
+   */
+  async selectObjects(objectIds: string[]): Promise<void> {
+    // Filter out invalid or locked objects
+    const validIds = objectIds.filter(id => {
+      const obj = this.findObject(id)
+      return obj && !obj.locked && obj.visible
+    })
+
+    if (validIds.length > 0) {
+      this.setSelection({
+        type: 'objects',
+        objectIds: validIds
+      })
+    } else {
+      this.deselectAll()
+    }
+  }
+
+  /**
+   * Get pointer position relative to canvas
+   */
+  getPointer(event: MouseEvent): Point {
+    const rect = this.container.getBoundingClientRect()
+    const scaleX = this._state.width / rect.width
+    const scaleY = this._state.height / rect.height
+    
+    return {
+      x: (event.clientX - rect.left) * scaleX - this._state.pan.x,
+      y: (event.clientY - rect.top) * scaleY - this._state.pan.y
+    }
+  }
+
+  /**
+   * Get the current pixel selection manager
+   */
+  getSelectionManager(): SelectionManager {
+    return this.selectionManager
+  }
+  
+  /**
+   * Create a selection from the current active objects
+   */
+  createSelectionFromObjects(objectIds: string[]): void {
+    // Find the objects
+    const objects = objectIds
+      .map(id => this.findObject(id))
+      .filter((obj): obj is CanvasObject => obj !== null && obj.node !== null)
+    
+    if (objects.length === 0) return
+    
+    // Create a combined selection from all objects
+    objects.forEach((obj, index) => {
+      if (obj.node) {
+        this.selectionManager.createFromShape(
+          obj.node as Konva.Shape,
+          index === 0 ? 'replace' : 'add'
+        )
+      }
+    })
+    
+    this.selectionRenderer.startRendering()
   }
 } 

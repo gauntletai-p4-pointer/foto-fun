@@ -1,4 +1,7 @@
-import type { Canvas, FabricObject, Path } from 'fabric'
+import type { CanvasManager, CanvasObject, Selection } from '@/lib/editor/canvas/types'
+import Konva from 'konva'
+import { TypedEventBus } from '@/lib/events/core/TypedEventBus'
+import { nanoid } from 'nanoid'
 
 export interface SelectionBounds {
   x: number
@@ -21,17 +24,22 @@ export type SelectionModification = 'expand' | 'contract' | 'feather' | 'invert'
  * 
  * This class handles the conversion of vector paths to pixel masks,
  * boolean operations on selections, and provides utilities for
- * working with selected regions.
+ * working with selected regions using Konva.
+ * 
+ * Follows event-driven architecture, emitting events for all selection changes.
  */
 export class SelectionManager {
-  private canvas: Canvas
+  private canvasManager: CanvasManager
   private selection: PixelSelection | null = null
   private selectionCanvas: HTMLCanvasElement
   private selectionContext: CanvasRenderingContext2D
   private marchingAntsAnimation: number | null = null
+  private typedEventBus: TypedEventBus
+  private selectionId: string | null = null
   
-  constructor(canvas: Canvas) {
-    this.canvas = canvas
+  constructor(canvasManager: CanvasManager, typedEventBus: TypedEventBus) {
+    this.canvasManager = canvasManager
+    this.typedEventBus = typedEventBus
     
     // Create off-screen canvas for selection operations
     this.selectionCanvas = document.createElement('canvas')
@@ -46,8 +54,8 @@ export class SelectionManager {
    * Update the selection canvas size to match the main canvas
    */
   private updateCanvasSize(): void {
-    const width = this.canvas.getWidth()
-    const height = this.canvas.getHeight()
+    const width = this.canvasManager.state.width
+    const height = this.canvasManager.state.height
     
     this.selectionCanvas.width = width
     this.selectionCanvas.height = height
@@ -61,36 +69,59 @@ export class SelectionManager {
   }
   
   /**
-   * Create a selection from a path object
+   * Create a selection from a Konva shape
    */
-  createFromPath(path: Path | FabricObject, mode: SelectionMode = 'replace'): void {
+  createFromShape(shape: Konva.Shape, mode: SelectionMode = 'replace'): void {
     this.updateCanvasSize()
     
-    const bounds = this.getObjectBounds(path)
+    const bounds = this.getShapeBounds(shape)
     
-    // Create a temporary canvas for rendering the path
+    // Create a temporary canvas for rendering the shape
     const tempCanvas = document.createElement('canvas')
     tempCanvas.width = this.selectionCanvas.width
     tempCanvas.height = this.selectionCanvas.height
     const tempCtx = tempCanvas.getContext('2d')!
     
-    // Render the path to get its pixels
-    tempCtx.save()
-    tempCtx.translate(path.left || 0, path.top || 0)
-    if (path.angle) {
-      tempCtx.rotate((path.angle * Math.PI) / 180)
+    // Create a temporary stage and layer to render the shape
+    const tempStage = new Konva.Stage({
+      container: document.createElement('div'),
+      width: tempCanvas.width,
+      height: tempCanvas.height
+    })
+    
+    const tempLayer = new Konva.Layer()
+    tempStage.add(tempLayer)
+    
+    // Clone the shape to avoid modifying the original
+    const clonedShape = shape.clone()
+    tempLayer.add(clonedShape)
+    
+    // Render to canvas
+    tempLayer.draw()
+    const dataURL = tempStage.toDataURL()
+    
+    // Load the image and get pixel data
+    const img = new Image()
+    img.onload = () => {
+      tempCtx.drawImage(img, 0, 0)
+      const imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height)
+      
+      // Apply the selection mode
+      this.applySelectionMode(imageData, bounds, mode)
+      
+      // Clean up
+      tempStage.destroy()
     }
-    tempCtx.scale(path.scaleX || 1, path.scaleY || 1)
-    
-    // Draw the path
-    path.render(tempCtx as CanvasRenderingContext2D)
-    tempCtx.restore()
-    
-    // Get the pixel data
-    const imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height)
-    
-    // Apply the selection mode
-    this.applySelectionMode(imageData, bounds, mode)
+    img.src = dataURL
+  }
+  
+  /**
+   * Create a selection from a canvas object
+   */
+  createFromObject(object: CanvasObject, mode: SelectionMode = 'replace'): void {
+    if (object.node) {
+      this.createFromShape(object.node as Konva.Shape, mode)
+    }
   }
   
   /**
@@ -150,44 +181,93 @@ export class SelectionManager {
   }
   
   /**
+   * Create a selection from a path string
+   */
+  createFromPath(pathData: string, mode: SelectionMode = 'replace'): void {
+    this.updateCanvasSize()
+    
+    // Create a Konva path shape
+    const path = new Konva.Path({
+      data: pathData,
+      fill: 'black'
+    })
+    
+    this.createFromShape(path, mode)
+  }
+  
+  /**
    * Apply selection mode (replace, add, subtract, intersect)
    */
   private applySelectionMode(newMask: ImageData, bounds: SelectionBounds, mode: SelectionMode): void {
+    const previousSelection = this.selection ? { ...this.selection } : null
+    const previousId = this.selectionId
+    
     if (mode === 'replace' || !this.selection) {
       this.selection = { mask: newMask, bounds }
-      return
-    }
-    
-    const currentMask = this.selection.mask
-    const resultMask = this.selectionContext.createImageData(currentMask.width, currentMask.height)
-    
-    // Apply boolean operations pixel by pixel
-    for (let i = 3; i < currentMask.data.length; i += 4) {
-      const current = currentMask.data[i]
-      const new_ = newMask.data[i]
+      this.selectionId = nanoid()
       
-      switch (mode) {
-        case 'add':
-          resultMask.data[i] = Math.max(current, new_)
-          break
-        case 'subtract':
-          resultMask.data[i] = Math.max(0, current - new_)
-          break
-        case 'intersect':
-          resultMask.data[i] = Math.min(current, new_)
-          break
+      // Convert to canvas selection format
+      const canvasSelection: Selection = {
+        type: 'pixel',
+        bounds,
+        mask: newMask
       }
+      
+      // Emit selection changed event
+      this.typedEventBus.emit('selection.changed', {
+        selection: canvasSelection,
+        previousSelection: null
+      })
+    } else {
+      const currentMask = this.selection.mask
+      const resultMask = this.selectionContext.createImageData(currentMask.width, currentMask.height)
+      
+      // Apply boolean operations pixel by pixel
+      for (let i = 3; i < currentMask.data.length; i += 4) {
+        const current = currentMask.data[i]
+        const new_ = newMask.data[i]
+        
+        switch (mode) {
+          case 'add':
+            resultMask.data[i] = Math.max(current, new_)
+            break
+          case 'subtract':
+            resultMask.data[i] = Math.max(0, current - new_)
+            break
+          case 'intersect':
+            resultMask.data[i] = Math.min(current, new_)
+            break
+        }
+      }
+      
+      // Update bounds
+      const newBounds = this.combineBounds(this.selection.bounds, bounds, mode)
+      const previousCanvasSelection: Selection = {
+        type: 'pixel',
+        bounds: this.selection.bounds,
+        mask: this.selection.mask
+      }
+      
+      this.selection = { mask: resultMask, bounds: newBounds }
+      
+      const newCanvasSelection: Selection = {
+        type: 'pixel',
+        bounds: newBounds,
+        mask: resultMask
+      }
+      
+      // Emit selection changed event
+      this.typedEventBus.emit('selection.changed', {
+        selection: newCanvasSelection,
+        previousSelection: previousCanvasSelection
+      })
     }
-    
-    // Update bounds
-    const newBounds = this.combineBoounds(this.selection.bounds, bounds, mode)
-    this.selection = { mask: resultMask, bounds: newBounds }
   }
   
   /**
    * Combine bounds based on selection mode
    */
-  private combineBoounds(b1: SelectionBounds, b2: SelectionBounds, mode: SelectionMode): SelectionBounds {
+  private combineBounds(b1: SelectionBounds, b2: SelectionBounds, mode: SelectionMode): SelectionBounds {
     switch (mode) {
       case 'add':
         return {
@@ -213,15 +293,15 @@ export class SelectionManager {
   }
   
   /**
-   * Get bounds of a fabric object
+   * Get bounds of a Konva shape
    */
-  private getObjectBounds(obj: FabricObject): SelectionBounds {
-    const boundingRect = obj.getBoundingRect()
+  private getShapeBounds(shape: Konva.Shape): SelectionBounds {
+    const rect = shape.getClientRect()
     return {
-      x: boundingRect.left,
-      y: boundingRect.top,
-      width: boundingRect.width,
-      height: boundingRect.height
+      x: rect.x,
+      y: rect.y,
+      width: rect.width,
+      height: rect.height
     }
   }
   
@@ -229,7 +309,10 @@ export class SelectionManager {
    * Transform selection operations
    */
   expand(pixels: number): void {
-    if (!this.selection) return
+    if (!this.selection || !this.selectionId) return
+    
+    const previousBounds = { ...this.selection.bounds }
+    const previousMask = this.selection.mask
     
     // Simple dilation operation
     const mask = this.selection.mask
@@ -261,6 +344,12 @@ export class SelectionManager {
       }
     }
     
+    const previousCanvasSelection: Selection = {
+      type: 'pixel',
+      bounds: previousBounds,
+      mask: previousMask
+    }
+    
     this.selection.mask = newMask
     this.selection.bounds = {
       x: Math.max(0, this.selection.bounds.x - pixels),
@@ -268,6 +357,18 @@ export class SelectionManager {
       width: Math.min(mask.width - this.selection.bounds.x + pixels, this.selection.bounds.width + pixels * 2),
       height: Math.min(mask.height - this.selection.bounds.y + pixels, this.selection.bounds.height + pixels * 2)
     }
+    
+    const newCanvasSelection: Selection = {
+      type: 'pixel',
+      bounds: this.selection.bounds,
+      mask: newMask
+    }
+    
+    // Emit selection changed event
+    this.typedEventBus.emit('selection.changed', {
+      selection: newCanvasSelection,
+      previousSelection: previousCanvasSelection
+    })
   }
   
   /**
@@ -482,8 +583,29 @@ export class SelectionManager {
    * Clear the selection
    */
   clear(): void {
-    this.selection = null
-    this.stopMarchingAnts()
+    const hadSelection = this.selection !== null
+    const previousId = this.selectionId
+    
+    if (hadSelection && this.selection) {
+      const previousCanvasSelection: Selection = {
+        type: 'pixel',
+        bounds: this.selection.bounds,
+        mask: this.selection.mask
+      }
+      
+      this.selection = null
+      this.selectionId = null
+      this.stopMarchingAnts()
+      
+      // Emit selection cleared event
+      this.typedEventBus.emit('selection.cleared', {
+        previousSelection: previousCanvasSelection
+      })
+    } else {
+      this.selection = null
+      this.selectionId = null
+      this.stopMarchingAnts()
+    }
   }
   
   /**

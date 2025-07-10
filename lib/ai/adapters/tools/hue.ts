@@ -119,7 +119,9 @@ NEVER ask for exact values - always interpret the user's intent and choose an ap
       previousValue: 0, // In a real implementation, we'd track the current hue
       newValue: params.rotation,
       affectedImages: images.length,
-      targetingMode: context.targetingMode,
+      targetingMode: context.targetingMode === 'selection' || context.targetingMode === 'auto-single' 
+        ? context.targetingMode 
+        : 'auto-single', // Default to auto-single for 'all' or 'none'
       message
     }
   }

@@ -1,81 +1,61 @@
 import { Command } from '../base'
-import type { Canvas, FabricObject } from 'fabric'
-import type { ClipboardManager } from '@/lib/editor/clipboard/ClipboardManager'
-import type { SelectionManager } from '@/lib/editor/selection'
+import type { CanvasManager, CanvasObject } from '@/lib/editor/canvas/types'
+import { ClipboardManager } from '../../clipboard'
+import { ServiceContainer } from '@/lib/core/ServiceContainer'
+import type { TypedEventBus } from '@/lib/events/core/TypedEventBus'
 
 /**
- * Command to cut selection or objects
+ * Command to cut objects (copy to clipboard and remove from canvas)
  */
 export class CutCommand extends Command {
-  private canvas: Canvas
-  private clipboardManager: ClipboardManager
-  private selectionManager: SelectionManager
-  private deletedObject: FabricObject | null = null
-  private previousSelection: ImageData | null = null
-  private previousBounds: { x: number; y: number; width: number; height: number } | null = null
+  private canvasManager: CanvasManager
+  private objects: CanvasObject[]
+  private objectIds: string[]
+  private layerIds: string[]
+  private clipboard: ClipboardManager
+  private typedEventBus: TypedEventBus
   
-  constructor(
-    canvas: Canvas,
-    clipboardManager: ClipboardManager,
-    selectionManager: SelectionManager
-  ) {
-    super('Cut')
-    this.canvas = canvas
-    this.clipboardManager = clipboardManager
-    this.selectionManager = selectionManager
+  constructor(canvasManager: CanvasManager, objects: CanvasObject[]) {
+    super(`Cut ${objects.length} object(s)`)
+    this.canvasManager = canvasManager
+    this.objects = objects
+    this.objectIds = objects.map(obj => obj.id)
+    this.layerIds = [...new Set(objects.map(obj => obj.layerId))]
+    this.clipboard = ClipboardManager.getInstance()
+    this.typedEventBus = ServiceContainer.getInstance().get<TypedEventBus>('TypedEventBus')
   }
   
   async execute(): Promise<void> {
-    // First copy to clipboard
-    const copied = await this.clipboardManager.copy()
-    if (!copied) return
+    // Copy objects to clipboard
+    await this.clipboard.cut(this.objects)
     
-    // Then delete what was copied
-    if (this.selectionManager.hasSelection()) {
-      // Save selection for undo
-      const selection = this.selectionManager.getSelection()
-      if (selection) {
-        const ctx = document.createElement('canvas').getContext('2d')!
-        this.previousSelection = ctx.createImageData(selection.mask.width, selection.mask.height)
-        this.previousSelection.data.set(selection.mask.data)
-        this.previousBounds = { ...selection.bounds }
-      }
+    // Remove objects from canvas
+    for (const objectId of this.objectIds) {
+      await this.canvasManager.removeObject(objectId)
       
-      // Clear the selection
-      this.selectionManager.clear()
-      this.canvas.discardActiveObject()
-      this.canvas.renderAll()
-    } else {
-      // Delete the active object
-      const activeObject = this.canvas.getActiveObject()
-      if (activeObject) {
-        this.deletedObject = activeObject
-        this.canvas.remove(activeObject)
-        
-        // Clear selection
-        this.canvas.discardActiveObject()
-        
-        this.canvas.renderAll()
-      }
+      // Emit removal event
+      this.typedEventBus.emit('canvas.object.removed', {
+        canvasId: 'main', // TODO: Get actual canvas ID
+        objectId
+      })
     }
   }
   
   async undo(): Promise<void> {
-    if (this.previousSelection && this.previousBounds) {
-      // Restore the selection
-      this.selectionManager.restoreSelection(this.previousSelection, this.previousBounds)
-    } else if (this.deletedObject) {
-      // Restore the deleted object
-      this.canvas.add(this.deletedObject)
+    // Re-add objects to canvas
+    for (const obj of this.objects) {
+      await this.canvasManager.addObject(obj, obj.layerId)
       
-      // Restore selection
-      this.canvas.setActiveObject(this.deletedObject)
-      
-      this.canvas.renderAll()
+      // Emit addition event
+      this.typedEventBus.emit('canvas.object.added', {
+        canvasId: 'main', // TODO: Get actual canvas ID
+        object: obj,
+        layerId: obj.layerId
+      })
     }
   }
   
-  async redo(): Promise<void> {
-    await this.execute()
+  canExecute(): boolean {
+    return this.objects.length > 0
   }
 } 

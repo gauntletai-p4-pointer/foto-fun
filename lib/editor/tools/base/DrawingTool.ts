@@ -1,21 +1,27 @@
 import { BaseTool } from './BaseTool'
-import type { Canvas, TPointerEventInfo } from 'fabric'
-import { Path } from 'fabric'
+import type { CanvasManager, ToolEvent, Point } from '@/lib/editor/canvas/types'
+import Konva from 'konva'
 import { createToolState } from '../utils/toolState'
-import type { Point } from '../utils/constraints'
-import type { ToolOption } from '@/store/toolOptionsStore'
+// Tool option type
+export interface ToolOption {
+  id: string
+  value: any
+}
+import { nanoid } from 'nanoid'
+import { getTypedEventBus } from '@/lib/events/core/TypedEventBus'
 
 // Drawing tool state
 type DrawingToolState = {
   isDrawing: boolean
   lastPoint: Point | null
   currentPath: Point[]
-  currentStroke: Path | null
+  currentStroke: Konva.Path | null
+  previewLayer: Konva.Layer | null
 }
 
 /**
  * Base class for drawing tools (brush, pencil, eraser, etc.)
- * Demonstrates proper state management and command patterns for drawing
+ * Uses Konva for rendering and follows event-driven architecture
  */
 export abstract class DrawingTool extends BaseTool {
   // Encapsulated state
@@ -23,7 +29,8 @@ export abstract class DrawingTool extends BaseTool {
     isDrawing: false,
     lastPoint: null,
     currentPath: [],
-    currentStroke: null
+    currentStroke: null,
+    previewLayer: null
   })
   
   // Tool properties
@@ -34,74 +41,63 @@ export abstract class DrawingTool extends BaseTool {
   /**
    * Tool-specific setup
    */
-  protected setupTool(canvas: Canvas): void {
-    // Disable object selection while drawing
-    canvas.selection = false
-    canvas.isDrawingMode = false // We handle drawing manually
+  protected setupTool(): void {
+    if (!this.canvas) return
     
-    // Set up event handlers
-    this.addCanvasEvent('mouse:down', (e: unknown) => this.handleMouseDown(e as TPointerEventInfo<MouseEvent>))
-    this.addCanvasEvent('mouse:move', (e: unknown) => this.handleMouseMove(e as TPointerEventInfo<MouseEvent>))
-    this.addCanvasEvent('mouse:up', () => this.handleMouseUp())
-    
-    // Subscribe to tool options for real-time updates
-    this.subscribeToToolOptions((options) => {
-      // Update tool properties based on options
-      this.updateToolProperties(options)
-    })
+    // Create preview layer for drawing
+    const previewLayer = new Konva.Layer()
+    this.canvas.konvaStage.add(previewLayer)
+    this.state.set('previewLayer', previewLayer)
   }
   
   /**
    * Tool-specific cleanup
    */
-  protected cleanup(canvas: Canvas): void {
+  protected cleanupTool(): void {
+    // Clean up preview layer
+    const previewLayer = this.state.get('previewLayer')
+    if (previewLayer) {
+      previewLayer.destroy()
+    }
+    
     // Clean up any in-progress stroke
     const currentStroke = this.state.get('currentStroke')
-    if (currentStroke && canvas.contains(currentStroke)) {
-      canvas.remove(currentStroke)
+    if (currentStroke) {
+      currentStroke.destroy()
     }
     
     // Reset state
     this.state.reset()
-    
-    // Re-enable object selection
-    canvas.selection = true
   }
   
   /**
    * Handle mouse down - start drawing
    */
-  protected handleMouseDown(e: TPointerEventInfo<MouseEvent>): void {
+  onMouseDown(event: ToolEvent): void {
     if (!this.canvas) return
     
-    this.track('startStroke', () => {
-      // Use Fabric's getPointer method to get the correct transformed coordinates
-      const pointer = this.canvas!.getPointer(e.e)
-      const point = { x: pointer.x, y: pointer.y }
-      
-      // Update state
-      this.state.setState({
-        isDrawing: true,
-        lastPoint: point,
-        currentPath: [point],
-        currentStroke: null
-      })
-      
-      // Begin stroke
-      this.beginStroke(point, e.e)
+    const point = event.point
+    
+    // Update state
+    this.state.setState({
+      isDrawing: true,
+      lastPoint: point,
+      currentPath: [point],
+      currentStroke: null
     })
+    
+    // Begin stroke
+    this.beginStroke(point, event)
   }
   
   /**
    * Handle mouse move - continue drawing
    */
-  protected handleMouseMove(e: TPointerEventInfo<MouseEvent>): void {
+  onMouseMove(event: ToolEvent): void {
     if (!this.canvas || !this.state.get('isDrawing')) return
     
     this.track('continueStroke', () => {
-      // Use Fabric's getPointer method to get the correct transformed coordinates
-      const pointer = this.canvas!.getPointer(e.e)
-      const point = { x: pointer.x, y: pointer.y }
+      const point = event.point
       const lastPoint = this.state.get('lastPoint')
       
       if (lastPoint && this.shouldDrawSegment(lastPoint, point)) {
@@ -111,7 +107,7 @@ export abstract class DrawingTool extends BaseTool {
         this.state.set('lastPoint', point)
         
         // Update stroke
-        this.updateStroke(point, e.e)
+        this.updateStroke(point, event)
       }
     })
   }
@@ -119,7 +115,7 @@ export abstract class DrawingTool extends BaseTool {
   /**
    * Handle mouse up - finish drawing
    */
-  protected handleMouseUp(): void {
+  onMouseUp(event: ToolEvent): void {
     if (!this.canvas || !this.state.get('isDrawing')) return
     
     this.track('endStroke', () => {
@@ -154,17 +150,103 @@ export abstract class DrawingTool extends BaseTool {
   /**
    * Begin a new stroke
    */
-  protected abstract beginStroke(point: Point, event: MouseEvent): void
+  protected beginStroke(point: Point, event: ToolEvent): void {
+    const previewLayer = this.state.get('previewLayer')
+    if (!previewLayer) return
+    
+    // Create initial path
+    const path = new Konva.Path({
+      data: `M ${point.x} ${point.y}`,
+      stroke: this.strokeColor,
+      strokeWidth: this.strokeWidth,
+      opacity: this.opacity,
+      lineCap: 'round',
+      lineJoin: 'round',
+      globalCompositeOperation: this.getBlendMode()
+    })
+    
+    previewLayer.add(path)
+    previewLayer.batchDraw()
+    
+    this.state.set('currentStroke', path)
+  }
   
   /**
    * Update the current stroke
    */
-  protected abstract updateStroke(point: Point, event: MouseEvent): void
+  protected updateStroke(point: Point, event: ToolEvent): void {
+    const currentStroke = this.state.get('currentStroke')
+    const previewLayer = this.state.get('previewLayer')
+    if (!currentStroke || !previewLayer) return
+    
+    // Update path data
+    const currentPath = this.state.get('currentPath')
+    const pathData = this.createSmoothPath(currentPath)
+    currentStroke.data(pathData)
+    
+    previewLayer.batchDraw()
+  }
   
   /**
    * Finalize the stroke and create a command
    */
-  protected abstract finalizeStroke(): void
+  protected async finalizeStroke(): Promise<void> {
+    const currentStroke = this.state.get('currentStroke')
+    const previewLayer = this.state.get('previewLayer')
+    if (!currentStroke || !previewLayer || !this.canvas) return
+    
+    // Get path data
+    const pathData = currentStroke.data()
+    
+    // Remove from preview layer
+    currentStroke.remove()
+    previewLayer.batchDraw()
+    
+    // Create canvas object
+    const pathObject = {
+      id: nanoid(),
+      type: 'path' as const,
+      name: 'Drawing',
+      visible: true,
+      locked: false,
+      opacity: this.opacity,
+      blendMode: 'normal' as const,
+      transform: {
+        x: 0,
+        y: 0,
+        scaleX: 1,
+        scaleY: 1,
+        rotation: 0,
+        skewX: 0,
+        skewY: 0
+      },
+      node: null as any,
+      layerId: this.canvas.state.activeLayerId || this.canvas.state.layers[0].id,
+      data: pathData,
+      style: {
+        stroke: this.strokeColor,
+        strokeWidth: this.strokeWidth,
+        lineCap: 'round',
+        lineJoin: 'round'
+      }
+    }
+    
+    // Add to canvas
+    await this.canvas.addObject(pathObject)
+    
+    // Emit event
+    const eventBus = getTypedEventBus()
+    eventBus.emit('canvas.object.added', {
+      canvasId: (this.canvas as any).id || 'main',
+      object: pathObject,
+      layerId: pathObject.layerId
+    })
+  }
+  
+  /**
+   * Get blend mode for the tool
+   */
+  protected abstract getBlendMode(): string
   
   /**
    * Update tool properties from options

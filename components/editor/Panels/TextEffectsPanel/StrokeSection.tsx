@@ -27,12 +27,14 @@ export function StrokeSection({ object, onChange }: StrokeSectionProps) {
     if (!object || (object.type !== 'text' && object.type !== 'verticalText')) {
       return
     }
-    if (object.stroke && object.strokeWidth) {
+    
+    // Check metadata for stroke info
+    if (object.metadata?.stroke && object.metadata?.strokeWidth) {
       setEnabled(true)
       setOptions({
-        color: typeof object.stroke === 'string' ? object.stroke : '#000000',
-        width: object.strokeWidth,
-        position: object.paintFirst === 'stroke' ? 'outside' : 'center',
+        color: object.metadata.stroke as string,
+        width: object.metadata.strokeWidth as number,
+        position: (object.metadata.strokePosition as StrokeOptions['position']) || 'center',
       })
     }
   }, [object])
