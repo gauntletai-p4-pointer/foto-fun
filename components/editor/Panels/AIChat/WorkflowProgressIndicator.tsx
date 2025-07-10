@@ -29,7 +29,7 @@ export function WorkflowProgressIndicator({ progress }: { progress: WorkflowProg
             <div className={cn(
               "flex items-center justify-center w-8 h-8 rounded-full transition-all duration-300",
               step.status === 'completed' && "bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400",
-              step.status === 'active' && "bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 animate-pulse",
+              step.status === 'active' && "bg-primary/10 dark:bg-primary/20 text-primary animate-pulse",
               step.status === 'pending' && "bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-600"
             )}>
               {step.status === 'completed' ? (
@@ -41,7 +41,7 @@ export function WorkflowProgressIndicator({ progress }: { progress: WorkflowProg
             <span className={cn(
               "text-sm transition-all duration-300",
               step.status === 'completed' && "text-green-700 dark:text-green-300 font-medium",
-              step.status === 'active' && "text-blue-700 dark:text-blue-300 font-medium",
+              step.status === 'active' && "text-primary font-medium",
               step.status === 'pending' && "text-gray-500 dark:text-gray-400"
             )}>
               {step.label}

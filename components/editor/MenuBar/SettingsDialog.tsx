@@ -142,7 +142,7 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
               </span>
             )}
             {isComingSoon && (
-              <span className="text-xs px-1.5 py-0.5 bg-blue-500/10 text-blue-600 dark:text-blue-400 rounded">
+              <span className="text-xs px-1.5 py-0.5 bg-primary/10 text-primary rounded">
                 Coming Soon
               </span>
             )}

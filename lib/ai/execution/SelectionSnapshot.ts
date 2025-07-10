@@ -74,11 +74,31 @@ export class SelectionSnapshot {
   }
   
   /**
-   * Verify all objects still exist on canvas
+   * Check if all objects in the snapshot still exist on canvas
    */
   verifyIntegrity(canvas: Canvas): boolean {
     const canvasObjects = canvas.getObjects()
-    return this.objects.every(obj => canvasObjects.includes(obj))
+    const canvasObjectSet = new Set(canvasObjects)
+    
+    // Check if all snapshot objects still exist
+    for (const obj of this.objects) {
+      if (!canvasObjectSet.has(obj)) {
+        console.warn(`[SelectionSnapshot ${this.id}] Object no longer exists on canvas`)
+        return false
+      }
+    }
+    
+    return true
+  }
+  
+  /**
+   * Get valid objects that still exist on canvas
+   */
+  getValidObjects(canvas: Canvas): FabricObject[] {
+    const canvasObjects = canvas.getObjects()
+    const canvasObjectSet = new Set(canvasObjects)
+    
+    return this.objects.filter(obj => canvasObjectSet.has(obj))
   }
 }
 

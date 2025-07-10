@@ -63,8 +63,6 @@ class GrayscaleTool extends BaseTool {
     }
     
     this.executeWithGuard('isApplying', async () => {
-      const newState = !this.state.get('isGrayscale')
-      
       const images = this.getTargetImages()
       
       if (images.length === 0) {
@@ -72,15 +70,26 @@ class GrayscaleTool extends BaseTool {
         return
       }
       
+      // Check if ANY of the target images already have grayscale applied
+      const hasGrayscaleApplied = images.some(img => {
+        return img.filters?.some((f: unknown) => f instanceof filters.Grayscale) || false
+      })
+      
+      // If any image has grayscale, remove from all. Otherwise, add to all.
+      const shouldApplyGrayscale = !hasGrayscaleApplied
+      
+      console.log(`[GrayscaleTool] Checking grayscale state: hasGrayscale=${hasGrayscaleApplied}, willApply=${shouldApplyGrayscale}`)
+      
       // Apply to all image objects
       await this.applyImageFilters(
         images,
         'Grayscale',
-        () => newState ? new filters.Grayscale() : null,
-        newState ? 'Apply grayscale' : 'Remove grayscale'
+        () => shouldApplyGrayscale ? new filters.Grayscale() : null,
+        shouldApplyGrayscale ? 'Apply grayscale' : 'Remove grayscale'
       )
       
-      this.state.set('isGrayscale', newState)
+      // Update state to reflect the action taken (for UI purposes only)
+      this.state.set('isGrayscale', shouldApplyGrayscale)
     })
   }
   

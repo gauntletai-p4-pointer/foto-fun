@@ -25,7 +25,7 @@ export interface AgentStatus {
 }
 
 const statusConfig: Record<AgentStatusType, { icon: React.ElementType; color: string; label: string }> = {
-  'analyzing-prompt': { icon: Brain, color: 'text-blue-500', label: 'Analyzing' },
+  'analyzing-prompt': { icon: Brain, color: 'text-primary', label: 'Analyzing' },
   'routing-decision': { icon: Route, color: 'text-purple-500', label: 'Routing' },
   'planning-steps': { icon: Settings, color: 'text-amber-500', label: 'Planning' },
   'executing-tool': { icon: Cpu, color: 'text-green-500', label: 'Executing' },

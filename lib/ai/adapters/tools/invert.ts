@@ -23,7 +23,12 @@ interface InvertOutput {
 export class InvertAdapter extends BaseToolAdapter<InvertInput, InvertOutput> {
   tool = invertTool
   aiName = 'invertColors'
-  description = `Invert the colors of existing images (negative effect). Simple enable/disable control.
+  description = `Invert the colors of existing images (negative effect). 
+
+IMPORTANT: The tool checks if images already have invert applied:
+- If NO images have invert → applies invert
+- If ANY images have invert → removes invert from all
+This ensures consistent behavior across multiple operations.
 
 INTELLIGENT TARGETING:
 - If you have images selected, only those images will be inverted
@@ -31,7 +36,9 @@ INTELLIGENT TARGETING:
 
 Common invert requests:
 - "invert colors" or "negative effect" → enable: true
-- "remove invert" or "restore normal colors" → enable: false`
+- "remove invert" or "restore normal colors" → enable: false
+
+Note: The enable parameter is used for intent, but the actual action depends on current image state.`
 
   metadata = {
     category: 'canvas-editing' as const,

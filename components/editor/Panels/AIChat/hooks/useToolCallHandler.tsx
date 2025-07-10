@@ -133,6 +133,7 @@ export function useToolCallHandler(waitForReady: () => Promise<void>) {
               const chainResult = await ClientToolExecutor.execute('executeToolChain', {
                 steps: chainSteps,
                 preserveToolState: true,
+                preserveSelection: true, // Preserve user selection after execution
                 continueOnError: false
               })
               
@@ -344,6 +345,7 @@ export function useToolCallHandler(waitForReady: () => Promise<void>) {
               const chainResult = await ClientToolExecutor.execute('executeToolChain', {
                 steps: chainSteps,
                 preserveToolState: true,
+                preserveSelection: true, // Preserve user selection after execution
                 continueOnError: false
               })
               

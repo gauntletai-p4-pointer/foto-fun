@@ -10,7 +10,8 @@ import type { Tool } from '@/types'
 const ExecuteChainSchema = z.object({
   steps: z.array(ChainStepSchema).describe('Array of tools to execute in sequence'),
   preserveToolState: z.boolean().default(true).describe('Whether to restore the original tool after execution'),
-  continueOnError: z.boolean().default(false).describe('Whether to continue execution if a step fails')
+  continueOnError: z.boolean().default(false).describe('Whether to continue execution if a step fails'),
+  preserveSelection: z.boolean().default(true).describe('Whether to preserve user selection after execution')
 })
 
 type ExecuteChainInput = z.infer<typeof ExecuteChainSchema>
@@ -21,6 +22,7 @@ interface ExecuteChainOutput {
   results: Array<{
     tool: string
     success: boolean
+    result?: unknown  // Add the actual tool result data
     error?: string
   }>
   totalTime: number
@@ -91,6 +93,7 @@ export class ChainAdapter extends BaseToolAdapter<ExecuteChainInput, ExecuteChai
         {
           preserveToolState: params.preserveToolState,
           captureCheckpoints: true,
+          preserveSelection: params.preserveSelection ?? true, // Default to true for AI operations
           progressCallback: (step, total, tool) => {
             console.log(`[ChainAdapter] Progress: ${step}/${total} - ${tool}`)
           }
@@ -121,6 +124,7 @@ export class ChainAdapter extends BaseToolAdapter<ExecuteChainInput, ExecuteChai
         results: results.results.map(r => ({
           tool: r.tool,
           success: r.success,
+          result: r.result,  // Include the actual result data
           error: r.error
         })),
         totalTime: results.totalTime,

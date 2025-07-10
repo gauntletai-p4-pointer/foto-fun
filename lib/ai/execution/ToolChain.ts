@@ -56,6 +56,7 @@ export interface ChainOptions {
     requiredTypes?: string[]
     allowEmpty?: boolean
   }
+  preserveSelection?: boolean // Whether to preserve user selection after execution
 }
 
 /**
@@ -90,6 +91,9 @@ export class ToolChain implements ICommand {
   private canvasStateBeforeExecution: string | null = null
   private originalToolId: string | null = null
   
+  // For selection preservation
+  private originalSelection: FabricObject[] | null = null
+  
   constructor(options: ChainOptions = {}) {
     this.id = nanoid()
     this.timestamp = Date.now()
@@ -117,6 +121,12 @@ export class ToolChain implements ICommand {
       count: currentSelection.length,
       types: currentSelection.map(obj => obj.type)
     })
+    
+    // Store original selection if preservation is enabled
+    if (options.preserveSelection) {
+      this.originalSelection = [...currentSelection]
+      console.log(`[ToolChain ${this.id}] Stored original selection for preservation:`, this.originalSelection.length)
+    }
     
     // Create selection snapshot immediately
     this.selectionSnapshot = SelectionSnapshotFactory.fromCanvas(context.canvas)
@@ -328,17 +338,54 @@ export class ToolChain implements ICommand {
     
     console.log(`[ToolChain ${this.id}] Cleaning up selection`)
     
-    // Clear any active selection
-    canvas.discardActiveObject()
-    canvas.requestRenderAll()
-    
-    // Ensure no objects remain selected
-    const activeObjects = canvas.getActiveObjects()
-    if (activeObjects.length > 0) {
-      console.warn(`[ToolChain ${this.id}] Warning: ${activeObjects.length} objects still selected after cleanup`)
-      // Force clear by setting selection to empty
-      canvas.setActiveObject(new ActiveSelection([], { canvas }))
+    // If we should preserve selection and have original selection stored
+    if (this.options.preserveSelection && this.originalSelection && this.originalSelection.length > 0) {
+      console.log(`[ToolChain ${this.id}] Preserving original selection of ${this.originalSelection.length} objects`)
+      
+      // Validate that the objects still exist on canvas
+      const canvasObjects = canvas.getObjects()
+      const validObjects = this.originalSelection.filter(obj => canvasObjects.includes(obj))
+      
+      if (validObjects.length === 0) {
+        console.warn(`[ToolChain ${this.id}] Original selection objects no longer exist on canvas`)
+        canvas.discardActiveObject()
+        canvas.requestRenderAll()
+        return
+      }
+      
+      if (validObjects.length !== this.originalSelection.length) {
+        console.warn(`[ToolChain ${this.id}] Some original selection objects no longer exist (${validObjects.length}/${this.originalSelection.length})`)
+      }
+      
+      // Clear current selection first
       canvas.discardActiveObject()
+      
+      // Restore the valid selection
+      if (validObjects.length === 1) {
+        canvas.setActiveObject(validObjects[0])
+      } else {
+        const selection = new ActiveSelection(validObjects, { canvas })
+        canvas.setActiveObject(selection)
+      }
+      
+      canvas.requestRenderAll()
+      console.log(`[ToolChain ${this.id}] Original selection restored with ${validObjects.length} objects`)
+    } else {
+      // Default behavior: clear selection
+      console.log(`[ToolChain ${this.id}] Clearing selection (preserveSelection: ${this.options.preserveSelection})`)
+      
+      // Clear any active selection
+      canvas.discardActiveObject()
+      canvas.requestRenderAll()
+      
+      // Ensure no objects remain selected
+      const activeObjects = canvas.getActiveObjects()
+      if (activeObjects.length > 0) {
+        console.warn(`[ToolChain ${this.id}] Warning: ${activeObjects.length} objects still selected after cleanup`)
+        // Force clear by setting selection to empty
+        canvas.setActiveObject(new ActiveSelection([], { canvas }))
+        canvas.discardActiveObject()
+      }
     }
   }
   

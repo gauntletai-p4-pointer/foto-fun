@@ -57,8 +57,6 @@ class InvertTool extends BaseTool {
     }
     
     this.executeWithGuard('isApplying', async () => {
-      const newState = !this.state.get('isInverted')
-      
       const images = this.getTargetImages()
       
       if (images.length === 0) {
@@ -66,15 +64,27 @@ class InvertTool extends BaseTool {
         return
       }
       
+      // Check if ANY of the target images already have invert applied
+      // This ensures consistent behavior across multiple selections
+      const hasInvertApplied = images.some(img => {
+        return img.filters?.some((f: unknown) => f instanceof filters.Invert) || false
+      })
+      
+      // If any image has invert, remove from all. Otherwise, add to all.
+      const shouldApplyInvert = !hasInvertApplied
+      
+      console.log(`[InvertTool] Checking invert state: hasInvert=${hasInvertApplied}, willApply=${shouldApplyInvert}`)
+      
       // Apply to all image objects
       await this.applyImageFilters(
         images,
         'Invert',
-        () => newState ? new filters.Invert() : null,
-        newState ? 'Apply invert' : 'Remove invert'
+        () => shouldApplyInvert ? new filters.Invert() : null,
+        shouldApplyInvert ? 'Apply invert' : 'Remove invert'
       )
       
-      this.state.set('isInverted', newState)
+      // Update state to reflect the action taken (for UI purposes only)
+      this.state.set('isInverted', shouldApplyInvert)
     })
   }
   

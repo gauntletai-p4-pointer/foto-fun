@@ -1,12 +1,34 @@
-import { AlertTriangle, Loader2, Check, X } from 'lucide-react'
-import { Badge } from '@/components/ui/badge'
+import { AlertTriangle } from 'lucide-react'
 import { AgentWorkflowDisplay } from '../AgentWorkflowDisplay'
+import { AgentStatusDisplay } from '../AgentStatusDisplay'
+import { UnifiedToolDisplay } from './UnifiedToolDisplay'
 
 interface ToolExecution {
   toolName: string
   params: unknown
   description?: string
   confidence?: number
+}
+
+interface CostApprovalOutput {
+  type: 'cost-approval-required'
+  message: string
+  toolName: string
+  operation: string
+  estimatedCost?: number
+}
+
+interface ExecuteToolChainOutput {
+  success: boolean
+  chainId: string
+  results: Array<{
+    tool: string
+    success: boolean
+    result?: unknown  // Add this field
+    error?: string
+  }>
+  totalTime: number
+  message: string
 }
 
 interface AgentWorkflowOutput {
@@ -29,6 +51,7 @@ interface AgentWorkflowOutput {
     agentType: string
     totalSteps: number
     reasoning: string
+    visionInsights?: string
   }
   agentStatus?: {
     confidence: number
@@ -41,15 +64,6 @@ interface AgentWorkflowOutput {
     details?: string
     timestamp: string
   }>
-}
-
-interface CostApprovalOutput {
-  type?: string
-  toolName?: string
-  operation?: string
-  estimatedCost?: number
-  details?: string
-  message?: string
 }
 
 interface ToolPartRendererProps {
@@ -82,25 +96,25 @@ export function ToolPartRenderer({
   
   // Check if this is a cost approval request
   if (toolName === 'requestCostApproval' && toolPart.output) {
-    const costApprovalData = toolPart.output as CostApprovalOutput
+    const costApprovalData = toolPart.output as unknown as CostApprovalOutput
     
     if (costApprovalData?.type === 'cost-approval-required') {
       return (
         <div className="space-y-2">
-          <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-            <div className="flex items-center gap-2 text-blue-800">
+          <div className="p-3 bg-primary/10 border border-primary/20 rounded-lg">
+            <div className="flex items-center gap-2 text-primary">
               <AlertTriangle className="w-4 h-4" />
               <span className="font-medium">Cost Approval Required</span>
             </div>
-            <p className="text-sm text-blue-700 mt-1">
+            <p className="text-sm text-primary/90 mt-1">
               {costApprovalData.message}
             </p>
-            <div className="text-xs text-blue-600 mt-2 space-y-1">
+            <div className="text-xs text-primary/80 mt-2 space-y-1">
               <div>Tool: {costApprovalData.toolName}</div>
               <div>Operation: {costApprovalData.operation}</div>
               <div>Estimated Cost: ${costApprovalData.estimatedCost?.toFixed(3)}</div>
             </div>
-            <p className="text-xs text-blue-600 mt-2">
+            <p className="text-xs text-primary/80 mt-2">
               Please respond with &quot;yes&quot; or &quot;approve&quot; to continue, or &quot;no&quot; to cancel.
             </p>
           </div>
@@ -112,6 +126,9 @@ export function ToolPartRenderer({
   // Check if this is the executeAgentWorkflow tool
   const isAgentExecution = toolName === 'executeAgentWorkflow'
   
+  // Check if this is the executeToolChain tool
+  const isToolChain = toolName === 'executeToolChain'
+  
   // Extract tool output data
   const toolOutput = (toolPart.state === 'output-available' || toolPart.state === 'output-error') 
     ? toolPart.output as AgentWorkflowOutput
@@ -121,6 +138,14 @@ export function ToolPartRenderer({
   if (isAgentExecution && toolOutput?.approvalRequired && toolOutput?.step) {
     return (
       <div className="space-y-2">
+        {/* Show status updates if available */}
+        {toolOutput.statusUpdates && toolOutput.statusUpdates.length > 0 && (
+          <AgentStatusDisplay 
+            statusUpdates={toolOutput.statusUpdates}
+            isActive={false} // Already completed
+          />
+        )}
+        
         <div className="text-sm text-muted-foreground">
           <p className="mb-2">
             I&apos;ve analyzed your request and created a plan with {toolOutput.toolExecutions?.length || 0} steps.
@@ -130,20 +155,21 @@ export function ToolPartRenderer({
             (threshold: {Math.round(toolOutput.step.threshold * 100)}%)
           </p>
           
-          {/* Show the planned tools */}
+          {/* Show the planned tools using UnifiedToolDisplay */}
           {toolOutput.toolExecutions && toolOutput.toolExecutions.length > 0 && (
-            <div className="mb-3">
+            <div className="mb-3 space-y-2">
               <p className="font-medium mb-1">Planned operations:</p>
-              {toolOutput.toolExecutions.map((exec) => (
-                <div key={exec.toolName} className="ml-2 flex items-center gap-2">
-                  <span className="text-muted-foreground">•</span>
-                  <span>{exec.description || `${exec.toolName} with ${JSON.stringify(exec.params)}`}</span>
-                  {exec.confidence !== undefined && aiSettings.showConfidenceScores && (
-                    <span className="text-xs text-muted-foreground">
-                      ({Math.round(exec.confidence * 100)}%)
-                    </span>
-                  )}
-                </div>
+              {toolOutput.toolExecutions.map((exec, idx) => (
+                <UnifiedToolDisplay
+                  key={`${exec.toolName}-${idx}`}
+                  toolName={exec.toolName}
+                  state="input-available"
+                  input={exec.params as Record<string, unknown>}
+                  description={exec.description}
+                  confidence={exec.confidence}
+                  showConfidence={aiSettings.showConfidenceScores}
+                  isPartOfChain={true}
+                />
               ))}
             </div>
           )}
@@ -160,6 +186,14 @@ export function ToolPartRenderer({
   if (isAgentExecution && toolOutput?.workflow && toolOutput?.agentStatus) {
     return (
       <div className="space-y-2">
+        {/* Show status updates if available */}
+        {toolOutput.statusUpdates && toolOutput.statusUpdates.length > 0 && (
+          <AgentStatusDisplay 
+            statusUpdates={toolOutput.statusUpdates}
+            isActive={false} // Already completed
+          />
+        )}
+        
         <AgentWorkflowDisplay
           workflow={toolOutput.workflow}
           agentStatus={toolOutput.agentStatus}
@@ -170,95 +204,100 @@ export function ToolPartRenderer({
             showEducationalContent: aiSettings.showEducationalContent
           }}
         />
-        <RenderToolStatus toolPart={toolPart} toolName={toolName} />
       </div>
     )
   }
   
-  // Default tool rendering
-  return (
-    <div className="space-y-2">
-      <RenderToolStatus toolPart={toolPart} toolName={toolName} />
-      
-      {/* Always show tool details for regular tools */}
-      <RenderToolDetails 
-        toolPart={toolPart} 
-        isAgentExecution={isAgentExecution}
-      />
-    </div>
-  )
-}
-
-// Helper component for tool status
-function RenderToolStatus({ toolPart, toolName }: { 
-  toolPart: {
-    state: string
-    errorText?: string
+  // Handle executeToolChain display
+  if (isToolChain) {
+    const chainOutput = toolPart.output as unknown as ExecuteToolChainOutput
+    const chainInput = toolPart.input as { steps?: Array<{ tool: string; params: unknown }> }
+    
+    console.log('[ToolPartRenderer] === TOOL CHAIN RENDER ===')
+    console.log('[ToolPartRenderer] Tool part state:', toolPart.state)
+    console.log('[ToolPartRenderer] Has output:', !!chainOutput)
+    console.log('[ToolPartRenderer] Output results:', chainOutput?.results)
+    console.log('[ToolPartRenderer] Input steps:', chainInput?.steps)
+    
+    // Determine if chain is completed
+    const isChainCompleted = toolPart.state === 'output-available' && chainOutput?.results
+    
+    return (
+      <div className="space-y-2">
+        {/* Main chain status using UnifiedToolDisplay */}
+        <UnifiedToolDisplay
+          toolName="Tool Chain"
+          state={toolPart.state}
+          errorText={toolPart.errorText}
+          input={chainInput} // Pass the full input including steps
+          output={chainOutput ? {
+            success: chainOutput.success,
+            totalTime: chainOutput.totalTime,
+            message: chainOutput.message
+          } : undefined}
+        />
+        
+        {/* Show individual steps */}
+        {chainInput?.steps && (
+          <div className="space-y-2">
+            {chainInput.steps.map((step, idx) => {
+              // Get the result for this step if chain is completed
+              const stepResult = isChainCompleted ? chainOutput.results[idx] : undefined
+              
+              // Determine the state for this step
+              let stepState: 'input-streaming' | 'input-available' | 'output-available' | 'output-error'
+              if (!isChainCompleted) {
+                // Chain is still running or pending
+                stepState = toolPart.state === 'input-streaming' ? 'input-streaming' : 'input-available'
+              } else if (stepResult) {
+                // Chain is completed, use result status
+                stepState = stepResult.success ? 'output-available' : 'output-error'
+              } else {
+                // Fallback (shouldn't happen)
+                stepState = 'input-available'
+              }
+              
+              console.log(`[ToolPartRenderer] Step ${idx} rendering:`, {
+                tool: step.tool,
+                state: stepState,
+                hasResult: !!stepResult,
+                resultSuccess: stepResult?.success,
+                resultData: stepResult?.result
+              })
+              
+              return (
+                <UnifiedToolDisplay
+                  key={`chain-step-${idx}`} // Use stable key
+                  toolName={step.tool}
+                  state={stepState}
+                  input={step.params as Record<string, unknown>}
+                  output={stepResult?.success && stepResult.result ? 
+                    stepResult.result as Record<string, unknown> : 
+                    stepResult?.success ? { 
+                      success: true,
+                      message: `${step.tool} completed successfully`
+                    } : undefined
+                  }
+                  errorText={stepResult?.error}
+                  isPartOfChain={true}
+                />
+              )
+            })}
+          </div>
+        )}
+      </div>
+    )
   }
-  toolName: string 
-}) {
-  return (
-    <div className="flex items-center gap-2 text-sm">
-      <Badge variant="default" className="bg-primary text-primary-foreground px-2 py-1">
-        <span className="font-medium">{toolName}</span>
-      </Badge>
-      {toolPart.state === 'input-streaming' && (
-        <Loader2 className="w-3 h-3 animate-spin text-muted-foreground" />
-      )}
-      {toolPart.state === 'output-available' && !toolPart.errorText && (
-        <Check className="w-3 h-3 text-green-600" />
-      )}
-      {toolPart.state === 'output-error' && (
-        <X className="w-3 h-3 text-red-600" />
-      )}
-    </div>
-  )
-}
-
-// Helper component for tool details
-function RenderToolDetails({ toolPart, isAgentExecution }: { 
-  toolPart: {
-    state: string
-    input?: Record<string, unknown>
-    output?: Record<string, unknown>
-    errorText?: string
-  }
-  isAgentExecution: boolean 
-}) {
-  if (isAgentExecution) return null
   
+  // Default tool rendering using UnifiedToolDisplay
   return (
-    <div className="space-y-2">
-      {/* Show input parameters */}
-      {(toolPart.state === 'input-available' || toolPart.state === 'output-available') && toolPart.input && (
-        <div className="text-xs text-muted-foreground">
-          <details>
-            <summary className="cursor-pointer">Parameters</summary>
-            <pre className="mt-1 overflow-auto">
-              {JSON.stringify(toolPart.input, null, 2)}
-            </pre>
-          </details>
-        </div>
-      )}
-      
-      {/* Show errors */}
-      {toolPart.state === 'output-error' && toolPart.errorText && (
-        <div className="text-xs text-red-600">
-          Error: {toolPart.errorText}
-        </div>
-      )}
-      
-      {/* Show output */}
-      {toolPart.output && toolPart.state === 'output-available' && (
-        <div className="text-xs text-muted-foreground">
-          <details>
-            <summary className="cursor-pointer">Result</summary>
-            <pre className="mt-1 overflow-auto">
-              {JSON.stringify(toolPart.output, null, 2)}
-            </pre>
-          </details>
-        </div>
-      )}
-    </div>
+    <UnifiedToolDisplay
+      toolName={toolName}
+      state={toolPart.state}
+      input={toolPart.input}
+      output={toolPart.output}
+      errorText={toolPart.errorText}
+      showConfidence={aiSettings.showConfidenceScores}
+    />
   )
 } 
