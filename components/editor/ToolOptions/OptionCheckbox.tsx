@@ -1,7 +1,7 @@
 'use client'
 
 import { Checkbox } from '@/components/ui/checkbox'
-import type { ToolOption } from '@/store/toolOptionsStore'
+import type { ToolOption } from '@/lib/store/tools/EventToolStore'
 
 interface OptionCheckboxProps {
   option: ToolOption<boolean>

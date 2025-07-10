@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useService } from '@/lib/core/AppInitializer'
 import { TypedCanvasStore, useCanvasStore } from '@/lib/store/canvas/TypedCanvasStore'
+import type { CanvasObject } from '@/lib/editor/canvas/types'
 import { Smile, Hash, AtSign, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -17,7 +18,7 @@ import { EMOJI_CATEGORIES, SPECIAL_CHARACTERS } from './glyphData'
 export function GlyphsPanel() {
   const canvasStore = useService<TypedCanvasStore>('CanvasStore')
   const canvasState = useCanvasStore(canvasStore)
-  const [activeTextObject, setActiveTextObject] = useState<any | null>(null)
+  const [activeTextObject, setActiveTextObject] = useState<CanvasObject | null>(null)
   const [category, setCategory] = useState<'emoji' | 'symbols' | 'recent'>('emoji')
   const [emojiCategory, setEmojiCategory] = useState<string>('smileys')
   const [searchQuery, setSearchQuery] = useState('')

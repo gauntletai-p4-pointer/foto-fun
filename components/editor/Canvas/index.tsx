@@ -7,7 +7,7 @@ import { CanvasManagerFactory } from '@/lib/editor/canvas/CanvasManagerFactory'
 import { useCanvasStore as useTypedCanvasStore } from '@/lib/store/canvas/TypedCanvasStore'
 import { TypedCanvasStore } from '@/lib/store/canvas/TypedCanvasStore'
 import { EventToolStore } from '@/lib/store/tools/EventToolStore'
-import { TypedEventBus, getTypedEventBus } from '@/lib/events/core/TypedEventBus'
+import { getTypedEventBus } from '@/lib/events/core/TypedEventBus'
 import { useFileHandler } from '@/hooks/useFileHandler'
 
 export function Canvas() {
@@ -47,9 +47,11 @@ export function Canvas() {
     
     return () => {
       console.log('[Canvas] Disposing canvas...')
-      // Use the ref to get the current canvas manager
-      if (containerRef.current) {
-        // Canvas manager will be cleaned up by ResourceManager
+      // Canvas manager will be cleaned up by ResourceManager
+      // Store the manager in a variable to avoid ref issues
+      const currentManager = canvasManager
+      if (currentManager) {
+        currentManager.destroy()
       }
     }
   }, [canvasFactory])
@@ -77,7 +79,8 @@ export function Canvas() {
     const unsubscribeOptions = typedEventBus.on('tool.option.changed', (data) => {
       const activeTool = toolStore.getActiveTool()
       if (activeTool && activeTool.id === data.toolId && 'setOption' in activeTool) {
-        (activeTool as any).setOption(data.optionId, data.value)
+        const tool = activeTool as { setOption: (key: string, value: unknown) => void }
+        tool.setOption(data.optionId, data.value)
       }
     })
     

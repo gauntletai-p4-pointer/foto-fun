@@ -1,7 +1,7 @@
 'use client'
 
 import { Input } from '@/components/ui/input'
-import type { ToolOption } from '@/store/toolOptionsStore'
+import type { ToolOption } from '@/lib/store/tools/EventToolStore'
 
 interface OptionNumberProps {
   option: ToolOption<number>

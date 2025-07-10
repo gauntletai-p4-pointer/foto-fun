@@ -18,7 +18,6 @@ export function ToolOptions() {
   const toolStore = useService<EventToolStore>('ToolStore')
   const activeTool = toolStore.getActiveTool()
   const [modifiers, setModifiers] = useState({ shift: false, alt: false })
-  const [isExpanded, setIsExpanded] = useState(false)
   
   // Register default options on mount
   useEffect(() => {

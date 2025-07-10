@@ -16,7 +16,7 @@ export interface CommandContext {
   }
   
   // Execution metadata
-  metadata?: Record<string, any>
+  metadata?: Record<string, unknown>
   
   // Error handling
   error?: Error

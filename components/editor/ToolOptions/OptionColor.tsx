@@ -4,8 +4,10 @@ import { useState } from 'react'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import type { ToolOption } from '@/store/toolOptionsStore'
-import { useColorStore } from '@/store/colorStore'
+import type { ToolOption } from '@/lib/store/tools/EventToolStore'
+import { useService } from '@/lib/core/AppInitializer'
+import { useStore } from '@/lib/store/base/BaseStore'
+import { EventColorStore } from '@/lib/store/color/EventColorStore'
 
 interface OptionColorProps {
   option: ToolOption<string>
@@ -15,7 +17,10 @@ interface OptionColorProps {
 export function OptionColor({ option, onChange }: OptionColorProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [tempColor, setTempColor] = useState(option.value)
-  const { recentColors, addRecentColor } = useColorStore()
+  const colorStore = useService<EventColorStore>('ColorStore')
+  const colorState = useStore(colorStore)
+  const recentColors = colorState.recentColors
+  const addRecentColor = (color: string) => colorStore.addRecentColor(color)
   
   const handleColorChange = (color: string) => {
     setTempColor(color)

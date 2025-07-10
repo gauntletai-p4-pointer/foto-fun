@@ -2,7 +2,7 @@
 
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { Square, SquarePlus, SquareMinus, Circle, Plus, Minus, X, Wand2, Lasso } from 'lucide-react'
-import type { ToolOption } from '@/store/toolOptionsStore'
+import type { ToolOption } from '@/lib/store/tools/EventToolStore'
 
 // Map icon names to components
 const iconMap = {

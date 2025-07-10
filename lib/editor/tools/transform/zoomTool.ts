@@ -43,7 +43,6 @@ export class ZoomTool extends BaseTool {
   }
   
   onMouseDown(event: ToolEvent): void {
-    const canvas = this.getCanvas()
     
     if (event.altKey) {
       // Alt+click for zoom out
@@ -75,8 +74,6 @@ export class ZoomTool extends BaseTool {
   
   onMouseUp(event: ToolEvent): void {
     if (!this.isDrawingMarquee || !this.marqueeStart) return
-    
-    const canvas = this.getCanvas()
     
     // Calculate marquee bounds
     const width = Math.abs(event.screenPoint.x - this.marqueeStart.x)

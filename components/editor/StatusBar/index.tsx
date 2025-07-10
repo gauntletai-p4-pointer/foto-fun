@@ -1,7 +1,6 @@
 'use client'
 
 import { useService } from '@/lib/core/AppInitializer'
-import { useStore } from '@/lib/store/base/BaseStore'
 import { EventDocumentStore } from '@/lib/store/document/EventDocumentStore'
 import { TypedCanvasStore, useCanvasStore } from '@/lib/store/canvas/TypedCanvasStore'
 

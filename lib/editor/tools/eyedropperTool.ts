@@ -59,9 +59,6 @@ export class EyedropperTool extends BaseTool {
     // Update magnifier position and content
     if (this.previewDiv && this.magnifierCanvas && this.magnifierCtx) {
       // Position magnifier near cursor
-      const stage = canvas.konvaStage
-      const stageRect = stage.container().getBoundingClientRect()
-      
       this.previewDiv.style.left = `${event.screenPoint.x + 20}px`
       this.previewDiv.style.top = `${event.screenPoint.y - this.MAGNIFIER_SIZE - 20}px`
       this.previewDiv.style.display = 'block'
@@ -242,7 +239,7 @@ export class EyedropperTool extends BaseTool {
   /**
    * Sample color at point
    */
-  private sampleColor(point: Point, updateStore = true): { hex: string; rgb: { r: number; g: number; b: number; a: number } } | null {
+  private sampleColor(point: Point, _updateStore = true): { hex: string; rgb: { r: number; g: number; b: number; a: number } } | null {
     const canvas = this.getCanvas()
     const sampleSize = this.getSampleSize()
     

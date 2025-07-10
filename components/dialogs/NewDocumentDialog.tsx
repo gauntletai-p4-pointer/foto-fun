@@ -1,7 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { useDocumentStore } from '@/store/documentStore'
+import { useService } from '@/lib/core/AppInitializer'
+import { EventDocumentStore } from '@/lib/store/document/EventDocumentStore'
 import { DOCUMENT_PRESETS } from '@/constants'
 import {
   Dialog,
@@ -28,7 +29,7 @@ interface NewDocumentDialogProps {
 }
 
 export function NewDocumentDialog({ open, onOpenChange }: NewDocumentDialogProps) {
-  const createNewDocument = useDocumentStore(state => state.createNewDocument)
+  const documentStore = useService<EventDocumentStore>('DocumentStore')
   
   const [preset, setPreset] = useState<keyof typeof DOCUMENT_PRESETS>('default')
   const [customWidth, setCustomWidth] = useState('800')
@@ -38,14 +39,14 @@ export function NewDocumentDialog({ open, onOpenChange }: NewDocumentDialogProps
   
   const handleCreate = () => {
     if (preset === 'default') {
-      createNewDocument(preset, {
+      documentStore.createNewDocument(preset, {
         name: documentName,
         width: parseInt(customWidth),
         height: parseInt(customHeight),
         resolution: parseInt(customResolution)
       })
     } else {
-      createNewDocument(preset, { name: documentName })
+      documentStore.createNewDocument(preset, { name: documentName })
     }
     
     onOpenChange(false)

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useService } from '@/lib/core/AppInitializer'
 import { TypedCanvasStore, useCanvasStore } from '@/lib/store/canvas/TypedCanvasStore'
+import type { CanvasObject } from '@/lib/editor/canvas/types'
 import { FontSelector } from './FontSelector'
 import { FontSizeInput } from './FontSizeInput'
 import { FontStyleButtons } from './FontStyleButtons'
@@ -19,7 +20,7 @@ import { Type } from 'lucide-react'
 export function CharacterPanel() {
   const canvasStore = useService<TypedCanvasStore>('CanvasStore')
   const canvasState = useCanvasStore(canvasStore)
-  const [activeTextObject, setActiveTextObject] = useState<any | null>(null)
+  const [activeTextObject, setActiveTextObject] = useState<CanvasObject | null>(null)
   
   useEffect(() => {
     // Check if we have a text object selected
@@ -37,7 +38,7 @@ export function CharacterPanel() {
     )
   }
   
-  const updateTextProperty = (property: string, value: any) => {
+  const updateTextProperty = (property: string, value: unknown) => {
     if (!activeTextObject) return
     
     // TODO: Update this to work with the new canvas system

@@ -1,4 +1,3 @@
-import type { Event } from './Event'
 import type { CanvasObject, Layer, Selection, Point } from '@/lib/editor/canvas/types'
 import type { FabricObject } from 'fabric'
 
@@ -138,7 +137,7 @@ export interface EventRegistry {
  * Type-safe event bus for application-wide event handling
  */
 export class TypedEventBus {
-  private handlers = new Map<keyof EventRegistry, Set<Function>>()
+  private handlers = new Map<keyof EventRegistry, Set<(data: any) => void>>()
   
   /**
    * Subscribe to an event type

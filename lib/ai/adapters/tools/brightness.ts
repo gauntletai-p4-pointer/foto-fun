@@ -68,7 +68,7 @@ export class BrightnessToolAdapter extends BaseToolAdapter<BrightnessInput, Brig
       }
       
       // Get the tool store from service container
-      const container = (window as any).__serviceContainer
+      const container = (window as { __serviceContainer?: unknown }).__serviceContainer
       if (!container) {
         throw new Error('Service container not found')
       }
@@ -88,12 +88,14 @@ export class BrightnessToolAdapter extends BaseToolAdapter<BrightnessInput, Brig
       
       // If we have an execution context, set it on the tool
       if (executionContext && 'setExecutionContext' in activeTool) {
-        (activeTool as any).setExecutionContext(executionContext)
+        const toolWithContext = activeTool as { setExecutionContext: (context: ExecutionContext) => void }
+        toolWithContext.setExecutionContext(executionContext)
       }
       
       // Apply brightness using the tool's method
       if ('applyBrightness' in activeTool && typeof activeTool.applyBrightness === 'function') {
-        await (activeTool as any).applyBrightness(params.adjustment)
+        const toolWithApply = activeTool as { applyBrightness: (adjustment: number) => Promise<void> }
+        await toolWithApply.applyBrightness(params.adjustment)
       }
       
       return {

@@ -7,7 +7,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import type { ToolOption } from '@/store/toolOptionsStore'
+import type { ToolOption } from '@/lib/store/tools/EventToolStore'
 
 interface DropdownOption {
   value: string

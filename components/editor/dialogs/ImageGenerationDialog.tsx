@@ -1,7 +1,9 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useCanvasStore } from '@/store/canvasStore'
+import { useService } from '@/lib/core/AppInitializer'
+import { useStore } from '@/lib/store/base/BaseStore'
+import { EventToolStore } from '@/lib/store/tools/EventToolStore'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -22,9 +24,9 @@ const COMMON_DIMENSIONS = [
 ]
 
 export function ImageGenerationDialog() {
-  const activeAITool = useCanvasStore((state) => state.activeAITool)
-  const setActiveAITool = useCanvasStore((state) => state.setActiveAITool)
-  const fabricCanvas = useCanvasStore((state) => state.fabricCanvas)
+  const toolStore = useService<EventToolStore>('ToolStore')
+  const toolState = useStore(toolStore)
+  const activeTool = toolState.activeTool
   
   const [prompt, setPrompt] = useState('')
   const [negativePrompt, setNegativePrompt] = useState('')
@@ -32,7 +34,7 @@ export function ImageGenerationDialog() {
   const [steps, setSteps] = useState(50)
   const [isGenerating, setIsGenerating] = useState(false)
   
-  const isOpen = activeAITool?.type === 'ai-image-generation'
+  const isOpen = activeTool?.id === 'ai-image-generation'
   
   useEffect(() => {
     // Reset form when dialog opens
@@ -46,7 +48,7 @@ export function ImageGenerationDialog() {
   
   const handleClose = () => {
     if (!isGenerating) {
-      setActiveAITool(null)
+      toolStore.deactivateTool()
     }
   }
   
@@ -57,9 +59,12 @@ export function ImageGenerationDialog() {
       return
     }
     
+    // TODO: Update to use CanvasManager from the new Konva-based system
+    // This will be handled as part of the tool migration
+    const fabricCanvas = null // Temporary placeholder
     if (!fabricCanvas) {
-      console.error('Canvas not ready')
-      alert('Canvas not ready')
+      console.error('Canvas not ready - ImageGeneration tool needs migration to Konva')
+      alert('Canvas not ready - ImageGeneration tool needs migration to Konva')
       return
     }
     
@@ -88,7 +93,7 @@ export function ImageGenerationDialog() {
         console.log('Image generated successfully')
         
         // Close dialog after successful generation
-        setActiveAITool(null)
+        toolStore.deactivateTool()
       } else {
         console.error('Generation Failed:', result.message || 'Failed to generate image')
         alert(result.message || 'Failed to generate image')

@@ -20,7 +20,7 @@ export function VintageEffectsOptions({ tool, onChange }: VintageEffectsOptionsP
     if (currentEffect) {
       setSelectedEffect(currentEffect)
     }
-  }, [])
+  }, [tool])
   
   const handleEffectSelect = (effectId: string) => {
     setSelectedEffect(effectId)

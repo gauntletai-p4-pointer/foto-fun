@@ -1,15 +1,16 @@
 'use client'
 
 import { useState } from 'react'
-import { useDocumentStore } from '@/store/documentStore'
+import { useService } from '@/lib/core/AppInitializer'
+import { useStore } from '@/lib/store/base/BaseStore'
+import { EventDocumentStore } from '@/lib/store/document/EventDocumentStore'
+import { EventSelectionStore } from '@/lib/store/selection/EventSelectionStore'
+import { useEventHistoryStore } from '@/lib/events/history/EventBasedHistoryStore'
 import { useFileHandler } from '@/hooks/useFileHandler'
 import { useTheme } from '@/hooks/useTheme'
 import { useAuth } from '@/hooks/useAuth'
 import { signOut } from '@/lib/auth/actions'
 import { NewDocumentDialog } from '@/components/dialogs/NewDocumentDialog'
-import { useHistoryStore } from '@/store/historyStore'
-import { useCanvasStore } from '@/store/canvasStore'
-import { useSelectionStore } from '@/store/selectionStore'
 import { CopyCommand, CutCommand, PasteCommand } from '@/lib/editor/commands/clipboard'
 import { ModifySelectionCommand, ClearSelectionCommand } from '@/lib/editor/commands/selection'
 import {
@@ -31,16 +32,22 @@ export function MenuBar() {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const { fileInputRef: openFileInputRef, handleFileSelect: handleOpenFileSelect, triggerFileInput: triggerOpenFileInput } = useFileHandler('open')
   const { fileInputRef: insertFileInputRef, handleFileSelect: handleInsertFileSelect, triggerFileInput: triggerInsertFileInput } = useFileHandler('insert')
-  const { saveDocument, currentDocument, hasUnsavedChanges } = useDocumentStore()
+  const documentStore = useService<EventDocumentStore>('DocumentStore')
+  const documentState = useStore(documentStore)
+  const currentDocument = documentState.currentDocument
+  const hasUnsavedChanges = documentState.hasUnsavedChanges
+  
+  const selectionStore = useService<EventSelectionStore>('SelectionStore')
+  const selectionState = useStore(selectionStore)
+  const hasSelection = selectionState.selectedIds.length > 0
+  
   const { theme, setTheme } = useTheme()
   const { user } = useAuth()
-  const { undo, redo, canUndo, canRedo, executeCommand } = useHistoryStore()
-  const { fabricCanvas, selectionManager, clipboardManager } = useCanvasStore()
-  const { hasSelection } = useSelectionStore()
+  const { undo, redo, canUndo, canRedo } = useEventHistoryStore()
   
   const handleSave = () => {
     if (currentDocument) {
-      saveDocument()
+      documentStore.saveDocument()
     }
   }
   
@@ -90,32 +97,23 @@ export function MenuBar() {
   }
   
   const handleDeselect = () => {
-    if (selectionManager) {
-      const command = new ClearSelectionCommand(selectionManager)
-      executeCommand(command)
-      useSelectionStore.getState().updateSelectionState(false)
-    }
+    // TODO: Update selection functionality after canvas migration  
+    console.log('Deselect functionality needs migration to Konva')
   }
   
   const handleInvertSelection = () => {
-    if (selectionManager) {
-      const command = new ModifySelectionCommand(selectionManager, 'invert')
-      executeCommand(command)
-    }
+    // TODO: Update selection functionality after canvas migration
+    console.log('Invert Selection functionality needs migration to Konva')
   }
   
   const handleExpandSelection = (pixels: number) => {
-    if (selectionManager) {
-      const command = new ModifySelectionCommand(selectionManager, 'expand', pixels)
-      executeCommand(command)
-    }
+    // TODO: Update selection functionality after canvas migration
+    console.log('Expand Selection functionality needs migration to Konva')
   }
   
   const handleContractSelection = (pixels: number) => {
-    if (selectionManager) {
-      const command = new ModifySelectionCommand(selectionManager, 'contract', pixels)
-      executeCommand(command)
-    }
+    // TODO: Update selection functionality after canvas migration
+    console.log('Contract Selection functionality needs migration to Konva')
   }
   
   const handleFeatherSelection = (pixels: number) => {
@@ -220,7 +218,7 @@ export function MenuBar() {
               </DropdownMenuItem>
               <DropdownMenuItem 
                 onClick={handlePaste}
-                disabled={!clipboardManager?.hasClipboardData()}
+                disabled={true} // TODO: Re-enable after clipboard migration
               >
                 <Clipboard className="mr-2 h-4 w-4" />
                 Paste
@@ -233,7 +231,7 @@ export function MenuBar() {
               <DropdownMenuSeparator />
               <DropdownMenuItem 
                 onClick={handleSelectAll}
-                disabled={!selectionManager}
+                disabled={false} // Selection through event system
               >
                 Select All
                 <DropdownMenuShortcut>⌘A</DropdownMenuShortcut>
@@ -258,7 +256,7 @@ export function MenuBar() {
             <DropdownMenuContent align="start" className="w-56">
               <DropdownMenuItem 
                 onClick={handleSelectAll}
-                disabled={!selectionManager}
+                disabled={false} // Selection through event system
               >
                 All
                 <DropdownMenuShortcut>⌘A</DropdownMenuShortcut>
@@ -272,7 +270,7 @@ export function MenuBar() {
               </DropdownMenuItem>
               <DropdownMenuItem 
                 onClick={handleInvertSelection}
-                disabled={!selectionManager}
+                disabled={false} // Selection through event system
               >
                 Inverse
                 <DropdownMenuShortcut>⌘⇧I</DropdownMenuShortcut>

@@ -1,9 +1,10 @@
 import { BaseTool } from './BaseTool'
-import type { Canvas, TPointerEventInfo } from 'fabric'
-import { Path } from 'fabric'
+import type { ToolEvent, Point } from '@/lib/editor/canvas/types'
 import { createToolState } from '../utils/toolState'
-import { constrainProportions, drawFromCenter, type Point } from '../utils/constraints'
-import { useSelectionStore } from '@/store/selectionStore'
+import { constrainProportions, drawFromCenter } from '../utils/constraints'
+import { container } from '@/lib/di'
+import { EventSelectionStore } from '@/lib/store/selection/EventSelectionStore'
+import type Konva from 'konva'
 
 // Selection tool state interface - use type instead of interface for index signature
 type SelectionToolState = {
@@ -31,132 +32,99 @@ export abstract class SelectionTool extends BaseTool {
   })
   
   // Store reference
-  protected selectionStore = useSelectionStore.getState()
+  protected selectionStore = container.get(EventSelectionStore)
   
   // Visual feedback element
-  protected feedbackElement: Path | null = null
+  protected feedbackElement: Konva.Shape | null = null
   
   /**
    * Get the current selection mode from tool options
    */
   protected get selectionMode(): 'new' | 'add' | 'subtract' | 'intersect' {
-    const mode = this.toolOptionsStore.getOptionValue<string>(this.id, 'selectionMode')
+    const mode = this.getOption('selectionMode')
     return (mode as 'new' | 'add' | 'subtract' | 'intersect') || 'new'
   }
   
   /**
    * Tool-specific setup
    */
-  protected setupTool(canvas: Canvas): void {
-    // Disable object selection while using selection tools
-    canvas.selection = false
-    
-    // Set up event handlers using BaseTool's event management
-    this.addCanvasEvent('mouse:down', (e: unknown) => this.handleMouseDown(e as TPointerEventInfo<MouseEvent>))
-    this.addCanvasEvent('mouse:move', (e: unknown) => this.handleMouseMove(e as TPointerEventInfo<MouseEvent>))
-    this.addCanvasEvent('mouse:up', () => this.handleMouseUp())
-    
+  protected setupTool(): void {
     // Keyboard events for modifiers
-    this.addEventListener(window, 'keydown', this.handleKeyDown.bind(this))
-    this.addEventListener(window, 'keyup', this.handleKeyUp.bind(this))
-    
-    // Subscribe to tool options changes
-    this.subscribeToToolOptions((options) => {
-      // React to option changes if needed
-      console.log(`${this.id} options updated:`, options)
-    })
-  }
+    this.registerEventListener('keydown', window, 'keydown', this.handleKeyDown.bind(this))
+    this.registerEventListener('keyup', window, 'keyup', this.handleKeyUp.bind(this))
   
   /**
    * Tool-specific cleanup
    */
-  protected cleanup(canvas: Canvas): void {
+  protected cleanupTool(): void {
     // Clean up any visual feedback
-    if (this.feedbackElement && canvas.contains(this.feedbackElement)) {
-      canvas.remove(this.feedbackElement)
+    if (this.feedbackElement) {
+      this.feedbackElement.destroy()
+      this.feedbackElement = null
     }
-    this.feedbackElement = null
     
     // Reset state
     this.state.reset()
-    
-    // Re-enable object selection
-    canvas.selection = true
   }
   
-    /**
+  /**
    * Handle mouse down - start selection
    */
-  protected handleMouseDown(e: TPointerEventInfo<MouseEvent>): void {
-    if (!this.canvas) return
-
-    // Track performance
-    this.track('mouseDown', () => {
-      // Use Fabric's getPointer method to get the correct transformed coordinates
-      const pointer = this.canvas!.getPointer(e.e)
-      const point = { x: pointer.x, y: pointer.y }
-      
-      // Update state
-      this.state.setState({
-        isSelecting: true,
-        startPoint: point,
-        currentPoint: point,
-        selectionPath: [point]
-      })
-      
-      // Create visual feedback
-      this.createFeedback()
+  onMouseDown(event: ToolEvent): void {
+    const point = event.point
+    
+    // Update state
+    this.state.setState({
+      isSelecting: true,
+      startPoint: point,
+      currentPoint: point,
+      selectionPath: [point]
     })
+    
+    // Create visual feedback
+    this.createFeedback()
   }
   
-    /**
+  /**
    * Handle mouse move - update selection
    */
-  protected handleMouseMove(e: TPointerEventInfo<MouseEvent>): void {
-    if (!this.canvas || !this.state.get('isSelecting')) return
-
-    // Track performance
-    this.track('mouseMove', () => {
-      // Use Fabric's getPointer method to get the correct transformed coordinates
-      const pointer = this.canvas!.getPointer(e.e)
-      const point = { x: pointer.x, y: pointer.y }
-      
-      // Update state
-      this.state.set('currentPoint', point)
-      
-      // Add to path for lasso-type tools
-      const selectionPath = [...this.state.get('selectionPath'), point]
-      this.state.set('selectionPath', selectionPath)
-      
-      // Update visual feedback
-      this.updateFeedback()
-    })
+  onMouseMove(event: ToolEvent): void {
+    if (!this.state.get('isSelecting')) return
+    
+    const point = event.point
+    
+    // Update state
+    this.state.set('currentPoint', point)
+    
+    // Add to path for lasso-type tools
+    const selectionPath = [...this.state.get('selectionPath'), point]
+    this.state.set('selectionPath', selectionPath)
+    
+    // Update visual feedback
+    this.updateFeedback()
   }
   
   /**
    * Handle mouse up - complete selection
    */
-  protected handleMouseUp(): void {
-    if (!this.canvas || !this.state.get('isSelecting')) return
+  onMouseUp(_event: ToolEvent): void {
+    if (!this.state.get('isSelecting')) return
     
-    // Track performance
-    this.track('mouseUp', () => {
-      // Finalize selection
-      this.finalizeSelection()
-      
-      // Clean up feedback
-      if (this.feedbackElement && this.canvas) {
-        this.canvas.remove(this.feedbackElement)
-        this.feedbackElement = null
-      }
-      
-      // Reset state
-      this.state.setState({
-        isSelecting: false,
-        startPoint: null,
-        currentPoint: null,
-        selectionPath: []
-      })
+    // Finalize selection
+    this.finalizeSelection()
+    
+    // Clean up feedback
+    if (this.feedbackElement) {
+      this.feedbackElement.destroy()
+      this.feedbackElement = null
+    }
+    
+    // Reset state
+    this.state.setState({
+      isSelecting: false,
+      startPoint: null,
+      currentPoint: null,
+      selectionPath: []
     })
   }
   

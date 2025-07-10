@@ -10,7 +10,7 @@ export interface Disposable {
 export interface Resource extends Disposable {
   id: string
   type: string
-  metadata?: Record<string, any>
+  metadata?: Record<string, unknown>
 }
 
 /**
@@ -27,7 +27,7 @@ export class ResourceManager implements Disposable {
   register<T extends Disposable>(
     id: string, 
     resource: T,
-    metadata?: Record<string, any>
+    metadata?: Record<string, unknown>
   ): T {
     if (this.disposed) {
       throw new Error('Cannot register resource on disposed ResourceManager')
@@ -66,7 +66,7 @@ export class ResourceManager implements Disposable {
     id: string,
     target: EventTarget,
     event: K,
-    handler: (ev: WindowEventMap[K]) => any,
+    handler: (ev: WindowEventMap[K]) => void,
     options?: AddEventListenerOptions
   ): void {
     target.addEventListener(event, handler as EventListener, options)
@@ -160,7 +160,7 @@ export class ResourceManager implements Disposable {
   /**
    * Get resource metadata
    */
-  getMetadata(id: string): Record<string, any> | undefined {
+  getMetadata(id: string): Record<string, unknown> | undefined {
     return this.resources.get(id)?.metadata
   }
   
@@ -286,7 +286,7 @@ export class GlobalResourceManager extends ResourceManager {
 export interface ResourceInfo {
   id: string
   type: string
-  metadata?: Record<string, any>
+  metadata?: Record<string, unknown>
 }
 
 export interface MemoryReport {
@@ -318,10 +318,10 @@ export function useResourceManager(): ResourceManager {
 }
 
 // Decorators
-export function AutoDispose(target: any, propertyKey: string): void {
+export function AutoDispose(target: unknown, propertyKey: string): void {
   const originalMethod = target[propertyKey]
   
-  target[propertyKey] = async function(...args: any[]) {
+  target[propertyKey] = async function(...args: unknown[]) {
     const resourceManager = new ResourceManager()
     
     try {

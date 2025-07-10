@@ -1,5 +1,6 @@
 import { useCallback } from 'react'
-import { useCanvasStore } from '@/store/canvasStore'
+import { useService } from '@/lib/core/AppInitializer'
+import { useCanvasStore, TypedCanvasStore } from '@/lib/store/canvas/TypedCanvasStore'
 import { ClientToolExecutor } from '@/lib/ai/client/tool-executor'
 import { adapterRegistry } from '@/lib/ai/adapters/registry'
 
@@ -24,6 +25,8 @@ export function useToolCallHandler({
   onAgentThinkingEnd,
   onAgentThinkingStep
 }: UseToolCallHandlerProps) {
+  const canvasStore = useService<TypedCanvasStore>('CanvasStore')
+  const canvasState = useCanvasStore(canvasStore)
   
   const handleToolCall = useCallback(async ({ toolCall }: { toolCall: {
     toolName?: string
@@ -69,10 +72,11 @@ export function useToolCallHandler({
           iterationCount?: number
         }
         
-        // Capture the current canvas state as screenshot
-        const currentState = useCanvasStore.getState()
-        if (currentState.fabricCanvas) {
-          const screenshot = currentState.fabricCanvas.toDataURL({
+        // TODO: Update canvas screenshot capture for Konva
+        // This functionality needs to be migrated to use the new CanvasManager
+        const fabricCanvas = null // Temporary placeholder
+        if (fabricCanvas) {
+          const screenshot = fabricCanvas.toDataURL({
             format: 'png',
             quality: 0.8,
             multiplier: 1

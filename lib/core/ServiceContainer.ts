@@ -4,9 +4,9 @@
  */
 export class ServiceContainer {
   private static instance: ServiceContainer | null = null
-  private services = new Map<string, any>()
-  private factories = new Map<string, ServiceFactory<any>>()
-  private singletons = new Map<string, any>()
+  private services = new Map<string, unknown>()
+  private factories = new Map<string, ServiceFactory<unknown>>()
+  private singletons = new Map<string, unknown>()
   
   // Service metadata for debugging
   private metadata = new Map<string, ServiceMetadata>()
@@ -199,7 +199,7 @@ export class ServiceContainer {
  * Scoped container for request-scoped services
  */
 export class ScopedContainer {
-  private scopedInstances = new Map<string, any>()
+  private scopedInstances = new Map<string, unknown>()
   
   constructor(private parent: ServiceContainer) {}
   
@@ -213,7 +213,7 @@ export class ScopedContainer {
     
     if (metadata?.lifecycle === 'scoped') {
       // Create scoped instance
-      const factory = (this.parent as any).factories.get(token)
+      const factory = (this.parent as ServiceContainer & { factories: Map<string, ServiceFactory<unknown>> }).factories.get(token)
       const instance = factory(this)
       this.scopedInstances.set(token, instance)
       return instance
@@ -286,7 +286,7 @@ export function useService<T>(token: string): T {
 
 // Decorators (for future use)
 export function Injectable(token: string) {
-  return function (target: any) {
+  return function (target: new (...args: unknown[]) => unknown) {
     // Register the class in the container
     const container = ServiceContainer.getInstance()
     container.registerTransient(token, () => new target())
@@ -294,7 +294,7 @@ export function Injectable(token: string) {
 }
 
 export function Singleton(token: string) {
-  return function (target: any) {
+  return function (target: new (...args: unknown[]) => unknown) {
     // Register as singleton
     const container = ServiceContainer.getInstance()
     container.registerSingleton(token, () => new target())

@@ -3,7 +3,7 @@
 import { Slider } from '@/components/ui/slider'
 import { Input } from '@/components/ui/input'
 import { RotateCcw } from 'lucide-react'
-import type { ToolOption } from '@/store/toolOptionsStore'
+import type { ToolOption } from '@/lib/store/tools/EventToolStore'
 
 interface OptionSliderProps {
   option: ToolOption<number>

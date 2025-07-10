@@ -10,13 +10,21 @@ import { OptionsBar } from '@/components/editor/OptionsBar'
 import { StatusBar } from '@/components/editor/StatusBar'
 import { NewDocumentDialog } from '@/components/dialogs/NewDocumentDialog'
 import { ImageGenerationDialog } from '@/components/editor/dialogs/ImageGenerationDialog'
-import { useDocumentStore } from '@/store/documentStore'
-import { useToolStore } from '@/store/toolStore'
+import { useService } from '@/lib/core/AppInitializer'
+import { useStore } from '@/lib/store/base/BaseStore'
+import { EventDocumentStore } from '@/lib/store/document/EventDocumentStore'
+import { EventToolStore } from '@/lib/store/tools/EventToolStore'
 import { createClient } from '@/lib/db/supabase/client'
-import { historyKeyboardHandlers } from '@/store/historyStore'
+import { eventHistoryKeyboardHandlers } from '@/lib/events/history/EventBasedHistoryStore'
 
 export default function EditorPage() {
-  const { saveDocument, currentDocument, createNewDocument } = useDocumentStore()
+  const documentStore = useService<EventDocumentStore>('DocumentStore')
+  const documentState = useStore(documentStore)
+  const currentDocument = documentState.currentDocument
+  
+  const toolStore = useService<EventToolStore>('ToolStore')
+  const toolState = useStore(toolStore)
+  
   const router = useRouter()
   const [showNewDocumentDialog, setShowNewDocumentDialog] = useState(false)
   const [authChecked, setAuthChecked] = useState(false)
@@ -42,9 +50,9 @@ export default function EditorPage() {
   // Create default document on mount if none exists
   useEffect(() => {
     if (!currentDocument) {
-      createNewDocument('default')
+      documentStore.createNewDocument('default')
     }
-  }, [currentDocument, createNewDocument])
+  }, [currentDocument, documentStore])
   
   // Handle keyboard shortcuts
   useEffect(() => {
@@ -59,15 +67,15 @@ export default function EditorPage() {
       // Check for undo/redo first (handled by historyStore)
       if (isMeta && e.key === 'z') {
         if (e.shiftKey) {
-          historyKeyboardHandlers.handleRedo(e)
+          eventHistoryKeyboardHandlers.handleRedo(e)
         } else {
-          historyKeyboardHandlers.handleUndo(e)
+          eventHistoryKeyboardHandlers.handleUndo(e)
         }
         return
       }
       
       if (isMeta && e.key === 'y') {
-        historyKeyboardHandlers.handleRedo(e)
+        eventHistoryKeyboardHandlers.handleRedo(e)
         return
       }
       
@@ -75,7 +83,7 @@ export default function EditorPage() {
       if (isMeta && e.key === 's') {
         e.preventDefault()
         if (currentDocument) {
-          saveDocument()
+          documentStore.saveDocument()
         }
         return
       }
@@ -89,14 +97,12 @@ export default function EditorPage() {
       
       // Tool shortcuts (when not holding modifiers)
       if (!isMeta && !e.altKey && !e.shiftKey) {
-        const toolStore = useToolStore.getState()
-        const { tools } = toolStore
-        
         // Find tool by shortcut
+        const tools = toolState.tools
         for (const [, tool] of tools) {
           if (tool.shortcut?.toLowerCase() === e.key.toLowerCase() && tool.isImplemented) {
             e.preventDefault()
-            toolStore.setActiveTool(tool.id)
+            toolStore.activateTool(tool.id)
             break
           }
         }
@@ -105,7 +111,7 @@ export default function EditorPage() {
     
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [saveDocument, currentDocument])
+  }, [currentDocument, documentStore, toolState.tools, toolStore])
   
   // Show loading state while checking auth
   if (!authChecked) {

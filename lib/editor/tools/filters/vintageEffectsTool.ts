@@ -68,7 +68,7 @@ export class VintageEffectsTool extends WebGLFilterTool {
     return effect?.webglFilter || 'brownie'
   }
   
-  protected getDefaultParams(): Record<string, any> {
+  protected getDefaultParams(): Record<string, unknown> {
     return {
       effect: 'brownie',
       intensity: 100 // For future effects that support intensity

@@ -1,5 +1,5 @@
 import Konva from 'konva'
-import { FaPaintBrush } from 'react-icons/fa'
+import { FaPaintBrush } from 'react-icons/fa6'
 import { BaseTool } from '../base/BaseTool'
 import type { ToolEvent } from '@/lib/editor/canvas/types'
 
@@ -32,14 +32,14 @@ export class BrushTool extends BaseTool {
     
     // Create a dedicated drawing layer for real-time performance
     this.drawingLayer = new Konva.Layer()
-    canvas.stage.add(this.drawingLayer)
+    canvas.konvaStage.add(this.drawingLayer)
     
     // Set initial brush options
-    this.brushSize = this.getOption('size') || 10
-    this.brushOpacity = this.getOption('opacity') || 1
-    this.brushColor = this.getOption('color') || '#000000'
-    this.brushHardness = this.getOption('hardness') || 0.8
-    this.pressureSensitivity = this.getOption('pressureSensitivity') || 0.5
+    this.brushSize = (this.getOption('size') as number) || 10
+    this.brushOpacity = (this.getOption('opacity') as number) || 1
+    this.brushColor = (this.getOption('color') as string) || '#000000'
+    this.brushHardness = (this.getOption('hardness') as number) || 0.8
+    this.pressureSensitivity = (this.getOption('pressureSensitivity') as number) || 0.5
   }
   
   protected cleanupTool(): void {
@@ -152,22 +152,22 @@ export class BrushTool extends BaseTool {
     }, activeLayer.id)
   }
   
-  protected onOptionChange(key: string, value: any): void {
+  protected onOptionChange(key: string, value: unknown): void {
     switch (key) {
       case 'size':
-        this.brushSize = value
+        this.brushSize = value as number
         break
       case 'opacity':
-        this.brushOpacity = value
+        this.brushOpacity = value as number
         break
       case 'color':
-        this.brushColor = value
+        this.brushColor = value as string
         break
       case 'hardness':
-        this.brushHardness = value
+        this.brushHardness = value as number
         break
       case 'pressureSensitivity':
-        this.pressureSensitivity = value
+        this.pressureSensitivity = value as number
         break
     }
   }

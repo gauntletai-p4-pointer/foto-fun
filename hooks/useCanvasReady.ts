@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react'
-import { useCanvasStore } from '@/store/canvasStore'
-import type { Canvas } from 'fabric'
+import { useService } from '@/lib/core/AppInitializer'
+import { useCanvasStore, TypedCanvasStore } from '@/lib/store/canvas/TypedCanvasStore'
+import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
 
 export interface CanvasReadyState {
   isReady: boolean
   isLoading: boolean
   error: Error | null
-  canvas: Canvas | null
+  canvas: CanvasManager | null
 }
 
 /**
@@ -14,41 +15,22 @@ export interface CanvasReadyState {
  * Provides a clean interface for components that need canvas access
  */
 export function useCanvasReady(): CanvasReadyState {
-  const { fabricCanvas, isReady, initializationError, waitForReady } = useCanvasStore()
-  const [isLoading, setIsLoading] = useState(!isReady)
-  const [error, setError] = useState<Error | null>(initializationError)
+  // TODO: This hook needs to be redesigned for the new Konva-based canvas system
+  // For now, returning placeholder values
+  const canvasStore = useService<TypedCanvasStore>('CanvasStore')
+  const canvasState = useCanvasStore(canvasStore)
   
-  useEffect(() => {
-    if (isReady) {
-      setIsLoading(false)
-      setError(null)
-      return
-    }
-    
-    if (initializationError) {
-      setIsLoading(false)
-      setError(initializationError)
-      return
-    }
-    
-    // Wait for canvas to be ready
-    setIsLoading(true)
-    waitForReady()
-      .then(() => {
-        setIsLoading(false)
-        setError(null)
-      })
-      .catch((err) => {
-        setIsLoading(false)
-        setError(err instanceof Error ? err : new Error('Canvas initialization failed'))
-      })
-  }, [isReady, initializationError, waitForReady])
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<Error | null>(null)
+  
+  // Canvas is considered ready when we have a valid state
+  const isReady = canvasState.width > 0 && canvasState.height > 0
   
   return {
     isReady,
     isLoading,
     error,
-    canvas: isReady ? fabricCanvas : null
+    canvas: null // TODO: Return CanvasManager instance when available
   }
 }
 
@@ -56,16 +38,7 @@ export function useCanvasReady(): CanvasReadyState {
  * Hook that throws a promise while canvas is loading
  * Useful for React Suspense integration
  */
-export function useCanvasReadyOrThrow(): Canvas {
-  const { fabricCanvas, isReady, waitForReady } = useCanvasStore()
-  
-  if (!isReady) {
-    throw waitForReady()
-  }
-  
-  if (!fabricCanvas) {
-    throw new Error('Canvas is not available')
-  }
-  
-  return fabricCanvas
+export function useCanvasReadyOrThrow(): CanvasManager {
+  // TODO: Implement for new canvas system
+  throw new Error('useCanvasReadyOrThrow needs to be updated for Konva-based canvas')
 } 

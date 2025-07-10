@@ -7,7 +7,8 @@ import { useState, useCallback, useRef, useEffect } from 'react'
 import { Send, Bot, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { useCanvasStore } from '@/store/canvasStore'
+import { useService } from '@/lib/core/AppInitializer'
+import { useCanvasStore, TypedCanvasStore } from '@/lib/store/canvas/TypedCanvasStore'
 import { AgentApprovalDialog } from '../../AgentApprovalDialog'
 import { AgentModeToggle } from './AgentModeToggle'
 import type { ApprovalDecision, AgentStep, StepResult, AgentContext } from '@/lib/ai/agents/types'
@@ -18,7 +19,12 @@ export function EnhancedAIChat() {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const [input, setInput] = useState('')
   const [agentMode, setAgentMode] = useState(false)
-  const { isReady: isCanvasReady, fabricCanvas, hasContent } = useCanvasStore()
+  const canvasStore = useService<TypedCanvasStore>('CanvasStore')
+  const canvasState = useCanvasStore(canvasStore)
+  // TODO: Update for new canvas system
+  const isCanvasReady = true // Temporary placeholder
+  const fabricCanvas = null // Temporary placeholder
+  const hasContent = () => Object.keys(canvasState.objects).length > 0
   
   // Auto-resize textarea with max height
   const adjustTextareaHeight = useCallback(() => {

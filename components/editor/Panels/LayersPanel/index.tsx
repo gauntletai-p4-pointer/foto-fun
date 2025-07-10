@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useService } from '@/lib/core/AppInitializer'
 import { useStore } from '@/lib/store/base/BaseStore'
 import { EventLayerStore } from '@/lib/store/layers/EventLayerStore'
-import { useHistoryStore } from '@/store/historyStore'
+import { useEventHistoryStore } from '@/lib/events/history/EventBasedHistoryStore'
 import { 
   Eye, 
   EyeOff, 
@@ -89,7 +89,10 @@ interface LayerItemProps {
 }
 
 function LayerItem({ layer, isActive, layerStore, onDragStart, onDragOver, onDrop }: LayerItemProps) {
-  const { executeCommand } = useHistoryStore()
+  // TODO: Update command execution for new event system
+  const executeCommand = (command: any) => {
+    console.log('Command execution needs migration:', command)
+  }
   
   const Icon = layerTypeIcons[layer.type]
   
@@ -202,7 +205,10 @@ function LayerItem({ layer, isActive, layerStore, onDragStart, onDragOver, onDro
 export function LayersPanel() {
   const layerStore = useService<EventLayerStore>('LayerStore')
   const layerState = useStore(layerStore)
-  const { executeCommand } = useHistoryStore()
+  // TODO: Update command execution for new event system
+  const executeCommand = (command: any) => {
+    console.log('Command execution needs migration:', command)
+  }
   
   const [draggedLayer, setDraggedLayer] = useState<Layer | null>(null)
   const [hasInitialized, setHasInitialized] = useState(false)

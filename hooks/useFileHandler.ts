@@ -1,10 +1,15 @@
 import { useCallback, useRef } from 'react'
-import { useDocumentStore } from '@/store/documentStore'
+import { useService } from '@/lib/core/AppInitializer'
+import { EventDocumentStore } from '@/lib/store/document/EventDocumentStore'
 import { MAX_FILE_SIZE } from '@/constants'
 
 export function useFileHandler(mode: 'open' | 'insert' = 'open') {
-  const openDocument = useDocumentStore(state => state.openDocument)
-  const insertImage = useDocumentStore(state => state.insertImage)
+  const documentStore = useService<EventDocumentStore>('DocumentStore')
+  const openDocument = (file: File) => documentStore.openDocument(file)
+  const insertImage = (file: File) => {
+    // TODO: Implement insertImage for new canvas system
+    console.log('insertImage needs implementation for Konva', file)
+  }
   const fileInputRef = useRef<HTMLInputElement>(null)
   
   const validateFile = (file: File): string | null => {

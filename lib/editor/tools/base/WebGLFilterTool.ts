@@ -114,7 +114,7 @@ export abstract class WebGLFilterTool extends BaseTool {
       imageNode,
       this.getFilterType(),
       params,
-      this.executionContext
+      this.executionContext ?? undefined
     )
     
     // Update layer

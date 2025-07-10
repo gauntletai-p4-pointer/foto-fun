@@ -22,7 +22,7 @@ export function ToolPalette() {
                       'other'
       
       // Register the actual tool instance
-      toolStore.registerTool(tool as any, category)
+      toolStore.registerTool(tool, category)
     })
   }, [toolStore])
   

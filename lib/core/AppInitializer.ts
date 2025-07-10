@@ -7,6 +7,30 @@ import { TypedEventBus, getTypedEventBus } from '@/lib/events/core/TypedEventBus
 
 // Stores
 import { TypedCanvasStore } from '@/lib/store/canvas/TypedCanvasStore'
+import { EventToolStore } from '@/lib/store/tools/EventToolStore'
+import { EventLayerStore } from '@/lib/store/layers/EventLayerStore'
+import { EventSelectionStore } from '@/lib/store/selection/EventSelectionStore'
+import { EventDocumentStore } from '@/lib/store/document/EventDocumentStore'
+import { EventColorStore } from '@/lib/store/color/EventColorStore'
+import { EventBasedHistoryStore } from '@/lib/events/history/EventBasedHistoryStore'
+
+// Canvas System
+import { CanvasManagerFactory } from '@/lib/editor/canvas/CanvasManagerFactory'
+
+// Managers
+import { SelectionManager } from '@/lib/editor/selection/SelectionManager'
+import { FontManager } from '@/lib/editor/fonts/FontManager'
+import { ClipboardManager } from '@/lib/editor/clipboard/ClipboardManager'
+import { WebGLFilterManager } from '@/lib/editor/filters/WebGLFilterManager'
+
+// Commands
+import { CommandManager } from '@/lib/commands/core/CommandManager'
+
+// AI System
+import { ToolExecutor } from '@/lib/ai/client/tool-executor'
+
+// Performance
+import { PerformanceMonitor } from '@/lib/editor/performance/PerformanceMonitor'
 
 /**
  * Application initializer
@@ -25,7 +49,6 @@ export class AppInitializer {
     
     // Canvas System
     container.registerSingleton('CanvasManagerFactory', () => {
-      const CanvasManagerFactory = require('@/lib/editor/canvas/CanvasManagerFactory').CanvasManagerFactory
       return new CanvasManagerFactory(
         container.get('EventStore'),
         container.get('ResourceManager')
@@ -38,12 +61,10 @@ export class AppInitializer {
     )
     
     container.registerSingleton('ToolStore', () => {
-      const EventToolStore = require('@/lib/store/tools/EventToolStore').EventToolStore
       return new EventToolStore(container.get('EventStore'))
     })
     
     container.registerSingleton('LayerStore', () => {
-      const EventLayerStore = require('@/lib/store/layers/EventLayerStore').EventLayerStore
       const store = new EventLayerStore(
         container.get('EventStore'),
         container.get('TypedEventBus')
@@ -53,7 +74,6 @@ export class AppInitializer {
     })
     
     container.registerSingleton('SelectionStore', () => {
-      const EventSelectionStore = require('@/lib/store/selection/EventSelectionStore').EventSelectionStore
       const store = new EventSelectionStore(
         container.get('EventStore'),
         container.get('TypedEventBus')
@@ -63,7 +83,6 @@ export class AppInitializer {
     })
     
     container.registerSingleton('DocumentStore', () => {
-      const EventDocumentStore = require('@/lib/store/document/EventDocumentStore').EventDocumentStore
       const store = new EventDocumentStore(
         container.get('EventStore'),
         container.get('TypedEventBus')
@@ -74,7 +93,6 @@ export class AppInitializer {
     
     // Register ColorStore
     container.registerSingleton('ColorStore', () => {
-      const { EventColorStore } = require('@/lib/store/color/EventColorStore')
       const store = new EventColorStore(
         container.get('EventStore'),
         container.get('TypedEventBus')
@@ -85,7 +103,6 @@ export class AppInitializer {
 
     // Register EventBasedHistoryStore
     container.registerSingleton('HistoryStore', () => {
-      const { EventBasedHistoryStore } = require('@/lib/events/history/EventBasedHistoryStore')
       const store = new EventBasedHistoryStore(
         container.get('EventStore')
       )
@@ -94,25 +111,21 @@ export class AppInitializer {
     
     // Selection System
     container.registerSingleton('SelectionManager', () => {
-      const SelectionManager = require('@/lib/editor/selection/SelectionManager').SelectionManager
       return new SelectionManager()
     })
     
     // Font System
     container.registerSingleton('FontManager', () => {
-      const FontManager = require('@/lib/editor/fonts/FontManager').FontManager
       return FontManager.getInstance()
     })
     
     // Clipboard System
     container.registerSingleton('ClipboardManager', () => {
-      const ClipboardManager = require('@/lib/editor/clipboard/ClipboardManager').ClipboardManager
       return new ClipboardManager()
     })
     
     // Filter System
     container.registerSingleton('WebGLFilterManager', () => {
-      const WebGLFilterManager = require('@/lib/editor/filters/WebGLFilterManager').WebGLFilterManager
       const manager = new WebGLFilterManager(
         container.get('EventStore'),
         container.get('TypedEventBus'),
@@ -127,13 +140,11 @@ export class AppInitializer {
     
     // AI System
     container.registerSingleton('ToolExecutor', () => {
-      const ToolExecutor = require('@/lib/ai/client/tool-executor').ToolExecutor
       return new ToolExecutor()
     })
     
     // Performance Monitoring
     container.registerSingleton('PerformanceMonitor', () => {
-      const PerformanceMonitor = require('@/lib/editor/performance/PerformanceMonitor').PerformanceMonitor
       return PerformanceMonitor.getInstance()
     })
     

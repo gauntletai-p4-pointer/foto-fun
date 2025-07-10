@@ -128,6 +128,7 @@ export async function autoDiscoverAdapters(): Promise<void> {
     const { GrayscaleAdapter } = await import('./tools/grayscale')
     const { InvertAdapter } = await import('./tools/invert')
     const { SepiaAdapter } = await import('./tools/sepia')
+    const { VintageEffectsToolAdapter } = await import('./tools/vintageEffects')
     const { addTextAdapter } = await import('./tools/addText')
     const { AnalyzeCanvasAdapter } = await import('./tools/analyzeCanvas')
     const { CanvasSelectionManagerAdapter } = await import('./tools/canvasSelectionManager')
@@ -151,6 +152,7 @@ export async function autoDiscoverAdapters(): Promise<void> {
       new GrayscaleAdapter(),
       new InvertAdapter(),
       new SepiaAdapter(),
+      new VintageEffectsToolAdapter(),
       addTextAdapter,  // This is already an instance
       new AnalyzeCanvasAdapter(),
       new CanvasSelectionManagerAdapter()

@@ -153,7 +153,7 @@ export class VerticalTypeTool extends BaseTool {
     if (this.executionContext) {
       await this.executionContext.emit(new ObjectAddedEvent(
         'canvas',
-        { ...canvasObject, node: undefined } as any,
+        { ...canvasObject, node: undefined } as CanvasObject,
         activeLayer.id,
         this.executionContext.getMetadata()
       ))
@@ -269,7 +269,7 @@ export class VerticalTypeTool extends BaseTool {
     
     let xOffset = 0
     
-    lines.forEach((line, lineIndex) => {
+    lines.forEach((line, _lineIndex) => {
       let yOffset = 0
       
       // Create character for each letter
@@ -341,8 +341,8 @@ export class VerticalTypeTool extends BaseTool {
       if (this.executionContext) {
         await this.executionContext.emit(new ObjectModifiedEvent(
           'canvas',
-          { ...canvasObject, node: undefined } as any,
-          { ...canvasObject, data: previousData, node: undefined } as any,
+          { ...canvasObject, node: undefined } as CanvasObject,
+          { ...canvasObject, data: previousData, node: undefined } as CanvasObject,
           { data: finalText },
           this.executionContext.getMetadata()
         ))

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useService } from '@/lib/core/AppInitializer'
 import { TypedCanvasStore, useCanvasStore } from '@/lib/store/canvas/TypedCanvasStore'
+import type { CanvasObject } from '@/lib/editor/canvas/types'
 import { Sparkles } from 'lucide-react'
 import { DropShadowSection } from './DropShadowSection'
 import { StrokeSection } from './StrokeSection'
@@ -19,7 +20,7 @@ import { Button } from '@/components/ui/button'
 export function TextEffectsPanel() {
   const canvasStore = useService<TypedCanvasStore>('CanvasStore')
   const canvasState = useCanvasStore(canvasStore)
-  const [activeTextObject, setActiveTextObject] = useState<any | null>(null)
+  const [activeTextObject, setActiveTextObject] = useState<CanvasObject | null>(null)
   
   useEffect(() => {
     // Check if we have a text object selected

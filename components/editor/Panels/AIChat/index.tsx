@@ -4,7 +4,8 @@ import { useChat } from '@ai-sdk/react'
 import { DefaultChatTransport } from 'ai'
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { useCanvasStore } from '@/store/canvasStore'
+import { useService } from '@/lib/core/AppInitializer'
+import { useCanvasStore, TypedCanvasStore } from '@/lib/store/canvas/TypedCanvasStore'
 import { useAISettings } from '@/hooks/useAISettings'
 import type { FabricObject } from 'fabric'
 
@@ -54,7 +55,11 @@ export function AIChat() {
   const [quickActions, setQuickActions] = useState<string[]>([])
   const [agentThinkingSteps, setAgentThinkingSteps] = useState<ThinkingStep[]>([])
   const [isAgentThinking, setIsAgentThinking] = useState(false)
-  const { waitForReady, hasContent } = useCanvasStore()
+  const canvasStore = useService<TypedCanvasStore>('CanvasStore')
+  const canvasState = useCanvasStore(canvasStore)
+  // TODO: Update waitForReady and hasContent for new canvas system
+  const waitForReady = async () => true // Temporary placeholder
+  const hasContent = () => Object.keys(canvasState.objects).length > 0
   const { settings: aiSettings } = useAISettings()
   
   // Use the custom hook for tool call handling
@@ -132,9 +137,9 @@ export function AIChat() {
   }, [messages])
   
   const handleSubmit = useCallback((text: string) => {
-    // Get fresh canvas state
-    const canvasStore = useCanvasStore.getState()
-    const { fabricCanvas } = canvasStore
+    // TODO: Update this function to work with Konva-based canvas
+    // This requires significant changes to work with the new canvas system
+    const fabricCanvas = null // Temporary placeholder
     
     // Capture selection snapshot at request time
     let selectionSnapshot = null

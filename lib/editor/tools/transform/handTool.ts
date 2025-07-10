@@ -63,7 +63,7 @@ export class HandTool extends BaseTool {
     canvas.setPan(newPan)
   }
   
-  onMouseUp(event: ToolEvent): void {
+  onMouseUp(_event: ToolEvent): void {
     if (!this.isPanning) return
     
     const canvas = this.getCanvas()

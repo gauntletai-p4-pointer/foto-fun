@@ -193,7 +193,7 @@ export class HorizontalTypeTool extends BaseTool {
     if (this.executionContext) {
       await this.executionContext.emit(new ObjectAddedEvent(
         'canvas',
-        { ...canvasObject, node: undefined } as any,
+        { ...canvasObject, node: undefined } as CanvasObject,
         activeLayer.id,
         this.executionContext.getMetadata()
       ))
@@ -206,7 +206,7 @@ export class HorizontalTypeTool extends BaseTool {
   /**
    * Start editing text
    */
-  private startEditing(textNode: Konva.Text, canvasObject: CanvasObject): void {
+  private startEditing(textNode: Konva.Text, _canvasObject: CanvasObject): void {
     this.editingText = textNode
     this.activeText = textNode
     
@@ -356,8 +356,8 @@ export class HorizontalTypeTool extends BaseTool {
       if (this.executionContext) {
         await this.executionContext.emit(new ObjectModifiedEvent(
           'canvas',
-          { ...canvasObject, node: undefined } as any,
-          { ...canvasObject, data: previousData, node: undefined } as any,
+          { ...canvasObject, node: undefined } as CanvasObject,
+          { ...canvasObject, data: previousData, node: undefined } as CanvasObject,
           { data: finalText },
           this.executionContext.getMetadata()
         ))
