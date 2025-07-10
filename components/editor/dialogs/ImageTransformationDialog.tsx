@@ -9,10 +9,12 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Loader2 } from 'lucide-react'
 import { ImageUpscalingAdapter } from '@/lib/ai/adapters/tools/imageUpscaling'
+import { BackgroundRemovalAdapter } from '@/lib/ai/adapters/tools/backgroundRemoval'
 import { TOOL_IDS } from '@/constants'
 
 const TRANSFORMATION_TYPES = [
   { value: 'upscale', label: 'Upscale image' },
+  { value: 'remove-background', label: 'Remove background' },
 ]
 
 export function ImageTransformationDialog() {
@@ -71,6 +73,27 @@ export function ImageTransformationDialog() {
         } else {
           console.error('Upscaling Failed:', result.message || 'Failed to upscale image')
           alert(result.message || 'Failed to upscale image')
+        }
+      } else if (transformationType === 'remove-background') {
+        // Create background removal adapter instance
+        const adapter = new BackgroundRemovalAdapter()
+        
+        // Execute background removal
+        const result = await adapter.execute(
+          {}, // No parameters needed for background removal
+          { canvas: fabricCanvas }
+        )
+        
+        if (result.success) {
+          console.log('Background removed successfully')
+          
+          // Close dialog after successful transformation
+          setActiveAITool(null)
+          // Switch back to move tool so the AI tool can be re-activated
+          setActiveTool(TOOL_IDS.MOVE)
+        } else {
+          console.error('Background removal Failed:', result.message || 'Failed to remove background')
+          alert(result.message || 'Failed to remove background')
         }
       }
     } catch (error) {
