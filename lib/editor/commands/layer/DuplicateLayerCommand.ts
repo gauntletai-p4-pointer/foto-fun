@@ -23,7 +23,10 @@ export class DuplicateLayerCommand extends Command {
       type: 'raster',
       visible: true,
       opacity: 1,
-      objects: []
+      objects: [],
+      locked: false,
+      blendMode: 'normal',
+      konvaLayer: new (await import('konva')).default.Layer() // Create a new Konva layer
     }
     
     this.duplicatedLayer = duplicatedLayer

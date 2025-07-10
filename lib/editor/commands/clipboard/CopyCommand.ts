@@ -1,5 +1,6 @@
 import { Command } from '../base'
 import type { ClipboardManager } from '@/lib/editor/clipboard/ClipboardManager'
+import type { CanvasObject } from '@/lib/editor/canvas/types'
 
 /**
  * Command to copy selection or objects
@@ -7,15 +8,16 @@ import type { ClipboardManager } from '@/lib/editor/clipboard/ClipboardManager'
  */
 export class CopyCommand extends Command {
   private clipboardManager: ClipboardManager
-  private success: boolean = false
+  private objectsToCopy: CanvasObject[]
   
-  constructor(clipboardManager: ClipboardManager) {
+  constructor(clipboardManager: ClipboardManager, objectsToCopy: CanvasObject[]) {
     super('Copy')
     this.clipboardManager = clipboardManager
+    this.objectsToCopy = objectsToCopy
   }
   
   async execute(): Promise<void> {
-    this.success = await this.clipboardManager.copy()
+    await this.clipboardManager.copy(this.objectsToCopy)
   }
   
   async undo(): Promise<void> {

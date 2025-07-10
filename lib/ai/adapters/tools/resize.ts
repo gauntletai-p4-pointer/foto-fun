@@ -78,18 +78,7 @@ NEVER ask for exact dimensions - interpret the user's intent.`
       const { SelectionSnapshotFactory } = await import('@/lib/ai/execution/SelectionSnapshot')
       const selectionSnapshot = SelectionSnapshotFactory.fromObjects(images)
       
-      // TODO: Implement tool activation when stores are migrated
-      /*
-      // Activate the resize tool first
-      const { useToolStore } = await import('@/store/toolStore')
-      useToolStore.getState().setActiveTool(this.tool.id)
-      
-      // Set selection snapshot on the tool
-      const tool = useToolStore.getState().getTool(this.tool.id)
-      if (tool && 'setSelectionSnapshot' in tool && typeof tool.setSelectionSnapshot === 'function') {
-        tool.setSelectionSnapshot(selectionSnapshot)
-      }
-      */
+      // Tool activation is handled by the base class applyToolOperation method
       
       // Small delay to ensure tool is activated and subscribed
       await new Promise(resolve => setTimeout(resolve, 50))

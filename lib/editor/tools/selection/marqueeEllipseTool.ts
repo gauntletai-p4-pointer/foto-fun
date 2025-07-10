@@ -124,25 +124,23 @@ export class MarqueeEllipseTool extends BaseTool {
     // Only create selection if it has a minimum size
     const minSize = 2
     if (bounds.width >= minSize && bounds.height >= minSize) {
-      // Create pixel-aware selection
-      const selection: Selection = {
-        type: 'ellipse',
-        bounds,
-        feather: 0,
-        antiAlias: true
-      }
+      // Get the selection manager
+      const selectionManager = canvas.getSelectionManager()
       
-      // Set selection on canvas
-      canvas.setSelection(selection)
+      // Get the current selection mode
+      const mode = this.getOption('mode') as 'new' | 'add' | 'subtract' | 'intersect' || 'new'
+      const selectionMode = mode === 'new' ? 'replace' : mode
       
-      // Emit event if in ExecutionContext
-      if (this.executionContext) {
-        await this.executionContext.emit(new SelectionCreatedEvent(
-          'canvas',
-          selection,
-          this.executionContext.getMetadata()
-        ))
-      }
+      // Calculate ellipse center and radii
+      const cx = bounds.x + bounds.width / 2
+      const cy = bounds.y + bounds.height / 2
+      const rx = bounds.width / 2
+      const ry = bounds.height / 2
+      
+      // Create pixel-based elliptical selection
+      selectionManager.createEllipse(cx, cy, rx, ry, selectionMode)
+      
+      // The selection events will be emitted by the SelectionManager
     }
     
     // Clean up visual feedback

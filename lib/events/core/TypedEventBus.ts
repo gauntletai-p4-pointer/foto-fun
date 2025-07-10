@@ -94,8 +94,52 @@ export interface EventRegistry {
     name: string
   }
   
-  // Tool events
-  'tool.activated': { 
+  // Text events
+  'text.created': {
+    textId: string
+    style?: Record<string, any>
+  }
+  'text.selected': {
+    textId: string
+  }
+  'text.deselected': {
+    textId: string
+  }
+  'text.editing.started': {
+    textId: string
+  }
+  'text.editing.ended': {
+    textId: string
+    finalText: string
+  }
+  'text.style.changed': {
+    textId?: string
+    style: Record<string, any>
+    setAsDefault?: boolean
+  }
+  'text.effects.applied': {
+    textId: string
+    effects: Record<string, any>
+  }
+  'text.effects.removed': {
+    textId: string
+  }
+  'text.font.used': {
+    fontFamily: string
+  }
+  'text.preset.saved': {
+    name: string
+    style: Record<string, any>
+    effects?: Record<string, any>
+  }
+  'text.warped': {
+    textId: string
+    warpStyle: string
+    warpOptions: Record<string, any>
+  }
+  
+    // Tool events
+  'tool.activated': {
     toolId: string
     previousToolId: string | null
   }
@@ -105,8 +149,24 @@ export interface EventRegistry {
   'tool.option.changed': {
     toolId: string
     optionId: string
+    optionKey: string
     value: unknown
     previousValue: unknown
+  }
+  'tool.locked': {
+    toolId: string
+  }
+  'tool.unlocked': {
+    toolId: string
+  }
+  'tool.preset.saved': {
+    toolId: string
+    name: string
+    values: Record<string, unknown>
+  }
+  'tool.preset.applied': {
+    toolId: string
+    presetId: string
   }
   
   // History events

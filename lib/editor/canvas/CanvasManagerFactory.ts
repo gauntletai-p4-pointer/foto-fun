@@ -40,8 +40,8 @@ export class CanvasManagerFactory {
    */
   createWithContext(
     container: HTMLDivElement,
-    metadata: Record<string, unknown>
-  ): { canvas: CanvasManager; context: ExecutionContext } {
+    _metadata: Record<string, unknown>
+  ): { canvas: CanvasManager; context: ExecutionContext | null } {
     // Note: ExecutionContext requires a canvas and selection snapshot
     // For now, we'll create the canvas first, then the context can be created separately
     // This is because ExecutionContext is designed for Fabric.js canvas
@@ -49,6 +49,6 @@ export class CanvasManagerFactory {
     
     // ExecutionContext will need to be refactored to work with Konva
     // For now, return null context
-    return { canvas, context: null as any }
+    return { canvas, context: null }
   }
 } 

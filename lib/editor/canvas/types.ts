@@ -54,13 +54,13 @@ export interface CanvasObject {
   opacity: number
   blendMode: BlendMode
   transform: Transform
-  node: any // Konva.Node - using any to avoid circular dependency
+  node: Konva.Node // Konva node reference
   layerId: string
   // Additional data based on type
-  data?: any // HTMLImageElement for images, string for text, etc.
+  data?: HTMLImageElement | string | Record<string, unknown> // Type-specific data
   filters?: Filter[]
-  style?: Record<string, any>
-  metadata?: Record<string, any>
+  style?: Record<string, string | number | boolean>
+  metadata?: Record<string, unknown>
 }
 
 export interface Layer {
@@ -146,7 +146,7 @@ export interface Filter {
   type: 'brightness' | 'contrast' | 'blur' | 'grayscale' | 'sepia' | 'invert' | 
         'hue' | 'saturation' | 'pixelate' | 'noise' | 'emboss' | 'enhance' | 
         'sharpen' | 'custom'
-  params: Record<string, any>
+  params: Record<string, number | string | boolean>
   apply?: (imageData: ImageData, params: Record<string, unknown>) => ImageData
 }
 

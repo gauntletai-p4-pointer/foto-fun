@@ -129,67 +129,31 @@ export class LassoTool extends BaseTool {
     
     // Create selection from path
     const canvas = this.getCanvas()
+    const selectionManager = canvas.getSelectionManager()
     
-    // Get bounding box of the path
-    const bounds = this.selectionPath.getClientRect()
+    // Get the current selection mode
+    const mode = this.getOption('mode') as 'new' | 'add' | 'subtract' | 'intersect' || 'new'
+    const selectionMode = mode === 'new' ? 'replace' : mode
     
-    // Create a temporary canvas to render the path as a mask
-    const tempCanvas = document.createElement('canvas')
-    tempCanvas.width = canvas.state.width
-    tempCanvas.height = canvas.state.height
-    const tempCtx = tempCanvas.getContext('2d', { willReadFrequently: true })!
-    
-    // Create path2D from points
-    const path2D = new Path2D()
-    path2D.moveTo(this.points[0].x, this.points[0].y)
+    // Convert points to SVG path data
+    let pathData = `M ${this.points[0].x} ${this.points[0].y}`
     
     // Use quadratic curves for smooth path
     for (let i = 1; i < this.points.length - 1; i++) {
       const xc = (this.points[i].x + this.points[i + 1].x) / 2
       const yc = (this.points[i].y + this.points[i + 1].y) / 2
-      path2D.quadraticCurveTo(this.points[i].x, this.points[i].y, xc, yc)
+      pathData += ` Q ${this.points[i].x} ${this.points[i].y} ${xc} ${yc}`
     }
     
     // Last point
     const lastPoint = this.points[this.points.length - 1]
-    path2D.quadraticCurveTo(lastPoint.x, lastPoint.y, this.points[0].x, this.points[0].y)
-    path2D.closePath()
+    pathData += ` Q ${lastPoint.x} ${lastPoint.y} ${this.points[0].x} ${this.points[0].y}`
+    pathData += ' Z' // Close path
     
-    // Fill the path to create mask
-    tempCtx.fillStyle = 'white'
-    tempCtx.fill(path2D)
+    // Create selection from path
+    selectionManager.createFromPath(pathData, selectionMode)
     
-    // Get the image data for the mask
-    const imageData = tempCtx.getImageData(
-      bounds.x,
-      bounds.y,
-      bounds.width,
-      bounds.height
-    )
-    
-    // Create pixel-aware selection
-    const selection: Selection = {
-      type: 'pixel',
-      bounds: {
-        x: bounds.x,
-        y: bounds.y,
-        width: bounds.width,
-        height: bounds.height
-      },
-      mask: imageData
-    }
-    
-    // Set selection on canvas
-    canvas.setSelection(selection)
-    
-    // Emit event if in ExecutionContext
-    if (this.executionContext) {
-      await this.executionContext.emit(new SelectionCreatedEvent(
-        'canvas',
-        selection,
-        this.executionContext.getMetadata()
-      ))
-    }
+    // The selection events will be emitted by the SelectionManager
     
     // Clean up visual feedback
     this.cleanupSelection()
@@ -237,66 +201,24 @@ export class LassoTool extends BaseTool {
     
     // Create selection from provided points
     const canvas = this.getCanvas()
+    const selectionManager = canvas.getSelectionManager()
     
-    // Calculate bounds
-    let minX = Infinity, minY = Infinity
-    let maxX = -Infinity, maxY = -Infinity
+    // Get the current selection mode
+    const mode = this.getOption('mode') as 'new' | 'add' | 'subtract' | 'intersect' || 'new'
+    const selectionMode = mode === 'new' ? 'replace' : mode
     
-    for (const point of points) {
-      minX = Math.min(minX, point.x)
-      minY = Math.min(minY, point.y)
-      maxX = Math.max(maxX, point.x)
-      maxY = Math.max(maxY, point.y)
-    }
-    
-    const bounds = {
-      x: minX,
-      y: minY,
-      width: maxX - minX,
-      height: maxY - minY
-    }
-    
-    // Create mask from points
-    const tempCanvas = document.createElement('canvas')
-    tempCanvas.width = bounds.width
-    tempCanvas.height = bounds.height
-    const tempCtx = tempCanvas.getContext('2d', { willReadFrequently: true })!
-    
-    // Translate to local coordinates
-    tempCtx.translate(-bounds.x, -bounds.y)
-    
-    // Create path
-    const path2D = new Path2D()
-    path2D.moveTo(points[0].x, points[0].y)
+    // Convert points to SVG path data
+    let pathData = `M ${points[0].x} ${points[0].y}`
     
     for (let i = 1; i < points.length; i++) {
-      path2D.lineTo(points[i].x, points[i].y)
+      pathData += ` L ${points[i].x} ${points[i].y}`
     }
-    path2D.closePath()
+    pathData += ' Z' // Close path
     
-    // Fill to create mask
-    tempCtx.fillStyle = 'white'
-    tempCtx.fill(path2D)
+    // Create selection from path
+    selectionManager.createFromPath(pathData, selectionMode)
     
-    const imageData = tempCtx.getImageData(0, 0, bounds.width, bounds.height)
-    
-    // Create selection
-    const selection: Selection = {
-      type: 'pixel',
-      bounds,
-      mask: imageData
-    }
-    
-    canvas.setSelection(selection)
-    
-    // Emit event if in ExecutionContext
-    if (this.executionContext) {
-      await this.executionContext.emit(new SelectionCreatedEvent(
-        'canvas',
-        selection,
-        this.executionContext.getMetadata()
-      ))
-    }
+    // The selection events will be emitted by the SelectionManager
   }
 }
 

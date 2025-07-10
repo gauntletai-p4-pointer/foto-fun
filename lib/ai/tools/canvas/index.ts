@@ -15,16 +15,27 @@ export const checkSelectionState = {
       }
     }
     
-    const { targetingMode } = context
+    const { targetingMode, selection } = context
     const totalImages = context.canvas.getObjects().filter(obj => obj.type === 'image').length
+    
+    // Calculate selection count based on selection type
+    let selectionCount = 0
+    if (selection) {
+      if (selection.type === 'objects') {
+        selectionCount = selection.objectIds.length
+      } else {
+        // For pixel, rectangle, ellipse selections, count as 1
+        selectionCount = 1
+      }
+    }
     
     return {
       needsClarification: false, // We no longer check for 'all-images' mode
       reason: totalImages > 1 ? 'Multiple images require selection' : 'Single image or no images',
-      selectionCount: context.selection?.length || 0,
+      selectionCount,
       totalImages,
       targetingMode,
-      message: totalImages > 1 && !context.selection?.length ? 
+      message: totalImages > 1 && selectionCount === 0 ? 
         'Multiple images on canvas - selection required' : 
         'Ready to proceed'
     }

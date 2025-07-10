@@ -304,7 +304,7 @@ export class CanvasManager implements ICanvasManager {
         // Emit event
         this.eventStore.append(new ObjectRemovedEvent(
           this.stage.id(),
-          { objectId } as any, // Wrap in object to match expected type
+          { ...object, node: undefined },
           { source: 'user' }
         ))
         
@@ -339,9 +339,9 @@ export class CanvasManager implements ICanvasManager {
         // Emit event
         this.eventStore.append(new ObjectModifiedEvent(
           this.stage.id(),
-          { ...object, node: undefined } as any, // Remove node reference
-          { ...previousState, node: undefined } as any,
-          updates as any,
+          { ...object, node: undefined },
+          { ...previousState, node: undefined },
+          updates,
           { source: 'user' }
         ))
         
@@ -666,14 +666,14 @@ export class CanvasManager implements ICanvasManager {
       if (this.executionContext) {
         this.executionContext.emit(new ObjectAddedEvent(
           this.stage.id(),
-          { ...canvasObject, node: undefined } as any,
+          { ...canvasObject, node: undefined },
           activeLayer.id,
           this.executionContext.getMetadata()
         ))
       } else {
         this.eventStore.append(new ObjectAddedEvent(
           this.stage.id(),
-          { ...canvasObject, node: undefined } as any,
+          { ...canvasObject, node: undefined },
           activeLayer.id,
           { source: 'user' }
         ))
@@ -770,8 +770,8 @@ export class CanvasManager implements ICanvasManager {
       // Emit event
       const event = new ObjectModifiedEvent(
         this.stage.id(),
-        { ...obj, node: undefined } as any,
-        { ...obj, node: undefined } as any,
+        { ...obj, node: undefined },
+        { ...obj, node: undefined },
         { filters: [filter] },
         this.executionContext?.getMetadata() || { source: 'user' }
       )
@@ -848,8 +848,8 @@ export class CanvasManager implements ICanvasManager {
       // Emit event
       const event = new ObjectModifiedEvent(
         this.stage.id(),
-        { ...obj, node: undefined } as any,
-        { ...obj, transform: previousTransform, node: undefined } as any,
+        { ...obj, node: undefined },
+        { ...obj, transform: previousTransform, node: undefined },
         { transform: obj.transform },
         this.executionContext?.getMetadata() || { source: 'user' }
       )
@@ -888,8 +888,8 @@ export class CanvasManager implements ICanvasManager {
       // Emit event
       const event = new ObjectModifiedEvent(
         this.stage.id(),
-        { ...obj, node: undefined } as any,
-        { ...obj, transform: previousTransform, node: undefined } as any,
+        { ...obj, node: undefined },
+        { ...obj, transform: previousTransform, node: undefined },
         { transform: obj.transform },
         this.executionContext?.getMetadata() || { source: 'user' }
       )

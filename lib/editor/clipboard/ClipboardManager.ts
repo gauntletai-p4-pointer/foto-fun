@@ -42,8 +42,8 @@ export class ClipboardManager {
       try {
         const json = JSON.stringify(this.clipboard)
         await navigator.clipboard.writeText(json)
-      } catch (error) {
-        console.warn('Failed to copy to system clipboard:', error)
+      } catch {
+        console.warn('Failed to copy to system clipboard')
       }
     }
   }
@@ -68,7 +68,7 @@ export class ClipboardManager {
         if (data.objects && Array.isArray(data.objects)) {
           this.clipboard = data
         }
-      } catch (error) {
+      } catch {
         // Fall back to internal clipboard
       }
     }
@@ -126,7 +126,7 @@ export class ClipboardManager {
       opacity: obj.opacity,
       blendMode: obj.blendMode,
       transform: { ...obj.transform },
-      node: null as any, // Will be created when added to canvas
+      node: undefined!, // Will be created when added to canvas
       layerId: obj.layerId,
       data: obj.data ? this.cloneData(obj.data) : undefined,
       filters: obj.filters ? [...obj.filters] : undefined,
@@ -138,7 +138,7 @@ export class ClipboardManager {
   /**
    * Clone object data based on type
    */
-  private cloneData(data: any): any {
+  private cloneData(data: HTMLImageElement | string | Record<string, unknown>): HTMLImageElement | string | Record<string, unknown> {
     if (data instanceof HTMLImageElement) {
       // For images, we'll need to reload them
       return data.src

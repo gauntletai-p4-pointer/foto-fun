@@ -1,5 +1,5 @@
 import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
-import type { CanvasObject } from '@/lib/editor/canvas/types'
+import type { CanvasObject, Selection } from '@/lib/editor/canvas/types'
 
 /**
  * Enhanced context for AI tools
@@ -9,6 +9,11 @@ export interface CanvasContext {
   canvas: CanvasManager
   targetImages: CanvasObject[]
   targetingMode: 'selection' | 'auto-single' | 'all' | 'none'
+  dimensions: {
+    width: number
+    height: number
+  }
+  selection: Selection | null
 }
 
 /**
@@ -79,7 +84,12 @@ export class CanvasToolBridge {
     return {
       canvas,
       targetImages,
-      targetingMode
+      targetingMode,
+      dimensions: {
+        width: canvas.state.width,
+        height: canvas.state.height
+      },
+      selection
     }
   }
   

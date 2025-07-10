@@ -58,28 +58,7 @@ Range: 0 (no effect) to 100 (full sepia)`
       const { SelectionSnapshotFactory } = await import('@/lib/ai/execution/SelectionSnapshot')
       const selectionSnapshot = SelectionSnapshotFactory.fromObjects(images)
       
-      // TODO: Implement tool activation when stores are migrated
-      /*
-      // Activate the sepia tool
-      await this.activateTool()
-      
-      // Set selection snapshot on the tool
-      const { useToolStore } = await import('@/store/toolStore')
-      const tool = useToolStore.getState().getTool(this.tool.id)
-      if (tool && 'setSelectionSnapshot' in tool && typeof tool.setSelectionSnapshot === 'function') {
-        tool.setSelectionSnapshot(selectionSnapshot)
-      }
-      
-      try {
-        // Update the intensity option
-        await this.updateToolOption('intensity', params.intensity)
-      } finally {
-        // Clear selection snapshot
-        if (tool && 'setSelectionSnapshot' in tool && typeof tool.setSelectionSnapshot === 'function') {
-          tool.setSelectionSnapshot(null)
-        }
-      }
-      */
+      // Tool activation and option updates are handled by applyToolOperation
       
       // Apply the sepia filter using the base class helper with selection snapshot
       await this.applyToolOperation(this.tool.id, 'intensity', params.intensity, context.canvas, selectionSnapshot)

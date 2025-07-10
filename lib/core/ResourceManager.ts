@@ -273,7 +273,7 @@ export class GlobalResourceManager extends ResourceManager {
       report.resourcesByType[type] = (report.resourcesByType[type] || 0) + 1
       
       // Estimate memory based on type
-      if (resource.metadata?.size) {
+      if (resource.metadata?.size && typeof resource.metadata.size === 'number') {
         report.estimatedMemory += resource.metadata.size
       }
     })
@@ -302,7 +302,7 @@ import { useEffect, useRef } from 'react'
  * Hook for automatic resource cleanup in React components
  */
 export function useResourceManager(): ResourceManager {
-  const managerRef = useRef<ResourceManager>()
+  const managerRef = useRef<ResourceManager | undefined>(undefined)
   
   if (!managerRef.current) {
     managerRef.current = new ResourceManager()
@@ -318,10 +318,10 @@ export function useResourceManager(): ResourceManager {
 }
 
 // Decorators
-export function AutoDispose(target: unknown, propertyKey: string): void {
+export function AutoDispose(target: any, propertyKey: string): void {
   const originalMethod = target[propertyKey]
   
-  target[propertyKey] = async function(...args: unknown[]) {
+  target[propertyKey] = async function(this: any, ...args: unknown[]) {
     const resourceManager = new ResourceManager()
     
     try {

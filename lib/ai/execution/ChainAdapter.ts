@@ -1,10 +1,19 @@
 import { z } from 'zod'
 import { tool } from 'ai'
 import React from 'react'
-import { ToolChain, ChainStepSchema } from './ToolChain'
+import { EventBasedToolChain } from '@/lib/events/execution/EventBasedToolChain'
 import { adapterRegistry } from '../adapters/registry'
 import { BaseToolAdapter } from '../adapters/base'
 import type { Tool } from '@/lib/editor/canvas/types'
+import { ServiceContainer } from '@/lib/core/ServiceContainer'
+import { EventStore } from '@/lib/events/core/EventStore'
+
+// Define the schema for a chain step
+const ChainStepSchema = z.object({
+  tool: z.string().describe('The name of the tool to execute'),
+  params: z.any().describe('Parameters to pass to the tool'),
+  continueOnError: z.boolean().optional().describe('Whether to continue if this step fails')
+})
 
 // Schema for the chain execution tool
 const ExecuteChainSchema = z.object({
@@ -83,54 +92,111 @@ export class ChainAdapter extends BaseToolAdapter<ExecuteChainInput, ExecuteChai
   /**
    * Execute the tool chain
    */
-  async execute(params: ExecuteChainInput): Promise<ExecuteChainOutput> {
+  async execute(params: ExecuteChainInput, context?: any): Promise<ExecuteChainOutput> {
     try {
       console.log('[ChainAdapter] Executing chain with steps:', params.steps)
       
-      // Create the chain with progress tracking
-      const chain = ToolChain.fromSteps(
-        params.steps.map(step => ({
-          ...step,
-          continueOnError: step.continueOnError ?? params.continueOnError ?? false
-        })),
-        {
-          preserveToolState: params.preserveToolState,
-          captureCheckpoints: true,
-          preserveSelection: params.preserveSelection ?? true, // Default to true for AI operations
-          progressCallback: (step, total, tool) => {
-            console.log(`[ChainAdapter] Progress: ${step}/${total} - ${tool}`)
-          }
-        }
-      )
+      // Get required services
+      const container = ServiceContainer.getInstance()
+      const eventStore = container.get<EventStore>('EventStore')
+      const canvas = context?.canvas
       
-      // Execute the chain directly - CompositeCommand will be added to history internally
-      await chain.execute()
-      
-      // Get results
-      const results = chain.getResults()
-      
-      // Build summary message
-      const successCount = results.results.filter(r => r.success).length
-      const failureCount = results.results.filter(r => !r.success).length
-      
-      let message = `Executed ${results.results.length} tools in ${results.totalTime}ms`
-      if (successCount === results.results.length) {
-        message += ' - all succeeded'
-      } else {
-        message += ` - ${successCount} succeeded, ${failureCount} failed`
+      if (!canvas) {
+        throw new Error('Canvas is required for chain execution')
       }
       
-      return {
-        success: results.success,
-        chainId: results.id,
-        results: results.results.map(r => ({
-          tool: r.tool,
-          success: r.success,
-          result: r.result,  // Include the actual result data
-          error: r.error
-        })),
-        totalTime: results.totalTime,
-        message
+      // Create event-based tool chain
+      const chain = new EventBasedToolChain({
+        canvasId: canvas.id,
+        canvas,
+        eventStore,
+        workflowId: `workflow_${Date.now()}`,
+        metadata: {
+          source: 'ai-chain-adapter',
+          preserveSelection: params.preserveSelection
+        }
+      })
+      
+      const startTime = Date.now()
+      const results: Array<{ tool: string; success: boolean; result?: unknown; error?: string }> = []
+      
+      try {
+        // Prepare for AI operation
+        await chain.prepareForAIOperation(true)
+        
+        // Execute each step
+        const toolResults = await chain.executeSequence(
+          params.steps.map(step => ({
+            toolId: step.tool,
+            params: step.params,
+            executor: async (toolParams) => {
+              const adapter = adapterRegistry.get(step.tool)
+              if (!adapter) {
+                throw new Error(`Tool adapter not found: ${step.tool}`)
+              }
+              
+              try {
+                const result = await adapter.execute(toolParams, context)
+                return {
+                  success: true,
+                  data: result
+                }
+              } catch (error) {
+                return {
+                  success: false,
+                  error: error instanceof Error ? error.message : 'Unknown error'
+                }
+              }
+            }
+          }))
+        )
+        
+        // Process results
+        toolResults.forEach((result, index) => {
+          results.push({
+            tool: params.steps[index].tool,
+            success: result.success,
+            result: result.data,
+            error: result.error
+          })
+        })
+        
+        // Complete the AI operation
+        await chain.completeAIOperation()
+        
+        // Complete the workflow
+        chain.complete()
+        
+        const totalTime = Date.now() - startTime
+        const successCount = results.filter(r => r.success).length
+        const allSucceeded = successCount === params.steps.length
+        
+        const message = allSucceeded
+          ? `Executed ${params.steps.length} tools in ${totalTime}ms - all succeeded`
+          : `Executed ${params.steps.length} tools in ${totalTime}ms - ${successCount} succeeded, ${params.steps.length - successCount} failed`
+        
+        return {
+          success: allSucceeded,
+          chainId: `chain_${Date.now()}`,
+          results,
+          totalTime,
+          message
+        }
+      } catch (error) {
+        // Handle execution failure
+        chain.fail(error instanceof Error ? error.message : 'Unknown error')
+        
+        const totalTime = Date.now() - startTime
+        const successCount = results.filter(r => r.success).length
+        const message = `Chain execution failed after ${successCount} successful steps: ${error instanceof Error ? error.message : 'Unknown error'}`
+        
+        return {
+          success: false,
+          chainId: `chain_${Date.now()}`,
+          results,
+          totalTime,
+          message
+        }
       }
       
     } catch (error) {

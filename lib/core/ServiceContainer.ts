@@ -94,12 +94,12 @@ export class ServiceContainer {
   get<T>(token: string): T {
     // Check if it's a registered value
     if (this.services.has(token)) {
-      return this.services.get(token)
+      return this.services.get(token) as T
     }
     
     // Check if singleton already exists
     if (this.singletons.has(token)) {
-      return this.singletons.get(token)
+      return this.singletons.get(token) as T
     }
     
     // Create new instance
@@ -114,7 +114,7 @@ export class ServiceContainer {
     this.checkCircularDependencies(token)
     
     // Create instance with dependency injection
-    const instance = factory(this)
+    const instance = factory(this) as T
     
     // Cache if singleton
     if (metadata.lifecycle === 'singleton') {
@@ -206,28 +206,31 @@ export class ScopedContainer {
   get<T>(token: string): T {
     // Check scoped instances first
     if (this.scopedInstances.has(token)) {
-      return this.scopedInstances.get(token)
+      return this.scopedInstances.get(token) as T
     }
     
     const metadata = this.parent.getMetadata(token)
     
     if (metadata?.lifecycle === 'scoped') {
       // Create scoped instance
-      const factory = (this.parent as ServiceContainer & { factories: Map<string, ServiceFactory<unknown>> }).factories.get(token)
-      const instance = factory(this)
+      const factory = (this.parent as any).factories.get(token) as ServiceFactory<T> | undefined
+      if (!factory) {
+        throw new ServiceNotFoundError(token)
+      }
+      const instance = factory(this) as T
       this.scopedInstances.set(token, instance)
       return instance
     }
     
     // Delegate to parent for non-scoped services
-    return this.parent.get(token)
+    return this.parent.get<T>(token)
   }
   
   dispose(): void {
     // Clean up scoped instances
     this.scopedInstances.forEach((instance) => {
-      if (instance && typeof instance.dispose === 'function') {
-        instance.dispose()
+      if (instance && typeof (instance as any).dispose === 'function') {
+        (instance as any).dispose()
       }
     })
     this.scopedInstances.clear()

@@ -1,5 +1,4 @@
 import type { CanvasManager, CanvasObject } from '@/lib/editor/canvas/types'
-import type { ActiveSelection } from '@/lib/migration/fabric-to-konva-types'
 import { ExecutionContext } from './ExecutionContext'
 import { EventStore } from '../core/EventStore'
 import { KonvaObjectsBatchModifiedEvent } from '../canvas/CanvasEvents'
