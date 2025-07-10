@@ -1,11 +1,10 @@
 import { Focus } from 'lucide-react'
 import { TOOL_IDS } from '@/constants'
 import type { Canvas } from 'fabric'
-import { FabricImage, filters } from 'fabric'
 import { BaseTool } from '../base/BaseTool'
 import { createToolState } from '../utils/toolState'
-import { useToolOptionsStore } from '@/store/toolOptionsStore'
-import { ModifyCommand } from '@/lib/editor/commands/canvas'
+import { ModifyCommand } from '@/lib/editor/commands/canvas/ModifyCommand'
+import * as fabric from 'fabric'
 
 // Define tool state
 type SharpenToolState = {
@@ -47,12 +46,19 @@ class SharpenTool extends BaseTool {
   }
   
   // Required: Cleanup
-  protected cleanup(): void {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  protected cleanup(canvas: Canvas): void {
     // Don't reset the sharpen - let it persist
     this.state.setState({
       isApplying: false,
       lastSharpen: this.state.get('lastSharpen')
     })
+  }
+  
+  // Required: Activation
+  onActivate(canvas: Canvas): void {
+    // Call parent implementation which sets up the tool
+    super.onActivate(canvas)
   }
   
   private applySharpen(canvas: Canvas, sharpenValue: number): void {
@@ -61,51 +67,54 @@ class SharpenTool extends BaseTool {
     this.state.set('isApplying', true)
     
     try {
-      const objects = canvas.getObjects()
+      const images = this.getTargetImages()
+      
+      if (images.length === 0) {
+        console.warn('No images found to apply sharpen')
+        return
+      }
       
       // Apply to all image objects
-      objects.forEach((obj) => {
-        if (obj instanceof FabricImage) {
-          // Calculate new filters array
-          const existingFilters = obj.filters?.filter(
-            (f) => {
-              if (f instanceof filters.Convolute) {
-                return f.opaque !== false
-              }
-              return true
+      images.forEach((img) => {
+        // Calculate new filters array
+        const existingFilters = img.filters?.filter(
+          (f) => {
+            if (f instanceof fabric.filters.Convolute) {
+              return f.opaque !== false
             }
-          ) || []
-          
-          let newFilters: typeof obj.filters
-          if (sharpenValue > 0) {
-            // Sharpen matrix - intensity is controlled by the center value
-            const intensity = 1 + (sharpenValue / 25) // Scale 0-100 to 1-5
-            const sharpenMatrix = [
-              0, -1, 0,
-              -1, intensity, -1,
-              0, -1, 0
-            ]
-            
-            const sharpenFilter = new filters.Convolute({
-              matrix: sharpenMatrix,
-              opaque: false
-            })
-            newFilters = [...existingFilters, sharpenFilter] as typeof obj.filters
-          } else {
-            newFilters = existingFilters as typeof obj.filters
+            return true
           }
+        ) || []
+        
+        let newFilters: typeof img.filters
+        if (sharpenValue > 0) {
+          // Sharpen matrix - intensity is controlled by the center value
+          const intensity = 1 + (sharpenValue / 25) // Scale 0-100 to 1-5
+          const sharpenMatrix = [
+            0, -1, 0,
+            -1, intensity, -1,
+            0, -1, 0
+          ]
           
-          // Create command BEFORE modifying the object
-          const command = new ModifyCommand(
-            canvas,
-            obj,
-            { filters: newFilters },
-            `Apply sharpen: ${sharpenValue}%`
-          )
-          
-          // Execute the command (which will apply the changes and handle applyFilters)
-          this.executeCommand(command)
+          const sharpenFilter = new fabric.filters.Convolute({
+            matrix: sharpenMatrix,
+            opaque: false
+          })
+          newFilters = [...existingFilters, sharpenFilter] as typeof img.filters
+        } else {
+          newFilters = existingFilters as typeof img.filters
         }
+        
+        // Create command BEFORE modifying the object
+        const command = new ModifyCommand(
+          canvas,
+          img,
+          { filters: newFilters },
+          `Apply sharpen: ${sharpenValue}%`
+        )
+        
+        // Execute the command (which will apply the changes and handle applyFilters)
+        this.executeCommand(command)
       })
       
       canvas.renderAll()

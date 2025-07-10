@@ -12,6 +12,9 @@ import type { StoreApi } from 'zustand'
 import type { CustomFabricObjectProps } from '@/types'
 import type { FabricObject, Image as FabricImage } from 'fabric'
 import { ModifyCommand } from '@/lib/editor/commands/canvas'
+import { ToolChain } from '@/lib/ai/execution/ToolChain'
+import { selectionContext } from '@/lib/ai/execution/SelectionContext'
+import type { SelectionSnapshot } from '@/lib/ai/execution/SelectionSnapshot'
 
 // Type for event cleanup functions
 type CleanupFunction = () => void
@@ -30,6 +33,12 @@ type CanvasEventName =
 
 // Generic event handler type
 type CanvasEventHandler = (options: unknown) => void
+
+// Interface for state objects with get/set methods
+interface StateObject<T = unknown> {
+  get(key: string): T
+  set(key: string, value: T): void
+}
 
 /**
  * Base class for all tools in FotoFun
@@ -55,12 +64,22 @@ export abstract class BaseTool implements Tool {
   // Store unsubscribe functions
   private unsubscribers: CleanupFunction[] = []
   
+  // Re-entry guard for option updates
+  private isProcessingOptionChange = false
+  
   // Store references
   protected canvasStore = useCanvasStore.getState()
   protected toolOptionsStore = useToolOptionsStore.getState()
   protected performanceMonitor = usePerformanceStore.getState()
   protected historyStore = useHistoryStore.getState()
   protected layerStore = useLayerStore.getState()
+  
+  // Selection snapshot support
+  protected selectionSnapshot: SelectionSnapshot | null = null
+  
+  // Tool configuration
+  protected targetObjectTypes: string[] = [] // Override in subclasses to restrict types
+  protected requiresSelection: boolean = false // Override to require selection
   
   /**
    * Called when tool is activated
@@ -173,29 +192,66 @@ export abstract class BaseTool implements Tool {
   // Store Subscription Management
   
   /**
-   * Subscribe to a store with automatic cleanup
+   * Subscribe to store changes
+   * @param store Zustand store
+   * @param selector State selector
+   * @param callback Callback when selected state changes
    */
-  protected subscribeToStore<T>(
+  protected subscribeToStore<T, S>(
     store: StoreApi<T>,
-    listener: (state: T, prevState: T) => void
+    selector: (state: T) => S,
+    callback: (value: S) => void
   ): void {
-    const unsubscribe = store.subscribe(listener)
+    // Subscribe and track for cleanup
+    const unsubscribe = store.subscribe((state) => {
+      const value = selector(state)
+      callback(value)
+    })
+    
     this.unsubscribers.push(unsubscribe)
   }
   
   /**
-   * Subscribe to tool options changes
+   * Subscribe to tool options
+   * @param callback Function to call when options change
    */
-  protected subscribeToToolOptions(
-    callback: (options: ToolOption[]) => void
-  ): void {
-    const unsubscribe = useToolOptionsStore.subscribe((state) => {
-      const options = state.getToolOptions(this.id)
-      if (options) {
-        callback(options)
+  protected subscribeToToolOptions(callback: (options: ToolOption[]) => void): void {
+    this.subscribeToStore(
+      useToolOptionsStore,
+      (state) => state.getToolOptions(this.id) || [],
+      (options) => {
+        // Prevent re-entry during option processing
+        if (this.isProcessingOptionChange) {
+          return
+        }
+        
+        try {
+          this.isProcessingOptionChange = true
+          callback(options)
+        } finally {
+          // Use setTimeout to ensure the flag is reset after the current execution stack
+          setTimeout(() => {
+            this.isProcessingOptionChange = false
+          }, 0)
+        }
       }
-    })
-    this.unsubscribers.push(unsubscribe)
+    )
+  }
+  
+  /**
+   * Safely update a tool option without triggering re-entry
+   * @param optionId The option ID to update
+   * @param value The new value
+   */
+  protected updateOptionSafely(optionId: string, value: unknown): void {
+    // If we're already processing, defer the update
+    if (this.isProcessingOptionChange) {
+      setTimeout(() => {
+        this.toolOptionsStore.updateOption(this.id, optionId, value)
+      }, 0)
+    } else {
+      this.toolOptionsStore.updateOption(this.id, optionId, value)
+    }
   }
   
   /**
@@ -216,9 +272,20 @@ export abstract class BaseTool implements Tool {
   
   /**
    * Execute a command and record it in history
+   * If we're executing within a ToolChain, skip history recording
+   * since the chain itself is already recorded as a single command
    */
   protected async executeCommand(command: ICommand): Promise<void> {
-    await this.historyStore.executeCommand(command)
+    // Check if we're executing within a tool chain
+    if (ToolChain.isExecutingChain) {
+      // Execute directly without history recording
+      if (command.canExecute()) {
+        await command.execute()
+      }
+    } else {
+      // Normal execution through history store
+      await this.historyStore.executeCommand(command)
+    }
   }
   
   // Performance Tracking
@@ -256,37 +323,94 @@ export abstract class BaseTool implements Tool {
   }
   
   /**
-   * Get objects to operate on based on selection state
-   * @param type Optional type filter (e.g., 'image', 'text')
-   * @returns Array of objects to operate on
+   * Set a selection snapshot for this tool to use
    */
-  protected getTargetObjects(type?: string): FabricObject[] {
+  setSelectionSnapshot(snapshot: SelectionSnapshot | null): void {
+    this.selectionSnapshot = snapshot
+  }
+
+  /**
+   * Get target objects based on tool configuration and selection
+   */
+  protected getTargetObjects(): FabricObject[] {
     if (!this.canvas) return []
     
-    // Check for active selection first
-    const activeObjects = this.canvas.getActiveObjects()
-    const hasSelection = activeObjects.length > 0
-    
-    // Determine which objects to target
-    let objects = hasSelection ? activeObjects : this.canvas.getObjects()
-    
-    // Filter by type if specified
-    if (type) {
-      objects = objects.filter(obj => obj.type === type)
+    // Priority 1: Use selection snapshot if available
+    if (this.selectionSnapshot && !this.selectionSnapshot.isEmpty) {
+      console.log(`[${this.id}] Using selection snapshot with ${this.selectionSnapshot.count} objects`)
+      // Filter by type if this tool has type restrictions
+      if (this.targetObjectTypes.length > 0) {
+        return this.selectionSnapshot.objects.filter((obj: FabricObject) => 
+          this.targetObjectTypes.includes(obj.type as string)
+        )
+      }
+      return [...this.selectionSnapshot.objects]
     }
     
-    // Log for debugging
-    console.log(`[${this.name}] Targeting ${objects.length} object(s)${type ? ` of type '${type}'` : ''} - ${hasSelection ? 'selected only' : 'all objects'}`)
+    // Priority 2: Check SelectionContext (for backward compatibility)
+    const contextObjects = selectionContext.getTargetObjects()
+    if (contextObjects.length > 0) {
+      console.log(`[${this.id}] Using SelectionContext with ${contextObjects.length} objects`)
+      // Filter by allowed types
+      if (this.targetObjectTypes.length > 0) {
+        return contextObjects.filter(obj => 
+          this.targetObjectTypes.includes(obj.type as string)
+        )
+      }
+      return contextObjects
+    }
     
-    return objects
+    // Priority 3: Current canvas selection
+    const activeSelection = this.canvas.getActiveObjects()
+    
+    // If we have an active selection, use it
+    if (activeSelection.length > 0) {
+      // Filter by allowed types
+      if (this.targetObjectTypes.length > 0) {
+        return activeSelection.filter(obj => 
+          this.targetObjectTypes.includes(obj.type as string)
+        )
+      }
+      return activeSelection
+    }
+    
+    // Priority 4: All objects of allowed types (if tool allows it)
+    if (this.requiresSelection) {
+      return []
+    }
+    
+    // Get all objects of the allowed types
+    if (this.targetObjectTypes.length > 0) {
+      return this.canvas.getObjects().filter(obj => 
+        this.targetObjectTypes.includes(obj.type as string)
+      )
+    }
+    
+    // No type restrictions - return all objects
+    return this.canvas.getObjects()
   }
   
   /**
    * Get images to operate on based on selection state
    * Convenience method for image-specific tools
+   * @param requireSelection If true, returns empty array when nothing is selected
    */
-  protected getTargetImages(): FabricImage[] {
-    return this.getTargetObjects('image') as FabricImage[]
+  protected getTargetImages(requireSelection = false): FabricImage[] {
+    // Temporarily set requiresSelection
+    const originalRequiresSelection = this.requiresSelection
+    this.requiresSelection = requireSelection
+    
+    // Set target types to only images
+    const originalTypes = this.targetObjectTypes
+    this.targetObjectTypes = ['image']
+    
+    const images = this.getTargetObjects() as FabricImage[]
+    
+    // Restore original settings
+    this.requiresSelection = originalRequiresSelection
+    this.targetObjectTypes = originalTypes
+    
+    return images
   }
   
   /**
@@ -318,39 +442,37 @@ export abstract class BaseTool implements Tool {
     const commands: ICommand[] = []
     
     images.forEach(img => {
-      // Remove existing filters of the same type
+      // Initialize filters array if needed
       if (!img.filters) {
         img.filters = []
-      } else {
-        img.filters = img.filters.filter((f) => {
-          const filter = f as unknown as { type?: string }
-          return filter.type !== filterType
-        })
       }
+      
+      // Calculate what the new filters will be
+      const newFilters = img.filters.filter((f) => {
+        const filter = f as unknown as { type?: string }
+        return filter.type !== filterType
+      })
       
       // Add new filter if provided
       const newFilter = createFilter()
       if (newFilter) {
-        img.filters.push(newFilter as typeof img.filters[0])
+        newFilters.push(newFilter as typeof img.filters[0])
       }
       
-      // Apply filters
-      img.applyFilters()
-      
-      // Create command for history
+      // Create command BEFORE modifying the object
+      // This ensures ModifyCommand captures the current state as "old"
       const command = new ModifyCommand(
         this.canvas!,
         img as FabricObject,
-        { filters: img.filters },
+        { filters: newFilters },
         description
       )
+      
+      // Now execute the command which will apply the changes
       commands.push(command)
     })
     
-    // Render canvas
-    this.canvas.renderAll()
-    
-    // Execute all commands
+    // Execute all commands - this will apply the filters and render
     for (const command of commands) {
       await this.executeCommand(command)
     }
@@ -367,7 +489,7 @@ export abstract class BaseTool implements Tool {
     operation: () => T | Promise<T>
   ): Promise<T | undefined> {
     // Check if we have a state object with get/set methods
-    const state = (this as any).state
+    const state = (this as unknown as { state?: StateObject }).state
     if (!state || typeof state.get !== 'function' || typeof state.set !== 'function') {
       // No state management, just execute
       return await operation()
@@ -391,18 +513,14 @@ export abstract class BaseTool implements Tool {
   }
   
   /**
-   * Apply initial tool option value if it exists
-   * @param optionId The option ID to check
-   * @param applyFn Function to apply the value
+   * Apply initial option values
+   * @param optionId The option ID
+   * @param callback Function to call with the initial value
    */
-  protected applyInitialValue<T>(
-    optionId: string,
-    applyFn: (value: T) => void,
-    defaultValue?: T
-  ): void {
+  protected applyInitialValue<T>(optionId: string, callback: (value: T) => void): void {
     const value = this.getOptionValue<T>(optionId)
-    if (value !== undefined && value !== defaultValue) {
-      applyFn(value)
+    if (value !== undefined) {
+      callback(value)
     }
   }
   
@@ -415,7 +533,7 @@ export abstract class BaseTool implements Tool {
   protected subscribeToOption<T>(
     optionId: string,
     callback: (value: T) => void,
-    trackState?: { stateName: string, stateObject: any }
+    trackState?: { stateName: string, stateObject: StateObject }
   ): void {
     this.subscribeToToolOptions((options) => {
       const value = options.find(opt => opt.id === optionId)?.value as T | undefined

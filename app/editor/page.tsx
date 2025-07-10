@@ -123,7 +123,7 @@ export default function EditorPage() {
     <div className="h-screen flex flex-col bg-[#1e1e1e] text-gray-200 overflow-hidden">
       <MenuBar />
       <OptionsBar />
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex overflow-hidden min-h-0">
         <ToolPalette />
         <Canvas />
         <Panels />

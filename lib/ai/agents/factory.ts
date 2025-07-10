@@ -2,9 +2,11 @@ import type { Canvas } from 'fabric'
 import type { UIMessage } from 'ai'
 import type { AgentContext, UserPreferences } from './types'
 import { WorkflowMemory } from './WorkflowMemory'
-import { SequentialEditingAgent } from './SequentialEditingAgent'
 import { MasterRoutingAgent } from './MasterRoutingAgent'
-import { BaseExecutionAgent } from './BaseExecutionAgent'
+import { ImageImprovementAgent } from './specialized/ImageImprovementAgent'
+// NOT LIVE YET - Part of Epic 5.3 Phase 3
+// import { BatchProcessingAgent } from './specialized/BatchProcessingAgent'
+// import { CreativeEnhancementAgent } from './specialized/CreativeEnhancementAgent'
 
 // Default user preferences
 const DEFAULT_PREFERENCES: UserPreferences = {
@@ -14,7 +16,12 @@ const DEFAULT_PREFERENCES: UserPreferences = {
   historicalChoices: []
 }
 
-export type AgentType = 'sequential' | 'evaluator-optimizer' | 'orchestrator' | 'routing'
+export type AgentType = 
+  | 'master-routing' 
+  | 'image-improvement'
+  // NOT LIVE YET - Part of Epic 5.3 Phase 3
+  // | 'batch-processing'
+  // | 'creative-enhancement'
 
 interface CreateAgentOptions {
   type: AgentType
@@ -24,15 +31,12 @@ interface CreateAgentOptions {
   maxSteps?: number
 }
 
-/**
- * Factory for creating agents with proper context
- */
 export class AgentFactory {
   /**
    * Create an agent with the specified type and context
    */
-  static createAgent(options: CreateAgentOptions): BaseExecutionAgent | MasterRoutingAgent {
-    const { type, canvas, conversation, preferences = {}, maxSteps = 10 } = options
+  static createAgent(options: CreateAgentOptions) {
+    const { type, canvas, conversation, preferences = {} } = options
     
     // Create workflow memory
     const workflowMemory = new WorkflowMemory(canvas)
@@ -60,49 +64,64 @@ export class AgentFactory {
     
     // Create agent based on type
     switch (type) {
-      case 'sequential':
-        return new SequentialEditingAgent(context, maxSteps)
-        
-      case 'evaluator-optimizer':
-        // TODO: Implement EvaluatorOptimizerAgent
-        console.warn('EvaluatorOptimizerAgent not yet implemented, falling back to sequential')
-        return new SequentialEditingAgent(context, maxSteps)
-        
-      case 'orchestrator':
-        // TODO: Implement OrchestratorAgent
-        console.warn('OrchestratorAgent not yet implemented, falling back to sequential')
-        return new SequentialEditingAgent(context, maxSteps)
-        
-      case 'routing':
+      case 'master-routing':
         return new MasterRoutingAgent(context)
+        
+      case 'image-improvement':
+        // ImageImprovementAgent doesn't need context in constructor
+        // It receives context in the execute method
+        return new ImageImprovementAgent()
+        
+      // NOT LIVE YET - Part of Epic 5.3 Phase 3
+      // case 'batch-processing':
+      //   return new BatchProcessingAgent()
+      //   
+      // case 'creative-enhancement':
+      //   return new CreativeEnhancementAgent()
         
       default:
         throw new Error(`Unknown agent type: ${type}`)
     }
   }
-  
-  /**
-   * Get available agent types
-   */
-  static getAvailableTypes(): AgentType[] {
-    return ['sequential', 'evaluator-optimizer', 'orchestrator', 'routing']
+
+  static getAvailableAgents(): AgentType[] {
+    return [
+      'master-routing',
+      'image-improvement'
+      // NOT LIVE YET - Part of Epic 5.3 Phase 3
+      // 'batch-processing',
+      // 'creative-enhancement'
+    ]
   }
-  
-  /**
-   * Get description for an agent type
-   */
-  static getTypeDescription(type: AgentType): string {
+
+  static getAgentInfo(type: AgentType): { name: string; description: string } {
     switch (type) {
-      case 'sequential':
-        return 'Executes editing steps one after another in a planned sequence'
-      case 'evaluator-optimizer':
-        return 'Evaluates results and optimizes parameters for better outcomes'
-      case 'orchestrator':
-        return 'Coordinates multiple specialized agents for complex tasks'
-      case 'routing':
-        return 'Routes requests to the most appropriate specialized agent'
+      case 'master-routing':
+        return {
+          name: 'Master Routing Agent',
+          description: 'Routes requests to appropriate handlers'
+        }
+      case 'image-improvement':
+        return {
+          name: 'Image Improvement Agent',
+          description: 'Iteratively improves image quality using AI analysis'
+        }
+      // NOT LIVE YET - Part of Epic 5.3 Phase 3
+      // case 'batch-processing':
+      //   return {
+      //     name: 'Batch Processing Agent',
+      //     description: 'Processes multiple images with consistent parameters'
+      //   }
+      // case 'creative-enhancement':
+      //   return {
+      //     name: 'Creative Enhancement Agent',
+      //     description: 'Applies artistic and creative enhancements to images'
+      //   }
       default:
-        return 'Unknown agent type'
+        return {
+          name: type,
+          description: 'No description available'
+        }
     }
   }
 } 

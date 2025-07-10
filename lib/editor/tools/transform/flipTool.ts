@@ -3,7 +3,6 @@ import { TOOL_IDS } from '@/constants'
 import type { Canvas, FabricObject } from 'fabric'
 import { BaseTool } from '../base/BaseTool'
 import { createToolState } from '../utils/toolState'
-import { useToolOptionsStore } from '@/store/toolOptionsStore'
 import { ModifyCommand } from '@/lib/editor/commands/canvas'
 
 // Define tool state
@@ -37,11 +36,11 @@ class FlipTool extends BaseTool {
       if (flipAction === 'horizontal') {
         this.applyFlip(canvas, 'horizontal')
         // Reset the action
-        useToolOptionsStore.getState().updateOption(this.id, 'flipAction', null)
+        this.updateOptionSafely('flipAction', null)
       } else if (flipAction === 'vertical') {
         this.applyFlip(canvas, 'vertical')
         // Reset the action
-        useToolOptionsStore.getState().updateOption(this.id, 'flipAction', null)
+        this.updateOptionSafely('flipAction', null)
       }
     })
   }
@@ -63,16 +62,12 @@ class FlipTool extends BaseTool {
     this.state.set('isFlipping', true)
     
     try {
-      // Check for active selection first
-      const activeObjects = canvas.getActiveObjects()
-      const hasSelection = activeObjects.length > 0
-      
-      // Determine which objects to flip
-      const objectsToFlip = hasSelection ? activeObjects : canvas.getObjects()
+      // Use getTargetObjects which respects selection snapshot
+      const objectsToFlip = this.getTargetObjects()
       
       if (objectsToFlip.length === 0) return
       
-      console.log(`[FlipTool] Flipping ${objectsToFlip.length} object(s) - ${hasSelection ? 'selected only' : 'all objects'}`)
+      console.log(`[FlipTool] Flipping ${objectsToFlip.length} object(s)`)
       
       // Apply flip to target objects
       objectsToFlip.forEach((obj: FabricObject) => {

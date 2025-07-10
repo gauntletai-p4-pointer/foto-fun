@@ -26,7 +26,7 @@ export function ToolPalette() {
   const aiTools = tools.filter(tool => tool.id.startsWith('ai-'))
   
   return (
-    <div className="w-14 bg-background border-r border-foreground/10 py-2">
+    <div className="w-14 bg-background border-r border-foreground/10 py-2 flex-shrink-0 overflow-visible">
       <div className="grid grid-cols-2 gap-0.5 px-1">
         {regularTools.map((tool) => {
           const Icon = tool.icon
@@ -44,7 +44,6 @@ export function ToolPalette() {
                     ? "hover:bg-foreground/5 text-foreground/70 hover:text-foreground"
                     : "hover:bg-foreground/5 text-foreground/30 cursor-not-allowed"
               )}
-              title={`${tool.name} (${tool.shortcut})`}
               onClick={() => handleToolClick(tool.id, isImplemented)}
             >
               <Icon 
@@ -52,7 +51,7 @@ export function ToolPalette() {
               />
               
               {/* Tool tooltip */}
-              <div className="absolute left-full ml-2 top-1/2 -translate-y-1/2 px-2 py-1 bg-background text-foreground text-xs rounded opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity whitespace-nowrap z-10 border border-foreground/10 shadow-lg">
+              <div className="absolute left-full ml-2 top-1/2 -translate-y-1/2 px-2 py-1 bg-background text-foreground text-xs rounded opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity whitespace-nowrap z-[100] border border-foreground/10 shadow-lg">
                 {tool.name} ({tool.shortcut})
                 {!isImplemented && <span className="block text-foreground/60 text-[10px]">Coming soon</span>}
               </div>
@@ -86,7 +85,6 @@ export function ToolPalette() {
                         ? "hover:bg-foreground/5 text-foreground/70 hover:text-foreground"
                         : "hover:bg-foreground/5 text-foreground/30 cursor-not-allowed"
                   )}
-                  title={`${tool.name} (${tool.shortcut || 'AI Tool'})`}
                   onClick={() => handleToolClick(tool.id, isImplemented)}
                 >
                   <Icon 
@@ -94,7 +92,7 @@ export function ToolPalette() {
                   />
                   
                   {/* Tool tooltip */}
-                  <div className="absolute left-full ml-2 top-1/2 -translate-y-1/2 px-2 py-1 bg-background text-foreground text-xs rounded opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity whitespace-nowrap z-10 border border-foreground/10 shadow-lg">
+                  <div className="absolute left-full ml-2 top-1/2 -translate-y-1/2 px-2 py-1 bg-background text-foreground text-xs rounded opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity whitespace-nowrap z-[100] border border-foreground/10 shadow-lg">
                     {tool.name} {tool.shortcut ? `(${tool.shortcut})` : ''}
                     {!isImplemented && <span className="block text-foreground/60 text-[10px]">Coming soon</span>}
                     <span className="block text-foreground/60 text-[10px]">AI-Powered</span>

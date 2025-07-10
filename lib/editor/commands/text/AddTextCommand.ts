@@ -26,7 +26,12 @@ export class AddTextCommand extends Command {
     const layerStore = useLayerStore.getState()
     layerStore.addObjectToActiveLayer(this.textObject)
     
-    this.canvas.setActiveObject(this.textObject)
+    // Only set as active if not executing within a tool chain
+    const { ToolChain } = await import('@/lib/ai/execution/ToolChain')
+    if (!ToolChain.isExecutingChain) {
+      this.canvas.setActiveObject(this.textObject)
+    }
+    
     this.canvas.renderAll()
   }
   

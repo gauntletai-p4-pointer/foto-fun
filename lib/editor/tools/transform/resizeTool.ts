@@ -3,7 +3,6 @@ import { TOOL_IDS } from '@/constants'
 import type { Canvas, FabricObject } from 'fabric'
 import { BaseTool } from '../base/BaseTool'
 import { createToolState } from '../utils/toolState'
-import { useToolOptionsStore } from '@/store/toolOptionsStore'
 import { ModifyCommand } from '@/lib/editor/commands/canvas'
 
 // Define tool state
@@ -45,8 +44,8 @@ class ResizeTool extends BaseTool {
     })
     
     // Initialize tool options with current dimensions
-    useToolOptionsStore.getState().updateOption(this.id, 'width', canvasWidth)
-    useToolOptionsStore.getState().updateOption(this.id, 'height', canvasHeight)
+    this.updateOptionSafely('width', canvasWidth)
+    this.updateOptionSafely('height', canvasHeight)
     
     // Subscribe to tool options
     this.subscribeToToolOptions(() => {
@@ -103,16 +102,12 @@ class ResizeTool extends BaseTool {
     this.state.set('isResizing', true)
     
     try {
-      // Check for active selection first
-      const activeObjects = canvas.getActiveObjects()
-      const hasSelection = activeObjects.length > 0
-      
-      // Determine which objects to resize
-      const objectsToResize = hasSelection ? activeObjects : canvas.getObjects()
+      // Use getTargetObjects which respects selection snapshot
+      const objectsToResize = this.getTargetObjects()
       
       if (objectsToResize.length === 0) return
       
-      console.log(`[ResizeTool] Resizing ${objectsToResize.length} object(s) - ${hasSelection ? 'selected only' : 'all objects'}`)
+      console.log(`[ResizeTool] Resizing ${objectsToResize.length} object(s)`)
       
       // Calculate scale factors
       let scaleX = widthValue / 100

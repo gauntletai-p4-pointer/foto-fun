@@ -1,10 +1,8 @@
 import { RotateCw } from 'lucide-react'
 import { TOOL_IDS } from '@/constants'
 import type { Canvas, FabricObject } from 'fabric'
-import { Point } from 'fabric'
 import { BaseTool } from '../base/BaseTool'
 import { createToolState } from '../utils/toolState'
-import { useToolOptionsStore } from '@/store/toolOptionsStore'
 import { ModifyCommand } from '@/lib/editor/commands/canvas'
 
 // Define tool state
@@ -34,13 +32,19 @@ class RotateTool extends BaseTool {
       // Check for quick rotate button press
       const quickRotate = this.getOptionValue('quickRotate')
       if (typeof quickRotate === 'number') {
-        // Apply the quick rotation
-        this.applyRotation(canvas, quickRotate)
-        this.state.set('lastAngle', quickRotate)
-        // Update the angle slider to match
-        useToolOptionsStore.getState().updateOption(this.id, 'angle', quickRotate)
+        // Quick rotate values are relative rotations to apply
+        // Apply the rotation relative to current state
+        const currentAngle = this.state.get('lastAngle')
+        const newAngle = currentAngle + quickRotate
+        
+        // Apply the rotation
+        this.applyRotation(canvas, newAngle)
+        this.state.set('lastAngle', newAngle)
+        
+        // Update the angle slider to match the new total rotation
+        this.updateOptionSafely('angle', newAngle)
         // Reset the button group value
-        useToolOptionsStore.getState().updateOption(this.id, 'quickRotate', null)
+        this.updateOptionSafely('quickRotate', null)
         return
       }
       
@@ -76,20 +80,10 @@ class RotateTool extends BaseTool {
     this.state.set('isRotating', true)
     
     try {
-      // Check for active selection first
-      const activeObjects = canvas.getActiveObjects()
-      const hasSelection = activeObjects.length > 0
-      
-      // Determine which objects to rotate
-      const objectsToRotate = hasSelection ? activeObjects : canvas.getObjects()
+      // Use getTargetObjects which respects selection snapshot
+      const objectsToRotate = this.getTargetObjects()
       
       if (objectsToRotate.length === 0) return
-      
-      console.log(`[RotateTool] Rotating ${objectsToRotate.length} object(s) by ${angle}° - ${hasSelection ? 'selected only' : 'all objects'}`)
-      
-      // Get the center point of the canvas
-      const centerX = canvas.getWidth() / 2
-      const centerY = canvas.getHeight() / 2
       
       // Calculate the angle difference from the last rotation
       const angleDiff = angle - this.state.get('lastAngle')
@@ -98,40 +92,26 @@ class RotateTool extends BaseTool {
       objectsToRotate.forEach((obj: FabricObject) => {
         // Store the old state for undo
         const oldAngle = obj.angle || 0
-        const oldLeft = obj.left || 0
-        const oldTop = obj.top || 0
         
         // Calculate new angle
         const newAngle = oldAngle + angleDiff
         
-        // Calculate new position after rotation around center
-        let newLeft = oldLeft
-        let newTop = oldTop
-        
-        if (angleDiff !== 0) {
-          const point = obj.getCenterPoint()
-          const radians = (angleDiff * Math.PI) / 180
-          
-          // Calculate new position after rotation around center
-          const newX = centerX + (point.x - centerX) * Math.cos(radians) - (point.y - centerY) * Math.sin(radians)
-          const newY = centerY + (point.x - centerX) * Math.sin(radians) + (point.y - centerY) * Math.cos(radians)
-          
-          const newPoint = new Point(newX, newY)
-          // Calculate left/top from center point
-          newLeft = newPoint.x - (obj.width || 0) * (obj.scaleX || 1) / 2
-          newTop = newPoint.y - (obj.height || 0) * (obj.scaleY || 1) / 2
-        }
+        // For in-place rotation, we only need to update the angle
+        // The object's position (left/top) should remain the same
         
         // Create command BEFORE modifying the object
         const command = new ModifyCommand(
           canvas,
           obj,
-          { angle: newAngle, left: newLeft, top: newTop },
+          { angle: newAngle },
           `Rotate by ${angleDiff}°`
         )
         
         // Execute the command (which will apply the changes)
         this.executeCommand(command)
+        
+        // IMPORTANT: Update object coordinates after rotation
+        obj.setCoords()
       })
       
       canvas.renderAll()

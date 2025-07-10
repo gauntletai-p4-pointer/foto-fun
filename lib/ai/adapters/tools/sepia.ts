@@ -54,11 +54,29 @@ Range: 0 (no effect) to 100 (full sepia)`
   
   async execute(params: SepiaInput, context: CanvasContext): Promise<SepiaOutput> {
     return this.executeWithCommonPatterns(params, context, async (images) => {
+      // Create a selection snapshot from the target images
+      const { SelectionSnapshotFactory } = await import('@/lib/ai/execution/SelectionSnapshot')
+      const selectionSnapshot = SelectionSnapshotFactory.fromObjects(images)
+      
       // Activate the sepia tool
       await this.activateTool()
       
-      // Update the intensity option
-      await this.updateToolOption('intensity', params.intensity)
+      // Set selection snapshot on the tool
+      const { useToolStore } = await import('@/store/toolStore')
+      const tool = useToolStore.getState().getTool(this.tool.id)
+      if (tool && 'setSelectionSnapshot' in tool && typeof tool.setSelectionSnapshot === 'function') {
+        tool.setSelectionSnapshot(selectionSnapshot)
+      }
+      
+      try {
+        // Update the intensity option
+        await this.updateToolOption('intensity', params.intensity)
+      } finally {
+        // Clear selection snapshot
+        if (tool && 'setSelectionSnapshot' in tool && typeof tool.setSelectionSnapshot === 'function') {
+          tool.setSelectionSnapshot(null)
+        }
+      }
       
       return {
         intensity: params.intensity,

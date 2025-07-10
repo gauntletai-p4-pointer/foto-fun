@@ -4,6 +4,7 @@ import { horizontalTypeTool } from '@/lib/editor/tools/text'
 import { Canvas, IText } from 'fabric'
 import { AddTextCommand } from '@/lib/editor/commands/text'
 import { useHistoryStore } from '@/store/historyStore'
+import { ToolChain } from '@/lib/ai/execution/ToolChain'
 
 // Define input schema for text parameters
 const addTextInputSchema = z.object({
@@ -65,42 +66,52 @@ NEVER ask for exact styling - interpret the user's intent and choose appropriate
     }
     
     try {
+      // Get viewport transform for accurate positioning
+      const vpt = canvas.viewportTransform || [1, 0, 0, 1, 0, 0]
+      const zoom = vpt[0] // zoom is stored in the scale components
+      
       // Calculate position based on position enum
+      // These are viewport dimensions (what the user sees)
       const canvasWidth = canvas.getWidth()
       const canvasHeight = canvas.getHeight()
       const margin = 50 // Default margin from edges
       
-      let x = canvasWidth / 2
-      let y = canvasHeight / 2
+      // Start with viewport center
+      let viewportX = canvasWidth / 2
+      let viewportY = canvasHeight / 2
       
       switch (params.position) {
         case 'top':
-          y = margin + 30
+          viewportY = margin + 30
           break
         case 'bottom':
-          y = canvasHeight - margin - 30
+          viewportY = canvasHeight - margin - 30
           break
         case 'top-left':
-          x = margin + 100
-          y = margin + 30
+          viewportX = margin + 100
+          viewportY = margin + 30
           break
         case 'top-right':
-          x = canvasWidth - margin - 100
-          y = margin + 30
+          viewportX = canvasWidth - margin - 100
+          viewportY = margin + 30
           break
         case 'bottom-left':
-          x = margin + 100
-          y = canvasHeight - margin - 30
+          viewportX = margin + 100
+          viewportY = canvasHeight - margin - 30
           break
         case 'bottom-right':
-          x = canvasWidth - margin - 100
-          y = canvasHeight - margin - 30
+          viewportX = canvasWidth - margin - 100
+          viewportY = canvasHeight - margin - 30
           break
         case 'center':
         default:
           // Already set to center
           break
       }
+      
+      // Convert viewport coordinates to object coordinates
+      const x = (viewportX - vpt[4]) / zoom
+      const y = (viewportY - vpt[5]) / zoom
       
       // Apply style presets
       let fontSize = params.fontSize || 60
@@ -144,7 +155,17 @@ NEVER ask for exact styling - interpret the user's intent and choose appropriate
       
       // Add to canvas using command pattern for undo/redo
       const command = new AddTextCommand(canvas, text)
-      await useHistoryStore.getState().executeCommand(command)
+      
+      // Check if we're executing within a tool chain
+      if (ToolChain.isExecutingChain) {
+        // Execute directly without history recording
+        if (command.canExecute()) {
+          await command.execute()
+        }
+      } else {
+        // Normal execution through history store
+        await useHistoryStore.getState().executeCommand(command)
+      }
       
       // Get bounds after adding to canvas
       const bounds = text.getBoundingRect()

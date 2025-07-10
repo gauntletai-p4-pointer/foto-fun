@@ -1,19 +1,17 @@
+import { openai } from '@ai-sdk/openai'
 import { generateObject, generateText } from 'ai'
 import { z } from 'zod'
+import { adapterRegistry } from '@/lib/ai/adapters/registry'
+import { BaseToolAdapter } from '@/lib/ai/adapters/base'
+import { ImageImprovementAgent } from './specialized/ImageImprovementAgent'
 import type { AgentContext, AgentResult } from './types'
-import { SequentialEditingAgent } from './SequentialEditingAgent'
-import { adapterRegistry } from '../adapters/registry'
-import { openai } from '@/lib/ai/providers'
-import type { BaseToolAdapter } from '../adapters/base'
 
 // Route analysis schema for determining execution strategy
 const routeAnalysisSchema = z.object({
   requestType: z.enum([
     'text-only',           // Informational responses
     'simple-tool',         // Single tool execution
-    'sequential-workflow', // Multi-step sequential processing
-    'evaluator-optimizer', // Quality-focused workflows (future)
-    'orchestrator-worker'  // Parallel processing workflows (future)
+    'complex-agent',       // Complex agent workflow (image improvement)
   ]),
   confidence: z.number().min(0).max(1),
   reasoning: z.string(),
@@ -40,14 +38,36 @@ export class MasterRoutingAgent {
   }
 
   async execute(request: string): Promise<AgentResult> {
+    console.log('[MasterRoutingAgent] Starting execution for:', request)
+    
     try {
-      // Clear previous status updates
-      this.statusUpdates = []
+      // Check if we have valid canvas context from the client
+      if (!this.context.canvasAnalysis) {
+        console.log('[MasterRoutingAgent] No canvas analysis available')
+        return {
+          completed: false,
+          results: [{
+            success: false,
+            data: { 
+              error: 'No canvas context available',
+              statusUpdates: this.statusUpdates
+            },
+            confidence: 0
+          }],
+          reason: 'No canvas context available'
+        }
+      }
       
-      // Step 1: Analyze the request to determine routing strategy
-      this.addStatusUpdate('analyzing-prompt', 'Analyzing request and determining execution strategy', 
-        `Analyzing: "${request}"`)
+      console.log('[MasterRoutingAgent] Canvas analysis:', {
+        dimensions: this.context.canvasAnalysis.dimensions,
+        hasContent: this.context.canvasAnalysis.hasContent,
+        objectCount: this.context.canvasAnalysis.objectCount
+      })
       
+      // For AI operations, we don't need to create selection snapshots server-side
+      // The client will handle actual canvas operations
+      
+      // Step 1: Analyze the request
       const analysis = await this.analyzeRequest(request)
       
       this.addStatusUpdate('routing-decision', 'Routing decision made', 
@@ -65,29 +85,15 @@ export class MasterRoutingAgent {
           result = await this.handleSimpleToolExecution(request, analysis)
           break
           
-        case 'sequential-workflow':
-          result = await this.delegateToSequentialAgent(request)
-          break
-          
-        case 'evaluator-optimizer':
-          // Future: delegate to EvaluatorOptimizerAgent
-          this.addStatusUpdate('routing-decision', 'Fallback to sequential agent', 
-            'EvaluatorOptimizerAgent not yet implemented, using SequentialEditingAgent')
-          result = await this.delegateToSequentialAgent(request)
-          break
-          
-        case 'orchestrator-worker':
-          // Future: delegate to OrchestratorAgent
-          this.addStatusUpdate('routing-decision', 'Fallback to sequential agent', 
-            'OrchestratorAgent not yet implemented, using SequentialEditingAgent')
-          result = await this.delegateToSequentialAgent(request)
+        case 'complex-agent':
+          result = await this.delegateToImageImprovementAgent(request)
           break
           
         default:
-          // Default fallback
-          this.addStatusUpdate('routing-decision', 'Using default sequential agent', 
-            'Unknown route type, defaulting to SequentialEditingAgent')
-          result = await this.delegateToSequentialAgent(request)
+          // Default fallback to text response
+          this.addStatusUpdate('routing-decision', 'Using default text response', 
+            'Unknown route type, defaulting to text response')
+          result = await this.handleTextResponse(analysis)
       }
       
       // Step 3: Attach status updates to the first result
@@ -191,32 +197,24 @@ ROUTING RULES:
    - Should be high confidence (>0.8) for auto-approval
    - Suggest the specific tool to use
 
-3. **sequential-workflow**: Multi-step operations on EXISTING images
-   - Examples: "make this vintage", "enhance this photo", "make it dramatic"
-   - ONLY uses canvas-editing tools: ${canvasEditingTools.join(', ')}
-   - NEVER includes AI-native tools (no generateImage, etc.)
-   - Delegate to SequentialEditingAgent for specialized planning
-
-4. **evaluator-optimizer**: Quality-focused workflows (future)
-   - Examples: "make this professional quality", "optimize for print"
-   - Will delegate to EvaluatorOptimizerAgent
-
-5. **orchestrator-worker**: Parallel processing workflows (future)
-   - Examples: "apply multiple filters", "batch process effects"
-   - Will delegate to OrchestratorAgent
+3. **complex-agent**: Multi-step operations requiring AI analysis and iteration
+   - Examples: "improve this photo", "enhance this image", "make it look professional"
+   - Requests that need quality evaluation and iterative improvement
+   - Uses the ImageImprovementAgent for sophisticated workflows
+   - ONLY for existing images (canvas must have content)
 
 IMPORTANT CLARIFICATIONS:
-- "improve", "enhance", "fix" requests should use sequential-workflow if there's content
+- "improve", "enhance", "fix" requests should use complex-agent if there's content
 - If canvas has NO content and user asks to "improve", suggest they need an image first
 - "generate" requests should use simple-tool with generateImage
-- Quality improvement requests ("improve this photo", "enhance") need sequential-workflow
+- Quality improvement requests need complex-agent for best results
 
 Analyze the request and provide:
 - Route type and confidence
 - Clear reasoning for the decision
 - For text-only: provide the text response
 - For simple-tool: suggest the specific tool
-- For workflows: estimate number of steps`
+- For complex-agent: estimate number of steps`
     })
     
     console.log('[MasterRoutingAgent] === ROUTE ANALYSIS RESULT ===')
@@ -377,29 +375,29 @@ Analyze the request and provide:
     }
   }
 
-  // Delegate to SequentialEditingAgent with enhanced status tracking
-  private async delegateToSequentialAgent(request: string): Promise<AgentResult> {
-    this.addStatusUpdate('planning-steps', 'Delegating to Sequential Editing Agent', 
-      'Complex workflow detected, using SequentialEditingAgent for detailed planning and execution')
+  // Delegate to ImageImprovementAgent for complex workflows
+  private async delegateToImageImprovementAgent(request: string): Promise<AgentResult> {
+    this.addStatusUpdate('planning-steps', 'Delegating to Image Improvement Agent', 
+      'Complex image enhancement detected, using ImageImprovementAgent for AI-powered iterative improvement')
     
-    const sequentialAgent = new SequentialEditingAgent(this.context)
-    const result = await sequentialAgent.execute(request)
+    const imageAgent = new ImageImprovementAgent()
+    const result = await imageAgent.execute(request, this.context)
     
-    // Merge status updates from sequential agent
+    // Merge status updates from image agent
     if (result.results.length > 0) {
       const firstResult = result.results[0]
-      const sequentialStatusUpdates = (firstResult.data as { statusUpdates?: Array<{
+      const agentStatusUpdates = (firstResult.data as { statusUpdates?: Array<{
         type: string
         message: string
         details?: string
         timestamp: string
       }> })?.statusUpdates || []
       
-              // Combine our routing updates with sequential agent updates
-        firstResult.data = {
-          ...(firstResult.data as Record<string, unknown>),
-          statusUpdates: [...this.statusUpdates, ...sequentialStatusUpdates]
-        }
+      // Combine our routing updates with agent updates
+      firstResult.data = {
+        ...(firstResult.data as Record<string, unknown>),
+        statusUpdates: [...this.statusUpdates, ...agentStatusUpdates]
+      }
     }
     
     return result

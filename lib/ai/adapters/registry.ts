@@ -2,8 +2,8 @@ import type { ToolAdapter } from './base'
 import type { Tool } from 'ai'
 
 /**
- * Registry for tool adapters
- * Following AI SDK v5 patterns
+ * Registry for tool adapters - singleton pattern
+ * Maps canvas tools to AI-compatible tool adapters
  */
 class AdapterRegistry {
   private adapters = new Map<string, ToolAdapter>()
@@ -111,57 +111,56 @@ export async function autoDiscoverAdapters(): Promise<void> {
   console.log('[AdapterRegistry] Starting auto-discovery of tool adapters')
   
   try {
-    // Import all canvas tool adapters
+    // Import and register all adapters
     const { CropToolAdapter } = await import('./tools/crop')
-    const { default: BrightnessAdapter } = await import('./tools/brightness')
-    const { default: ContrastAdapter } = await import('./tools/contrast')
-    const { default: SaturationAdapter } = await import('./tools/saturation')
-    const { default: HueAdapter } = await import('./tools/hue')
-    const { default: ExposureAdapter } = await import('./tools/exposure')
-    console.log('[AdapterRegistry] ExposureAdapter imported:', ExposureAdapter)
-    console.log('[AdapterRegistry] ExposureAdapter type:', typeof ExposureAdapter)
-    console.log('[AdapterRegistry] ExposureAdapter aiName:', ExposureAdapter?.aiName)
-    const { default: ColorTemperatureAdapter } = await import('./tools/colorTemperature')
-    const { default: RotateAdapter } = await import('./tools/rotate')
-    const { default: FlipAdapter } = await import('./tools/flip')
-    const { default: ResizeAdapter } = await import('./tools/resize')
-    const { default: BlurAdapter } = await import('./tools/blur')
-    const { default: SharpenAdapter } = await import('./tools/sharpen')
-    const { default: GrayscaleAdapter } = await import('./tools/grayscale')
-    const { default: SepiaAdapter } = await import('./tools/sepia')
-    const { default: InvertAdapter } = await import('./tools/invert')
+    const { BrightnessToolAdapter } = await import('./tools/brightness')
+    const { ContrastToolAdapter } = await import('./tools/contrast')
+    const { SaturationToolAdapter } = await import('./tools/saturation')
+    const { ResizeToolAdapter } = await import('./tools/resize')
+    const { FlipAdapter } = await import('./tools/flip')
+    const { RotateToolAdapter } = await import('./tools/rotate')
+    const { ImageGenerationAdapter } = await import('./tools/imageGeneration')
+    const { ExposureToolAdapter } = await import('./tools/exposure')
+    const { HueToolAdapter } = await import('./tools/hue')
+    const { ColorTemperatureToolAdapter } = await import('./tools/colorTemperature')
+    const { BlurAdapter } = await import('./tools/blur')
+    const { SharpenAdapter } = await import('./tools/sharpen')
+    const { GrayscaleAdapter } = await import('./tools/grayscale')
+    const { InvertAdapter } = await import('./tools/invert')
+    const { SepiaAdapter } = await import('./tools/sepia')
     const { addTextAdapter } = await import('./tools/addText')
     const { AnalyzeCanvasAdapter } = await import('./tools/analyzeCanvas')
+    const { CanvasSelectionManagerAdapter } = await import('./tools/canvasSelectionManager')
+    const { registerChainAdapter } = await import('../execution/ChainAdapter')
     
-    // Register canvas tool adapters
-    adapterRegistry.register(new CropToolAdapter())
-    adapterRegistry.register(new BrightnessAdapter())
-    adapterRegistry.register(new ContrastAdapter())
-    adapterRegistry.register(new SaturationAdapter())
-    adapterRegistry.register(HueAdapter)
-    adapterRegistry.register(ExposureAdapter) // This is already an instance, not a class
-    adapterRegistry.register(ColorTemperatureAdapter)
-    adapterRegistry.register(RotateAdapter)
-    adapterRegistry.register(FlipAdapter)
-    adapterRegistry.register(ResizeAdapter)
-    adapterRegistry.register(BlurAdapter)
-    adapterRegistry.register(SharpenAdapter)
-    adapterRegistry.register(GrayscaleAdapter)
-    adapterRegistry.register(SepiaAdapter)
-    adapterRegistry.register(InvertAdapter)
-    adapterRegistry.register(addTextAdapter)
-    adapterRegistry.register(new AnalyzeCanvasAdapter())
+    // Register all adapters
+    const adapters = [
+      new CropToolAdapter(),
+      new BrightnessToolAdapter(),
+      new ContrastToolAdapter(),
+      new SaturationToolAdapter(),
+      new ResizeToolAdapter(),
+      new FlipAdapter(),
+      new RotateToolAdapter(),
+      new ImageGenerationAdapter(),
+      new ExposureToolAdapter(),
+      new HueToolAdapter(),
+      new ColorTemperatureToolAdapter(),
+      new BlurAdapter(),
+      new SharpenAdapter(),
+      new GrayscaleAdapter(),
+      new InvertAdapter(),
+      new SepiaAdapter(),
+      addTextAdapter,  // This is already an instance
+      new AnalyzeCanvasAdapter(),
+      new CanvasSelectionManagerAdapter()
+    ]
+    adapterRegistry.registerMany(adapters)
     
-    // Import and register AI-Native Tool adapters (Replicate)
-    try {
-      const { ImageGenerationAdapter } = await import('./tools/imageGeneration')
-      adapterRegistry.register(new ImageGenerationAdapter())
-      console.log('[AdapterRegistry] Registered Replicate AI-Native Tool adapters')
-    } catch (error) {
-      console.warn('[AdapterRegistry] Replicate adapters not available (API key not configured):', error)
-    }
+    // Register the chain adapter
+    registerChainAdapter()
     
-    console.log('[AdapterRegistry] Registered 18 tool adapters (17 canvas + 1 AI-Native)')
+    console.log('[AdapterRegistry] Registered tool adapters including chain execution')
   } catch (error) {
     console.error('[AdapterRegistry] Error during auto-discovery:', error)
   }

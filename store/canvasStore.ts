@@ -175,6 +175,17 @@ export const useCanvasStore = create<CanvasStore>()(
             // Render canvas
             canvas.renderAll()
             
+            // Center the viewport
+            const centerViewport = () => {
+              const canvasWidth = canvas.getWidth()
+              const canvasHeight = canvas.getHeight()
+              const zoom = canvas.getZoom()
+              canvas.setViewportTransform([
+                zoom, 0, 0, zoom, canvasWidth / 2, canvasHeight / 2
+              ])
+            }
+            centerViewport()
+            
             // Final verification
             await new Promise(resolve => {
               requestAnimationFrame(() => {
@@ -328,8 +339,24 @@ export const useCanvasStore = create<CanvasStore>()(
         const { fabricCanvas } = get()
         if (!fabricCanvas) return
         
-        const center = fabricCanvas.getCenter()
-        fabricCanvas.absolutePan(new Point(center.left, center.top))
+        // Get canvas dimensions
+        const canvasWidth = fabricCanvas.getWidth()
+        const canvasHeight = fabricCanvas.getHeight()
+        
+        // Calculate the center point in canvas coordinates
+        // This centers the viewport so that (0,0) is at the center of the visible area
+        const centerX = canvasWidth / 2
+        const centerY = canvasHeight / 2
+        
+        // Set viewport transform to center the coordinate system
+        // The viewport transform moves the origin, so we need negative values
+        // to move the content to the center of the viewport
+        const zoom = fabricCanvas.getZoom()
+        fabricCanvas.setViewportTransform([
+          zoom, 0, 0, zoom, centerX, centerY
+        ])
+        
+        fabricCanvas.renderAll()
       },
       
       // Selection control

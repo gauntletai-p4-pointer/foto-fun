@@ -10,7 +10,7 @@ export class RemoveObjectCommand extends Command {
   private index: number = -1
   
   constructor(canvas: Canvas, object: FabricObject) {
-    super(`Remove ${object.type || 'object'}`)
+    super('Remove object')
     this.canvas = canvas
     this.object = object
   }
@@ -22,7 +22,13 @@ export class RemoveObjectCommand extends Command {
     
     // Remove the object
     this.canvas.remove(this.object)
-    this.canvas.discardActiveObject()
+    
+    // Only clear selection if not executing within a tool chain
+    const { ToolChain } = await import('@/lib/ai/execution/ToolChain')
+    if (!ToolChain.isExecutingChain) {
+      this.canvas.discardActiveObject()
+    }
+    
     this.canvas.renderAll()
   }
   
@@ -47,7 +53,17 @@ export class RemoveObjectCommand extends Command {
     } else {
       this.canvas.add(this.object)
     }
-    this.canvas.setActiveObject(this.object)
+    
+    // Only restore selection if not executing within a tool chain
+    const { ToolChain } = await import('@/lib/ai/execution/ToolChain')
+    if (!ToolChain.isExecutingChain) {
+      this.canvas.setActiveObject(this.object)
+    }
+    
     this.canvas.renderAll()
+  }
+  
+  async redo(): Promise<void> {
+    await this.execute()
   }
 } 

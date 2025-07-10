@@ -1,6 +1,8 @@
 import type { Canvas, FabricObject, Image as FabricImage } from 'fabric'
 import { Image as FabricImageConstructor } from 'fabric'
 import type { SelectionManager } from '../selection'
+import { useLayerStore } from '@/store/layerStore'
+import type { CustomFabricObjectProps } from '@/types'
 
 export interface ClipboardData {
   imageData: ImageData
@@ -91,6 +93,16 @@ export class ClipboardManager {
           return
         }
         
+        // Create a new layer for the pasted content
+        const layerStore = useLayerStore.getState()
+        const pastedLayer = layerStore.addLayer({
+          name: 'Pasted Layer',
+          type: 'image'
+        })
+        
+        // Generate unique ID for the pasted object
+        const pasteId = `paste_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+        
         // Position at the original location or center of viewport
         const zoom = this.canvas.getZoom()
         const vpt = this.canvas.viewportTransform
@@ -107,10 +119,23 @@ export class ClipboardManager {
           })
         }
         
+        // Set layer association
+        const imgWithProps = fabricImg as FabricImage & CustomFabricObjectProps
+        imgWithProps.id = pasteId
+        imgWithProps.layerId = pastedLayer.id
+        
         // Add to canvas
         this.canvas.add(fabricImg)
         this.canvas.setActiveObject(fabricImg)
+        
+        // Update layer with object ID
+        layerStore.updateLayer(pastedLayer.id, {
+          objectIds: [pasteId]
+        })
+        
         this.canvas.renderAll()
+        
+        console.log('[ClipboardManager] Pasted content on new layer:', pastedLayer.name)
         
         resolve(true)
       }).catch(() => {

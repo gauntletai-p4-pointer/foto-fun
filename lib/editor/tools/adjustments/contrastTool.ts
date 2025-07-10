@@ -2,9 +2,7 @@ import { Contrast } from 'lucide-react'
 import { TOOL_IDS } from '@/constants'
 import { BaseTool } from '../base/BaseTool'
 import { createToolState } from '../utils/toolState'
-import type { FabricObject, Image as FabricImage } from 'fabric'
 import { filters } from 'fabric'
-import { ModifyCommand } from '@/lib/editor/commands/canvas'
 
 // Define filter type
 interface ImageFilter {
@@ -64,85 +62,31 @@ class ContrastTool extends BaseTool {
   /**
    * Apply contrast adjustment to all images on canvas
    */
-  private applyContrast(adjustment: number): void {
-    if (!this.canvas) return
-    
-    this.state.set('adjustment', adjustment)
-    
-    // Check for active selection first
-    const activeObjects = this.canvas.getActiveObjects()
-    const hasSelection = activeObjects.length > 0
-    
-    // Get target images
-    let images: FabricImage[]
-    if (hasSelection) {
-      // Filter selected objects for images only
-      images = activeObjects.filter(obj => obj.type === 'image') as FabricImage[]
-    } else {
-      // Get all images on canvas
-      const objects = this.canvas.getObjects()
-      images = objects.filter(obj => obj.type === 'image') as FabricImage[]
-    }
-    
-    if (images.length === 0) {
-      console.warn(`No images found ${hasSelection ? 'in selection' : 'on canvas'} to adjust contrast`)
+  private applyContrast(contrast: number): void {
+    if (!this.canvas || this.state.get('isAdjusting')) {
+      console.error('[ContrastTool] No canvas available or already applying!')
       return
     }
     
-    console.log(`[ContrastTool] Adjusting contrast of ${images.length} image(s) - ${hasSelection ? 'selected only' : 'all images'}`)
-    
-    // Apply contrast filter to each image
-    images.forEach(img => {
-      // Store original filters if not already stored
-      const imgId = (img as FabricObject & { id?: string }).id || img.toString()
-      if (!this.state.get('previousFilters').has(imgId)) {
-        this.state.get('previousFilters').set(imgId, img.filters ? [...img.filters] as unknown as ImageFilter[] : [])
+    this.executeWithGuard('isAdjusting', async () => {
+      // Use getTargetImages which respects selection snapshot
+      const images = this.getTargetImages()
+      
+      if (images.length === 0) {
+        console.warn('[ContrastTool] No images found to adjust contrast')
+        return
       }
       
-      // Remove existing contrast filters
-      if (!img.filters) {
-        img.filters = []
-      } else {
-        img.filters = img.filters.filter((f) => (f as unknown as ImageFilter).type !== 'Contrast')
-      }
+      console.log(`[ContrastTool] Applying contrast ${contrast} to ${images.length} images`)
       
-      // Add new contrast filter if adjustment is not 0
-      if (adjustment !== 0) {
-        // Fabric.js contrast value is between -1 and 1
-        const contrastValue = adjustment / 100
-        
-        // Create contrast filter
-        const contrastFilter = new filters.Contrast({
-          contrast: contrastValue
-        })
-        
-        img.filters.push(contrastFilter)
-      }
-      
-      // Apply filters
-      img.applyFilters()
+      // Apply contrast filter to images
+      await this.applyImageFilters(
+        images,
+        'Contrast',
+        () => new filters.Contrast({ contrast: contrast / 100 }),
+        `Adjust contrast to ${contrast}%`
+      )
     })
-    
-    // Render canvas
-    this.canvas.renderAll()
-    
-    // Record command for undo/redo
-    if (!this.state.get('isAdjusting')) {
-      this.state.set('isAdjusting', true)
-      
-      // Create modify command for each image
-      images.forEach(img => {
-        const command = new ModifyCommand(
-          this.canvas!,
-          img as FabricObject,
-          { filters: img.filters },
-          `Adjust contrast to ${adjustment}%`
-        )
-        this.executeCommand(command)
-      })
-      
-      this.state.set('isAdjusting', false)
-    }
   }
   
   /**

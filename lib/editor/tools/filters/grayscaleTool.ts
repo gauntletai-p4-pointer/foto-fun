@@ -1,11 +1,9 @@
-import { Palette } from 'lucide-react'
-import { TOOL_IDS } from '@/constants'
-import type { Canvas } from 'fabric'
-import { FabricImage, filters } from 'fabric'
 import { BaseTool } from '../base/BaseTool'
+import { TOOL_IDS } from '@/constants'
+import { Palette } from 'lucide-react'
 import { createToolState } from '../utils/toolState'
-import { useToolOptionsStore } from '@/store/toolOptionsStore'
-import { ModifyCommand } from '@/lib/editor/commands/canvas'
+import { filters } from 'fabric'
+import type { Canvas } from 'fabric'
 
 // Define tool state
 type GrayscaleToolState = {
@@ -27,22 +25,24 @@ class GrayscaleTool extends BaseTool {
     isGrayscale: false
   })
   
-  // Required: Setup
+  // Required: Setup tool
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   protected setupTool(canvas: Canvas): void {
-    // Subscribe to tool options
+    // Subscribe to action changes
     this.subscribeToToolOptions(() => {
-      const action = this.getOptionValue('action')
+      const action = this.getOptionValue<string>('action')
       
       if (action === 'toggle') {
-        this.toggleGrayscale(canvas)
+        this.toggleGrayscale()
         // Reset the action
-        useToolOptionsStore.getState().updateOption(this.id, 'action', null)
+        this.updateOptionSafely('action', null)
       }
     })
   }
   
   // Required: Cleanup
-  protected cleanup(): void {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  protected cleanup(canvas: Canvas): void {
     // Don't reset the grayscale state - let it persist
     this.state.setState({
       isApplying: false,
@@ -50,13 +50,25 @@ class GrayscaleTool extends BaseTool {
     })
   }
   
-  private toggleGrayscale(canvas: Canvas): void {
+  // Required: Activation
+  onActivate(canvas: Canvas): void {
+    // Call parent implementation which sets up the tool
+    super.onActivate(canvas)
+  }
+  
+  private toggleGrayscale(): void {
+    if (!this.canvas) {
+      console.error('[GrayscaleTool] No canvas available!')
+      return
+    }
+    
     this.executeWithGuard('isApplying', async () => {
       const newState = !this.state.get('isGrayscale')
+      
       const images = this.getTargetImages()
       
       if (images.length === 0) {
-        console.warn('No images found to apply grayscale')
+        console.warn('[GrayscaleTool] No images found to apply grayscale')
         return
       }
       

@@ -235,7 +235,7 @@ export function Canvas() {
   return (
     <div 
       ref={containerRef}
-      className="relative flex-1 bg-content-background p-4"
+      className="relative flex-1 bg-content-background p-4 min-w-0 overflow-hidden"
       onDrop={handleDrop}
       onDragOver={handleDragOver}
     >

@@ -196,6 +196,8 @@ Be specific in your descriptions for better results. The generated image will be
       img.set({
         left: position.left,
         top: position.top,
+        originX: 'center',
+        originY: 'center',
         selectable: true,
         evented: true,
         id: imageId,
@@ -231,6 +233,10 @@ Be specific in your descriptions for better results. The generated image will be
    * Find the best position to place a new image without overlapping existing content
    */
   private findBestPosition(canvas: Canvas, img: fabric.Image, scale: number): { left: number; top: number } {
+    // Get viewport transform for accurate positioning
+    const vpt = canvas.viewportTransform || [1, 0, 0, 1, 0, 0]
+    const zoom = vpt[0] // zoom is stored in the scale components
+    
     const canvasWidth = canvas.getWidth()
     const canvasHeight = canvas.getHeight()
     const imgWidth = (img.width || 0) * scale
@@ -242,24 +248,35 @@ Be specific in your descriptions for better results. The generated image will be
     console.log('  - Canvas size:', canvasWidth, 'x', canvasHeight)
     console.log('  - Image size:', imgWidth, 'x', imgHeight)
     console.log('  - Existing objects:', existingObjects.length)
+    console.log('  - Viewport transform:', vpt)
     
-    // If no existing objects, center the image
+    // If no existing objects, center the image in the viewport
     if (existingObjects.length === 0) {
+      // Calculate the center of the visible viewport in object coordinates
+      const viewportCenterX = (canvasWidth / 2 - vpt[4]) / zoom
+      const viewportCenterY = (canvasHeight / 2 - vpt[5]) / zoom
+      
       const centerPosition = {
-        left: (canvasWidth - imgWidth) / 2,
-        top: (canvasHeight - imgHeight) / 2
+        left: viewportCenterX,
+        top: viewportCenterY
       }
-      console.log('  - No existing objects, centering:', centerPosition)
+      console.log('  - No existing objects, centering in viewport:', centerPosition)
       return centerPosition
     }
     
     // Check if a position overlaps with existing objects
-    const hasOverlap = (left: number, top: number, width: number, height: number): boolean => {
+    const hasOverlap = (centerX: number, centerY: number, width: number, height: number): boolean => {
+      // Calculate bounds from center
+      const left = centerX - width / 2
+      const top = centerY - height / 2
+      
       for (const obj of existingObjects) {
-        const objLeft = obj.left || 0
-        const objTop = obj.top || 0
+        const objCenterX = (obj.left || 0) + (obj.originX === 'center' ? 0 : (obj.width || 0) * (obj.scaleX || 1) / 2)
+        const objCenterY = (obj.top || 0) + (obj.originY === 'center' ? 0 : (obj.height || 0) * (obj.scaleY || 1) / 2)
         const objWidth = (obj.width || 0) * (obj.scaleX || 1)
         const objHeight = (obj.height || 0) * (obj.scaleY || 1)
+        const objLeft = objCenterX - objWidth / 2
+        const objTop = objCenterY - objHeight / 2
         
         // Check if rectangles overlap
         const overlaps = left < objLeft + objWidth &&
@@ -268,7 +285,7 @@ Be specific in your descriptions for better results. The generated image will be
                         top + height > objTop
         
         if (overlaps) {
-          console.log(`    - Overlap detected with object at (${objLeft}, ${objTop}) size (${objWidth}, ${objHeight})`)
+          console.log(`    - Overlap detected with object at center (${objCenterX}, ${objCenterY})`)
           return true
         }
       }
@@ -279,51 +296,43 @@ Be specific in your descriptions for better results. The generated image will be
     const bounds = this.getObjectsBounds(existingObjects)
     console.log('  - Existing objects bounds:', bounds)
     
-    // Try different positions in order of preference
+    // Try common positions relative to existing content
     const positions = [
-      // Right of existing content
-      { left: bounds.right + 20, top: bounds.top, label: 'right' },
-      // Left of existing content
-      { left: bounds.left - imgWidth - 20, top: bounds.top, label: 'left' },
-      // Below existing content
-      { left: bounds.left, top: bounds.bottom + 20, label: 'below' },
-      // Above existing content
-      { left: bounds.left, top: bounds.top - imgHeight - 20, label: 'above' },
-      // Bottom right corner
-      { left: bounds.right + 20, top: bounds.bottom + 20, label: 'bottom-right' },
-      // Top right corner
-      { left: bounds.right + 20, top: bounds.top - imgHeight - 20, label: 'top-right' },
-      // Bottom left corner
-      { left: bounds.left - imgWidth - 20, top: bounds.bottom + 20, label: 'bottom-left' },
-      // Top left corner
-      { left: bounds.left - imgWidth - 20, top: bounds.top - imgHeight - 20, label: 'top-left' }
+      { left: bounds.left - imgWidth - 20, top: bounds.top, label: 'left of content' },
+      { left: bounds.right + 20, top: bounds.top, label: 'right of content' },
+      { left: bounds.left, top: bounds.top - imgHeight - 20, label: 'above content' },
+      { left: bounds.left, top: bounds.bottom + 20, label: 'below content' },
     ]
     
-    // Find the first position that fits within canvas bounds and doesn't overlap
+    console.log('  - Trying positions relative to existing content...')
     for (const pos of positions) {
+      // Convert to center coordinates
+      const centerX = pos.left + imgWidth / 2
+      const centerY = pos.top + imgHeight / 2
+      
       const withinBounds = pos.left >= 0 && 
-                           pos.top >= 0 && 
-                           pos.left + imgWidth <= canvasWidth && 
-                           pos.top + imgHeight <= canvasHeight
+                          pos.top >= 0 && 
+                          pos.left + imgWidth <= canvasWidth && 
+                          pos.top + imgHeight <= canvasHeight
       
-      const noOverlap = !hasOverlap(pos.left, pos.top, imgWidth, imgHeight)
+      const noOverlap = !hasOverlap(centerX, centerY, imgWidth, imgHeight)
       
-      console.log(`  - Testing position ${pos.label}: (${pos.left}, ${pos.top}) - bounds: ${withinBounds}, overlap: ${!noOverlap}`)
+      console.log(`  - Testing position ${pos.label}: center (${centerX}, ${centerY}) - bounds: ${withinBounds}, overlap: ${!noOverlap}`)
       
       if (withinBounds && noOverlap) {
-        console.log(`  - Found position: ${pos.label} at (${pos.left}, ${pos.top})`)
-        return { left: pos.left, top: pos.top }
+        console.log(`  - Found position: ${pos.label}`)
+        return { left: centerX, top: centerY }
       }
     }
     
-    console.log('  - No ideal position found, trying grid search...')
+    // Grid search for empty space
+    console.log('  - Grid searching for empty space...')
+    const gridSize = Math.min(imgWidth, imgHeight) / 2
     
-    // If no ideal position found, try a grid-based approach
-    const gridSize = 20
-    for (let y = 0; y <= canvasHeight - imgHeight; y += gridSize) {
-      for (let x = 0; x <= canvasWidth - imgWidth; x += gridSize) {
+    for (let y = imgHeight / 2; y <= canvasHeight - imgHeight / 2; y += gridSize) {
+      for (let x = imgWidth / 2; x <= canvasWidth - imgWidth / 2; x += gridSize) {
         if (!hasOverlap(x, y, imgWidth, imgHeight)) {
-          console.log(`  - Grid search found position at (${x}, ${y})`)
+          console.log(`  - Grid search found position at center (${x}, ${y})`)
           return { left: x, top: y }
         }
       }
@@ -331,9 +340,14 @@ Be specific in your descriptions for better results. The generated image will be
     
     // Last resort: center the image (may overlap)
     console.log('  - WARNING: Falling back to center position (may overlap)')
+    
+    // Calculate the center of the visible viewport in object coordinates
+    const viewportCenterX = (canvasWidth / 2 - vpt[4]) / zoom
+    const viewportCenterY = (canvasHeight / 2 - vpt[5]) / zoom
+    
     const fallbackPosition = {
-      left: (canvasWidth - imgWidth) / 2,
-      top: (canvasHeight - imgHeight) / 2
+      left: viewportCenterX,
+      top: viewportCenterY
     }
     console.log('  - Fallback position:', fallbackPosition)
     return fallbackPosition
@@ -353,15 +367,30 @@ Be specific in your descriptions for better results. The generated image will be
     let maxBottom = -Infinity
     
     for (const obj of objects) {
-      const left = obj.left || 0
-      const top = obj.top || 0
       const width = (obj.width || 0) * (obj.scaleX || 1)
       const height = (obj.height || 0) * (obj.scaleY || 1)
       
-      minLeft = Math.min(minLeft, left)
-      minTop = Math.min(minTop, top)
-      maxRight = Math.max(maxRight, left + width)
-      maxBottom = Math.max(maxBottom, top + height)
+      // Calculate actual position based on origin
+      let actualLeft = obj.left || 0
+      let actualTop = obj.top || 0
+      
+      // Adjust for origin
+      if (obj.originX === 'center') {
+        actualLeft -= width / 2
+      } else if (obj.originX === 'right') {
+        actualLeft -= width
+      }
+      
+      if (obj.originY === 'center') {
+        actualTop -= height / 2
+      } else if (obj.originY === 'bottom') {
+        actualTop -= height
+      }
+      
+      minLeft = Math.min(minLeft, actualLeft)
+      minTop = Math.min(minTop, actualTop)
+      maxRight = Math.max(maxRight, actualLeft + width)
+      maxBottom = Math.max(maxBottom, actualTop + height)
     }
     
     return {

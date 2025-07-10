@@ -1,27 +1,34 @@
-import { Command } from '../base'
 import type { Canvas, FabricObject } from 'fabric'
+import { Command } from '../base/Command'
+import { useLayerStore } from '@/store/layerStore'
+import type { CustomFabricObjectProps } from '@/types'
 
-/**
- * Command to add an object to the canvas
- */
 export class AddObjectCommand extends Command {
-  private canvas: Canvas
-  private object: FabricObject
-  private layerId?: string
-  
-  constructor(canvas: Canvas, object: FabricObject, layerId?: string) {
-    super(`Add ${object.type || 'object'}`)
-    this.canvas = canvas
-    this.object = object
-    this.layerId = layerId
+  constructor(
+    private canvas: Canvas,
+    private object: FabricObject,
+    private layerId?: string
+  ) {
+    super('Add object')
   }
   
   async execute(): Promise<void> {
-    // Check if object is already on canvas before adding
-    if (!this.canvas.contains(this.object)) {
-      this.canvas.add(this.object)
+    // Add to specific layer if provided
+    if (this.layerId) {
+      const objWithProps = this.object as FabricObject & CustomFabricObjectProps
+      objWithProps.layerId = this.layerId
     }
-    this.canvas.setActiveObject(this.object)
+    
+    // Add to active layer - this will also add to canvas
+    const layerStore = useLayerStore.getState()
+    layerStore.addObjectToActiveLayer(this.object)
+    
+    // Only set as active if not executing within a tool chain
+    const { ToolChain } = await import('@/lib/ai/execution/ToolChain')
+    if (!ToolChain.isExecutingChain) {
+      this.canvas.setActiveObject(this.object)
+    }
+    
     this.canvas.renderAll()
   }
   
@@ -32,9 +39,14 @@ export class AddObjectCommand extends Command {
   }
   
   async redo(): Promise<void> {
-    // Re-add the object
     this.canvas.add(this.object)
-    this.canvas.setActiveObject(this.object)
+    
+    // Only set as active if not executing within a tool chain
+    const { ToolChain } = await import('@/lib/ai/execution/ToolChain')
+    if (!ToolChain.isExecutingChain) {
+      this.canvas.setActiveObject(this.object)
+    }
+    
     this.canvas.renderAll()
   }
 } 

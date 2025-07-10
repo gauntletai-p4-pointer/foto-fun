@@ -3,6 +3,7 @@ import { adapterRegistry, autoDiscoverAdapters } from '@/lib/ai/adapters/registr
 import { generateObject } from 'ai'
 import { z } from 'zod'
 import { openai } from '@/lib/ai/providers'
+import type { Canvas } from 'fabric'
 
 // Route analysis schema (copied from MasterRoutingAgent)
 const routeAnalysisSchema = z.object({
@@ -117,7 +118,18 @@ Be precise with percentage values when specified.`
           renderAll: () => console.log('Mock renderAll called')
         }
         
-        const executionResult = await saturationAdapter.execute(params, { canvas: mockCanvas as any })
+        // Create a proper CanvasContext for the adapter
+        const canvasContext = {
+          canvas: mockCanvas as unknown as Canvas,
+          targetImages: [], // No images in mock canvas
+          targetingMode: 'all-images' as const,
+          dimensions: {
+            width: 800,
+            height: 600
+          }
+        }
+        
+        const executionResult = await saturationAdapter.execute(params, canvasContext)
         console.log('✅ Direct execution result:', executionResult)
         
         return NextResponse.json({
@@ -168,8 +180,20 @@ Be precise with percentage values when specified.`
    }
 }
 
-export async function GET(req: NextRequest) {
-  return handleDebugSaturation("Increase the saturation by 25% to make colors more vibrant")
+export async function GET() {
+  try {
+    return handleDebugSaturation("Increase the saturation by 25% to make colors more vibrant")
+  } catch (error) {
+    console.error('❌ Error in debug-saturation:', error)
+    return NextResponse.json(
+      { 
+        error: 'Failed to debug saturation', 
+        details: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined
+      },
+      { status: 500 }
+    )
+  }
 }
 
 export async function POST(req: NextRequest) {
@@ -178,8 +202,12 @@ export async function POST(req: NextRequest) {
     let requestBody: { request?: string } = {}
     try {
       requestBody = await req.json()
-    } catch (jsonError) {
-      console.log('No JSON body provided, using default request')
+    } catch (error) {
+      console.error('[Debug] Error processing request:', error)
+      return NextResponse.json(
+        { error: 'Failed to process request' },
+        { status: 500 }
+      )
     }
     
     const { request = "Increase the saturation by 25% to make colors more vibrant" } = requestBody

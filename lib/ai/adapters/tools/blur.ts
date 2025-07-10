@@ -62,23 +62,17 @@ Range: 0 (no blur) to 50 (maximum blur)`
         throw new Error('No images found to blur. Please load an image or select images first.')
       }
       
-      // Activate the blur tool first
-      const { useToolStore } = await import('@/store/toolStore')
-      useToolStore.getState().setActiveTool(this.tool.id)
+      // Create a selection snapshot from the target images
+      const { SelectionSnapshotFactory } = await import('@/lib/ai/execution/SelectionSnapshot')
+      const selectionSnapshot = SelectionSnapshotFactory.fromObjects(images)
       
-      // Small delay to ensure tool is activated and subscribed
-      await new Promise(resolve => setTimeout(resolve, 50))
-      
-      // Get the blur tool options and update them
-      const { useToolOptionsStore } = await import('@/store/toolOptionsStore')
-      useToolOptionsStore.getState().updateOption(this.tool.id, 'blur', params.amount)
+      // Apply the blur using the base class helper with selection snapshot
+      await this.applyToolOperation(this.tool.id, 'amount', params.amount, context.canvas, selectionSnapshot)
       
       return {
         success: true,
         amount: params.amount,
-        message: params.amount > 0 
-          ? `Applied ${params.amount}% blur to ${images.length} image(s)`
-          : `Removed blur from ${images.length} image(s)`,
+        message: `Applied ${params.amount}% blur to ${images.length} image(s)`,
         targetingMode: context.targetingMode
       }
     } catch (error) {

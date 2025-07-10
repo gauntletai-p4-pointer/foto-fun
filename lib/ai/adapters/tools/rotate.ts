@@ -64,9 +64,19 @@ Range: -360 to +360 degrees`
         throw new Error('No images found to rotate. Please load an image or select images first.')
       }
       
+      // Create a selection snapshot from the target images
+      const { SelectionSnapshotFactory } = await import('@/lib/ai/execution/SelectionSnapshot')
+      const selectionSnapshot = SelectionSnapshotFactory.fromObjects(images)
+      
       // Activate the rotate tool first
       const { useToolStore } = await import('@/store/toolStore')
       useToolStore.getState().setActiveTool(this.tool.id)
+      
+      // Set selection snapshot on the tool
+      const tool = useToolStore.getState().getTool(this.tool.id)
+      if (tool && 'setSelectionSnapshot' in tool && typeof tool.setSelectionSnapshot === 'function') {
+        tool.setSelectionSnapshot(selectionSnapshot)
+      }
       
       // Small delay to ensure tool is activated and subscribed
       await new Promise(resolve => setTimeout(resolve, 50))
@@ -77,9 +87,16 @@ Range: -360 to +360 degrees`
         this.tool.resetForAICall()
       }
       
-      // Get the rotate tool options and update them
-      const { useToolOptionsStore } = await import('@/store/toolOptionsStore')
-      useToolOptionsStore.getState().updateOption(this.tool.id, 'angle', params.angle)
+      try {
+        // Get the rotate tool options and update them
+        const { useToolOptionsStore } = await import('@/store/toolOptionsStore')
+        useToolOptionsStore.getState().updateOption(this.tool.id, 'angle', params.angle)
+      } finally {
+        // Clear selection snapshot
+        if (tool && 'setSelectionSnapshot' in tool && typeof tool.setSelectionSnapshot === 'function') {
+          tool.setSelectionSnapshot(null)
+        }
+      }
       
       return {
         success: true,

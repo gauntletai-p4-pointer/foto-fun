@@ -71,6 +71,13 @@ export class ModifyCommand extends Command {
       imageObject.applyFilters()
     }
     
+    // Update object coordinates if position or transformation properties changed
+    const transformProps = ['left', 'top', 'angle', 'scaleX', 'scaleY', 'skewX', 'skewY', 'flipX', 'flipY', 'width', 'height']
+    const hasTransformChange = Object.keys(this.newProperties).some(key => transformProps.includes(key))
+    if (hasTransformChange) {
+      this.object.setCoords()
+    }
+    
     this.canvas.renderAll()
   }
   
@@ -83,6 +90,13 @@ export class ModifyCommand extends Command {
       imageObject.applyFilters()
     }
     
+    // Update object coordinates if position or transformation properties changed
+    const transformProps = ['left', 'top', 'angle', 'scaleX', 'scaleY', 'skewX', 'skewY', 'flipX', 'flipY', 'width', 'height']
+    const hasTransformChange = Object.keys(this.oldProperties).some(key => transformProps.includes(key))
+    if (hasTransformChange) {
+      this.object.setCoords()
+    }
+    
     this.canvas.renderAll()
   }
   
@@ -93,6 +107,13 @@ export class ModifyCommand extends Command {
     if ('filters' in this.newProperties && 'applyFilters' in this.object) {
       const imageObject = this.object as FabricObject & { applyFilters: () => void }
       imageObject.applyFilters()
+    }
+    
+    // Update object coordinates if position or transformation properties changed
+    const transformProps = ['left', 'top', 'angle', 'scaleX', 'scaleY', 'skewX', 'skewY', 'flipX', 'flipY', 'width', 'height']
+    const hasTransformChange = Object.keys(this.newProperties).some(key => transformProps.includes(key))
+    if (hasTransformChange) {
+      this.object.setCoords()
     }
     
     this.canvas.renderAll()

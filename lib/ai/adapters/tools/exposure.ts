@@ -2,15 +2,7 @@ import { z } from 'zod'
 import { BaseToolAdapter } from '../base'
 import { exposureTool } from '@/lib/editor/tools/adjustments/exposureTool'
 import type { Canvas } from 'fabric'
-import type { Image as FabricImage } from 'fabric'
-import { filters } from 'fabric'
 import type { CanvasContext } from '@/lib/ai/tools/canvas-bridge'
-
-// Extended type for FabricImage with filters
-type FabricImageWithFilters = FabricImage & {
-  filters?: unknown[]
-  applyFilters(): void
-}
 
 // Define parameter schema
 const exposureParameters = z.object({
@@ -29,13 +21,6 @@ interface ExposureOutput {
   affectedImages: number
   message: string
   targetingMode: 'selection' | 'all-images'
-}
-
-// Define filter type
-interface ImageFilter {
-  type?: string
-  isExposure?: boolean
-  [key: string]: unknown
 }
 
 // Create adapter class
@@ -80,16 +65,8 @@ Range: -100 (very dark) to +100 (very bright)`
   async execute(params: ExposureInput, context: CanvasContext): Promise<ExposureOutput> {
     console.log('[ExposureToolAdapter] ===== EXECUTE CALLED =====')
     console.log('[ExposureToolAdapter] Execute called with params:', params)
-    console.log('[ExposureToolAdapter] Params type:', typeof params)
-    console.log('[ExposureToolAdapter] Params keys:', Object.keys(params))
     console.log('[ExposureToolAdapter] Adjustment value:', params.adjustment)
     console.log('[ExposureToolAdapter] Targeting mode:', context.targetingMode)
-    
-    const canvas = context.canvas
-    
-    if (!canvas) {
-      throw new Error('Canvas is required but not provided in context')
-    }
     
     // Use pre-filtered target images from enhanced context
     const images = context.targetImages
@@ -101,68 +78,12 @@ Range: -100 (very dark) to +100 (very bright)`
       throw new Error('No images found to adjust exposure. Please load an image or select images first.')
     }
     
-    // Apply exposure to target images only
-    images.forEach((img, index) => {
-      console.log(`[ExposureToolAdapter] Processing image ${index + 1}/${images.length}`)
-      
-      const imageWithFilters = img as FabricImageWithFilters
-      
-      console.log(`  - Before filters:`, imageWithFilters.filters?.length || 0, 'filters')
-      
-      // Remove existing exposure filters
-      if (!imageWithFilters.filters) {
-        imageWithFilters.filters = []
-      } else {
-        const beforeCount = imageWithFilters.filters.length
-        imageWithFilters.filters = imageWithFilters.filters.filter((f: unknown) => {
-          const filter = f as unknown as ImageFilter
-          const isExposureFilter = f instanceof filters.Brightness && filter.isExposure
-          console.log(`    - Checking filter, isExposure: ${isExposureFilter}`)
-          return !isExposureFilter
-        })
-        const afterCount = imageWithFilters.filters.length
-        console.log(`    - Removed ${beforeCount - afterCount} existing exposure filters`)
-      }
-      
-      // Add new exposure filter if adjustment is not 0
-      if (params.adjustment !== 0) {
-        // Exposure typically has a more dramatic effect than brightness
-        // Convert -100 to +100 range to a more exponential curve
-        const exposureValue = params.adjustment > 0 
-          ? params.adjustment * 0.015  // Positive exposure brightens more dramatically
-          : params.adjustment * 0.01   // Negative exposure darkens less dramatically
-        
-        console.log(`    - Converting ${params.adjustment}% to ${exposureValue} brightness value`)
-        
-        const exposureFilter = new filters.Brightness({
-          brightness: exposureValue
-        })
-        
-        // Mark as exposure filter for identification
-        ;(exposureFilter as unknown as ImageFilter).isExposure = true
-        
-        console.log(`    - Created exposure filter:`, exposureFilter)
-        console.log(`    - Filter marked as exposure: ${(exposureFilter as unknown as ImageFilter).isExposure}`)
-        
-        imageWithFilters.filters.push(exposureFilter)
-        console.log(`    - Added filter, total filters now: ${imageWithFilters.filters.length}`)
-      }
-      
-      // Apply filters
-      console.log(`    - Applying filters to image ${index + 1}`)
-      imageWithFilters.applyFilters()
-      console.log(`    - Filters applied successfully`)
-      
-      // Log all filters for debugging
-      imageWithFilters.filters.forEach((filter, i) => {
-        const filterType = filter.constructor.name
-        const isExposure = (filter as unknown as ImageFilter).isExposure
-        console.log(`      Filter ${i}: ${filterType} (isExposure: ${isExposure})`)
-      })
-    })
+    // Create a selection snapshot from the target images
+    const { SelectionSnapshotFactory } = await import('@/lib/ai/execution/SelectionSnapshot')
+    const selectionSnapshot = SelectionSnapshotFactory.fromObjects(images)
     
-    // Render the canvas to show changes
-    canvas.renderAll()
+    // Apply the exposure adjustment using the base class helper with selection snapshot
+    await this.applyToolOperation(this.tool.id, 'adjustment', params.adjustment, context.canvas, selectionSnapshot)
     
     console.log('[ExposureToolAdapter] Exposure adjustment applied successfully')
     console.log('[ExposureToolAdapter] Final result: adjustment =', params.adjustment, '%')

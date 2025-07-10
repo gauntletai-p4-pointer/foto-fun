@@ -1,10 +1,9 @@
 import { Thermometer } from 'lucide-react'
 import { TOOL_IDS } from '@/constants'
-import type { Canvas, Image, FabricObject } from 'fabric'
+import type { Canvas, FabricObject } from 'fabric'
 import { BaseTool } from '../base/BaseTool'
 import { createToolState } from '../utils/toolState'
-import { useToolOptionsStore } from '@/store/toolOptionsStore'
-import { ModifyCommand } from '@/lib/editor/commands/canvas'
+import { ModifyCommand } from '@/lib/editor/commands/canvas/ModifyCommand'
 import * as fabric from 'fabric'
 
 // Define tool state
@@ -56,16 +55,24 @@ class ColorTemperatureTool extends BaseTool {
     })
   }
   
+  // Required: Activation
+  onActivate(canvas: Canvas): void {
+    // Call parent implementation which sets up the tool
+    super.onActivate(canvas)
+  }
+  
   private applyColorTemperature(canvas: Canvas, value: number): void {
     if (this.state.get('isApplying')) return
     
     this.state.set('isApplying', true)
     
     try {
-      const objects = canvas.getObjects()
-      const images = objects.filter((obj): obj is Image => obj.type === 'image')
+      const images = this.getTargetImages()
       
-      if (images.length === 0) return
+      if (images.length === 0) {
+        console.warn('No images found to adjust color temperature')
+        return
+      }
       
       images.forEach(img => {
         if (!img.filters) {

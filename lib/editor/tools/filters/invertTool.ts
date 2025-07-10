@@ -1,11 +1,9 @@
-import { Contrast } from 'lucide-react'
-import { TOOL_IDS } from '@/constants'
-import type { Canvas } from 'fabric'
-import { FabricImage, filters } from 'fabric'
 import { BaseTool } from '../base/BaseTool'
+import { TOOL_IDS } from '@/constants'
+import { Contrast } from 'lucide-react'
 import { createToolState } from '../utils/toolState'
-import { useToolOptionsStore } from '@/store/toolOptionsStore'
-import { ModifyCommand } from '@/lib/editor/commands/canvas'
+import { filters } from 'fabric'
+import type { Canvas } from 'fabric'
 
 // Define tool state
 type InvertToolState = {
@@ -27,22 +25,24 @@ class InvertTool extends BaseTool {
     isInverted: false
   })
   
-  // Required: Setup
+  // Required: Setup tool
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   protected setupTool(canvas: Canvas): void {
-    // Subscribe to tool options
+    // Subscribe to action changes
     this.subscribeToToolOptions(() => {
-      const action = this.getOptionValue('action')
+      const action = this.getOptionValue<string>('action')
       
       if (action === 'toggle') {
-        this.toggleInvert(canvas)
+        this.toggleInvert()
         // Reset the action
-        useToolOptionsStore.getState().updateOption(this.id, 'action', null)
+        this.updateOptionSafely('action', null)
       }
     })
   }
   
   // Required: Cleanup
-  protected cleanup(): void {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  protected cleanup(canvas: Canvas): void {
     // Don't reset the invert state - let it persist
     this.state.setState({
       isApplying: false,
@@ -50,13 +50,19 @@ class InvertTool extends BaseTool {
     })
   }
   
-  private toggleInvert(canvas: Canvas): void {
+  private toggleInvert(): void {
+    if (!this.canvas) {
+      console.error('[InvertTool] No canvas available!')
+      return
+    }
+    
     this.executeWithGuard('isApplying', async () => {
       const newState = !this.state.get('isInverted')
+      
       const images = this.getTargetImages()
       
       if (images.length === 0) {
-        console.warn('No images found to invert')
+        console.warn('[InvertTool] No images found to apply invert')
         return
       }
       
@@ -70,6 +76,12 @@ class InvertTool extends BaseTool {
       
       this.state.set('isInverted', newState)
     })
+  }
+  
+  // Required: Activation
+  onActivate(canvas: Canvas): void {
+    // Call parent implementation which sets up the tool
+    super.onActivate(canvas)
   }
   
   // Remove duplicate getOptionValue method - use the one from BaseTool

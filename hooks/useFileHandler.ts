@@ -57,15 +57,29 @@ export function useFileHandler(mode: 'open' | 'insert' = 'open') {
     e.preventDefault()
     e.stopPropagation()
     
-    const file = e.dataTransfer.files[0]
-    if (file) {
-      handleFile(file)
+    // Handle multiple files if dropped
+    const files = Array.from(e.dataTransfer.files)
+    const imageFiles = files.filter(file => file.type.startsWith('image/'))
+    
+    if (imageFiles.length === 0) {
+      alert('Please drop image files only')
+      return
     }
+    
+    // Process each file
+    imageFiles.forEach(async (file, index) => {
+      // Add a small delay between files to ensure proper layer creation
+      setTimeout(() => {
+        handleFile(file)
+      }, index * 100)
+    })
   }, [handleFile])
   
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault()
     e.stopPropagation()
+    // Set drop effect to indicate this is a valid drop target
+    e.dataTransfer.dropEffect = 'copy'
   }, [])
   
   const triggerFileInput = useCallback(() => {

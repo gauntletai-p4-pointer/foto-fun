@@ -1,7 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { adapterRegistry, autoDiscoverAdapters } from '@/lib/ai/adapters/registry'
 
-export async function GET(req: NextRequest) {
+export async function GET() {
   try {
     // Initialize adapters
     await autoDiscoverAdapters()

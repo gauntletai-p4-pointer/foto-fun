@@ -1,10 +1,9 @@
-import { Paintbrush } from 'lucide-react'
+import { Palette } from 'lucide-react'
 import { TOOL_IDS } from '@/constants'
 import { BaseTool } from '../base/BaseTool'
 import { createToolState } from '../utils/toolState'
-import type { FabricObject, Image as FabricImage } from 'fabric'
-import { filters } from 'fabric'
-import { ModifyCommand } from '@/lib/editor/commands/canvas'
+import * as fabric from 'fabric'
+import type { Canvas } from 'fabric'
 
 // Define filter type
 interface ImageFilter {
@@ -29,7 +28,7 @@ class HueTool extends BaseTool {
   // Tool identification
   id = TOOL_IDS.HUE
   name = 'Hue'
-  icon = Paintbrush
+  icon = Palette
   cursor = 'default'
   shortcut = undefined // No default shortcut
   
@@ -87,7 +86,7 @@ class HueTool extends BaseTool {
             // Fabric.js HueRotation expects rotation in radians (0 to 2π)
             // Convert degrees to radians
             const rotationRadians = (rotation * Math.PI) / 180
-            return new filters.HueRotation({
+            return new fabric.filters.HueRotation({
               rotation: rotationRadians
             })
           }
@@ -113,6 +112,14 @@ class HueTool extends BaseTool {
       isAdjusting: false,
       previousFilters: new Map()
     })
+  }
+  
+  /**
+   * Required: Activation
+   */
+  onActivate(canvas: Canvas): void {
+    // Call parent implementation which sets up the tool
+    super.onActivate(canvas)
   }
 }
 

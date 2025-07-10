@@ -1,10 +1,8 @@
-import { Palette } from 'lucide-react'
+import { Droplet } from 'lucide-react'
 import { TOOL_IDS } from '@/constants'
 import { BaseTool } from '../base/BaseTool'
 import { createToolState } from '../utils/toolState'
-import type { FabricObject, Image as FabricImage } from 'fabric'
-import { filters } from 'fabric'
-import { ModifyCommand } from '@/lib/editor/commands/canvas'
+import * as fabric from 'fabric'
 
 // Define filter type
 interface ImageFilter {
@@ -29,7 +27,7 @@ class SaturationTool extends BaseTool {
   // Tool identification
   id = TOOL_IDS.SATURATION
   name = 'Saturation'
-  icon = Palette
+  icon = Droplet
   cursor = 'default'
   shortcut = undefined // No default shortcut
   
@@ -86,7 +84,7 @@ class SaturationTool extends BaseTool {
           if (adjustment !== 0) {
             // Fabric.js saturation value is between -1 and 1
             const saturationValue = adjustment / 100
-            return new filters.Saturation({
+            return new fabric.filters.Saturation({
               saturation: saturationValue
             })
           }

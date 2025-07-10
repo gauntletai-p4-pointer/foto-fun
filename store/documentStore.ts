@@ -230,10 +230,19 @@ export const useDocumentStore = create<DocumentStore>((set, get) => ({
               console.log('[DocumentStore] Generated image ID:', imageId)
               
               // Center the image in the viewport
-              const viewportCenter = canvasStore.fabricCanvas!.getVpCenter()
+              // Get current viewport transform to calculate visible center
+              const vpt = canvasStore.fabricCanvas!.viewportTransform || [1, 0, 0, 1, 0, 0]
+              const zoom = vpt[0] // zoom is stored in the scale components
+              
+              // Calculate the center of the visible viewport in object coordinates
+              const viewportCenterX = (canvasStore.fabricCanvas!.getWidth() / 2 - vpt[4]) / zoom
+              const viewportCenterY = (canvasStore.fabricCanvas!.getHeight() / 2 - vpt[5]) / zoom
+              
               fabricImg.set({
-                left: viewportCenter.x - (fabricImg.width || 0) / 2,
-                top: viewportCenter.y - (fabricImg.height || 0) / 2,
+                left: viewportCenterX,
+                top: viewportCenterY,
+                originX: 'center',
+                originY: 'center',
                 selectable: true,
                 evented: true,
                 id: imageId,

@@ -47,11 +47,29 @@ Common grayscale requests:
   
   async execute(params: GrayscaleInput, context: CanvasContext): Promise<GrayscaleOutput> {
     return this.executeWithCommonPatterns(params, context, async (images) => {
+      // Create a selection snapshot from the target images
+      const { SelectionSnapshotFactory } = await import('@/lib/ai/execution/SelectionSnapshot')
+      const selectionSnapshot = SelectionSnapshotFactory.fromObjects(images)
+      
       // Activate the grayscale tool
       await this.activateTool()
       
-      // Trigger the toggle action
-      await this.updateToolOption('action', 'toggle')
+      // Set selection snapshot on the tool
+      const { useToolStore } = await import('@/store/toolStore')
+      const tool = useToolStore.getState().getTool(this.tool.id)
+      if (tool && 'setSelectionSnapshot' in tool && typeof tool.setSelectionSnapshot === 'function') {
+        tool.setSelectionSnapshot(selectionSnapshot)
+      }
+      
+      try {
+        // Trigger the toggle action
+        await this.updateToolOption('action', 'toggle')
+      } finally {
+        // Clear selection snapshot
+        if (tool && 'setSelectionSnapshot' in tool && typeof tool.setSelectionSnapshot === 'function') {
+          tool.setSelectionSnapshot(null)
+        }
+      }
       
       return {
         enabled: params.enable,

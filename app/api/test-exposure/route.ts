@@ -1,7 +1,8 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { adapterRegistry, autoDiscoverAdapters } from '@/lib/ai/adapters/registry'
+import type { Canvas } from 'fabric'
 
-export async function POST(req: NextRequest) {
+export async function GET() {
   try {
     console.log('=== TEST EXPOSURE ENDPOINT ===')
     
@@ -36,8 +37,18 @@ export async function POST(req: NextRequest) {
     
     console.log('Executing exposure adapter with mock canvas...')
     
-    // Execute the adapter
-    const result = await exposureAdapter.execute(testParams, { canvas: mockCanvas as any })
+    // Create a proper CanvasContext for the adapter
+    const canvasContext = {
+      canvas: mockCanvas as unknown as Canvas,
+      targetImages: [], // No images in mock canvas
+      targetingMode: 'all-images' as const,
+      dimensions: {
+        width: 800,
+        height: 600
+      }
+    }
+    
+    const result = await exposureAdapter.execute(testParams, canvasContext)
     
     console.log('Exposure adapter result:', result)
     

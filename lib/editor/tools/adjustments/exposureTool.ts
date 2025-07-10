@@ -1,10 +1,9 @@
-import { Sliders } from 'lucide-react'
+import { Sun } from 'lucide-react'
 import { TOOL_IDS } from '@/constants'
-import type { Canvas, FabricObject, Image } from 'fabric'
+import type { Canvas, FabricObject } from 'fabric'
 import { BaseTool } from '../base/BaseTool'
 import { createToolState } from '../utils/toolState'
-import { useToolOptionsStore } from '@/store/toolOptionsStore'
-import { ModifyCommand } from '@/lib/editor/commands/canvas'
+import { ModifyCommand } from '@/lib/editor/commands/canvas/ModifyCommand'
 import * as fabric from 'fabric'
 import type { ICommand } from '@/lib/editor/commands/base'
 
@@ -19,7 +18,7 @@ class ExposureTool extends BaseTool {
   // Required properties
   id = TOOL_IDS.EXPOSURE
   name = 'Exposure'
-  icon = Sliders
+  icon = Sun
   cursor = 'default'
   shortcut = 'X'
   

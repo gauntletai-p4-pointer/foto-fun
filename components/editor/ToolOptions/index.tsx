@@ -66,7 +66,7 @@ export function ToolOptions() {
         return (
           <OptionCheckbox
             key={key}
-            option={option}
+            option={option as ToolOption<boolean>}
             onChange={(value) => handleOptionChange(option.id, value)}
           />
         )
@@ -75,7 +75,7 @@ export function ToolOptions() {
         return (
           <OptionNumber
             key={key}
-            option={option}
+            option={option as ToolOption<number>}
             onChange={(value) => handleOptionChange(option.id, value)}
           />
         )
@@ -84,7 +84,7 @@ export function ToolOptions() {
         return (
           <OptionButtonGroup
             key={key}
-            option={option}
+            option={option as ToolOption<string>}
             onChange={(value) => handleOptionChange(option.id, value)}
           />
         )
@@ -93,7 +93,7 @@ export function ToolOptions() {
         return (
           <OptionSlider
             key={key}
-            option={option}
+            option={option as ToolOption<number>}
             onChange={(value) => handleOptionChange(option.id, value)}
           />
         )
@@ -102,7 +102,7 @@ export function ToolOptions() {
         return (
           <OptionColor
             key={key}
-            option={option}
+            option={option as ToolOption<string>}
             onChange={(value) => handleOptionChange(option.id, value)}
           />
         )
@@ -111,7 +111,7 @@ export function ToolOptions() {
         return (
           <OptionDropdown
             key={key}
-            option={option}
+            option={option as ToolOption<string>}
             onChange={(value) => handleOptionChange(option.id, value)}
           />
         )

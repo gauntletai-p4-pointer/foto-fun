@@ -3,12 +3,12 @@ import { TOOL_IDS } from '@/constants'
 
 export type OptionType = 'slider' | 'checkbox' | 'dropdown' | 'number' | 'button-group' | 'color'
 
-export interface ToolOption<T = any> {
+export interface ToolOption<T = unknown> {
   id: string
   type: OptionType
   label: string
   value: T
-  props?: Record<string, any> // Type-specific props (min, max, options, etc.)
+  props?: Record<string, unknown> // Type-specific props (min, max, options, etc.)
 }
 
 export interface ToolOptionsConfig {
@@ -20,9 +20,9 @@ interface ToolOptionsStore {
   options: Map<string, ToolOptionsConfig>
   
   registerToolOptions: (config: ToolOptionsConfig) => void
-  updateOption: (toolId: string, optionId: string, value: any) => void
+  updateOption: (toolId: string, optionId: string, value: unknown) => void
   getToolOptions: (toolId: string) => ToolOption[] | undefined
-  getOptionValue: <T = any>(toolId: string, optionId: string) => T | undefined
+  getOptionValue: <T = unknown>(toolId: string, optionId: string) => T | undefined
 }
 
 export const useToolOptionsStore = create<ToolOptionsStore>((set, get) => ({
@@ -56,7 +56,7 @@ export const useToolOptionsStore = create<ToolOptionsStore>((set, get) => ({
     return get().options.get(toolId)?.options
   },
   
-  getOptionValue: <T = any>(toolId: string, optionId: string): T | undefined => {
+  getOptionValue: <T = unknown>(toolId: string, optionId: string): T | undefined => {
     const options = get().options.get(toolId)?.options
     return options?.find(opt => opt.id === optionId)?.value as T
   }
@@ -510,9 +510,9 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         value: null,
         props: {
           options: [
-            { value: -90, label: '⟲ 90°' },
-            { value: 90, label: '⟳ 90°' },
-            { value: 180, label: '↻ 180°' }
+            { value: -90, label: '↺ 90°' },
+            { value: 90, label: '↻ 90°' },
+            { value: 180, label: '⟲ 180°' }
           ]
         }
       }
@@ -632,8 +632,8 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
       {
         id: 'intensity',
         type: 'slider',
-        label: 'Sepia Intensity',
-        value: 0,
+        label: 'Intensity',
+        value: 100,
         props: { min: 0, max: 100, step: 1, unit: '%' }
       }
     ]

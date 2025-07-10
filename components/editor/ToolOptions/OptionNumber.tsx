@@ -9,7 +9,11 @@ interface OptionNumberProps {
 }
 
 export function OptionNumber({ option, onChange }: OptionNumberProps) {
-  const { min, max, step, unit } = option.props || {}
+  const props = option.props || {}
+  const min = props.min as number | undefined
+  const max = props.max as number | undefined
+  const step = props.step as number | undefined
+  const unit = props.unit as string | undefined
   
   return (
     <div className="flex items-center gap-2">

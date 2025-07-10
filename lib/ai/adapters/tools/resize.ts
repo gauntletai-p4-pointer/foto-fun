@@ -74,30 +74,54 @@ NEVER ask for exact dimensions - interpret the user's intent.`
         throw new Error('No images found to resize. Please load an image or select images first.')
       }
       
-      // Get the resize tool options and update them
-      const { useToolOptionsStore } = await import('@/store/toolOptionsStore')
-      const store = useToolOptionsStore.getState()
+      // Create a selection snapshot from the target images
+      const { SelectionSnapshotFactory } = await import('@/lib/ai/execution/SelectionSnapshot')
+      const selectionSnapshot = SelectionSnapshotFactory.fromObjects(images)
       
-      // Set the mode
-      store.updateOption(this.tool.id, 'mode', params.mode)
-      store.updateOption(this.tool.id, 'maintainAspectRatio', params.maintainAspectRatio)
+      // Activate the resize tool first
+      const { useToolStore } = await import('@/store/toolStore')
+      useToolStore.getState().setActiveTool(this.tool.id)
       
-      if (params.mode === 'percentage') {
-        store.updateOption(this.tool.id, 'percentage', params.width)
-      } else {
-        // For absolute mode, update width and height
-        const currentWidth = context.canvas.getWidth()
-        const currentHeight = context.canvas.getHeight()
-        const aspectRatio = currentWidth / currentHeight
+      // Set selection snapshot on the tool
+      const tool = useToolStore.getState().getTool(this.tool.id)
+      if (tool && 'setSelectionSnapshot' in tool && typeof tool.setSelectionSnapshot === 'function') {
+        tool.setSelectionSnapshot(selectionSnapshot)
+      }
+      
+      // Small delay to ensure tool is activated and subscribed
+      await new Promise(resolve => setTimeout(resolve, 50))
+      
+      try {
+        // Get the resize tool options and update them
+        const { useToolOptionsStore } = await import('@/store/toolOptionsStore')
+        const store = useToolOptionsStore.getState()
         
-        store.updateOption(this.tool.id, 'width', params.width)
+        // Set the mode
+        store.updateOption(this.tool.id, 'mode', params.mode)
+        store.updateOption(this.tool.id, 'maintainAspectRatio', params.maintainAspectRatio)
         
-        if (params.height !== undefined) {
-          store.updateOption(this.tool.id, 'height', params.height)
-        } else if (params.maintainAspectRatio) {
-          // Calculate height based on aspect ratio
-          const calculatedHeight = Math.round(params.width / aspectRatio)
-          store.updateOption(this.tool.id, 'height', calculatedHeight)
+        if (params.mode === 'percentage') {
+          store.updateOption(this.tool.id, 'percentage', params.width)
+        } else {
+          // For absolute mode, update width and height
+          const currentWidth = context.canvas.getWidth()
+          const currentHeight = context.canvas.getHeight()
+          const aspectRatio = currentWidth / currentHeight
+          
+          store.updateOption(this.tool.id, 'width', params.width)
+          
+          if (params.height !== undefined) {
+            store.updateOption(this.tool.id, 'height', params.height)
+          } else if (params.maintainAspectRatio) {
+            // Calculate height based on aspect ratio
+            const calculatedHeight = Math.round(params.width / aspectRatio)
+            store.updateOption(this.tool.id, 'height', calculatedHeight)
+          }
+        }
+      } finally {
+        // Clear selection snapshot
+        if (tool && 'setSelectionSnapshot' in tool && typeof tool.setSelectionSnapshot === 'function') {
+          tool.setSelectionSnapshot(null)
         }
       }
       

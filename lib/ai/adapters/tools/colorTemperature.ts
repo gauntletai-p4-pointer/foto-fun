@@ -64,9 +64,12 @@ Range: -100 (very cool/blue) to +100 (very warm/orange)`
         throw new Error('No images found to adjust color temperature. Please load an image or select images first.')
       }
       
-      // Get the color temperature tool options and update them
-      const { useToolOptionsStore } = await import('@/store/toolOptionsStore')
-      useToolOptionsStore.getState().updateOption(this.tool.id, 'temperature', params.adjustment)
+      // Create a selection snapshot from the target images
+      const { SelectionSnapshotFactory } = await import('@/lib/ai/execution/SelectionSnapshot')
+      const selectionSnapshot = SelectionSnapshotFactory.fromObjects(images)
+      
+      // Apply the color temperature adjustment using the base class helper with selection snapshot
+      await this.applyToolOperation(this.tool.id, 'temperature', params.adjustment, context.canvas, selectionSnapshot)
       
       return {
         success: true,

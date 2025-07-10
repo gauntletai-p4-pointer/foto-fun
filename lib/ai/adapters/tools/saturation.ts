@@ -2,15 +2,7 @@ import { z } from 'zod'
 import { BaseToolAdapter } from '../base'
 import { saturationTool } from '@/lib/editor/tools/adjustments/saturationTool'
 import type { Canvas } from 'fabric'
-import type { Image as FabricImage } from 'fabric'
-import { filters } from 'fabric'
 import type { CanvasContext } from '@/lib/ai/tools/canvas-bridge'
-
-// Extended type for FabricImage with filters
-type FabricImageWithFilters = FabricImage & {
-  filters?: unknown[]
-  applyFilters(): void
-}
 
 // Input schema following AI SDK v5 patterns
 const saturationParameters = z.object({
@@ -29,12 +21,6 @@ interface SaturationOutput {
   newValue: number
   affectedImages: number
   targetingMode: 'selection' | 'all-images'
-}
-
-// Define filter type
-interface ImageFilter {
-  type?: string
-  [key: string]: unknown
 }
 
 /**
@@ -91,16 +77,8 @@ NEVER ask for exact values - always interpret the user's intent and choose an ap
   async execute(params: SaturationInput, context: CanvasContext): Promise<SaturationOutput> {
     console.log('[SaturationToolAdapter] ===== EXECUTE CALLED =====')
     console.log('[SaturationToolAdapter] Execute called with params:', params)
-    console.log('[SaturationToolAdapter] Params type:', typeof params)
-    console.log('[SaturationToolAdapter] Params keys:', Object.keys(params))
     console.log('[SaturationToolAdapter] Adjustment value:', params.adjustment)
     console.log('[SaturationToolAdapter] Targeting mode:', context.targetingMode)
-    
-    const canvas = context.canvas
-    
-    if (!canvas) {
-      throw new Error('Canvas is required but not provided in context')
-    }
     
     // Use pre-filtered target images from enhanced context
     const images = context.targetImages
@@ -112,44 +90,18 @@ NEVER ask for exact values - always interpret the user's intent and choose an ap
       throw new Error('No images found to adjust saturation. Please load an image or select images first.')
     }
     
-    // Store previous saturation values (simplified - just track if filters existed)
-    const previousValue = 0 // In a real implementation, we'd track the current saturation
+    // Create a selection snapshot from the target images
+    const { SelectionSnapshotFactory } = await import('@/lib/ai/execution/SelectionSnapshot')
+    const selectionSnapshot = SelectionSnapshotFactory.fromObjects(images)
     
-    // Apply saturation to target images only
-    images.forEach((img, index) => {
-      console.log(`[SaturationToolAdapter] Processing image ${index + 1}/${images.length}`)
-      
-      const imageWithFilters = img as FabricImageWithFilters
-      
-      // Remove existing saturation filters
-      if (!imageWithFilters.filters) {
-        imageWithFilters.filters = []
-      } else {
-        imageWithFilters.filters = imageWithFilters.filters.filter((f: unknown) => (f as unknown as ImageFilter).type !== 'Saturation')
-      }
-      
-      // Add new saturation filter if adjustment is not 0
-      if (params.adjustment !== 0) {
-        const saturationValue = params.adjustment / 100
-        const saturationFilter = new filters.Saturation({
-          saturation: saturationValue
-        })
-        
-        imageWithFilters.filters.push(saturationFilter)
-      }
-      
-      // Apply filters
-      imageWithFilters.applyFilters()
-    })
-    
-    // Render the canvas to show changes
-    canvas.renderAll()
+    // Apply the saturation adjustment using the base class helper with selection snapshot
+    await this.applyToolOperation(this.tool.id, 'adjustment', params.adjustment, context.canvas, selectionSnapshot)
     
     console.log('[SaturationToolAdapter] Saturation adjustment applied successfully')
     
     return {
       success: true,
-      previousValue,
+      previousValue: 0, // In a real implementation, we'd track the current saturation
       newValue: params.adjustment,
       affectedImages: images.length,
       targetingMode: context.targetingMode

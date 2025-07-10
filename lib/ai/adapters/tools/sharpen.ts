@@ -61,16 +61,33 @@ Range: 0 (no sharpening) to 50 (maximum sharpening)`
         throw new Error('No images found to sharpen. Please load an image or select images first.')
       }
       
+      // Create a selection snapshot from the target images
+      const { SelectionSnapshotFactory } = await import('@/lib/ai/execution/SelectionSnapshot')
+      const selectionSnapshot = SelectionSnapshotFactory.fromObjects(images)
+      
       // Activate the sharpen tool first
       const { useToolStore } = await import('@/store/toolStore')
       useToolStore.getState().setActiveTool(this.tool.id)
       
+      // Set selection snapshot on the tool
+      const tool = useToolStore.getState().getTool(this.tool.id)
+      if (tool && 'setSelectionSnapshot' in tool && typeof tool.setSelectionSnapshot === 'function') {
+        tool.setSelectionSnapshot(selectionSnapshot)
+      }
+      
       // Small delay to ensure tool is activated and subscribed
       await new Promise(resolve => setTimeout(resolve, 50))
       
-      // Get the sharpen tool options and update them
-      const { useToolOptionsStore } = await import('@/store/toolOptionsStore')
-      useToolOptionsStore.getState().updateOption(this.tool.id, 'sharpen', params.amount)
+      try {
+        // Get the sharpen tool options and update them
+        const { useToolOptionsStore } = await import('@/store/toolOptionsStore')
+        useToolOptionsStore.getState().updateOption(this.tool.id, 'sharpen', params.amount)
+      } finally {
+        // Clear selection snapshot
+        if (tool && 'setSelectionSnapshot' in tool && typeof tool.setSelectionSnapshot === 'function') {
+          tool.setSelectionSnapshot(null)
+        }
+      }
       
       return {
         success: true,

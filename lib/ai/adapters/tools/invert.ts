@@ -56,16 +56,33 @@ Common invert requests:
         throw new Error('No images found to invert. Please load an image or select images first.')
       }
       
+      // Create a selection snapshot from the target images
+      const { SelectionSnapshotFactory } = await import('@/lib/ai/execution/SelectionSnapshot')
+      const selectionSnapshot = SelectionSnapshotFactory.fromObjects(images)
+      
       // Activate the invert tool first
       const { useToolStore } = await import('@/store/toolStore')
       useToolStore.getState().setActiveTool(this.tool.id)
       
+      // Set selection snapshot on the tool
+      const tool = useToolStore.getState().getTool(this.tool.id)
+      if (tool && 'setSelectionSnapshot' in tool && typeof tool.setSelectionSnapshot === 'function') {
+        tool.setSelectionSnapshot(selectionSnapshot)
+      }
+      
       // Small delay to ensure tool is activated and subscribed
       await new Promise(resolve => setTimeout(resolve, 50))
       
-      // Trigger the toggle action
-      const { useToolOptionsStore } = await import('@/store/toolOptionsStore')
-      useToolOptionsStore.getState().updateOption(this.tool.id, 'action', 'toggle')
+      try {
+        // Trigger the toggle action
+        const { useToolOptionsStore } = await import('@/store/toolOptionsStore')
+        useToolOptionsStore.getState().updateOption(this.tool.id, 'action', 'toggle')
+      } finally {
+        // Clear selection snapshot
+        if (tool && 'setSelectionSnapshot' in tool && typeof tool.setSelectionSnapshot === 'function') {
+          tool.setSelectionSnapshot(null)
+        }
+      }
       
       return {
         success: true,

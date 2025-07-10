@@ -5,6 +5,7 @@ import { adapterRegistry, autoDiscoverAdapters } from '@/lib/ai/adapters/registr
 import { MasterRoutingAgent } from '@/lib/ai/agents/MasterRoutingAgent'
 import { WorkflowMemory } from '@/lib/ai/agents/WorkflowMemory'
 import type { AgentContext } from '@/lib/ai/agents/types'
+import { CanvasContextProvider } from '@/lib/ai/canvas/CanvasContext'
 import type { Canvas } from 'fabric'
 
 // Initialize on first request
@@ -18,7 +19,7 @@ async function initialize() {
 }
 
 export async function POST(req: Request) {
-  const { messages, canvasContext, aiSettings } = await req.json()
+  const { messages, canvasContext, aiSettings, approvedPlan } = await req.json()
   
   // Add useful debugging logs
   console.log('=== AI CHAT POST REQUEST ===')
@@ -26,6 +27,7 @@ export async function POST(req: Request) {
   console.log('Last message:', messages[messages.length - 1]?.content || 'No content')
   console.log('Canvas context hasContent:', canvasContext?.hasContent)
   console.log('Canvas dimensions:', canvasContext?.dimensions)
+  console.log('Has approved plan:', !!approvedPlan)
   
   // Initialize adapters
   await initialize()
@@ -34,39 +36,123 @@ export async function POST(req: Request) {
   const aiTools = adapterRegistry.getAITools()
   console.log('Available AI tools:', Object.keys(aiTools))
   
+  // Check if this is an approval response with a plan to execute
+  if (approvedPlan && messages[messages.length - 1]?.content?.toLowerCase().includes('approve')) {
+    console.log('[Agent] User approved plan, executing tools and continuing workflow')
+    
+    // Extract the original request and tool executions
+    const { toolExecutions, originalRequest } = approvedPlan
+    
+    // Return a special tool that will execute the approved plan and continue the workflow
+    return streamText({
+      model: openai('gpt-4o'),
+      messages: convertToModelMessages(messages),
+      tools: {
+        executeApprovedPlan: tool({
+          description: 'Execute the approved plan and continue the workflow',
+          inputSchema: z.object({
+            confirmation: z.string()
+          }),
+          execute: async () => {
+            return {
+              type: 'execute-approved-plan',
+              toolExecutions,
+              originalRequest,
+              message: 'Executing approved plan...',
+              iterationCount: approvedPlan.iterationCount || 1
+            }
+          }
+        }),
+        captureAndEvaluate: tool({
+          description: 'Capture canvas screenshot and evaluate if goals are met',
+          inputSchema: z.object({
+            canvasScreenshot: z.string().describe('Base64 screenshot of current canvas state'),
+            originalRequest: z.string().describe('The original user request'),
+            iterationCount: z.number().describe('Current iteration number')
+          }),
+          execute: async ({ canvasScreenshot, originalRequest, iterationCount }) => {
+            console.log('[Agent] Evaluating canvas state with vision model')
+            
+            // Use OpenAI vision to evaluate the result
+            const { generateText } = await import('ai')
+            const evaluation = await generateText({
+              model: openai('gpt-4o'),
+              messages: [
+                {
+                  role: 'user',
+                  content: [
+                    {
+                      type: 'text',
+                      text: `Evaluate if this image meets the user's request: "${originalRequest}"
+                      
+Please analyze:
+1. Has the request been fulfilled?
+2. What improvements were made?
+3. Are there any remaining issues?
+4. Rate the success from 0-1 (1 being perfect)
+
+Be specific and honest in your evaluation.`
+                    },
+                    {
+                      type: 'image',
+                      image: canvasScreenshot
+                    }
+                  ]
+                }
+              ],
+              temperature: 0.3
+            })
+            
+            const evaluationText = evaluation.text || ''
+            const successMatch = evaluationText.match(/success.*?([0-9.]+)/i)
+            const successScore = successMatch ? parseFloat(successMatch[1]) : 0.5
+            
+            return {
+              type: 'evaluation-result',
+              evaluation: evaluationText,
+              successScore,
+              goalsMet: successScore >= 0.85,
+              iterationCount,
+              shouldContinue: iterationCount < 3 && successScore < 0.85,
+              message: successScore >= 0.85 
+                ? 'Goals successfully achieved!' 
+                : `Current success: ${Math.round(successScore * 100)}%. ${iterationCount < 3 ? 'Further improvements possible.' : 'Maximum iterations reached.'}`
+            }
+          }
+        })
+      },
+      system: `The user has approved the plan. Execute the approved tools by calling executeApprovedPlan.
+      
+After execution, you should:
+1. Wait for the tools to complete
+2. Call captureAndEvaluate to analyze the results with vision
+3. Present the evaluation results to the user in a friendly way
+4. Ask if they'd like another iteration to further improve toward the original goal
+
+When presenting results:
+- Summarize what was done
+- Highlight the improvements made
+- Be honest about what could still be improved
+- Ask: "Would you like me to continue improving based on your original request: '${originalRequest}'?"
+
+Original request: ${originalRequest}
+Current iteration: ${approvedPlan.iterationCount || 1}/3`,
+    }).toUIMessageStreamResponse()
+  }
+  
   return streamText({
     model: openai('gpt-4o'),
     messages: convertToModelMessages(messages),
     tools: {
-      // Cost approval tool for external APIs
-      requestCostApproval: tool({
-        description: 'Request user approval for expensive external API operations',
-        inputSchema: z.object({
-          toolName: z.string(),
-          operation: z.string(),
-          estimatedCost: z.number(),
-          details: z.string()
-        }),
-        execute: async ({ toolName, operation, estimatedCost, details }) => {
-          return {
-            type: 'cost-approval-required',
-            toolName,
-            operation,
-            estimatedCost,
-            details,
-            message: `This operation will use ${toolName} and cost approximately $${estimatedCost.toFixed(3)}. ${details}`
-          }
-        }
-      }),
-      
       // Multi-step workflow tool
       executeAgentWorkflow: tool({
         description: 'Execute complex multi-step photo editing workflow when simple tools are not enough',
         inputSchema: z.object({
-          request: z.string().describe('The user request to execute')
+          request: z.string().describe('The user request to execute'),
+          iterationCount: z.number().optional().describe('Current iteration number (for iterative workflows)')
         }),
-        execute: async ({ request }) => {
-          return await executeMultiStepWorkflow(request, messages, canvasContext, aiSettings)
+        execute: async ({ request, iterationCount }) => {
+          return await executeMultiStepWorkflow(request, messages, canvasContext, aiSettings, iterationCount)
         }
       }),
       
@@ -75,7 +161,13 @@ export async function POST(req: Request) {
     },
     system: `You are FotoFun's AI assistant. You can help with photo editing in several ways:
 
+CANVAS STATE: ${!canvasContext?.hasContent ? '⚠️ The canvas is empty - no image loaded yet!' : `Canvas has content (${canvasContext?.dimensions?.width || 0}x${canvasContext?.dimensions?.height || 0}px)`}
+
 ROUTING RULES:
+
+0. **Empty Canvas Check**: If the canvas has no content and the user requests any editing operation, politely inform them:
+   "I'd love to help edit your image, but I don't see any image on the canvas yet. Please upload an image first, then I can help you [restate their request]."
+   DO NOT attempt to call any editing tools on an empty canvas.
 
 1. **Questions/Help**: Answer directly with helpful information
 
@@ -85,6 +177,7 @@ ROUTING RULES:
    - Specific parameters: "increase brightness by 20", "crop to square"
    - Use the direct tools - the client will execute them quickly
    - For multi-step: just call the tools in sequence
+   - After tools complete: Give a brief confirmation like "Done! I've [list what you did]. Your image has been updated."
 
 3. **Complex Operations (Server-Side Agent Workflows)**:
    - Subjective improvements: "enhance this photo", "make it look professional"
@@ -93,21 +186,57 @@ ROUTING RULES:
    - Analysis required: "remove distractions", "focus on the subject"
    - Use executeAgentWorkflow - these need AI reasoning and planning
 
-4. **AI-Native Tools**: Always use requestCostApproval first
+4. **AI-Native Tools**: 
+   - Image generation (generateImage) creates new images from text descriptions
+   - These tools use external APIs and may take a few seconds to complete
+   - Use them when users want to create new content, not modify existing images
 
 IMPORTANT DISTINCTION:
 - "make it brighter and crop" → Use individual tools (client handles sequence)
 - "improve the image quality" → Use executeAgentWorkflow (needs AI judgment)
 - Simple combinations of clear operations should NOT use executeAgentWorkflow
 
-Canvas: ${canvasContext.dimensions.width}x${canvasContext.dimensions.height}px, has content: ${canvasContext.hasContent}
+ITERATIVE WORKFLOW:
+When the user approves a plan:
+1. The tools will be executed automatically
+2. You'll receive the results and updated canvas state
+3. Evaluate if the original goals have been met
+4. If not fully met, suggest ONE more improvement (max 3 iterations total)
+5. Be specific about what still needs improvement
+
+HANDLING EVALUATION RESULTS:
+When you receive an evaluation result from captureAndEvaluate:
+1. Present the evaluation in a friendly, conversational way
+2. Highlight what was improved (based on the evaluation text)
+3. Be honest about any remaining issues
+4. Ask the user if they'd like another iteration
+
+Example response after evaluation:
+"I've completed the improvements! Here's what I did:
+- Increased brightness by 15% to enhance visibility
+- Boosted contrast by 10% for better definition
+- Adjusted saturation to make colors more vibrant
+
+The image now has better lighting and more vivid colors. The evaluation shows [summarize key points from evaluation].
+
+Would you like me to continue refining the image based on your original request? I can make further adjustments if needed. (Iteration 1 of 3)"
+
+IMPORTANT:
+- Don't automatically continue - wait for user confirmation
+- Keep track of iteration count
+- After 3 iterations, mention that's the limit
+- Maintain context of the original request throughout
+
+Canvas: ${canvasContext?.dimensions?.width || 0}x${canvasContext?.dimensions?.height || 0}px, has content: ${canvasContext?.hasContent || false}
 
 Available tools:
 - Canvas editing: ${adapterRegistry.getToolNamesByCategory('canvas-editing').join(', ')}
 - AI-native: ${adapterRegistry.getToolNamesByCategory('ai-native').join(', ')}
 - Complex workflows: executeAgentWorkflow (ONLY for subjective/complex operations)
 
-When using tools, be direct and efficient. Only use executeAgentWorkflow when AI reasoning adds value.`,
+When using tools, be direct and efficient. Only use executeAgentWorkflow when AI reasoning adds value.
+
+CRITICAL: Never attempt to use any editing tools if hasContent is false. Always check first and guide the user to upload an image.`,
   }).toUIMessageStreamResponse()
 }
 
@@ -116,19 +245,40 @@ async function executeMultiStepWorkflow(
   request: string,
   messages: UIMessage[], 
   canvasContext: { dimensions: { width: number; height: number }; hasContent: boolean; objectCount?: number }, 
-  aiSettings: { autoApproveThreshold?: number; showConfidenceScores?: boolean; showApprovalDecisions?: boolean }
+  aiSettings: { autoApproveThreshold?: number; showConfidenceScores?: boolean; showApprovalDecisions?: boolean },
+  iterationCount: number = 0
 ) {
   console.log('[Agent] === EXECUTING MULTI-STEP WORKFLOW ===')
   console.log('[Agent] Request:', request)
+  console.log('[Agent] Iteration:', iterationCount)
   
-  // Create mock canvas for server-side operations
+  // Check if we've hit the iteration limit
+  if (iterationCount >= 3) {
+    console.log('[Agent] Hit iteration limit (3), stopping workflow')
+    return {
+      success: true,
+      completed: true,
+      message: 'Reached maximum iterations. The image has been improved as much as possible within the iteration limit.',
+      iterationCount
+    }
+  }
+  
+  // Use the new canvas context provider
+  const contextData = CanvasContextProvider.fromData(canvasContext)
+  
+  // Create a minimal mock canvas that satisfies the Canvas interface requirements
+  // This is only used for WorkflowMemory initialization, actual operations use contextData
   const mockCanvas = {
-    getWidth: () => canvasContext?.dimensions?.width || 0,
-    getHeight: () => canvasContext?.dimensions?.height || 0,
+    getWidth: () => contextData.dimensions.width,
+    getHeight: () => contextData.dimensions.height,
     getObjects: () => [],
     toJSON: () => ({}),
     loadFromJSON: (data: unknown, callback: () => void) => { callback() },
-    renderAll: () => {}
+    renderAll: () => {},
+    toDataURL: () => {
+      // Return a placeholder data URL for server-side
+      return 'data:image/png;base64,placeholder'
+    }
   } as unknown as Canvas
   
   // Create agent context with user preferences from AI settings
@@ -143,9 +293,9 @@ async function executeMultiStepWorkflow(
       showApprovalDecisions: aiSettings?.showApprovalDecisions ?? true,
     },
     canvasAnalysis: {
-      dimensions: canvasContext.dimensions,
-      hasContent: canvasContext.hasContent,
-      objectCount: canvasContext.objectCount || 0,
+      dimensions: contextData.dimensions,
+      hasContent: contextData.hasContent,
+      objectCount: contextData.objectCount,
       lastAnalyzedAt: Date.now()
     }
   }
@@ -154,58 +304,196 @@ async function executeMultiStepWorkflow(
   const masterAgent = new MasterRoutingAgent(agentContext)
   
   try {
-    console.log('[Agent] Executing multi-step workflow for:', request)
+    console.log('[Agent] Executing with master routing agent for:', request)
     
     // Execute with the master agent (includes routing, orchestration, evaluation)
     const agentResult = await masterAgent.execute(request)
     
-    // Extract tool executions for client-side execution
-    const toolExecutions = agentResult.results.map((stepResult: { data: unknown; confidence: number }) => {
-      const data = stepResult.data as { toolName?: string; params?: unknown; description?: string }
-      if (data && data.toolName && data.params) {
-        return {
-          toolName: data.toolName,
-          params: data.params,
-          description: data.description,
-          confidence: stepResult.confidence
-        }
+    console.log('[Agent] Agent result:', {
+      completed: agentResult.completed,
+      resultsCount: agentResult.results.length,
+      reason: agentResult.reason
+    })
+    
+    // Extract data from the first result (which should contain the execution plan)
+    const firstResult = agentResult.results[0]
+    const resultData = firstResult?.data as Record<string, unknown>
+    
+    console.log('[Agent] First result data:', {
+      type: resultData?.type,
+      hasToolExecutions: !!resultData?.toolExecutions,
+      hasWorkflow: !!resultData?.workflow,
+      hasAgentStatus: !!resultData?.agentStatus
+    })
+    
+    // Check if this is an execution plan from ImageImprovementAgent
+    if (resultData?.type === 'execution-plan' && resultData?.toolExecutions) {
+      console.log('[Agent] Execution plan detected from agent')
+      
+      // Extract the planned tool executions
+      const toolExecutions = resultData.toolExecutions as Array<{
+        toolName: string
+        params: unknown
+        description: string
+        confidence: number
+      }>
+      
+      // Extract workflow metadata
+      const workflow = resultData.workflow as {
+        description: string
+        steps: Array<{
+          toolName: string
+          params: unknown
+          description: string
+          confidence: number
+        }>
+        agentType: string
+        totalSteps: number
+        reasoning: string
       }
-      return null
-    }).filter(Boolean)
-    
-    console.log('[Agent] Planned tool executions:', toolExecutions)
-    
-    // Extract status updates from the first result (contains routing info)
-    const statusUpdates = agentResult.results.length > 0 ? 
-      (agentResult.results[0].data as { statusUpdates?: Array<{
+      
+      // Extract agent status
+      const agentStatus = resultData.agentStatus as {
+        confidence: number
+        approvalRequired: boolean
+        threshold: number
+      }
+      
+      // Extract status updates
+      const statusUpdates = (resultData.statusUpdates as Array<{
         type: string
         message: string
         details?: string
         timestamp: string
-      }> })?.statusUpdates || [] : []
+      }>) || []
+      
+      console.log('[Agent] Extracted execution plan:', {
+        toolExecutionsCount: toolExecutions.length,
+        confidence: agentStatus.confidence,
+        approvalRequired: agentStatus.approvalRequired,
+        threshold: agentStatus.threshold
+      })
+      
+      // Check if approval is required based on confidence threshold
+      if (agentStatus.approvalRequired) {
+        console.log('[Agent] Approval required - confidence below threshold')
+        
+        return {
+          success: false,
+          approvalRequired: true,
+          step: {
+            id: 'workflow-approval',
+            description: workflow.description,
+            confidence: agentStatus.confidence,
+            threshold: agentStatus.threshold
+          },
+          workflow,
+          agentStatus,
+          statusUpdates,
+          toolExecutions, // Include the plan for approval dialog
+          message: `Approval required: Confidence (${Math.round(agentStatus.confidence * 100)}%) is below threshold (${Math.round(agentStatus.threshold * 100)}%)`
+        }
+      }
+      
+      // Confidence is high enough - return the execution plan
+      return {
+        success: true,
+        workflow,
+        agentStatus,
+        statusUpdates,
+        toolExecutions,
+        message: workflow.description || `Ready to execute ${toolExecutions.length} improvements`
+      }
+    }
     
-    // Calculate overall confidence and approval requirements
-    const overallConfidence = agentResult.results.reduce((sum, r) => sum + r.confidence, 0) / agentResult.results.length
-    const requiresApproval = agentResult.results.some((r: { confidence: number }) => r.confidence < agentContext.userPreferences.autoApprovalThreshold)
+    // Fallback for other agent types or direct tool execution
+    console.log('[Agent] Fallback extraction for non-execution-plan results')
     
-    // Return the structured workflow result with full agent data
+    // Extract tool executions from results (old format)
+    const toolExecutions = agentResult.results
+      .map((stepResult) => {
+        const data = stepResult.data as Record<string, unknown>
+        if (data.toolName && data.params) {
+          return {
+            toolName: data.toolName as string,
+            params: data.params,
+            description: (data.description as string) || `Apply ${data.toolName}`,
+            confidence: stepResult.confidence
+          }
+        }
+        return null
+      })
+      .filter(Boolean) as Array<{
+        toolName: string
+        params: unknown
+        description: string
+        confidence: number
+      }>
+    
+    // Extract status updates from the first result
+    const statusUpdates = firstResult ? 
+      ((firstResult.data as Record<string, unknown>).statusUpdates as Array<{
+        type: string
+        message: string
+        details?: string
+        timestamp: string
+      }>) || [] : []
+    
+    // Calculate overall confidence
+    const overallConfidence = agentResult.results.length > 0 ?
+      agentResult.results.reduce((sum, r) => sum + r.confidence, 0) / agentResult.results.length : 0.5
+    
+    const requiresApproval = overallConfidence < agentContext.userPreferences.autoApprovalThreshold
+    
+    // Check if approval is required
+    if (requiresApproval && toolExecutions.length > 0) {
+      console.log('[Agent] Approval required for fallback workflow')
+      
+      return {
+        success: false,
+        approvalRequired: true,
+        step: {
+          id: 'workflow-approval',
+          description: `Execute ${toolExecutions.length} step workflow`,
+          confidence: overallConfidence,
+          threshold: agentContext.userPreferences.autoApprovalThreshold
+        },
+        workflow: {
+          description: `Multi-step workflow: ${request}`,
+          steps: toolExecutions,
+          agentType: 'sequential',
+          totalSteps: toolExecutions.length,
+          reasoning: `Planned ${toolExecutions.length} steps for: ${request}`
+        },
+        agentStatus: {
+          confidence: overallConfidence,
+          approvalRequired: true,
+          threshold: agentContext.userPreferences.autoApprovalThreshold
+        },
+        statusUpdates,
+        toolExecutions,
+        message: `Approval required: Confidence (${Math.round(overallConfidence * 100)}%) is below threshold (${Math.round(agentContext.userPreferences.autoApprovalThreshold * 100)}%)`
+      }
+    }
+    
+    // Return the workflow result
     return {
       success: agentResult.completed,
       workflow: {
         description: `Multi-step workflow: ${request}`,
         steps: toolExecutions,
-        agentType: 'sequential', // Default agent type
+        agentType: 'sequential',
         totalSteps: toolExecutions.length,
-        reasoning: statusUpdates.find(s => s.type === 'routing-decision')?.details || `Planned ${toolExecutions.length} steps for: ${request}`
+        reasoning: `Planned ${toolExecutions.length} steps for: ${request}`
       },
       agentStatus: {
         confidence: overallConfidence,
-        approvalRequired: requiresApproval,
+        approvalRequired: false,
         threshold: agentContext.userPreferences.autoApprovalThreshold
       },
       statusUpdates,
       toolExecutions,
-      message: `Planned ${toolExecutions.length} steps. Now executing each tool...`
+      message: `Ready to execute ${toolExecutions.length} steps`
     }
   } catch (error) {
     console.error('[Agent] Error executing workflow:', error)

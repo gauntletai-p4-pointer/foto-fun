@@ -60,26 +60,43 @@ NEVER ask which direction - interpret the user's intent.`
         throw new Error('No images found to flip. Please load an image or select images first.')
       }
       
+      // Create a selection snapshot from the target images
+      const { SelectionSnapshotFactory } = await import('@/lib/ai/execution/SelectionSnapshot')
+      const selectionSnapshot = SelectionSnapshotFactory.fromObjects(images)
+      
       // Activate the flip tool first
       const { useToolStore } = await import('@/store/toolStore')
       useToolStore.getState().setActiveTool(this.tool.id)
       
+      // Set selection snapshot on the tool
+      const tool = useToolStore.getState().getTool(this.tool.id)
+      if (tool && 'setSelectionSnapshot' in tool && typeof tool.setSelectionSnapshot === 'function') {
+        tool.setSelectionSnapshot(selectionSnapshot)
+      }
+      
       // Small delay to ensure tool is activated and subscribed
       await new Promise(resolve => setTimeout(resolve, 50))
       
-      // Get the flip tool options and trigger the flip action
-      const { useToolOptionsStore } = await import('@/store/toolOptionsStore')
-      
-      if (params.horizontal) {
-        useToolOptionsStore.getState().updateOption(this.tool.id, 'flipAction', 'horizontal')
-      }
-      
-      if (params.vertical) {
-        // Small delay between flips if both are requested
+      try {
+        // Get the flip tool options and trigger the flip action
+        const { useToolOptionsStore } = await import('@/store/toolOptionsStore')
+        
         if (params.horizontal) {
-          await new Promise(resolve => setTimeout(resolve, 100))
+          useToolOptionsStore.getState().updateOption(this.tool.id, 'flipAction', 'horizontal')
         }
-        useToolOptionsStore.getState().updateOption(this.tool.id, 'flipAction', 'vertical')
+        
+        if (params.vertical) {
+          // Small delay between flips if both are requested
+          if (params.horizontal) {
+            await new Promise(resolve => setTimeout(resolve, 100))
+          }
+          useToolOptionsStore.getState().updateOption(this.tool.id, 'flipAction', 'vertical')
+        }
+      } finally {
+        // Clear selection snapshot
+        if (tool && 'setSelectionSnapshot' in tool && typeof tool.setSelectionSnapshot === 'function') {
+          tool.setSelectionSnapshot(null)
+        }
       }
       
       const flips = []

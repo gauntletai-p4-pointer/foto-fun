@@ -2,7 +2,8 @@ import { z } from 'zod'
 import { tool } from 'ai'
 import type { Tool } from '@/types'
 import type { Canvas, FabricObject } from 'fabric'
-import type { CanvasContext } from '@/lib/ai/tools/canvas-bridge'
+import type { CanvasContext } from '../tools/canvas-bridge'
+import type { SelectionSnapshot } from '../execution/SelectionSnapshot'
 
 /**
  * Metadata for tool adapters to help with routing decisions
@@ -104,6 +105,72 @@ export abstract class BaseToolAdapter<
     // This is necessary because the AI SDK's tool function has complex overloads
     return tool(toolConfig as unknown as Parameters<typeof tool>[0])
   }
+  
+  /**
+   * Apply tool operation without changing the active tool
+   * This is used during AI execution to prevent UI changes
+   */
+  protected async applyToolOperation(
+    toolId: string,
+    optionId: string,
+    value: unknown,
+    canvas: Canvas,
+    selectionSnapshot?: SelectionSnapshot
+  ): Promise<void> {
+    // Get the tool
+    const { useToolStore } = await import('@/store/toolStore')
+    const tool = useToolStore.getState().getTool(toolId)
+    
+    if (!tool) {
+      throw new Error(`Tool ${toolId} not found`)
+    }
+    
+    // Check if tool is already activated
+    const currentToolId = useToolStore.getState().activeTool
+    const needsActivation = currentToolId !== toolId
+    
+    console.log(`[BaseToolAdapter] applyToolOperation - Tool: ${toolId}, Option: ${optionId}, Value: ${value}`)
+    console.log(`[BaseToolAdapter] Current tool: ${currentToolId}, Needs activation: ${needsActivation}`)
+    
+    // If tool needs activation, activate it properly
+    if (needsActivation) {
+      console.log(`[BaseToolAdapter] Activating tool ${toolId} for operation`)
+      useToolStore.getState().setActiveTool(toolId)
+      
+      // Wait for activation to complete
+      await new Promise(resolve => setTimeout(resolve, 100))
+    }
+    
+    // Set selection snapshot if provided and tool supports it
+    if (selectionSnapshot && 'setSelectionSnapshot' in tool && typeof tool.setSelectionSnapshot === 'function') {
+      console.log(`[BaseToolAdapter] Setting selection snapshot on tool ${toolId} with ${selectionSnapshot.count} objects`)
+      tool.setSelectionSnapshot(selectionSnapshot)
+    }
+    
+    try {
+      // Update the tool option - this should trigger the tool's logic
+      const { useToolOptionsStore } = await import('@/store/toolOptionsStore')
+      console.log(`[BaseToolAdapter] Updating option ${optionId} to ${value}`)
+      useToolOptionsStore.getState().updateOption(toolId, optionId, value)
+      
+      // Wait for the operation to complete
+      await new Promise(resolve => setTimeout(resolve, 100))
+      
+      console.log(`[BaseToolAdapter] Operation completed`)
+    } finally {
+      // Clear selection snapshot if we set it
+      if (selectionSnapshot && 'setSelectionSnapshot' in tool && typeof tool.setSelectionSnapshot === 'function') {
+        console.log(`[BaseToolAdapter] Clearing selection snapshot`)
+        tool.setSelectionSnapshot(null)
+      }
+      
+      // Restore the original tool if we changed it
+      if (needsActivation && currentToolId) {
+        console.log(`[BaseToolAdapter] Restoring original tool ${currentToolId}`)
+        useToolStore.getState().setActiveTool(currentToolId)
+      }
+    }
+  }
 }
 
 /**
@@ -170,6 +237,123 @@ export abstract class CanvasToolAdapter<
         targetingMode: context.targetingMode
       } as TOutput
     }
+  }
+  
+  /**
+   * Enhanced error handling wrapper with user-friendly messages
+   * Maps technical errors to helpful user messages
+   */
+  protected async executeWithErrorHandling<T>(
+    operation: () => Promise<T>,
+    userContext: string
+  ): Promise<T> {
+    try {
+      return await operation()
+    } catch (error) {
+      // Map technical errors to user-friendly messages
+      const userMessage = this.mapErrorToUserMessage(error, userContext)
+      
+      // Log technical details for debugging
+      console.error(`[${this.aiName}] Error in ${userContext}:`, error)
+      
+      // Check if we should return an error object or throw
+      if (this.shouldReturnErrorObject()) {
+        return {
+          success: false,
+          message: userMessage,
+          error: error instanceof Error ? error.message : 'Unknown error',
+          recovery: this.suggestRecovery(error)
+        } as T
+      }
+      
+      // Otherwise, throw a user-friendly error
+      throw new Error(userMessage)
+    }
+  }
+  
+  /**
+   * Map technical errors to user-friendly messages
+   */
+  protected mapErrorToUserMessage(error: unknown, context: string): string {
+    if (!(error instanceof Error)) {
+      return `The ${context} operation failed. Please try again.`
+    }
+    
+    const message = error.message.toLowerCase()
+    
+    // Canvas not ready errors
+    if (message.includes('canvas') && (message.includes('null') || message.includes('undefined'))) {
+      return 'Please wait for the canvas to load before using this tool.'
+    }
+    
+    // No image errors
+    if (message.includes('no image') || message.includes('no objects')) {
+      return 'Please load an image before using this tool.'
+    }
+    
+    // Network errors
+    if (message.includes('network') || message.includes('fetch')) {
+      return 'Network error. Please check your connection and try again.'
+    }
+    
+    // Timeout errors
+    if (message.includes('timeout')) {
+      return 'The operation took too long. Please try again.'
+    }
+    
+    // Rate limit errors
+    if (message.includes('rate limit') || message.includes('quota')) {
+      return 'You\'ve made too many requests. Please wait a moment and try again.'
+    }
+    
+    // Permission errors
+    if (message.includes('permission') || message.includes('denied')) {
+      return 'You don\'t have permission to perform this action.'
+    }
+    
+    // Invalid parameter errors
+    if (message.includes('invalid') || message.includes('parameter')) {
+      return `Invalid settings for ${context}. Please check your inputs.`
+    }
+    
+    // Default fallback
+    return `The ${context} operation failed. Please try again.`
+  }
+  
+  /**
+   * Suggest recovery actions for errors
+   */
+  protected suggestRecovery(error: unknown): string | undefined {
+    if (!(error instanceof Error)) return undefined
+    
+    const message = error.message.toLowerCase()
+    
+    if (message.includes('canvas') && (message.includes('null') || message.includes('undefined'))) {
+      return 'Wait for canvas to load'
+    }
+    
+    if (message.includes('no image')) {
+      return 'Load an image first'
+    }
+    
+    if (message.includes('network')) {
+      return 'Check your internet connection'
+    }
+    
+    if (message.includes('timeout')) {
+      return 'Try again with a smaller image'
+    }
+    
+    return 'Try again'
+  }
+  
+  /**
+   * Determine if we should return an error object or throw
+   * Override in subclasses if needed
+   */
+  protected shouldReturnErrorObject(): boolean {
+    // By default, return error objects for better handling
+    return true
   }
   
   /**
@@ -258,32 +442,53 @@ export abstract class FilterToolAdapter<
   ): Promise<void> {
     const filterType = this.getFilterType()
     
-    images.forEach((img, index) => {
-      console.log(`[${this.constructor.name}] Processing image ${index + 1}/${images.length}`)
-      
-      const imageWithFilters = img as FabricImageWithFilters
-      
-      // Initialize filters array if needed
-      if (!imageWithFilters.filters) {
-        imageWithFilters.filters = []
-      } else {
-        // Remove existing filters of this type
-        imageWithFilters.filters = imageWithFilters.filters.filter(
-          (f: unknown) => (f as unknown as ImageFilter).type !== filterType
-        )
-      }
-      
-      // Add new filter if needed
-      if (this.shouldApplyFilter(params)) {
-        const filter = this.createFilter(params)
-        imageWithFilters.filters.push(filter)
-      }
-      
-      // Apply filters
-      imageWithFilters.applyFilters()
-    })
+    // Create a selection snapshot from the target images
+    const { SelectionSnapshotFactory } = await import('../execution/SelectionSnapshot')
+    const selectionSnapshot = SelectionSnapshotFactory.fromObjects(images)
     
-    // Render the canvas to show changes
-    canvas.renderAll()
+    // Get the tool
+    const { useToolStore } = await import('@/store/toolStore')
+    const tool = useToolStore.getState().getTool(this.tool.id)
+    
+    // Set selection snapshot on the tool if it supports it
+    if (tool && 'setSelectionSnapshot' in tool && typeof tool.setSelectionSnapshot === 'function') {
+      console.log(`[FilterToolAdapter] Setting selection snapshot on tool ${this.tool.id}`)
+      tool.setSelectionSnapshot(selectionSnapshot)
+    }
+    
+    try {
+      images.forEach((img, index) => {
+        console.log(`[${this.constructor.name}] Processing image ${index + 1}/${images.length}`)
+        
+        const imageWithFilters = img as FabricImageWithFilters
+        
+        // Initialize filters array if needed
+        if (!imageWithFilters.filters) {
+          imageWithFilters.filters = []
+        } else {
+          // Remove existing filters of this type
+          imageWithFilters.filters = imageWithFilters.filters.filter(
+            (f: unknown) => (f as unknown as ImageFilter).type !== filterType
+          )
+        }
+        
+        // Add new filter if needed
+        if (this.shouldApplyFilter(params)) {
+          const filter = this.createFilter(params)
+          imageWithFilters.filters.push(filter)
+        }
+        
+        // Apply filters
+        imageWithFilters.applyFilters()
+      })
+      
+      // Render the canvas to show changes
+      canvas.renderAll()
+    } finally {
+      // Clear selection snapshot
+      if (tool && 'setSelectionSnapshot' in tool && typeof tool.setSelectionSnapshot === 'function') {
+        tool.setSelectionSnapshot(null)
+      }
+    }
   }
 } 

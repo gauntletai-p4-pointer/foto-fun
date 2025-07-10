@@ -71,8 +71,8 @@ export function Panels() {
   const ActivePanelComponent = panels.find(p => p.id === activePanel)?.component || LayersPanel
   
   return (
-    <div className="w-80 bg-background border-l border-foreground/10 flex flex-col h-full">
-      <div className="p-2 border-b border-foreground/10">
+    <div className="w-80 bg-background border-l border-foreground/10 flex flex-col h-full flex-shrink-0 overflow-hidden">
+      <div className="p-2 border-b border-foreground/10 flex-shrink-0">
         <div className="flex gap-1">
           {panels.map((panel) => {
             const Icon = panel.icon
@@ -95,7 +95,7 @@ export function Panels() {
         </div>
       </div>
       
-      <div className="flex-1 overflow-auto">
+      <div className="flex-1 overflow-auto min-h-0">
         <ActivePanelComponent />
       </div>
     </div>

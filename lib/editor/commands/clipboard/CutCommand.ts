@@ -49,7 +49,13 @@ export class CutCommand extends Command {
       if (activeObject) {
         this.deletedObject = activeObject
         this.canvas.remove(activeObject)
-        this.canvas.discardActiveObject()
+        
+        // Only clear selection if not executing within a tool chain
+        const { ToolChain } = await import('@/lib/ai/execution/ToolChain')
+        if (!ToolChain.isExecutingChain) {
+          this.canvas.discardActiveObject()
+        }
+        
         this.canvas.renderAll()
       }
     }
@@ -62,7 +68,13 @@ export class CutCommand extends Command {
     } else if (this.deletedObject) {
       // Restore the deleted object
       this.canvas.add(this.deletedObject)
-      this.canvas.setActiveObject(this.deletedObject)
+      
+      // Only restore selection if not executing within a tool chain
+      const { ToolChain } = await import('@/lib/ai/execution/ToolChain')
+      if (!ToolChain.isExecutingChain) {
+        this.canvas.setActiveObject(this.deletedObject)
+      }
+      
       this.canvas.renderAll()
     }
   }
