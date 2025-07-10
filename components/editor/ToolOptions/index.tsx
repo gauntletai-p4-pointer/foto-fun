@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useToolStore } from '@/store/toolStore'
 import { useToolOptionsStore, defaultToolOptions } from '@/store/toolOptionsStore'
+import { useCanvasStore } from '@/store/canvasStore'
 import { OptionCheckbox } from './OptionCheckbox'
 import { OptionNumber } from './OptionNumber'
 import { OptionButtonGroup } from './OptionButtonGroup'
@@ -14,6 +15,7 @@ import { TOOL_IDS } from '@/constants'
 
 export function ToolOptions() {
   const activeTool = useToolStore((state) => state.activeTool)
+  const activeAdjustmentTool = useCanvasStore((state) => state.activeAdjustmentTool)
   const { getToolOptions, updateOption, registerToolOptions } = useToolOptionsStore()
   const [modifiers, setModifiers] = useState({ shift: false, alt: false })
   
@@ -50,6 +52,9 @@ export function ToolOptions() {
   }, [])
   
   if (!activeTool) return null
+  
+  // Hide tool options when an adjustment dialog is open
+  if (activeAdjustmentTool) return null
   
   const options = getToolOptions(activeTool)
   if (!options || options.length === 0) return null
