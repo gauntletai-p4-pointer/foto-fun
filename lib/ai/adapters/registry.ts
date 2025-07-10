@@ -117,16 +117,16 @@ export async function autoDiscoverAdapters(): Promise<void> {
     const { ContrastToolAdapter } = await import('./tools/contrast')
     const { SaturationToolAdapter } = await import('./tools/saturation')
     const { ResizeToolAdapter } = await import('./tools/resize')
-    const { FlipAdapter } = await import('./tools/flip')
+    const { FlipToolAdapter } = await import('./tools/flip')
     const { RotateToolAdapter } = await import('./tools/rotate')
     const { ImageGenerationAdapter } = await import('./tools/imageGeneration')
     const { ExposureToolAdapter } = await import('./tools/exposure')
     const { HueToolAdapter } = await import('./tools/hue')
     const { ColorTemperatureToolAdapter } = await import('./tools/colorTemperature')
-    const { BlurAdapter } = await import('./tools/blur')
+    const { BlurToolAdapter } = await import('./tools/blur')
     const { SharpenAdapter } = await import('./tools/sharpen')
-    const { GrayscaleAdapter } = await import('./tools/grayscale')
-    const { InvertAdapter } = await import('./tools/invert')
+    const { GrayscaleToolAdapter } = await import('./tools/grayscale')
+    const { InvertToolAdapter } = await import('./tools/invert')
     const { SepiaAdapter } = await import('./tools/sepia')
     const { VintageEffectsToolAdapter } = await import('./tools/vintageEffects')
     const { addTextAdapter } = await import('./tools/addText')
@@ -141,16 +141,16 @@ export async function autoDiscoverAdapters(): Promise<void> {
       new ContrastToolAdapter(),
       new SaturationToolAdapter(),
       new ResizeToolAdapter(),
-      new FlipAdapter(),
+      new FlipToolAdapter(),
       new RotateToolAdapter(),
       new ImageGenerationAdapter(),
       new ExposureToolAdapter(),
       new HueToolAdapter(),
       new ColorTemperatureToolAdapter(),
-      new BlurAdapter(),
+      new BlurToolAdapter(),
       new SharpenAdapter(),
-      new GrayscaleAdapter(),
-      new InvertAdapter(),
+      new GrayscaleToolAdapter(),
+      new InvertToolAdapter(),
       new SepiaAdapter(),
       new VintageEffectsToolAdapter(),
       addTextAdapter,  // This is already an instance

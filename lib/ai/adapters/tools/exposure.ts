@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { BaseToolAdapter } from '../base'
 import { exposureTool } from '@/lib/editor/tools/adjustments/exposureTool'
-import type { Canvas } from 'fabric'
+import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
 import type { CanvasContext } from '@/lib/ai/tools/canvas-bridge'
 
 // Define parameter schema
@@ -133,9 +133,11 @@ Range: -100 (very dark) to +100 (very bright)`
     }
   }
   
-  canExecute(canvas: Canvas): boolean {
+  canExecute(canvas: CanvasManager): boolean {
     // Can only adjust exposure if there are images on the canvas
-    const hasImages = canvas.getObjects().some(obj => obj.type === 'image')
+    const hasImages = canvas.state.layers.some(layer => 
+      layer.objects.some(obj => obj.type === 'image')
+    )
     if (!hasImages) {
       console.warn('Exposure tool: No images on canvas')
     }

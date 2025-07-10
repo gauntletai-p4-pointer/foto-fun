@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { tool } from 'ai'
 import { BaseToolAdapter } from '../base'
-import type { Canvas } from 'fabric'
+import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
 import type { Tool } from '@/types'
 
 export interface AnalyzeCanvasInput {
@@ -57,17 +57,21 @@ Use this when you need to understand what's currently on the canvas.`
   
   async execute(
     params: AnalyzeCanvasInput,
-    context: { canvas: Canvas }
+    context: { canvas: CanvasManager }
   ): Promise<AnalyzeCanvasOutput> {
     const { canvas } = context
     
     try {
       // Get basic canvas info
-      const objects = canvas.getObjects()
+      const objects: any[] = []
+      canvas.state.layers.forEach(layer => {
+        objects.push(...layer.objects)
+      })
+      
       const analysis: AnalyzeCanvasOutput['analysis'] = {
         dimensions: {
-          width: canvas.getWidth(),
-          height: canvas.getHeight()
+          width: canvas.state.width,
+          height: canvas.state.height
         },
         hasContent: objects.length > 0,
         objectCount: objects.length,
@@ -76,15 +80,9 @@ Use this when you need to understand what's currently on the canvas.`
       
       // Generate a small thumbnail for AI analysis
       if (objects.length > 0) {
-        // Create a smaller version for analysis (max 512px)
-        const maxSize = 512
-        const scale = Math.min(maxSize / canvas.getWidth(), maxSize / canvas.getHeight(), 1)
-        
-        analysis.imageData = canvas.toDataURL({
-          format: 'jpeg',
-          quality: 0.8,
-          multiplier: scale
-        })
+        // For now, we'll skip thumbnail generation as it requires Konva stage access
+        // This would need to be implemented in the client-side execution
+        analysis.imageData = undefined
       }
       
       // Analyze histogram if requested
@@ -96,10 +94,10 @@ Use this when you need to understand what's currently on the canvas.`
       if (params.includeObjectDetails) {
         analysis.objects = objects.map(obj => ({
           type: obj.type || 'unknown',
-          position: { x: obj.left || 0, y: obj.top || 0 },
+          position: { x: obj.transform.position.x || 0, y: obj.transform.position.y || 0 },
           size: { 
-            width: obj.getScaledWidth(), 
-            height: obj.getScaledHeight() 
+            width: (obj.originalWidth || 100) * obj.transform.scale.x, 
+            height: (obj.originalHeight || 100) * obj.transform.scale.y 
           }
         }))
       }

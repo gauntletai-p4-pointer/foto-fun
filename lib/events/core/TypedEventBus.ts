@@ -1,5 +1,4 @@
-import type { Layer, Selection, Point } from '@/lib/editor/canvas/types'
-import type { FabricObject } from 'fabric'
+import type { Layer, Selection, Point, CanvasObject } from '@/lib/editor/canvas/types'
 
 /**
  * Event type registry for type-safe event handling
@@ -8,7 +7,7 @@ export interface EventRegistry {
   // Canvas events
   'canvas.object.added': { 
     canvasId: string
-    object: FabricObject
+    object: CanvasObject
     layerId?: string 
   }
   'canvas.object.modified': { 
@@ -24,7 +23,7 @@ export interface EventRegistry {
   'canvas.objects.batch.modified': {
     canvasId: string
     modifications: Array<{
-      object: FabricObject
+      object: CanvasObject
       previousState: Record<string, unknown>
       newState: Record<string, unknown>
     }>

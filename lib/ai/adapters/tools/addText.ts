@@ -3,6 +3,7 @@ import { CanvasToolAdapter } from '../base'
 import { horizontalTypeTool } from '@/lib/editor/tools/text'
 import type { CanvasContext } from '@/lib/ai/tools/canvas-bridge'
 import type { ExecutionContext } from '@/lib/events/execution/ExecutionContext'
+import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
 
 // Define input schema for text parameters
 const addTextInputSchema = z.object({
@@ -167,7 +168,7 @@ NEVER ask for exact styling - interpret the user's intent and choose appropriate
   /**
    * Check if text can be added (canvas must be ready)
    */
-  canExecute(canvas: any): boolean {
+  canExecute(canvas: CanvasManager): boolean {
     return !!canvas && canvas.state.layers.length > 0
   }
 }

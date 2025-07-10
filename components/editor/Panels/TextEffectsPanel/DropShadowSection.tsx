@@ -31,15 +31,14 @@ export function DropShadowSection({ object, onChange }: DropShadowSectionProps) 
     blur: 5,
   })
   
-  // Type guard for text objects
-  if (!object || (object.type !== 'text' && object.type !== 'verticalText') || !object.node) {
-    return null
-  }
-  
-  const textNode = object.node as Konva.Text
-  
   // Check if object has shadow on mount
   useEffect(() => {
+    // Type guard inside useEffect
+    if (!object || (object.type !== 'text' && object.type !== 'verticalText') || !object.node) {
+      return
+    }
+    
+    const textNode = object.node as Konva.Text
     // Check for Konva shadow properties
     const shadowColor = textNode.shadowColor()
     const shadowBlur = textNode.shadowBlur()
@@ -56,7 +55,7 @@ export function DropShadowSection({ object, onChange }: DropShadowSectionProps) 
         blur: shadowBlur || 5,
       })
     }
-  }, [textNode])
+  }, [object])
   
   const handleToggle = (checked: boolean) => {
     setEnabled(checked)
@@ -71,6 +70,9 @@ export function DropShadowSection({ object, onChange }: DropShadowSectionProps) 
   }
   
   const applyDropShadow = (shadowOptions: DropShadowOptions) => {
+    if (!object || !object.node) return
+    const textNode = object.node as Konva.Text
+    
     // Calculate offset from angle and distance
     const radians = shadowOptions.angle * Math.PI / 180
     const offsetX = Math.cos(radians) * shadowOptions.distance
@@ -89,6 +91,9 @@ export function DropShadowSection({ object, onChange }: DropShadowSectionProps) 
   }
   
   const removeDropShadow = () => {
+    if (!object || !object.node) return
+    const textNode = object.node as Konva.Text
+    
     textNode.shadowColor('')
     textNode.shadowOpacity(0)
     textNode.shadowOffsetX(0)
@@ -111,6 +116,11 @@ export function DropShadowSection({ object, onChange }: DropShadowSectionProps) 
       applyDropShadow(newOptions)
       onChange()
     }
+  }
+  
+  // Type guard for text objects
+  if (!object || (object.type !== 'text' && object.type !== 'verticalText') || !object.node) {
+    return null
   }
   
   return (

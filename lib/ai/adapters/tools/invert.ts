@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { FilterToolAdapter } from '../base'
 import type { CanvasContext } from '@/lib/ai/tools/canvas-bridge'
 import type { ExecutionContext } from '@/lib/events/execution/ExecutionContext'
+import type { Filter } from '@/lib/editor/canvas/types'
 import { invertTool } from '@/lib/editor/tools/filters/invertTool'
 
 // Define parameter schema
@@ -49,9 +50,10 @@ export class InvertToolAdapter extends FilterToolAdapter<InvertInput, InvertOutp
     return 'invert'
   }
   
-  protected createFilter(): Record<string, unknown> {
+  protected createFilter(): Filter {
     return {
-      type: 'invert'
+      type: 'invert',
+      params: {}
     }
   }
   

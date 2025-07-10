@@ -1,12 +1,11 @@
 import { CanvasEvent } from '../core/Event'
-import type { FabricObject } from 'fabric'
 import type { CanvasObject } from '@/lib/editor/canvas/types'
 
 /**
  * Canvas state interface for event application
  */
 export interface CanvasState {
-  objects: FabricObject[]
+  objects: CanvasObject[]
   backgroundColor?: string
   width: number
   height: number
@@ -30,7 +29,7 @@ export interface KonvaCanvasState {
 export class ObjectAddedEvent extends CanvasEvent {
   constructor(
     private canvasId: string,
-    private object: FabricObject,
+    private object: CanvasObject,
     private layerId: string | undefined,
     metadata: CanvasEvent['metadata']
   ) {
@@ -40,7 +39,7 @@ export class ObjectAddedEvent extends CanvasEvent {
   apply(currentState: CanvasState): CanvasState {
     // Add custom properties
     if (this.layerId) {
-      (this.object as FabricObject & { layerId?: string }).layerId = this.layerId
+      (this.object as CanvasObject & { layerId?: string }).layerId = this.layerId
     }
     
     return {
@@ -60,10 +59,10 @@ export class ObjectAddedEvent extends CanvasEvent {
   
   canApply(currentState: CanvasState): boolean {
     // Check if object already exists
-    const objectId = (this.object as FabricObject & { id?: string }).id
+    const objectId = (this.object as CanvasObject & { id?: string }).id
     if (objectId) {
       return !currentState.objects.some(obj => 
-        (obj as FabricObject & { id?: string }).id === objectId
+        (obj as CanvasObject & { id?: string }).id === objectId
       )
     }
     return true
@@ -77,9 +76,9 @@ export class ObjectAddedEvent extends CanvasEvent {
     return {
       canvasId: this.canvasId,
       objectType: this.object.type,
-      objectId: (this.object as FabricObject & { id?: string }).id,
+      objectId: (this.object as CanvasObject & { id?: string }).id,
       layerId: this.layerId,
-      objectData: this.object.toObject()
+      objectData: { ...this.object }
     }
   }
 }
@@ -92,7 +91,7 @@ export class ObjectRemovedEvent extends CanvasEvent {
   
   constructor(
     private canvasId: string,
-    private object: FabricObject,
+    private object: CanvasObject,
     metadata: CanvasEvent['metadata']
   ) {
     super('canvas.object.removed', canvasId, metadata)
@@ -110,7 +109,7 @@ export class ObjectRemovedEvent extends CanvasEvent {
   }
   
   reverse(): ObjectAddedEvent {
-    const layerId = (this.object as FabricObject & { layerId?: string }).layerId
+    const layerId = (this.object as CanvasObject & { layerId?: string }).layerId
     return new ObjectAddedEvent(
       this.canvasId,
       this.object,
@@ -131,9 +130,9 @@ export class ObjectRemovedEvent extends CanvasEvent {
     return {
       canvasId: this.canvasId,
       objectType: this.object.type,
-      objectId: (this.object as FabricObject & { id?: string }).id,
+      objectId: (this.object as CanvasObject & { id?: string }).id,
       objectIndex: this.objectIndex,
-      objectData: this.object.toObject()
+      objectData: { ...this.object }
     }
   }
 }
@@ -146,7 +145,7 @@ export class ObjectModifiedEvent extends CanvasEvent {
   
   constructor(
     private canvasId: string,
-    private object: FabricObject,
+    private object: CanvasObject,
     previousState: Record<string, unknown>,
     private newState: Record<string, unknown>,
     metadata: CanvasEvent['metadata']
@@ -192,7 +191,7 @@ export class ObjectModifiedEvent extends CanvasEvent {
     return {
       canvasId: this.canvasId,
       objectType: this.object.type,
-      objectId: (this.object as FabricObject & { id?: string }).id,
+      objectId: (this.object as CanvasObject & { id?: string }).id,
       previousState: this.previousState,
       newState: this.newState
     }
@@ -206,7 +205,7 @@ export class ObjectsBatchModifiedEvent extends CanvasEvent {
   constructor(
     private canvasId: string,
     private modifications: Array<{
-      object: FabricObject
+      object: CanvasObject
       previousState: Record<string, unknown>
       newState: Record<string, unknown>
     }>,
@@ -257,7 +256,7 @@ export class ObjectsBatchModifiedEvent extends CanvasEvent {
       canvasId: this.canvasId,
       modifications: this.modifications.map(({ object, previousState, newState }) => ({
         objectType: object.type,
-        objectId: (object as FabricObject & { id?: string }).id,
+        objectId: (object as CanvasObject & { id?: string }).id,
         previousState,
         newState
       }))

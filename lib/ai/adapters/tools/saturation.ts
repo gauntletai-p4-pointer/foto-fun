@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { FilterToolAdapter } from '../base'
 import type { CanvasContext } from '@/lib/ai/tools/canvas-bridge'
 import type { ExecutionContext } from '@/lib/events/execution/ExecutionContext'
+import type { Filter } from '@/lib/editor/canvas/types'
 import { saturationTool } from '@/lib/editor/tools/adjustments/saturationTool'
 
 // Define parameter schema
@@ -51,10 +52,10 @@ export class SaturationToolAdapter extends FilterToolAdapter<SaturationInput, Sa
     return 'saturation'
   }
   
-  protected createFilter(params: SaturationInput): Record<string, unknown> {
+  protected createFilter(params: SaturationInput): Filter {
     return {
       type: 'saturation',
-      saturation: params.adjustment / 100 // Convert percentage to decimal
+      params: { value: params.adjustment }
     }
   }
   

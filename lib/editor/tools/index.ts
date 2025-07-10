@@ -38,12 +38,12 @@ function adaptTool(tool: CanvasTool): Tool {
     cursor: tool.cursor,
     shortcut: tool.shortcut,
     isImplemented: true, // All exported tools are implemented
-    // Use any for now to avoid type conflicts during migration
-    onActivate: tool.onActivate as any,
-    onDeactivate: tool.onDeactivate as any,
-    onMouseDown: tool.onMouseDown as any,
-    onMouseMove: tool.onMouseMove as any,
-    onMouseUp: tool.onMouseUp as any,
+    // Ensure onActivate is defined (required by UI Tool interface)
+    onActivate: tool.onActivate || (() => {}),
+    onDeactivate: tool.onDeactivate,
+    onMouseDown: tool.onMouseDown,
+    onMouseMove: tool.onMouseMove,
+    onMouseUp: tool.onMouseUp,
   }
 }
 

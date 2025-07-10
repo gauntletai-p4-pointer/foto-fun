@@ -1,185 +1,276 @@
 /**
- * Type mapping and migration utilities for Fabric.js to Konva transition
- * This file provides type aliases and conversion functions to help with gradual migration
+ * Fabric to Konva Type Migration Utilities
+ * 
+ * This file provides type mappings and utilities to facilitate
+ * the migration from Fabric.js to Konva while maintaining
+ * type safety and architectural consistency.
  */
 
+import type { CanvasObject, Point, Transform, CanvasManager } from '@/lib/editor/canvas/types'
 import type Konva from 'konva'
-import type { CanvasObject, Point, Transform, Layer } from '@/lib/editor/canvas/types'
 
 /**
- * Type guards for safe migration
+ * Legacy Fabric type mappings for migration
+ * These should be gradually replaced with proper Konva types
  */
-export function isFabricObject(obj: any): obj is { type: string; id?: string } {
-  return obj && typeof obj.type === 'string' && typeof obj.toObject === 'function'
+export type FabricObject = CanvasObject
+export type Canvas = CanvasManager
+export type FabricCanvas = CanvasManager
+
+/**
+ * Fabric-specific types that need migration
+ */
+export interface FabricPoint {
+  x: number
+  y: number
 }
 
-export function isKonvaNode(obj: any): obj is Konva.Node {
-  return obj && typeof obj.nodeType === 'string' && typeof obj.getLayer === 'function'
-}
-
-export function isCanvasObject(obj: any): obj is CanvasObject {
-  return obj && typeof obj.id === 'string' && typeof obj.type === 'string' && obj.node
+export interface FabricTransform {
+  left: number
+  top: number
+  scaleX: number
+  scaleY: number
+  angle: number
+  skewX: number
+  skewY: number
+  flipX: boolean
+  flipY: boolean
 }
 
 /**
- * Conversion utilities
+ * Pointer event mapping
  */
-export function fabricPointToKonva(point: { x: number; y: number }): Point {
-  return { x: point.x, y: point.y }
+export interface TPointerEventInfo {
+  e: MouseEvent | TouchEvent
+  pointer: Point
+  absolutePointer: Point
+  target?: CanvasObject
+  subTargets?: CanvasObject[]
+  transform?: any
 }
 
-export function fabricTransformToKonva(obj: any): Transform {
+/**
+ * Matrix type for transformations
+ */
+export type TMat2D = [number, number, number, number, number, number]
+
+/**
+ * Path type for Konva
+ */
+export interface Path {
+  path: string
+  left?: number
+  top?: number
+  width?: number
+  height?: number
+  scaleX?: number
+  scaleY?: number
+  angle?: number
+  fill?: string
+  stroke?: string
+  strokeWidth?: number
+}
+
+/**
+ * Text types for migration
+ */
+export interface IText {
+  type: 'text'
+  text: string
+  fontSize?: number
+  fontFamily?: string
+  fontWeight?: string | number
+  fontStyle?: string
+  textAlign?: string
+  lineHeight?: number
+  fill?: string
+  stroke?: string
+  strokeWidth?: number
+}
+
+export interface Textbox extends IText {
+  width?: number
+  height?: number
+  splitByGrapheme?: boolean
+}
+
+/**
+ * Image type for migration
+ */
+export interface FabricImage {
+  type: 'image'
+  src: string
+  filters?: any[]
+  applyFilters?: () => void
+}
+
+/**
+ * Group and ActiveSelection for migration
+ */
+export interface Group {
+  type: 'group'
+  objects: CanvasObject[]
+}
+
+export interface ActiveSelection {
+  type: 'activeSelection'
+  objects: CanvasObject[]
+}
+
+/**
+ * Shadow type
+ */
+export interface Shadow {
+  color: string
+  blur: number
+  offsetX: number
+  offsetY: number
+}
+
+/**
+ * Gradient types
+ */
+export interface Gradient {
+  type: 'linear' | 'radial'
+  coords: {
+    x1: number
+    y1: number
+    x2: number
+    y2: number
+    r1?: number
+    r2?: number
+  }
+  colorStops: Array<{
+    offset: number
+    color: string
+  }>
+}
+
+export interface Pattern {
+  source: HTMLImageElement | HTMLCanvasElement
+  repeat: 'repeat' | 'repeat-x' | 'repeat-y' | 'no-repeat'
+}
+
+/**
+ * Utility functions for type conversion
+ */
+export function fabricPointToKonva(point: FabricPoint): Point {
   return {
-    x: obj.left || 0,
-    y: obj.top || 0,
-    scaleX: obj.scaleX || 1,
-    scaleY: obj.scaleY || 1,
-    rotation: obj.angle || 0,
-    skewX: obj.skewX || 0,
-    skewY: obj.skewY || 0
+    x: point.x,
+    y: point.y
+  }
+}
+
+export function fabricTransformToKonva(transform: FabricTransform): Transform {
+  return {
+    x: transform.left,
+    y: transform.top,
+    scaleX: transform.scaleX,
+    scaleY: transform.scaleY,
+    rotation: transform.angle,
+    skewX: transform.skewX,
+    skewY: transform.skewY
+  }
+}
+
+export function konvaTransformToFabric(transform: Transform): FabricTransform {
+  return {
+    left: transform.x,
+    top: transform.y,
+    scaleX: transform.scaleX,
+    scaleY: transform.scaleY,
+    angle: transform.rotation,
+    skewX: transform.skewX,
+    skewY: transform.skewY,
+    flipX: false,
+    flipY: false
   }
 }
 
 /**
- * Map Fabric object types to Konva/Canvas object types
+ * Type guards for migration
  */
-export const FABRIC_TO_CANVAS_TYPE_MAP: Record<string, CanvasObject['type']> = {
-  'image': 'image',
-  'text': 'text',
-  'i-text': 'text',
-  'textbox': 'text',
-  'rect': 'shape',
-  'circle': 'shape',
-  'ellipse': 'shape',
-  'polygon': 'shape',
-  'path': 'path',
-  'group': 'group'
+export function isFabricText(obj: any): obj is IText | Textbox {
+  return obj && (obj.type === 'text' || obj.type === 'i-text' || obj.type === 'textbox')
+}
+
+export function isFabricImage(obj: any): obj is FabricImage {
+  return obj && obj.type === 'image'
+}
+
+export function isFabricGroup(obj: any): obj is Group {
+  return obj && obj.type === 'group'
+}
+
+export function isFabricActiveSelection(obj: any): obj is ActiveSelection {
+  return obj && obj.type === 'activeSelection'
 }
 
 /**
- * Convert Fabric blend mode to Konva global composite operation
+ * Canvas compatibility layer
  */
-export function fabricBlendModeToKonva(mode: string): GlobalCompositeOperation {
-  const modeMap: Record<string, GlobalCompositeOperation> = {
-    'normal': 'source-over',
-    'multiply': 'multiply',
-    'screen': 'screen',
-    'overlay': 'overlay',
-    'darken': 'darken',
-    'lighten': 'lighten',
-    'color-dodge': 'color-dodge',
-    'color-burn': 'color-burn',
-    'hard-light': 'hard-light',
-    'soft-light': 'soft-light',
-    'difference': 'difference',
-    'exclusion': 'exclusion',
-    'hue': 'hue',
-    'saturation': 'saturation',
-    'color': 'color',
-    'luminosity': 'luminosity'
+export class CanvasCompatibilityLayer {
+  constructor(private canvasManager: CanvasManager) {}
+  
+  getWidth(): number {
+    return this.canvasManager.state.width
   }
-  return modeMap[mode] || 'source-over'
-}
-
-/**
- * Temporary polyfill for Fabric Canvas methods on CanvasManager
- * This allows gradual migration of components
- */
-export interface FabricCanvasPolyfill {
-  getActiveObjects(): CanvasObject[]
-  getObjects(): CanvasObject[]
-  renderAll(): void
-  getWidth(): number
-  getHeight(): number
-  getPointer(e: Event): Point
-  findTarget(e: Event): CanvasObject | null
-  setActiveObject(obj: CanvasObject): void
-  discardActiveObject(): void
-  requestRenderAll(): void
-}
-
-/**
- * Create a Fabric-compatible wrapper around CanvasManager
- * This is a temporary measure for migration
- */
-export function createFabricPolyfill(canvasManager: any): FabricCanvasPolyfill {
-  return {
-    getActiveObjects(): CanvasObject[] {
-      const selection = canvasManager.state.selection
-      if (selection?.type === 'objects') {
-        return selection.objectIds
-          .map((id: string) => canvasManager.findObject(id))
-          .filter(Boolean) as CanvasObject[]
-      }
-      return []
-    },
+  
+  getHeight(): number {
+    return this.canvasManager.state.height
+  }
+  
+  getObjects(): CanvasObject[] {
+    const objects: CanvasObject[] = []
+    this.canvasManager.state.layers.forEach(layer => {
+      objects.push(...layer.objects)
+    })
+    return objects
+  }
+  
+  getActiveObjects(): CanvasObject[] {
+    const selection = this.canvasManager.state.selection
+    if (!selection || selection.type !== 'objects') return []
     
-    getObjects(): CanvasObject[] {
-      return canvasManager.state.layers.flatMap((layer: Layer) => layer.objects)
-    },
-    
-    renderAll(): void {
-      canvasManager.render()
-    },
-    
-    getWidth(): number {
-      return canvasManager.state.width
-    },
-    
-    getHeight(): number {
-      return canvasManager.state.height
-    },
-    
-    getPointer(e: Event): Point {
-      return canvasManager.getPointerPosition(e)
-    },
-    
-    findTarget(e: Event): CanvasObject | null {
-      const point = canvasManager.getPointerPosition(e)
-      return canvasManager.getObjectAtPoint(point)
-    },
-    
-    setActiveObject(obj: CanvasObject): void {
-      canvasManager.selectObjects([obj.id])
-    },
-    
-    discardActiveObject(): void {
-      canvasManager.clearSelection()
-    },
-    
-    requestRenderAll(): void {
-      requestAnimationFrame(() => canvasManager.render())
+    const selectedObjects: CanvasObject[] = []
+    selection.objectIds.forEach(id => {
+      const obj = this.findObject(id)
+      if (obj) selectedObjects.push(obj)
+    })
+    return selectedObjects
+  }
+  
+  renderAll(): void {
+    this.canvasManager.konvaStage.batchDraw()
+  }
+  
+  private findObject(id: string): CanvasObject | null {
+    for (const layer of this.canvasManager.state.layers) {
+      const obj = layer.objects.find(o => o.id === id)
+      if (obj) return obj
     }
+    return null
   }
 }
 
 /**
- * Migration error class for better debugging
+ * Migration helpers
  */
-export class MigrationError extends Error {
-  constructor(
-    message: string,
-    public readonly component: string,
-    public readonly fabricMethod?: string,
-    public readonly suggestion?: string
-  ) {
-    super(message)
-    this.name = 'MigrationError'
+export function migrateCanvasReference(canvas: any): CanvasManager {
+  // Check if it has the expected CanvasManager properties
+  if (canvas && 
+      typeof canvas === 'object' && 
+      'state' in canvas && 
+      'konvaStage' in canvas &&
+      typeof canvas.addObject === 'function') {
+    return canvas as CanvasManager
   }
+  throw new Error('Invalid canvas reference - must be CanvasManager')
 }
 
-/**
- * Helper to log migration warnings in development
- */
-export function logMigrationWarning(
-  component: string,
-  issue: string,
-  suggestion?: string
-): void {
-  if (process.env.NODE_ENV === 'development') {
-    console.warn(
-      `[Konva Migration] ${component}: ${issue}`,
-      suggestion ? `\nSuggestion: ${suggestion}` : ''
-    )
+export function migrateObjectReference(obj: any): CanvasObject {
+  if (obj && typeof obj === 'object' && 'id' in obj && 'type' in obj) {
+    return obj as CanvasObject
   }
+  throw new Error('Invalid object reference - must be CanvasObject')
 }

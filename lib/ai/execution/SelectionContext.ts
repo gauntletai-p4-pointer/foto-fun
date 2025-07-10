@@ -1,4 +1,4 @@
-import type { FabricObject } from 'fabric'
+import type { CanvasObject } from '@/lib/editor/canvas/types'
 import { nanoid } from 'nanoid'
 
 /**
@@ -11,7 +11,7 @@ import { nanoid } from 'nanoid'
 
 export interface SelectionScope {
   id: string
-  targetObjects: FabricObject[]
+  targetObjects: CanvasObject[]
   targetType: 'image' | 'text' | 'shape' | 'mixed'
   createdAt: number
   expiresAt: number
@@ -35,7 +35,7 @@ export class SelectionContextManager {
    * Create a new selection scope
    */
   createScope(
-    targetObjects: FabricObject[],
+    targetObjects: CanvasObject[],
     targetType: SelectionScope['targetType'],
     source: SelectionScope['source'],
     ttlMs: number = 30000 // 30 seconds default TTL
@@ -98,14 +98,14 @@ export class SelectionContextManager {
   /**
    * Get objects from the active scope, filtered by type
    */
-  getTargetObjects(filterType?: 'image' | 'text' | 'shape'): FabricObject[] {
+  getTargetObjects(filterType?: 'image' | 'text' | 'shape'): CanvasObject[] {
     const scope = this.getActiveScope()
     if (!scope) return []
     
     if (!filterType || scope.targetType === filterType || scope.targetType === 'mixed') {
       return scope.targetObjects.filter(obj => {
         // Validate objects still exist and match type if specified
-        if (!obj || !obj.canvas) return false
+        if (!obj) return false
         if (filterType && obj.type !== filterType) return false
         return true
       })

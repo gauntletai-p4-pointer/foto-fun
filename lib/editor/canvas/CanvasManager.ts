@@ -10,7 +10,6 @@ import type {
   Rect,
   Filter,
   BlendMode,
-  Transform
 } from './types'
 import { EventStore } from '@/lib/events/core/EventStore'
 import { ExecutionContext } from '@/lib/events/execution/ExecutionContext'
@@ -101,7 +100,7 @@ export class CanvasManager implements ICanvasManager {
    * Subscribe to event store for history tracking
    */
   private subscribeToEvents(): void {
-    this.eventStore.subscribe('*', (_event) => {
+    this.eventStore.subscribe('*', () => {
       // Update undo/redo state based on event store
       // This will be implemented by the history store
       this.updateHistoryState()

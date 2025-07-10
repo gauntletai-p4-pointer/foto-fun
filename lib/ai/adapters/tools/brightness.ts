@@ -52,10 +52,10 @@ export class BrightnessToolAdapter extends FilterToolAdapter<BrightnessInput, Br
     return 'brightness'
   }
   
-  protected createFilter(params: BrightnessInput): Record<string, unknown> {
+  protected createFilter(params: BrightnessInput): Filter {
     return {
       type: 'brightness',
-      brightness: params.adjustment / 100 // Convert percentage to decimal
+      params: { value: params.adjustment }
     }
   }
   

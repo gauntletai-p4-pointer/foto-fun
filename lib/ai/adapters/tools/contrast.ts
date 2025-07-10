@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { FilterToolAdapter } from '../base'
 import type { CanvasContext } from '@/lib/ai/tools/canvas-bridge'
 import type { ExecutionContext } from '@/lib/events/execution/ExecutionContext'
+import type { Filter } from '@/lib/editor/canvas/types'
 import { contrastTool } from '@/lib/editor/tools/adjustments/contrastTool'
 
 // Define parameter schema
@@ -51,10 +52,10 @@ export class ContrastToolAdapter extends FilterToolAdapter<ContrastInput, Contra
     return 'contrast'
   }
   
-  protected createFilter(params: ContrastInput): Record<string, unknown> {
+  protected createFilter(params: ContrastInput): Filter {
     return {
       type: 'contrast',
-      contrast: params.adjustment / 100 // Convert percentage to decimal
+      params: { value: params.adjustment }
     }
   }
   

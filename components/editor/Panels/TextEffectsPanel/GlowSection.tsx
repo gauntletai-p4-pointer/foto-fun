@@ -29,15 +29,14 @@ export function GlowSection({ object, onChange }: GlowSectionProps) {
     inner: false,
   })
   
-  // Type guard for text objects
-  if (!object || (object.type !== 'text' && object.type !== 'verticalText') || !object.node) {
-    return null
-  }
-  
-  const textNode = object.node as Konva.Text
-  
   // Check if object has glow effect on mount
   useEffect(() => {
+    // Type guard inside useEffect
+    if (!object || (object.type !== 'text' && object.type !== 'verticalText') || !object.node) {
+      return
+    }
+    
+    const textNode = object.node as Konva.Text
     // Check for existing glow effect (using shadow properties for glow)
     const shadowColor = textNode.shadowColor()
     const shadowBlur = textNode.shadowBlur()
@@ -51,7 +50,7 @@ export function GlowSection({ object, onChange }: GlowSectionProps) {
         inner: false, // Konva doesn't have inner glow, so default to false
       })
     }
-  }, [textNode])
+  }, [object])
   
   const handleToggle = (checked: boolean) => {
     setEnabled(checked)
@@ -66,6 +65,9 @@ export function GlowSection({ object, onChange }: GlowSectionProps) {
   }
   
   const applyGlow = (glowOptions: GlowOptions) => {
+    if (!object || !object.node) return
+    const textNode = object.node as Konva.Text
+    
     // Apply glow effect using Konva shadow properties
     textNode.shadowColor(glowOptions.color)
     textNode.shadowBlur(glowOptions.blur)
@@ -79,6 +81,9 @@ export function GlowSection({ object, onChange }: GlowSectionProps) {
   }
   
   const removeGlow = () => {
+    if (!object || !object.node) return
+    const textNode = object.node as Konva.Text
+    
     textNode.shadowColor('')
     textNode.shadowBlur(0)
     textNode.shadowOpacity(0)
@@ -101,6 +106,11 @@ export function GlowSection({ object, onChange }: GlowSectionProps) {
       applyGlow(newOptions)
       onChange()
     }
+  }
+  
+  // Type guard for text objects
+  if (!object || (object.type !== 'text' && object.type !== 'verticalText') || !object.node) {
+    return null
   }
   
   return (

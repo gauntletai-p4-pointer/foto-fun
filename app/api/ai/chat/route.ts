@@ -369,7 +369,10 @@ async function executeMultiStepWorkflow(
     toDataURL: () => {
       // Return a placeholder data URL for server-side
       return 'data:image/png;base64,placeholder'
-    }
+    },
+    canvas: null as any,
+    targetImages: [],
+    targetingMode: 'auto-single'
   } as CanvasContext // Canvas context with minimal implementation for server-side
   
   // Create agent context with user preferences from AI settings
@@ -381,9 +384,9 @@ async function executeMultiStepWorkflow(
       canvasScreenshot?: string
     }
   } = {
-    canvas: mockCanvas,
+    canvas: mockCanvas as any,
     conversation: messages,
-    workflowMemory: new WorkflowMemory(mockCanvas),
+    workflowMemory: new WorkflowMemory(mockCanvas as any),
     userPreferences: {
       autoApprovalThreshold: aiSettings?.autoApproveThreshold ?? 1.0, // Default to 100% if not provided (requires manual approval)
       maxAutonomousSteps: 10,

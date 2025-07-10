@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { FilterToolAdapter } from '../base'
 import type { CanvasContext } from '@/lib/ai/tools/canvas-bridge'
 import type { ExecutionContext } from '@/lib/events/execution/ExecutionContext'
+import type { Filter } from '@/lib/editor/canvas/types'
 import { grayscaleTool } from '@/lib/editor/tools/filters/grayscaleTool'
 
 // Define parameter schema
@@ -49,9 +50,10 @@ export class GrayscaleToolAdapter extends FilterToolAdapter<GrayscaleInput, Gray
     return 'grayscale'
   }
   
-  protected createFilter(): { type: string } {
+  protected createFilter(): Filter {
     return {
-      type: 'grayscale'
+      type: 'grayscale',
+      params: {}
     }
   }
   

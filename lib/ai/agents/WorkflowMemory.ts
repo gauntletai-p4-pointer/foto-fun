@@ -49,7 +49,7 @@ export class WorkflowMemory implements IWorkflowMemory {
     if (!checkpoint) return false
     
     try {
-      const canvasData = JSON.parse(checkpoint.serializedCanvas)
+      // const canvasData = JSON.parse(checkpoint.serializedCanvas)
       // Note: CanvasManager would need a restore method to fully implement this
       // For now, we log a warning as the restore functionality needs to be implemented
       console.warn('Canvas restore functionality needs to be implemented in CanvasManager')
