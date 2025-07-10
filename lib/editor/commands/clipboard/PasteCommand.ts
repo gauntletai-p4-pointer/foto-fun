@@ -36,11 +36,8 @@ export class PasteCommand extends Command {
     if (this.pastedObject) {
       this.canvas.remove(this.pastedObject)
       
-      // Only clear selection if not executing within a tool chain
-      const { ToolChain } = await import('@/lib/ai/execution/ToolChain')
-      if (!ToolChain.isExecutingChain) {
-        this.canvas.discardActiveObject()
-      }
+      // Clear selection
+      this.canvas.discardActiveObject()
       
       this.canvas.renderAll()
     }
@@ -48,13 +45,11 @@ export class PasteCommand extends Command {
   
   async redo(): Promise<void> {
     if (this.pastedObject) {
+      // Add to canvas
       this.canvas.add(this.pastedObject)
       
-      // Only set as active if not executing within a tool chain
-      const { ToolChain } = await import('@/lib/ai/execution/ToolChain')
-      if (!ToolChain.isExecutingChain) {
-        this.canvas.setActiveObject(this.pastedObject)
-      }
+      // Set as active object
+      this.canvas.setActiveObject(this.pastedObject)
       
       this.canvas.renderAll()
     }

@@ -1,7 +1,7 @@
 import { useCallback } from 'react'
-import { useService } from '@/lib/core/AppInitializer'
-import { useCanvasStore, TypedCanvasStore } from '@/lib/store/canvas/TypedCanvasStore'
 import { ClientToolExecutor } from '@/lib/ai/client/tool-executor'
+import { ServiceContainer } from '@/lib/core/ServiceContainer'
+import type { TypedCanvasStore } from '@/lib/store/canvas/TypedCanvasStore'
 import { adapterRegistry } from '@/lib/ai/adapters/registry'
 
 interface ThinkingStep {
@@ -25,8 +25,7 @@ export function useToolCallHandler({
   onAgentThinkingEnd,
   onAgentThinkingStep
 }: UseToolCallHandlerProps) {
-  const canvasStore = useService<TypedCanvasStore>('CanvasStore')
-  const canvasState = useCanvasStore(canvasStore)
+  const canvasStore = ServiceContainer.getInstance().get<TypedCanvasStore>('CanvasStore')
   
   const handleToolCall = useCallback(async ({ toolCall }: { toolCall: {
     toolName?: string
@@ -139,7 +138,7 @@ export function useToolCallHandler({
               console.log('[AIChat] Tool chain completed successfully:', chainResult)
               
               // After executing all tools, capture the updated canvas state
-              const currentState = useCanvasStore.getState()
+              const currentState = canvasStore.getState()
               let canvasScreenshot: string | undefined
               
               if (currentState.fabricCanvas) {
@@ -214,7 +213,7 @@ export function useToolCallHandler({
             }
             
             // After executing all tools, capture the updated canvas state
-            const currentState = useCanvasStore.getState()
+            const currentState = canvasStore.getState()
             let canvasScreenshot: string | undefined
             
             if (currentState.fabricCanvas) {
@@ -459,8 +458,8 @@ export function useToolCallHandler({
       
       if (requiresSelection) {
         // Get current canvas state
-        const canvasStore = useCanvasStore.getState()
-        const { fabricCanvas } = canvasStore
+        const canvasStore = ServiceContainer.getInstance().get<TypedCanvasStore>('CanvasStore')
+        const { fabricCanvas } = canvasStore.getState()
         
         if (fabricCanvas) {
           const objectCount = fabricCanvas.getObjects().length
@@ -491,7 +490,7 @@ Once you've made your selection, just tell me what you'd like to do!`,
       console.log('Executing tool on client:', toolName)
       
       // Get fresh state from store
-      const currentState = useCanvasStore.getState()
+      const currentState = canvasStore.getState()
       console.log('[AIChat] Canvas ready:', currentState.isReady)
       console.log('[AIChat] FabricCanvas:', currentState.fabricCanvas)
       

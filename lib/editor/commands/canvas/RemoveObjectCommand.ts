@@ -1,69 +1,34 @@
-import { Command } from '../base'
-import type { Canvas, FabricObject } from 'fabric'
+import { Command } from '../base/Command'
+import { ServiceContainer } from '@/lib/core/ServiceContainer'
+import type { TypedEventBus } from '@/lib/events/core/TypedEventBus'
+import type { CanvasObject } from '@/lib/editor/canvas/types'
 
-/**
- * Command to remove an object from the canvas
- */
 export class RemoveObjectCommand extends Command {
-  private canvas: Canvas
-  private object: FabricObject
-  private index: number = -1
+  private object: CanvasObject
+  private layerId: string
+  private typedEventBus: TypedEventBus
   
-  constructor(canvas: Canvas, object: FabricObject) {
-    super('Remove object')
-    this.canvas = canvas
+  constructor(object: CanvasObject, layerId: string) {
+    super(`Remove ${object.type}`)
     this.object = object
+    this.layerId = layerId
+    this.typedEventBus = ServiceContainer.getInstance().get<TypedEventBus>('TypedEventBus')
   }
   
   async execute(): Promise<void> {
-    // Store the index for redo
-    const objects = this.canvas.getObjects()
-    this.index = objects.indexOf(this.object)
-    
-    // Remove the object
-    this.canvas.remove(this.object)
-    
-    // Only clear selection if not executing within a tool chain
-    const { ToolChain } = await import('@/lib/ai/execution/ToolChain')
-    if (!ToolChain.isExecutingChain) {
-      this.canvas.discardActiveObject()
-    }
-    
-    this.canvas.renderAll()
+    // Emit object removed event
+    this.typedEventBus.emit('canvas.object.removed', {
+      canvasId: 'main', // TODO: Get actual canvas ID
+      objectId: this.object.id
+    })
   }
   
   async undo(): Promise<void> {
-    // Re-add the object at its original position
-    if (this.index >= 0) {
-      // Get current objects
-      const objects = this.canvas.getObjects()
-      // Remove all objects
-      this.canvas.clear()
-      // Re-add objects in order, inserting our object at the right position
-      objects.forEach((obj, i) => {
-        if (i === this.index) {
-          this.canvas.add(this.object)
-        }
-        this.canvas.add(obj)
-      })
-      // If the object was at the end
-      if (this.index >= objects.length) {
-        this.canvas.add(this.object)
-      }
-    } else {
-      this.canvas.add(this.object)
-    }
-    
-    // Only restore selection if not executing within a tool chain
-    const { ToolChain } = await import('@/lib/ai/execution/ToolChain')
-    if (!ToolChain.isExecutingChain) {
-      this.canvas.setActiveObject(this.object)
-    }
-    
-    this.canvas.renderAll()
-  }
-  
-  async redo(): Promise<void> {
-    await this.execute()
+    // Emit object added event to restore
+    this.typedEventBus.emit('canvas.object.added', {
+      canvasId: 'main', // TODO: Get actual canvas ID
+      object: this.object as any,
+      layerId: this.layerId
+    })
   }
 } 

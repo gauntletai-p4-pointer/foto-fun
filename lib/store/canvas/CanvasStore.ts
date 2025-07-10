@@ -1,12 +1,9 @@
 import { BaseStore } from '../base/BaseStore'
 import type { EventStore } from '@/lib/events/core/EventStore'
 import type { Event } from '@/lib/events/core/Event'
-import type { CanvasObject, Layer, Selection, Point, Size } from '@/lib/editor/canvas/types'
+import type { CanvasObject, Layer, Selection, Point } from '@/lib/editor/canvas/types'
 import { 
-  ObjectAddedEvent, 
-  ObjectModifiedEvent, 
-  ObjectRemovedEvent,
-  ObjectsBatchModifiedEvent 
+  ObjectAddedEvent
 } from '@/lib/events/canvas/CanvasEvents'
 
 export interface CanvasStoreState {
@@ -87,8 +84,8 @@ export class CanvasStore extends BaseStore<CanvasStoreState> {
   // Event Handlers
   
   private handleObjectAdded(event: Event): void {
-    const addEvent = event as ObjectAddedEvent
     // TODO: Update for new event structure
+    // const addEvent = event as ObjectAddedEvent
     // For now, skip implementation as events need migration
     
     this.setState(state => ({
@@ -114,7 +111,8 @@ export class CanvasStore extends BaseStore<CanvasStoreState> {
     // For now, skip implementation as events need migration
     
     this.setState(state => {
-      const removed = {} // Placeholder
+      // TODO: Handle removed object
+      // const removed = {} // Placeholder
       
       return {
         ...state,
@@ -200,8 +198,8 @@ export class CanvasStore extends BaseStore<CanvasStoreState> {
     }))
   }
   
-  private handleDocumentLoaded(event: Event & { document: any }): void {
-    this.setState(state => ({
+  private handleDocumentLoaded(event: Event & { document: { id: string; name: string; width: number; height: number; backgroundColor: string; createdAt: number; lastModified: number } }): void {
+    this.setState(() => ({
       ...initialState,
       documentId: event.document.id,
       documentName: event.document.name,

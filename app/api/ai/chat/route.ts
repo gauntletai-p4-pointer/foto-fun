@@ -6,7 +6,6 @@ import { MasterRoutingAgent } from '@/lib/ai/agents/MasterRoutingAgent'
 import { WorkflowMemory } from '@/lib/ai/agents/WorkflowMemory'
 import type { AgentContext } from '@/lib/ai/agents/types'
 import { CanvasContextProvider } from '@/lib/ai/canvas/CanvasContext'
-import type { Canvas, FabricObject } from 'fabric'
 
 // Initialize on first request
 let adaptersInitialized = false
@@ -18,12 +17,7 @@ async function initialize() {
   }
 }
 
-// Store selection snapshot for this request
-let requestSelectionSnapshot: { 
-  objectIds: string[], 
-  types: string[],
-  _objects?: FabricObject[]
-} | null = null
+import type { CanvasContext } from '@/lib/ai/tools/canvas-bridge'
 
 export async function POST(req: Request) {
   const { messages, canvasContext, aiSettings, approvedPlan } = await req.json()
@@ -37,15 +31,20 @@ export async function POST(req: Request) {
   console.log('Has approved plan:', !!approvedPlan)
   console.log('Selection snapshot:', canvasContext?.selectionSnapshot)
   
-  // Store selection snapshot for this request
-  requestSelectionSnapshot = canvasContext?.selectionSnapshot || null
-  
   // Initialize adapters
   await initialize()
   
-  // Set selection snapshot for this request
+  // Set canvas context for this request if available
   const { CanvasToolBridge } = await import('@/lib/ai/tools/canvas-bridge')
-  CanvasToolBridge.setRequestSelectionSnapshot(requestSelectionSnapshot)
+  if (canvasContext) {
+    // Create a canvas context object from the request data
+    const contextSnapshot = {
+      canvas: {} as CanvasContext['canvas'], // Placeholder for typing - actual canvas managed by bridge
+      targetImages: canvasContext.targetImages || [],
+      targetingMode: canvasContext.targetingMode || 'none' as const
+    } as CanvasContext
+    CanvasToolBridge.setRequestSelectionSnapshot(contextSnapshot)
+  }
   
   // Ensure snapshot is cleared after request
   const clearSnapshot = () => {
@@ -371,7 +370,7 @@ async function executeMultiStepWorkflow(
       // Return a placeholder data URL for server-side
       return 'data:image/png;base64,placeholder'
     }
-  } as unknown as Canvas
+  } as any // TODO: Update when Canvas is fully migrated to Konva
   
   // Create agent context with user preferences from AI settings
   const agentContext: AgentContext & {

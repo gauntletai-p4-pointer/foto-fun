@@ -112,11 +112,12 @@ export class TypedCanvasStore {
     this.subscriptions.push(
       this.eventBus.on('canvas.object.removed', (data) => {
         this.setState(state => {
-          const { [data.objectId]: _, ...remainingObjects } = state.objects
+          const newObjects = { ...state.objects }
+          delete newObjects[data.objectId]
           
           return {
             ...state,
-            objects: remainingObjects,
+            objects: newObjects,
             isDirty: true,
             lastModified: data.timestamp
           }

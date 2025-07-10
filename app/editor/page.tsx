@@ -100,7 +100,7 @@ export default function EditorPage() {
         // Find tool by shortcut
         const tools = toolState.tools
         for (const [, tool] of tools) {
-          if (tool.shortcut?.toLowerCase() === e.key.toLowerCase() && tool.isImplemented) {
+          if (tool.shortcut?.toLowerCase() === e.key.toLowerCase()) {
             e.preventDefault()
             toolStore.activateTool(tool.id)
             break

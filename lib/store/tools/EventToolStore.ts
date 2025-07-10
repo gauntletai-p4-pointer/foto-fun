@@ -2,7 +2,7 @@ import { BaseStore } from '../base/BaseStore'
 import { EventStore } from '@/lib/events/core/EventStore'
 import { TypedEventBus } from '@/lib/events/core/TypedEventBus'
 import { Tool } from '@/lib/editor/canvas/types'
-import { ToolActivatedEvent, ToolOptionChangedEvent } from '@/lib/events/canvas/ToolEvents'
+import { ToolActivatedEvent } from '@/lib/events/canvas/ToolEvents'
 
 export type OptionType = 'slider' | 'checkbox' | 'dropdown' | 'number' | 'button-group' | 'color'
 
@@ -110,6 +110,17 @@ export class EventToolStore extends BaseStore<ToolState> {
     )
 
     this.typedEventBus.emit('tool.activated', { toolId, previousToolId: null })
+  }
+
+  // Tool deactivation - typically you'd activate another tool instead
+  async deactivateTool() {
+    // In the new architecture, tools are always active
+    // Deactivating means switching to a default tool (move tool)
+    const moveToolId = 'move'
+    const moveTool = this.getState().tools.get(moveToolId)
+    if (moveTool) {
+      await this.activateTool(moveToolId)
+    }
   }
 
   // Tool option management

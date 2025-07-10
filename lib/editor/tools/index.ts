@@ -17,6 +17,7 @@ import { hueTool } from './adjustments/hueTool'
 import { exposureTool } from './adjustments/exposureTool'
 import { colorTemperatureTool } from './adjustments/colorTemperatureTool'
 import type { Tool } from '@/types'
+import type { Tool as CanvasTool } from '@/lib/editor/canvas/types'
 import { rotateTool } from './transform/rotateTool'
 import { flipTool } from './transform/flipTool'
 import { resizeTool } from './transform/resizeTool'
@@ -28,40 +29,58 @@ import { invertTool } from './filters/invertTool'
 import { vintageEffectsTool } from './filters/vintageEffectsTool'
 import { imageGenerationTool } from './ai-native/imageGenerationCanvasTool'
 
-// Export all tools
+// Helper function to adapt canvas tools to UI tool interface
+function adaptTool(tool: CanvasTool): Tool {
+  return {
+    id: tool.id,
+    name: tool.name,
+    icon: tool.icon,
+    cursor: tool.cursor,
+    shortcut: tool.shortcut,
+    isImplemented: true, // All exported tools are implemented
+    // Use any for now to avoid type conflicts during migration
+    onActivate: tool.onActivate as any,
+    onDeactivate: tool.onDeactivate as any,
+    onMouseDown: tool.onMouseDown as any,
+    onMouseMove: tool.onMouseMove as any,
+    onMouseUp: tool.onMouseUp as any,
+  }
+}
+
+// Export all tools - use the adapted versions
 export const tools: Tool[] = [
-  moveTool,
-  marqueeRectTool,
-  marqueeEllipseTool,
-  lassoTool,
-  magicWandTool,
-  quickSelectionTool,
-  cropTool,
-  eyedropperTool,
-  handTool,
-  zoomTool,
-  brushTool,
-  horizontalTypeTool,
-  verticalTypeTool,
-  typeMaskTool,
-  typeOnPathTool,
-  brightnessTool,
-  contrastTool,
-  saturationTool,
-  hueTool,
-  exposureTool,
-  colorTemperatureTool,
-  rotateTool,
-  flipTool,
-  resizeTool,
-  blurTool,
-  sharpenTool,
-  grayscaleTool,
-  sepiaTool,
-  invertTool,
-  vintageEffectsTool,
+  adaptTool(moveTool),
+  adaptTool(marqueeRectTool),
+  adaptTool(marqueeEllipseTool),
+  adaptTool(lassoTool),
+  adaptTool(magicWandTool),
+  adaptTool(quickSelectionTool),
+  adaptTool(cropTool),
+  adaptTool(eyedropperTool),
+  adaptTool(handTool),
+  adaptTool(zoomTool),
+  adaptTool(brushTool),
+  adaptTool(horizontalTypeTool),
+  adaptTool(verticalTypeTool),
+  adaptTool(typeMaskTool),
+  adaptTool(typeOnPathTool),
+  adaptTool(brightnessTool),
+  adaptTool(contrastTool),
+  adaptTool(saturationTool),
+  adaptTool(hueTool),
+  adaptTool(exposureTool),
+  adaptTool(colorTemperatureTool),
+  adaptTool(rotateTool),
+  adaptTool(flipTool),
+  adaptTool(resizeTool),
+  adaptTool(blurTool),
+  adaptTool(sharpenTool),
+  adaptTool(grayscaleTool),
+  adaptTool(sepiaTool),
+  adaptTool(invertTool),
+  adaptTool(vintageEffectsTool),
   // AI-Native tools
-  imageGenerationTool,
+  adaptTool(imageGenerationTool),
 ]
 
 // Export individual tools

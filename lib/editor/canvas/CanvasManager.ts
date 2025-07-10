@@ -259,14 +259,14 @@ export class CanvasManager implements ICanvasManager {
     }
     
     // Add to Konva layer - Konva.Layer.add() accepts any Konva.Node
-    layer.konvaLayer.add(node as any) // Cast to any since Konva types are too strict
+    layer.konvaLayer.add(node)
     layer.objects.push(object)
     layer.konvaLayer.draw()
     
     // Emit event
     this.eventStore.append(new ObjectAddedEvent(
       this.stage.id(),
-      { ...object, node: undefined } as any, // Remove node reference for serialization
+      { ...object, node: undefined } as CanvasObject, // Remove node reference for serialization
       targetLayerId,
       { source: 'user' }
     ))

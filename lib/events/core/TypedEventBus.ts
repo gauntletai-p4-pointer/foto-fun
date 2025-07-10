@@ -1,4 +1,4 @@
-import type { CanvasObject, Layer, Selection, Point } from '@/lib/editor/canvas/types'
+import type { Layer, Selection, Point } from '@/lib/editor/canvas/types'
 import type { FabricObject } from 'fabric'
 
 /**
@@ -137,7 +137,7 @@ export interface EventRegistry {
  * Type-safe event bus for application-wide event handling
  */
 export class TypedEventBus {
-  private handlers = new Map<keyof EventRegistry, Set<(data: any) => void>>()
+  private handlers = new Map<keyof EventRegistry, Set<Function>>()
   
   /**
    * Subscribe to an event type
@@ -150,11 +150,11 @@ export class TypedEventBus {
       this.handlers.set(event, new Set())
     }
     
-    this.handlers.get(event)!.add(handler)
+    this.handlers.get(event)!.add(handler as Function)
     
     // Return unsubscribe function
     return () => {
-      this.handlers.get(event)?.delete(handler)
+      this.handlers.get(event)?.delete(handler as Function)
     }
   }
   
@@ -167,7 +167,7 @@ export class TypedEventBus {
   ): () => void {
     const wrappedHandler = (data: EventRegistry[K] & { timestamp: number }) => {
       handler(data)
-      this.off(event, wrappedHandler as any)
+      this.off(event, wrappedHandler as (data: EventRegistry[K] & { timestamp: number }) => void)
     }
     
     return this.on(event, wrappedHandler)
@@ -180,7 +180,7 @@ export class TypedEventBus {
     event: K,
     handler: (data: EventRegistry[K] & { timestamp: number }) => void
   ): void {
-    this.handlers.get(event)?.delete(handler)
+    this.handlers.get(event)?.delete(handler as Function)
   }
   
   /**

@@ -1,6 +1,5 @@
 import type { Canvas, IText, Textbox } from 'fabric'
 import { Command } from '../base/Command'
-import { useLayerStore } from '@/store/layerStore'
 import type { CustomFabricObjectProps } from '@/types'
 
 /**
@@ -22,15 +21,11 @@ export class AddTextCommand extends Command {
       objWithProps.layerId = this.layerId
     }
     
-    // Add to active layer - this will also add to canvas
-    const layerStore = useLayerStore.getState()
-    layerStore.addObjectToActiveLayer(this.textObject)
+    // Add to canvas
+    this.canvas.add(this.textObject)
     
-    // Only set as active if not executing within a tool chain
-    const { ToolChain } = await import('@/lib/ai/execution/ToolChain')
-    if (!ToolChain.isExecutingChain) {
-      this.canvas.setActiveObject(this.textObject)
-    }
+    // Set as active object
+    this.canvas.setActiveObject(this.textObject)
     
     this.canvas.renderAll()
   }

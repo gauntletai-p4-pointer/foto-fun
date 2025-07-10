@@ -225,7 +225,7 @@ export class ScopedContainer {
   
   dispose(): void {
     // Clean up scoped instances
-    this.scopedInstances.forEach((instance, token) => {
+    this.scopedInstances.forEach((instance) => {
       if (instance && typeof instance.dispose === 'function') {
         instance.dispose()
       }

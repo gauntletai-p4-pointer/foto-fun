@@ -13,9 +13,6 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { TextWarp, WarpStyle } from '@/lib/editor/text/effects/TextWarp'
-import { useService } from '@/lib/core/AppInitializer'
-import { useCanvasStore, TypedCanvasStore } from '@/lib/store/canvas/TypedCanvasStore'
-import { useEventHistoryStore } from '@/lib/events/history/EventBasedHistoryStore'
 import { ModifyCommand } from '@/lib/editor/commands/canvas/ModifyCommand'
 
 interface TextWarpSectionProps {
@@ -26,11 +23,9 @@ export function TextWarpSection({ object }: TextWarpSectionProps) {
   const [warpStyle, setWarpStyle] = useState<WarpStyle>(WarpStyle.Arc)
   const [bendAmount, setBendAmount] = useState(0)
   const [isWarped, setIsWarped] = useState(false)
-  const canvasStore = useService<TypedCanvasStore>('CanvasStore')
-  const canvasState = useCanvasStore(canvasStore)
   // TODO: Update for new canvas system
   const fabricCanvas = null // Temporary placeholder
-  const executeCommand = (command: any) => {
+  const executeCommand = (command: unknown) => {
     console.log('Command execution needs migration:', command)
   }
   

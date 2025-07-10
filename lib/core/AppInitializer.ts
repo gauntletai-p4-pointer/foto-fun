@@ -3,7 +3,7 @@ import { ResourceManager } from './ResourceManager'
 
 // Event System
 import { EventStore } from '@/lib/events/core/EventStore'
-import { TypedEventBus, getTypedEventBus } from '@/lib/events/core/TypedEventBus'
+import { getTypedEventBus } from '@/lib/events/core/TypedEventBus'
 
 // Stores
 import { TypedCanvasStore } from '@/lib/store/canvas/TypedCanvasStore'
@@ -18,19 +18,11 @@ import { useEventHistoryStore } from '@/lib/events/history/EventBasedHistoryStor
 import { CanvasManagerFactory } from '@/lib/editor/canvas/CanvasManagerFactory'
 
 // Managers
-import { SelectionManager } from '@/lib/editor/selection/SelectionManager'
 import { FontManager } from '@/lib/editor/fonts/FontManager'
-import { ClipboardManager } from '@/lib/editor/clipboard/ClipboardManager'
 import { WebGLFilterManager } from '@/lib/editor/filters/WebGLFilterManager'
-
-// Commands
-import { CommandManager } from '@/lib/commands/core/CommandManager'
 
 // AI System
 import { ClientToolExecutor } from '@/lib/ai/client/tool-executor'
-
-// Performance
-import { PerformanceMonitor } from '@/lib/editor/performance/PerformanceMonitor'
 
 /**
  * Application initializer
@@ -61,7 +53,10 @@ export class AppInitializer {
     )
     
     container.registerSingleton('ToolStore', () => {
-      return new EventToolStore(container.get('EventStore'))
+      return new EventToolStore(
+        container.get('EventStore'),
+        container.get('TypedEventBus')
+      )
     })
     
     container.registerSingleton('LayerStore', () => {
@@ -94,10 +89,8 @@ export class AppInitializer {
     // Register ColorStore
     container.registerSingleton('ColorStore', () => {
       const store = new EventColorStore(
-        container.get('EventStore'),
-        container.get('TypedEventBus')
+        container.get('EventStore')
       )
-      store.initialize()
       return store
     })
 
@@ -106,19 +99,9 @@ export class AppInitializer {
       return useEventHistoryStore
     })
     
-    // Selection System
-    container.registerSingleton('SelectionManager', () => {
-      return new SelectionManager()
-    })
-    
     // Font System
     container.registerSingleton('FontManager', () => {
       return FontManager.getInstance()
-    })
-    
-    // Clipboard System
-    container.registerSingleton('ClipboardManager', () => {
-      return new ClipboardManager()
     })
     
     // Filter System
@@ -138,11 +121,6 @@ export class AppInitializer {
     // AI System
     container.registerSingleton('ToolExecutor', () => {
       return ClientToolExecutor
-    })
-    
-    // Performance Monitoring
-    container.registerSingleton('PerformanceMonitor', () => {
-      return PerformanceMonitor.getInstance()
     })
     
     return container

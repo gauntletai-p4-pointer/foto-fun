@@ -1,59 +1,31 @@
-import { z } from 'zod'
 import { BaseToolAdapter } from '../base'
-import type { Canvas } from 'fabric'
-import * as fabric from 'fabric'
-import { useLayerStore } from '@/store/layerStore'
-import { tool } from 'ai'
-import type { Tool } from '@/types'
+import { ImageGenerationTool } from '@/lib/editor/tools/ai-native/imageGenerationCanvasTool'
+import { ServiceContainer } from '@/lib/core/ServiceContainer'
+import type { EventLayerStore } from '@/lib/store/layers/EventLayerStore'
+import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
+import type { FabricImage } from '@/lib/editor/canvas/types'
 
-// Input schema for AI SDK v5
-const imageGenerationInputSchema = z.object({
-  prompt: z.string().describe('Text description of the image to generate'),
-  negative_prompt: z.string().optional().describe('What to avoid in the generated image'),
-  width: z.number().min(256).max(2048).describe('Width in pixels (will be rounded to nearest multiple of 8). Common sizes: 512, 768, 1024'),
-  height: z.number().min(256).max(2048).describe('Height in pixels (will be rounded to nearest multiple of 8). Common sizes: 512, 768, 1024'),
-  steps: z.number().min(1).max(100).describe('Number of inference steps (more = higher quality but slower)'),
-  seed: z.number().optional().describe('Random seed for reproducible results')
-})
+export interface ImageGenerationParams {
+  prompt: string
+  width: number
+  height: number
+  steps: number
+  seed?: number
+  negative_prompt?: string
+}
 
-type ImageGenerationInput = z.infer<typeof imageGenerationInputSchema>
-
-interface ImageGenerationOutput {
+export interface ImageGenerationOutput {
   success: boolean
+  imageUrl?: string
   message: string
-  imageUrl?: string
-  cost?: number
-  metadata?: {
-    width: number
-    height: number
-    model?: string
-    processingTime?: number
-  }
-}
-
-interface ServerResponse {
-  success: boolean
-  imageUrl?: string
-  error?: string
-  metadata?: {
-    width: number
-    height: number
-    model?: string
-    processingTime?: number
-  }
-}
-
-interface ServerErrorResponse {
-  error: string
-  message?: string
-  details?: unknown
+  targetingMode: 'selection' | 'auto-single'
 }
 
 /**
  * Tool Adapter for Image Generation AI-Native Tool
  * Integrates Replicate's SDXL model with FotoFun's canvas
  */
-export class ImageGenerationAdapter extends BaseToolAdapter<ImageGenerationInput, ImageGenerationOutput> {
+export class ImageGenerationAdapter extends BaseToolAdapter<ImageGenerationParams, ImageGenerationOutput> {
   // Required BaseToolAdapter properties
   aiName = 'generateImage'
   description = `Generate NEW images from scratch using text descriptions with Stable Diffusion XL. 
@@ -88,10 +60,43 @@ Be specific in your descriptions for better results. The generated image will be
     worksOn: 'new-image' as const
   }
   
-  inputSchema = imageGenerationInputSchema
+  inputSchema = {
+    prompt: {
+      type: 'string',
+      description: 'Text description of the image to generate',
+    },
+    negative_prompt: {
+      type: 'string',
+      description: 'What to avoid in the generated image',
+      optional: true,
+    },
+    width: {
+      type: 'number',
+      description: 'Width in pixels (will be rounded to nearest multiple of 8). Common sizes: 512, 768, 1024',
+      minimum: 256,
+      maximum: 2048,
+    },
+    height: {
+      type: 'number',
+      description: 'Height in pixels (will be rounded to nearest multiple of 8). Common sizes: 512, 768, 1024',
+      minimum: 256,
+      maximum: 2048,
+    },
+    steps: {
+      type: 'number',
+      description: 'Number of inference steps (more = higher quality but slower)',
+      minimum: 1,
+      maximum: 100,
+    },
+    seed: {
+      type: 'number',
+      description: 'Random seed for reproducible results',
+      optional: true,
+    },
+  }
   
   // We don't have a canvas tool for AI-Native Tools - create a placeholder
-  get tool(): Tool {
+  get tool(): { id: string; name: string; icon: () => null; cursor: string; isImplemented: boolean } {
     return {
       id: 'ai-image-generation',
       name: 'AI Image Generation',
@@ -101,7 +106,7 @@ Be specific in your descriptions for better results. The generated image will be
     }
   }
   
-  async execute(params: ImageGenerationInput, context: { canvas: Canvas }): Promise<ImageGenerationOutput> {
+  async execute(params: ImageGenerationParams, context: { canvas: any }): Promise<ImageGenerationOutput> {
     try {
       console.log('[ImageGenerationAdapter] Generating image with params:', params)
       
@@ -115,11 +120,11 @@ Be specific in your descriptions for better results. The generated image will be
       })
       
       if (!response.ok) {
-        const errorData: ServerErrorResponse = await response.json()
+        const errorData: { error: string; message?: string; details?: unknown } = await response.json()
         throw new Error(errorData.error || `Server error: ${response.status}`)
       }
       
-      const result: ServerResponse = await response.json()
+      const result: { success: boolean; imageUrl?: string; error?: string; metadata?: { width: number; height: number; model?: string; processingTime?: number } } = await response.json()
       console.log('[ImageGenerationAdapter] Server response:', result)
       
       if (!result.success || !result.imageUrl) {
@@ -133,8 +138,7 @@ Be specific in your descriptions for better results. The generated image will be
         success: true,
         message: `Generated image from prompt: "${params.prompt}"`,
         imageUrl: result.imageUrl,
-        cost: 0.002, // Estimated cost for SDXL
-        metadata: result.metadata
+        targetingMode: 'auto-single'
       }
       
     } catch (error) {
@@ -143,7 +147,7 @@ Be specific in your descriptions for better results. The generated image will be
       return {
         success: false,
         message: `Image generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        cost: 0
+        targetingMode: 'auto-single'
       }
     }
   }
@@ -151,9 +155,19 @@ Be specific in your descriptions for better results. The generated image will be
   /**
    * Apply the generated image to the canvas
    */
-  private async applyToCanvas(imageUrl: string, canvas: Canvas, prompt: string): Promise<void> {
+  private async applyToCanvas(imageUrl: string, canvas: any, prompt: string): Promise<void> {
     try {
-      const img = await fabric.Image.fromURL(imageUrl, { crossOrigin: 'anonymous' })
+      const img = await new Promise<any>((resolve, reject) => {
+        const img = new fabric.Image(null, {
+          crossOrigin: 'anonymous',
+          src: imageUrl,
+          onLoad: resolve,
+          onError: reject,
+        });
+        canvas.add(img);
+        canvas.setActiveObject(img);
+        resolve(img);
+      });
       
       if (!img) {
         throw new Error('Failed to load generated image')
@@ -173,7 +187,7 @@ Be specific in your descriptions for better results. The generated image will be
       const position = this.findBestPosition(canvas, img, scale)
       
       // Create a new layer for the generated image
-      const layerStore = useLayerStore.getState()
+      const layerStore = ServiceContainer.get<EventLayerStore>('EventLayerStore');
       const layerName = this.generateLayerName(prompt)
       
       console.log('[ImageGenerationAdapter] Creating new layer:', layerName)
@@ -232,7 +246,7 @@ Be specific in your descriptions for better results. The generated image will be
   /**
    * Find the best position to place a new image without overlapping existing content
    */
-  private findBestPosition(canvas: Canvas, img: fabric.Image, scale: number): { left: number; top: number } {
+  private findBestPosition(canvas: any, img: fabric.Image, scale: number): { left: number; top: number } {
     // Get viewport transform for accurate positioning
     const vpt = canvas.viewportTransform || [1, 0, 0, 1, 0, 0]
     const zoom = vpt[0] // zoom is stored in the scale components
@@ -438,10 +452,10 @@ Be specific in your descriptions for better results. The generated image will be
    * On the server, this tool calls our API route directly
    */
   toAITool(): unknown {
-    return tool({
+    return {
       description: this.description,
       inputSchema: this.inputSchema,
-      execute: async (args: ImageGenerationInput) => {
+      execute: async (args: ImageGenerationParams) => {
         console.log('[ImageGenerationAdapter] Server-side tool execution with args:', args)
         
         try {
@@ -456,11 +470,11 @@ Be specific in your descriptions for better results. The generated image will be
           })
           
           if (!response.ok) {
-            const errorData: ServerErrorResponse = await response.json()
+            const errorData: { error: string; message?: string; details?: unknown } = await response.json()
             throw new Error(errorData.error || `Server error: ${response.status}`)
           }
           
-          const result: ServerResponse = await response.json()
+          const result: { success: boolean; imageUrl?: string; error?: string; metadata?: { width: number; height: number; model?: string; processingTime?: number } } = await response.json()
           console.log('[ImageGenerationAdapter] Server tool result:', result)
           
           return {
@@ -476,7 +490,7 @@ Be specific in your descriptions for better results. The generated image will be
           }
         }
       }
-    })
+    }
   }
   
   /**

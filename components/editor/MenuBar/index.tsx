@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { useService } from '@/lib/core/AppInitializer'
+import { useService } from '@/lib/core/ServiceContainer'
 import { useStore } from '@/lib/store/base/BaseStore'
 import { EventDocumentStore } from '@/lib/store/document/EventDocumentStore'
 import { EventSelectionStore } from '@/lib/store/selection/EventSelectionStore'
@@ -11,8 +11,6 @@ import { useTheme } from '@/hooks/useTheme'
 import { useAuth } from '@/hooks/useAuth'
 import { signOut } from '@/lib/auth/actions'
 import { NewDocumentDialog } from '@/components/dialogs/NewDocumentDialog'
-import { CopyCommand, CutCommand, PasteCommand } from '@/lib/editor/commands/clipboard'
-import { ModifySelectionCommand, ClearSelectionCommand } from '@/lib/editor/commands/selection'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -39,7 +37,7 @@ export function MenuBar() {
   
   const selectionStore = useService<EventSelectionStore>('SelectionStore')
   const selectionState = useStore(selectionStore)
-  const hasSelection = selectionState.selectedIds.length > 0
+  const hasSelection = selectionState.selectedObjectIds.size > 0
   
   const { theme, setTheme } = useTheme()
   const { user } = useAuth()
@@ -64,36 +62,23 @@ export function MenuBar() {
   }
   
   const handleCopy = () => {
-    if (clipboardManager) {
-      const command = new CopyCommand(clipboardManager)
-      executeCommand(command)
-    }
+    // TODO: Implement copy functionality with new architecture
+    console.log('Copy functionality needs implementation with new architecture')
   }
   
   const handleCut = () => {
-    if (clipboardManager && fabricCanvas && selectionManager) {
-      const command = new CutCommand(fabricCanvas, clipboardManager, selectionManager)
-      executeCommand(command)
-    }
+    // TODO: Implement cut functionality with new architecture
+    console.log('Cut functionality needs implementation with new architecture')
   }
   
   const handlePaste = () => {
-    if (clipboardManager && fabricCanvas) {
-      const command = new PasteCommand(fabricCanvas, clipboardManager)
-      executeCommand(command)
-    }
+    // TODO: Implement paste functionality with new architecture
+    console.log('Paste functionality needs implementation with new architecture')
   }
   
   const handleSelectAll = () => {
-    if (selectionManager) {
-      selectionManager.selectAll()
-      useSelectionStore.getState().updateSelectionState(true, {
-        x: 0,
-        y: 0,
-        width: fabricCanvas?.width || 0,
-        height: fabricCanvas?.height || 0
-      })
-    }
+    // TODO: Implement select all functionality with new architecture
+    console.log('Select All functionality needs implementation with new architecture')
   }
   
   const handleDeselect = () => {
@@ -106,21 +91,19 @@ export function MenuBar() {
     console.log('Invert Selection functionality needs migration to Konva')
   }
   
-  const handleExpandSelection = (pixels: number) => {
+  const handleExpandSelection = () => {
     // TODO: Update selection functionality after canvas migration
     console.log('Expand Selection functionality needs migration to Konva')
   }
   
-  const handleContractSelection = (pixels: number) => {
+  const handleContractSelection = () => {
     // TODO: Update selection functionality after canvas migration
     console.log('Contract Selection functionality needs migration to Konva')
   }
   
   const handleFeatherSelection = (pixels: number) => {
-    if (selectionManager) {
-      const command = new ModifySelectionCommand(selectionManager, 'feather', pixels)
-      executeCommand(command)
-    }
+    // TODO: Implement feather selection with new architecture
+    console.log(`Feather Selection (${pixels}px) functionality needs implementation with new architecture`)
   }
   
   return (
@@ -202,7 +185,7 @@ export function MenuBar() {
               <DropdownMenuSeparator />
               <DropdownMenuItem 
                 onClick={handleCut}
-                disabled={!selectionManager || (!hasSelection && !fabricCanvas?.getActiveObject())}
+                disabled={!hasSelection}
               >
                 <Scissors className="mr-2 h-4 w-4" />
                 Cut
@@ -210,7 +193,7 @@ export function MenuBar() {
               </DropdownMenuItem>
               <DropdownMenuItem 
                 onClick={handleCopy}
-                disabled={!selectionManager || (!hasSelection && !fabricCanvas?.getActiveObject())}
+                disabled={!hasSelection}
               >
                 <Copy className="mr-2 h-4 w-4" />
                 Copy
@@ -281,24 +264,24 @@ export function MenuBar() {
                   Modify
                 </DropdownMenuSubTrigger>
                 <DropdownMenuSubContent className="w-48">
-                  <DropdownMenuItem onClick={() => handleExpandSelection(1)}>
-                    Expand... (1px)
+                  <DropdownMenuItem onClick={() => handleExpandSelection()}>
+                    Expand...
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleExpandSelection(2)}>
-                    Expand... (2px)
+                  <DropdownMenuItem onClick={() => handleExpandSelection()}>
+                    Expand...
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleExpandSelection(5)}>
-                    Expand... (5px)
+                  <DropdownMenuItem onClick={() => handleExpandSelection()}>
+                    Expand...
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => handleContractSelection(1)}>
-                    Contract... (1px)
+                  <DropdownMenuItem onClick={() => handleContractSelection()}>
+                    Contract...
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleContractSelection(2)}>
-                    Contract... (2px)
+                  <DropdownMenuItem onClick={() => handleContractSelection()}>
+                    Contract...
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleContractSelection(5)}>
-                    Contract... (5px)
+                  <DropdownMenuItem onClick={() => handleContractSelection()}>
+                    Contract...
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={() => handleFeatherSelection(1)}>

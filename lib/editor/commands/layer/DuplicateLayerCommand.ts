@@ -1,35 +1,43 @@
 import { Command } from '../base/Command'
-import { useLayerStore } from '@/store/layerStore'
+import { ServiceContainer } from '@/lib/core/ServiceContainer'
+import type { TypedEventBus } from '@/lib/events/core/TypedEventBus'
+import type { Layer } from '@/lib/editor/canvas/types'
 
-/**
- * Command to duplicate a layer
- */
 export class DuplicateLayerCommand extends Command {
-  private sourceLayerId: string
-  private duplicatedLayerId: string | null = null
+  private originalLayerId: string
+  private duplicatedLayer: Layer | null = null
+  private typedEventBus: TypedEventBus
   
-  constructor(sourceLayerId: string) {
-    super('Duplicate layer')
-    this.sourceLayerId = sourceLayerId
+  constructor(originalLayerId: string) {
+    super(`Duplicate layer`)
+    this.originalLayerId = originalLayerId
+    this.typedEventBus = ServiceContainer.getInstance().get<TypedEventBus>('TypedEventBus')
   }
   
   async execute(): Promise<void> {
-    const layerStore = useLayerStore.getState()
-    const duplicated = layerStore.duplicateLayer(this.sourceLayerId)
-    if (duplicated) {
-      this.duplicatedLayerId = duplicated.id
+    // TODO: Implement layer duplication logic
+    // For now, just emit a placeholder layer creation
+    const duplicatedLayer: Layer = {
+      id: `${this.originalLayerId}_copy_${Date.now()}`,
+      name: `Layer Copy`,
+      type: 'raster',
+      visible: true,
+      opacity: 1,
+      objects: []
     }
+    
+    this.duplicatedLayer = duplicatedLayer
+    
+    this.typedEventBus.emit('layer.created', {
+      layer: duplicatedLayer
+    })
   }
   
   async undo(): Promise<void> {
-    if (this.duplicatedLayerId) {
-      const layerStore = useLayerStore.getState()
-      layerStore.removeLayer(this.duplicatedLayerId)
+    if (this.duplicatedLayer) {
+      this.typedEventBus.emit('layer.removed', {
+        layerId: this.duplicatedLayer.id
+      })
     }
-  }
-  
-  async redo(): Promise<void> {
-    // Re-duplicate the layer (will get a new ID)
-    await this.execute()
   }
 } 

@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react'
 import { useService } from '@/lib/core/AppInitializer'
 import { useStore } from '@/lib/store/base/BaseStore'
 import { EventLayerStore } from '@/lib/store/layers/EventLayerStore'
-import { useEventHistoryStore } from '@/lib/events/history/EventBasedHistoryStore'
 import { 
   Eye, 
   EyeOff, 
@@ -40,7 +39,6 @@ import { cn } from '@/lib/utils'
 import type { Layer } from '@/lib/editor/canvas/types'
 import type { BlendMode } from '@/types'
 import { 
-  CreateLayerCommand,
   RemoveLayerCommand,
   UpdateLayerCommand,
   ReorderLayersCommand,
@@ -90,7 +88,7 @@ interface LayerItemProps {
 
 function LayerItem({ layer, isActive, layerStore, onDragStart, onDragOver, onDrop }: LayerItemProps) {
   // TODO: Update command execution for new event system
-  const executeCommand = (command: any) => {
+  const executeCommand = (command: unknown) => {
     console.log('Command execution needs migration:', command)
   }
   
@@ -206,7 +204,7 @@ export function LayersPanel() {
   const layerStore = useService<EventLayerStore>('LayerStore')
   const layerState = useStore(layerStore)
   // TODO: Update command execution for new event system
-  const executeCommand = (command: any) => {
+  const executeCommand = (command: unknown) => {
     console.log('Command execution needs migration:', command)
   }
   
@@ -221,13 +219,14 @@ export function LayersPanel() {
   useEffect(() => {
     if (layers.length === 0 && !hasInitialized) {
       setHasInitialized(true)
+      // TODO: Implement proper layer creation with Konva.Layer
       // Defer command execution to avoid running during render
-      queueMicrotask(() => {
-        executeCommand(new CreateLayerCommand({
-          name: 'Background',
-          type: 'image'
-        }))
-      })
+      // queueMicrotask(() => {
+      //   executeCommand(new CreateLayerCommand({
+      //     name: 'Background',
+      //     type: 'raster'
+      //   }))
+      // })
     }
   }, [layers.length, executeCommand, hasInitialized])
   
@@ -257,9 +256,11 @@ export function LayersPanel() {
   }
   
   const handleAddLayer = () => {
-    executeCommand(new CreateLayerCommand({
-      type: 'image'
-    }))
+    // TODO: Implement proper layer creation with Konva.Layer
+    // executeCommand(new CreateLayerCommand({
+    //   type: 'raster'
+    // }))
+    console.log('Add layer needs proper implementation with Konva')
   }
   
   const handleOpacityChange = (value: number[]) => {
