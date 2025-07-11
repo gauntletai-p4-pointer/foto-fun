@@ -1,5 +1,26 @@
 import { CanvasToolBridge } from '../tools/canvas-bridge'
 import { adapterRegistry, autoDiscoverAdapters } from '../adapters/registry'
+import type { CanvasContext } from '@/lib/ai/canvas/CanvasContext'
+
+/**
+ * Convert bridge CanvasContext to unified CanvasContext
+ */
+function convertBridgeContext(bridgeContext: ReturnType<typeof CanvasToolBridge.getCanvasContext>): CanvasContext | null {
+  if (!bridgeContext) return null
+  
+  return {
+    canvas: bridgeContext.canvas,
+    targetObjects: bridgeContext.targetImages, // Convert targetImages to targetObjects
+    targetingMode: bridgeContext.targetingMode === 'selection' ? 'selected' : 
+                   bridgeContext.targetingMode === 'auto-single' ? 'selected' :
+                   bridgeContext.targetingMode === 'all' ? 'all' : 'all',
+    dimensions: bridgeContext.dimensions,
+    hasContent: bridgeContext.canvas.getAllObjects().length > 0,
+    objectCount: bridgeContext.canvas.getAllObjects().length,
+    pixelSelection: undefined, // Not available in bridge context
+    screenshot: undefined
+  }
+}
 
 /**
  * Client-side tool executor for AI operations
@@ -52,20 +73,21 @@ export class ClientToolExecutor {
     }
     
     // Get full enhanced context from bridge
-    const context = CanvasToolBridge.getCanvasContext()
+    const bridgeContext = CanvasToolBridge.getCanvasContext()
+    const context = convertBridgeContext(bridgeContext)
     if (!context) {
       console.error('[ClientToolExecutor] Bridge context not available')
       throw new Error('Canvas context is not available. Please ensure an image is loaded.')
     }
     
     console.log('[ClientToolExecutor] Using enhanced context with targeting:', {
-      targetImages: context.targetImages.length,
+      targetObjects: context.targetObjects.length,
       targetingMode: context.targetingMode
     })
     
     try {
       // Execute the adapter with enhanced context
-      const result = await tool.execute(params, context)
+      const result = await tool.execute(params, context as any)
       console.log('[ClientToolExecutor] Adapter execution successful:', result)
       return result
     } catch (error) {

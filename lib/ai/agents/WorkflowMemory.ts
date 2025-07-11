@@ -30,12 +30,12 @@ export class WorkflowMemory implements IWorkflowMemory {
   createCheckpoint(id: string): void {
     // Store the current canvas state
     const canvasState = {
-      layers: this.canvas.state.layers,
-      selection: this.canvas.state.selection,
-      activeLayerId: this.canvas.state.activeLayerId,
+      layers: this.canvas.getAllObjects(),
+      selection: this.canvas.getSelectedObjects(),
+      activeLayerId: Array.from(this.canvas.state.selectedObjectIds)[0] || null,
       backgroundColor: this.canvas.state.backgroundColor,
-      width: this.canvas.state.documentBounds?.width || 0,
-      height: this.canvas.state.documentBounds?.height || 0
+      width: this.canvas.getWidth(),
+      height: this.canvas.getHeight()
     }
     this.checkpoints.set(id, {
       id,

@@ -4,6 +4,7 @@ import { ReplicateService } from '../services/replicate'
 import { ModelPreferencesManager } from '@/lib/settings/ModelPreferences'
 import { TypedEventBus } from '@/lib/events/core/TypedEventBus'
 import type { CanvasObject } from '@/lib/editor/objects/types'
+import type { ImageData as ReplicateImageData } from '@/lib/ai/services/replicate'
 
 export interface UpscalingOptions {
   scale: 2 | 4

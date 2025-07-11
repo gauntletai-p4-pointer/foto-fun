@@ -79,8 +79,8 @@ export class CanvasContextManager {
    */
   async prepareForOperation(operationType: 'image' | 'text' | 'all') {
     // Check if there's already a selection
-    const currentSelection = this.canvasManager.state.selection
-    if (currentSelection?.type === 'objects' && currentSelection.objectIds.length > 0) {
+    const selectedObjects = this.canvasManager.getSelectedObjects()
+    if (selectedObjects.length > 0) {
       return // Keep existing selection
     }
     

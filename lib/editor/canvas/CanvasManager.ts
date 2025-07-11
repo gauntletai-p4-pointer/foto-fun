@@ -412,6 +412,10 @@ export class CanvasManager implements ICanvasManager {
     return this.objectManager.getAllObjects()
   }
   
+  findObject(id: string): CanvasObject | null {
+    return this.getObject(id)
+  }
+  
   getNode(objectId: string): Konva.Node | null {
     return this.nodeMap.get(objectId) || null
   }

@@ -212,6 +212,7 @@ export interface CanvasManager {
   updateObject(objectId: string, updates: Partial<import('@/lib/editor/objects/types').CanvasObject>): Promise<void>
   getObject(objectId: string): import('@/lib/editor/objects/types').CanvasObject | null
   getAllObjects(): import('@/lib/editor/objects/types').CanvasObject[]
+  findObject(id: string): import('@/lib/editor/objects/types').CanvasObject | null
   
   // Selection operations
   setSelection(selection: Selection | null): void
@@ -219,6 +220,8 @@ export interface CanvasManager {
   deselectAll(): void
   selectObject(objectId: string): void
   selectMultiple(objectIds: string[]): void
+  selectObjects(objectIds: string[]): void
+  clearSelection(): void
   getSelectedObjects(): import('@/lib/editor/objects/types').CanvasObject[]
   getSelectionManager(): SelectionManager
   
@@ -243,6 +246,8 @@ export interface CanvasManager {
   setPan(pan: Point): void
   fitToScreen(): void
   setDraggable(draggable: boolean): void
+  getWidth(): number
+  getHeight(): number
   
   // Object finding
   getObjectAtPoint(point: Point): import('@/lib/editor/objects/types').CanvasObject | null

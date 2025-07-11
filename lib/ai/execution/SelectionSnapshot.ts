@@ -106,16 +106,7 @@ export class SelectionSnapshotFactory {
    * Create snapshot from current canvas selection
    */
   static fromCanvas(canvas: CanvasManager): SelectionSnapshot {
-    const selection = canvas.state.selection
-    const selectedObjects: CanvasObject[] = []
-    
-    if (selection?.type === 'objects') {
-      selection.objectIds.forEach(id => {
-        const obj = canvas.findObject(id)
-        if (obj) selectedObjects.push(obj)
-      })
-    }
-    
+    const selectedObjects = canvas.getSelectedObjects()
     return new SelectionSnapshot(selectedObjects)
   }
   
@@ -134,14 +125,10 @@ export class SelectionSnapshotFactory {
     canvas: CanvasManager,
     fallbackType?: string
   ): SelectionSnapshot {
-    const selection = canvas.state.selection
-    const selectedObjects: CanvasObject[] = []
+    const selectedObjects = canvas.getSelectedObjects()
     
-    if (selection?.type === 'objects' && selection.objectIds.length > 0) {
-      selection.objectIds.forEach(id => {
-        const obj = canvas.findObject(id)
-        if (obj) selectedObjects.push(obj)
-      })
+    if (selectedObjects.length > 0) {
+      return new SelectionSnapshot(selectedObjects)
       return new SelectionSnapshot(selectedObjects)
     }
     

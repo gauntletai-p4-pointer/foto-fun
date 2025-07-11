@@ -7,12 +7,12 @@ import type { Tool } from 'ai'
  * Maps canvas tools to AI-compatible tool adapters
  */
 class AdapterRegistry {
-  private adapters = new Map<string, ToolAdapter | UnifiedToolAdapter<any, any>>()
+  private adapters = new Map<string, ToolAdapter | UnifiedToolAdapter<unknown, unknown>>()
   
   /**
    * Register a tool adapter
    */
-  register(adapter: ToolAdapter | UnifiedToolAdapter<any, any>): void {
+  register(adapter: ToolAdapter | UnifiedToolAdapter<unknown, unknown>): void {
     this.adapters.set(adapter.aiName, adapter)
     // console.log(`[AdapterRegistry] Registered AI adapter: ${adapter.aiName}`)
     // console.log(`[AdapterRegistry] Adapter description: ${adapter.description}`)
@@ -21,7 +21,7 @@ class AdapterRegistry {
   /**
    * Register multiple adapters at once
    */
-  registerMany(adapters: (ToolAdapter | UnifiedToolAdapter<any, any>)[]): void {
+  registerMany(adapters: (ToolAdapter | UnifiedToolAdapter<unknown, unknown>)[]): void {
     adapters.forEach(adapter => this.register(adapter))
   }
   
@@ -78,7 +78,7 @@ class AdapterRegistry {
   /**
    * Get adapters by category for routing decisions
    */
-  getByCategory(category: 'canvas-editing' | 'ai-native'): (ToolAdapter | UnifiedToolAdapter<any, any>)[] {
+  getByCategory(category: 'canvas-editing' | 'ai-native'): (ToolAdapter | UnifiedToolAdapter<unknown, unknown>)[] {
     return this.getAll().filter(adapter => {
       // Check if this is a ToolAdapter with metadata property
       if ('metadata' in adapter && adapter.metadata && typeof adapter.metadata === 'object' && 'category' in adapter.metadata) {
@@ -93,14 +93,14 @@ class AdapterRegistry {
   /**
    * Get only canvas editing tools (for workflows)
    */
-  getCanvasEditingTools(): (ToolAdapter | UnifiedToolAdapter<any, any>)[] {
+  getCanvasEditingTools(): (ToolAdapter | UnifiedToolAdapter<unknown, unknown>)[] {
     return this.getByCategory('canvas-editing')
   }
   
   /**
    * Get only AI-native tools (for single-tool execution)
    */
-  getAINativeTools(): (ToolAdapter | UnifiedToolAdapter<any, any>)[] {
+  getAINativeTools(): (ToolAdapter | UnifiedToolAdapter<unknown, unknown>)[] {
     return this.getByCategory('ai-native')
   }
   

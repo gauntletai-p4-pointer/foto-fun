@@ -5,6 +5,8 @@ import { Eraser } from 'lucide-react'
 import { ModelPreferencesManager } from '@/lib/settings/ModelPreferences'
 import { TypedEventBus } from '@/lib/events/core/TypedEventBus'
 
+import type { ImageData as ReplicateImageData } from '@/lib/ai/services/replicate'
+
 export interface BackgroundRemovalOptions {
   modelTier?: 'best' | 'fast'
   createNewObject?: boolean
@@ -185,24 +187,28 @@ export class BackgroundRemovalTool extends ObjectTool {
     } catch (error) {
       console.error('[BackgroundRemovalTool] Failed to remove background:', error)
       this.eventBus.emit('ai.processing.failed', {
-        taskId,
+        taskId: `${this.id}-${Date.now()}`,
         toolId: this.id,
         error: error instanceof Error ? error.message : 'Background removal failed'
       })
     }
   }
   
-  private async getImageDataFromObject(_object: CanvasObject): Promise<ImageData> {
+  private async getImageDataFromObject(_object: CanvasObject): Promise<ReplicateImageData> {
     // This is a placeholder - actual implementation would extract ImageData from the canvas object
     // For now, return mock data
     const canvas = document.createElement('canvas')
     canvas.width = 100
     canvas.height = 100
-    const ctx = canvas.getContext('2d')!
-    return ctx.createImageData(100, 100)
+    
+    return {
+      element: canvas,
+      naturalWidth: 100,
+      naturalHeight: 100
+    }
   }
   
-  private async createImageElement(imageData: ImageData): Promise<HTMLImageElement> {
+  private async createImageElement(imageData: globalThis.ImageData): Promise<HTMLImageElement> {
     // Convert ImageData to Image element
     const canvas = document.createElement('canvas')
     canvas.width = imageData.width

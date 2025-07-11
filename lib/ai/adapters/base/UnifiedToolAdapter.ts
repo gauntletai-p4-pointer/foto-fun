@@ -2,19 +2,12 @@ import { z } from 'zod'
 import { tool } from 'ai'
 import type { CanvasManager } from '@/lib/editor/canvas/types'
 import type { CanvasObject } from '@/lib/editor/objects/types'
+import type { CanvasContext } from '@/lib/ai/canvas/CanvasContext'
 
 /**
- * Context for object-based canvas operations
+ * @deprecated Use CanvasContext instead - this type alias is for backward compatibility
  */
-export interface ObjectCanvasContext {
-  canvas: CanvasManager
-  targetObjects: CanvasObject[]
-  targetingMode: 'selected' | 'all' | 'visible'
-  pixelSelection?: {
-    bounds: { x: number; y: number; width: number; height: number }
-    mask?: ImageData
-  }
-}
+export type ObjectCanvasContext = CanvasContext
 
 /**
  * Base class for unified tool adapters
@@ -46,13 +39,13 @@ export abstract class UnifiedToolAdapter<TInput = Record<string, unknown>, TOutp
    */
   abstract execute(
     params: TInput,
-    context: ObjectCanvasContext
+    context: CanvasContext
   ): Promise<TOutput>
   
   /**
    * Get target objects based on targeting mode
    */
-  protected getTargets(context: ObjectCanvasContext): CanvasObject[] {
+  protected getTargets(context: CanvasContext): CanvasObject[] {
     switch (context.targetingMode) {
       case 'selected':
         return context.targetObjects
@@ -61,7 +54,6 @@ export abstract class UnifiedToolAdapter<TInput = Record<string, unknown>, TOutp
         return context.canvas.getAllObjects()
         
       case 'visible':
-        // @ts-expect-error - getViewportBounds exists on our implementation
         const viewport = context.canvas.getViewportBounds()
         return context.canvas.getObjectsInBounds(viewport)
         
@@ -80,14 +72,14 @@ export abstract class UnifiedToolAdapter<TInput = Record<string, unknown>, TOutp
   /**
    * Get image objects only
    */
-  protected getImageTargets(context: ObjectCanvasContext): CanvasObject[] {
+  protected getImageTargets(context: CanvasContext): CanvasObject[] {
     return this.getTargets(context).filter(obj => obj.type === 'image')
   }
   
   /**
    * Get text objects only
    */
-  protected getTextTargets(context: ObjectCanvasContext): CanvasObject[] {
+  protected getTextTargets(context: CanvasContext): CanvasObject[] {
     return this.getTargets(context).filter(obj => obj.type === 'text')
   }
   
@@ -107,7 +99,7 @@ export abstract class UnifiedToolAdapter<TInput = Record<string, unknown>, TOutp
   /**
    * Check if any targets are available
    */
-  protected hasTargets(context: ObjectCanvasContext): boolean {
+  protected hasTargets(context: CanvasContext): boolean {
     return this.getTargets(context).length > 0
   }
   

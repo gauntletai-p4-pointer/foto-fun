@@ -1,6 +1,5 @@
 'use client'
 
-import Konva from 'konva'
 import type { CanvasObject } from '@/lib/editor/objects/types'
 import { Toggle } from '@/components/ui/toggle'
 import { Bold, Italic, Underline } from 'lucide-react'

@@ -5,7 +5,6 @@ import { getMetadataValue } from '@/lib/editor/canvas/types'
 import { Slider } from '@/components/ui/slider'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
-import Konva from 'konva'
 
 interface SpacingControlsProps {
   textObject: CanvasObject | null

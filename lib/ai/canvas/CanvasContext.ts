@@ -1,16 +1,24 @@
 import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
+import type { CanvasObject } from '@/lib/editor/objects/types'
 
 /**
- * Canvas context interface that provides a consistent abstraction
- * for both client and server-side operations
+ * Unified canvas context interface that provides a consistent abstraction
+ * for both client and server-side operations. Includes object targeting capabilities.
  */
 export interface CanvasContext {
+  canvas: CanvasManager
+  targetObjects: CanvasObject[]
+  targetingMode: 'selected' | 'all' | 'visible'
   dimensions: { 
     width: number
     height: number 
   }
   hasContent: boolean
   objectCount: number
+  pixelSelection?: {
+    bounds: { x: number; y: number; width: number; height: number }
+    mask?: ImageData
+  }
   screenshot?: string // Base64 for server-side analysis
 }
 
@@ -22,12 +30,16 @@ export class CanvasContextProvider {
    * Create context from a CanvasManager instance (client-side)
    */
   static fromClient(canvas: CanvasManager): CanvasContext {
-    const canvasState = canvas.state
-    const objects = canvasState.layers.flatMap(layer => layer.objects)
+    const objects = canvas.getAllObjects()
+    const selectedObjects = canvas.getSelectedObjects()
+    
     return {
+      canvas,
+      targetObjects: selectedObjects.length > 0 ? selectedObjects : objects,
+      targetingMode: selectedObjects.length > 0 ? 'selected' : 'all',
       dimensions: { 
-        width: canvasState.width, 
-        height: canvasState.height 
+        width: canvas.getWidth(), 
+        height: canvas.getHeight() 
       },
       hasContent: objects.length > 0,
       objectCount: objects.length,
@@ -57,7 +69,13 @@ export class CanvasContextProvider {
    * Create an empty context for server-side operations
    */
   static empty(): CanvasContext {
+    // Note: This is a minimal context for server-side operations
+    // The canvas and targetObjects fields will need proper initialization
+    // when used in actual operations
     return {
+      canvas: null as any, // Will be set when needed
+      targetObjects: [],
+      targetingMode: 'all',
       dimensions: { width: 800, height: 600 },
       hasContent: false,
       objectCount: 0
@@ -69,9 +87,13 @@ export class CanvasContextProvider {
    */
   static fromData(data: Partial<CanvasContext>): CanvasContext {
     return {
+      canvas: data.canvas || null as any,
+      targetObjects: data.targetObjects || [],
+      targetingMode: data.targetingMode || 'all',
       dimensions: data.dimensions || { width: 800, height: 600 },
       hasContent: data.hasContent || false,
       objectCount: data.objectCount || 0,
+      pixelSelection: data.pixelSelection,
       screenshot: data.screenshot
     }
   }

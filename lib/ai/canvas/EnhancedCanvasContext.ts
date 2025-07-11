@@ -87,7 +87,7 @@ export class EnhancedCanvasContextProvider {
     canvas: CanvasManager,
     workflowSelection?: WorkflowSelectionContext
   ): TargetingIntent {
-    const currentSelection = canvas.state.selection
+    const selectedObjects = canvas.getSelectedObjects()
     
     if (workflowSelection?.currentSnapshot && !workflowSelection.currentSnapshot.isEmpty) {
       return {
@@ -96,16 +96,15 @@ export class EnhancedCanvasContextProvider {
       }
     }
     
-    if (currentSelection?.type === 'objects' && currentSelection.objectIds.length > 0) {
+    if (selectedObjects.length > 0) {
       return {
         mode: 'user-selection',
-        description: `the ${currentSelection.objectIds.length} selected object(s)`
+        description: `the ${selectedObjects.length} selected object(s)`
       }
     }
     
     // No selection - determine default behavior
-    const imageCount = canvas.state.layers
-      .flatMap(layer => layer.objects)
+    const imageCount = canvas.getAllObjects()
       .filter(obj => obj.type === 'image')
       .length
     
@@ -197,14 +196,11 @@ export class EnhancedCanvasContextProvider {
           return objectIds
         }
         // Fall back to current selection
-        if (canvas.state.selection?.type === 'objects') {
-          return canvas.state.selection.objectIds
-        }
-        return []
+        const selectedObjects = canvas.getSelectedObjects()
+        return selectedObjects.map(obj => obj.id)
         
       case 'all-images':
-        return canvas.state.layers
-          .flatMap(layer => layer.objects)
+        return canvas.getAllObjects()
           .filter(obj => obj.type === 'image')
           .map(obj => obj.id)
         

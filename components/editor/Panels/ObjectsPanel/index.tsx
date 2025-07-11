@@ -153,7 +153,7 @@ export function ObjectsPanel() {
       type: 'group',
       name: `Group ${objects.filter(o => o.type === 'group').length + 1}`,
       children: selectedIds,
-      data: {} as any // Groups don't have specific data
+      data: {} // Groups don't have specific data
     })
     
     // Move objects to group

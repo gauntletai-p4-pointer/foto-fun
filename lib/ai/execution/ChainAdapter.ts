@@ -6,9 +6,28 @@ import { adapterRegistry } from '../adapters/registry'
 import { BaseToolAdapter } from '../adapters/base'
 import type { Tool } from '@/lib/editor/canvas/types'
 import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
-import type { CanvasContext } from '@/lib/ai/tools/canvas-bridge'
+import type { CanvasContext as UnifiedCanvasContext } from '@/lib/ai/canvas/CanvasContext'
+import type { CanvasContext as BridgeCanvasContext } from '@/lib/ai/tools/canvas-bridge'
 import { ServiceContainer } from '@/lib/core/ServiceContainer'
 import { EventStore } from '@/lib/events/core/EventStore'
+
+/**
+ * Convert bridge CanvasContext to unified CanvasContext
+ */
+function convertBridgeContext(bridgeContext: BridgeCanvasContext): UnifiedCanvasContext {
+  return {
+    canvas: bridgeContext.canvas,
+    targetObjects: bridgeContext.targetImages, // Convert targetImages to targetObjects
+    targetingMode: bridgeContext.targetingMode === 'selection' ? 'selected' : 
+                   bridgeContext.targetingMode === 'auto-single' ? 'selected' :
+                   bridgeContext.targetingMode === 'all' ? 'all' : 'all',
+    dimensions: bridgeContext.dimensions,
+    hasContent: bridgeContext.canvas.getAllObjects().length > 0,
+    objectCount: bridgeContext.canvas.getAllObjects().length,
+    pixelSelection: undefined, // Not available in bridge context
+    screenshot: undefined
+  }
+}
 
 // Define the schema for a chain step
 const ChainStepSchema = z.object({
@@ -94,7 +113,7 @@ export class ChainAdapter extends BaseToolAdapter<ExecuteChainInput, ExecuteChai
   /**
    * Execute the tool chain
    */
-  async execute(params: ExecuteChainInput, context: CanvasContext): Promise<ExecuteChainOutput> {
+  async execute(params: ExecuteChainInput, context: BridgeCanvasContext): Promise<ExecuteChainOutput> {
     try {
       console.log('[ChainAdapter] Executing chain with steps:', params.steps)
       
@@ -138,7 +157,8 @@ export class ChainAdapter extends BaseToolAdapter<ExecuteChainInput, ExecuteChai
               }
               
               try {
-                const result = await adapter.execute(toolParams, context)
+                const unifiedContext = convertBridgeContext(context)
+                const result = await adapter.execute(toolParams, unifiedContext as any)
                 return {
                   success: true,
                   data: result
