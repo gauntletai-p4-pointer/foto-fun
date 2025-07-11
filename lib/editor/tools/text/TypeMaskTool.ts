@@ -1,4 +1,4 @@
-import { Type } from 'lucide-react'
+import { SquareDashed } from 'lucide-react'
 import { IText, Textbox } from 'fabric'
 import { TOOL_IDS } from '@/constants'
 import { BaseTextTool } from '../base/BaseTextTool'
@@ -13,7 +13,7 @@ class TypeMaskTool extends BaseTextTool {
   // Tool identification
   id = TOOL_IDS.TYPE_MASK
   name = 'Type Mask Tool'
-  icon = Type
+  icon = SquareDashed
   cursor = 'text'
   shortcut = undefined // Access via tool palette
   

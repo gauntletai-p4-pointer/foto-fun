@@ -44,7 +44,7 @@ class QuickSelectionTool extends BaseTool {
   name = 'Quick Selection Tool'
   icon = Sparkles
   cursor = 'crosshair'
-  shortcut = 'W'
+  shortcut = 'Q'
   
   // Store reference
   protected selectionStore = useSelectionStore.getState()

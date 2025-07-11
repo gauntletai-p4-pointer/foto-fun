@@ -1,4 +1,4 @@
-import { Type } from 'lucide-react'
+import { Spline } from 'lucide-react'
 import { IText, Path, util, Canvas } from 'fabric'
 import { TOOL_IDS } from '@/constants'
 import { BaseTextTool } from '../base/BaseTextTool'
@@ -12,7 +12,7 @@ class TypeOnPathTool extends BaseTextTool {
   // Tool identification
   id = TOOL_IDS.TYPE_ON_PATH
   name = 'Type on a Path Tool'
-  icon = Type
+  icon = Spline
   cursor = 'text'
   shortcut = undefined // Access via tool palette
   

@@ -1,4 +1,4 @@
-import { Type } from 'lucide-react'
+import { AlignVerticalJustifyStart } from 'lucide-react'
 import { IText } from 'fabric'
 import { TOOL_IDS } from '@/constants'
 import { BaseTextTool } from '../base/BaseTextTool'
@@ -11,7 +11,7 @@ class VerticalTypeTool extends BaseTextTool {
   // Tool identification
   id = TOOL_IDS.TYPE_VERTICAL
   name = 'Vertical Type Tool'
-  icon = Type
+  icon = AlignVerticalJustifyStart
   cursor = 'text'
   shortcut = undefined // Access via tool palette or tool cycling
   
