@@ -9,10 +9,8 @@ import { ModifyCommand } from '@/lib/editor/commands/canvas'
 // Define tool state
 type ResizeToolState = {
   isResizing: boolean
-  lastWidth: number
-  lastHeight: number
-  originalWidth: number
-  originalHeight: number
+  // Track original dimensions of each object
+  originalDimensions: Map<string, { width: number; height: number; scaleX: number; scaleY: number }>
 }
 
 class ResizeTool extends BaseTool {
@@ -26,27 +24,13 @@ class ResizeTool extends BaseTool {
   // Tool state
   private state = createToolState<ResizeToolState>({
     isResizing: false,
-    lastWidth: 100,
-    lastHeight: 100,
-    originalWidth: 0,
-    originalHeight: 0
+    originalDimensions: new Map()
   })
   
   // Required: Setup
   protected setupTool(canvas: Canvas): void {
-    // Capture original dimensions
-    const canvasWidth = canvas.getWidth()
-    const canvasHeight = canvas.getHeight()
-    this.state.setState({
-      originalWidth: canvasWidth,
-      originalHeight: canvasHeight,
-      lastWidth: 100,
-      lastHeight: 100
-    })
-    
-    // Initialize tool options with current dimensions
-    useToolOptionsStore.getState().updateOption(this.id, 'width', canvasWidth)
-    useToolOptionsStore.getState().updateOption(this.id, 'height', canvasHeight)
+    // Capture original dimensions of objects when tool is activated
+    this.captureOriginalDimensions(canvas)
     
     // Subscribe to tool options
     this.subscribeToToolOptions(() => {
@@ -55,24 +39,15 @@ class ResizeTool extends BaseTool {
       
       if (mode === 'percentage') {
         const percentage = this.getOptionValue('percentage')
-        if (typeof percentage === 'number' && percentage !== this.state.get('lastWidth')) {
+        if (typeof percentage === 'number') {
           this.applyResize(canvas, 'percentage', percentage, percentage, maintainAspectRatio)
-          this.state.set('lastWidth', percentage)
-          this.state.set('lastHeight', percentage)
         }
       } else {
         const width = this.getOptionValue('width')
         const height = this.getOptionValue('height')
         
         if (typeof width === 'number' && typeof height === 'number') {
-          const widthPercentage = (width / this.state.get('originalWidth')) * 100
-          const heightPercentage = (height / this.state.get('originalHeight')) * 100
-          
-          if (widthPercentage !== this.state.get('lastWidth') || heightPercentage !== this.state.get('lastHeight')) {
-            this.applyResize(canvas, 'absolute', widthPercentage, heightPercentage, maintainAspectRatio)
-            this.state.set('lastWidth', widthPercentage)
-            this.state.set('lastHeight', heightPercentage)
-          }
+          this.applyResize(canvas, 'absolute', width, height, maintainAspectRatio)
         }
       }
     })
@@ -80,15 +55,53 @@ class ResizeTool extends BaseTool {
   
   // Required: Cleanup
   protected cleanup(): void {
-    // Don't reset the resize - let it persist
-    // Reset only the internal state
-    this.state.setState({
-      isResizing: false,
-      lastWidth: this.state.get('lastWidth'),
-      lastHeight: this.state.get('lastHeight'),
-      originalWidth: this.state.get('originalWidth'),
-      originalHeight: this.state.get('originalHeight')
+    // Clear the stored dimensions
+    this.state.get('originalDimensions').clear()
+    this.state.set('isResizing', false)
+  }
+  
+  private captureOriginalDimensions(canvas: Canvas): void {
+    const objects = canvas.getActiveObjects()
+    const targetObjects = objects.length > 0 ? objects : canvas.getObjects()
+    
+    const dimensionsMap = new Map<string, { width: number; height: number; scaleX: number; scaleY: number }>()
+    
+    targetObjects.forEach(obj => {
+      // Generate a unique key for the object
+      const key = obj.get('id') || `${obj.type}_${obj.left}_${obj.top}_${Date.now()}`
+      
+      // Store the original dimensions
+      dimensionsMap.set(key, {
+        width: obj.width || 0,
+        height: obj.height || 0,
+        scaleX: obj.scaleX || 1,
+        scaleY: obj.scaleY || 1
+      })
+      
+      // Ensure the object has this key stored
+      if (!obj.get('id')) {
+        obj.set('id', key)
+      }
     })
+    
+    this.state.set('originalDimensions', dimensionsMap)
+    
+    // If in absolute mode, update the UI with average dimensions
+    if (this.getOptionValue('mode') === 'absolute' && targetObjects.length > 0) {
+      let totalWidth = 0
+      let totalHeight = 0
+      
+      targetObjects.forEach(obj => {
+        totalWidth += (obj.width || 0) * (obj.scaleX || 1)
+        totalHeight += (obj.height || 0) * (obj.scaleY || 1)
+      })
+      
+      const avgWidth = Math.round(totalWidth / targetObjects.length)
+      const avgHeight = Math.round(totalHeight / targetObjects.length)
+      
+      useToolOptionsStore.getState().updateOption(this.id, 'width', avgWidth)
+      useToolOptionsStore.getState().updateOption(this.id, 'height', avgHeight)
+    }
   }
   
   private applyResize(
@@ -113,58 +126,83 @@ class ResizeTool extends BaseTool {
       if (objectsToResize.length === 0) return
       
       console.log(`[ResizeTool] Resizing ${objectsToResize.length} object(s) - ${hasSelection ? 'selected only' : 'all objects'}`)
+      console.log(`[ResizeTool] Mode: ${mode}, Width: ${widthValue}, Height: ${heightValue}, Maintain AR: ${maintainAspectRatio}`)
       
-      // Calculate scale factors
-      let scaleX = widthValue / 100
-      let scaleY = heightValue / 100
-      
-      if (maintainAspectRatio) {
-        // Use the smaller scale to maintain aspect ratio
-        const scale = Math.min(scaleX, scaleY)
-        scaleX = scale
-        scaleY = scale
-      }
+      const originalDimensions = this.state.get('originalDimensions')
       
       // Apply resize to target objects
       objectsToResize.forEach((obj: FabricObject) => {
-        const oldScaleX = obj.scaleX || 1
-        const oldScaleY = obj.scaleY || 1
+        const objId = obj.get('id') as string
+        const original = originalDimensions.get(objId)
         
-        // Calculate new scale relative to original
-        const newScaleX = (oldScaleX / (this.state.get('lastWidth') / 100)) * scaleX
-        const newScaleY = (oldScaleY / (this.state.get('lastHeight') / 100)) * scaleY
+        if (!original) {
+          console.warn(`[ResizeTool] No original dimensions found for object ${objId}`)
+          return
+        }
         
-        // Calculate new position to keep centered
-        const centerX = canvas.getWidth() / 2
-        const centerY = canvas.getHeight() / 2
-        const objCenter = obj.getCenterPoint()
+        let newScaleX: number
+        let newScaleY: number
         
-        const scaleFactor = scaleX / (this.state.get('lastWidth') / 100)
-        const newLeft = centerX + (objCenter.x - centerX) * scaleFactor
-        const newTop = centerY + (objCenter.y - centerY) * scaleFactor
+        if (mode === 'percentage') {
+          // For percentage mode, scale relative to original
+          newScaleX = original.scaleX * (widthValue / 100)
+          newScaleY = original.scaleY * (heightValue / 100)
+        } else {
+          // For absolute mode, calculate scale to achieve target dimensions
+          if (original.width === 0 || original.height === 0) {
+            console.warn(`[ResizeTool] Object has zero dimensions, skipping`)
+            return
+          }
+          
+          newScaleX = widthValue / original.width
+          newScaleY = heightValue / original.height
+        }
         
-        // Create command BEFORE modifying the object
+        // Apply aspect ratio constraint if needed
+        if (maintainAspectRatio) {
+          const scale = Math.min(newScaleX, newScaleY)
+          newScaleX = scale
+          newScaleY = scale
+        }
+        
+        // Validate the new scale values
+        const MIN_SCALE = 0.01
+        const MAX_SCALE = 100
+        newScaleX = Math.max(MIN_SCALE, Math.min(MAX_SCALE, newScaleX))
+        newScaleY = Math.max(MIN_SCALE, Math.min(MAX_SCALE, newScaleY))
+        
+        // Get current center point before scaling
+        const centerPoint = obj.getCenterPoint()
+        
+        // Create command for history
         const command = new ModifyCommand(
           canvas,
           obj,
           { 
             scaleX: newScaleX, 
-            scaleY: newScaleY, 
-            left: newLeft - (obj.width || 0) * newScaleX / 2,
-            top: newTop - (obj.height || 0) * newScaleY / 2
+            scaleY: newScaleY
           },
-          `Resize to ${Math.round(widthValue)}%`
+          mode === 'percentage' 
+            ? `Resize to ${Math.round(widthValue)}%`
+            : `Resize to ${Math.round(widthValue)}×${Math.round(heightValue)}px`
         )
         
         // Execute the command (which will apply the changes)
         this.executeCommand(command)
+        
+        // Re-center the object at its original center point
+        // This prevents objects from moving during resize
+        const newCenterPoint = obj.getCenterPoint()
+        if (centerPoint.x !== newCenterPoint.x || centerPoint.y !== newCenterPoint.y) {
+          obj.set({
+            left: (obj.left || 0) + (centerPoint.x - newCenterPoint.x),
+            top: (obj.top || 0) + (centerPoint.y - newCenterPoint.y)
+          })
+          obj.setCoords()
+        }
       })
       
       canvas.renderAll()
-      
-      // Update state
-      this.state.set('lastWidth', widthValue)
-      this.state.set('lastHeight', heightValue)
     } finally {
       this.state.set('isResizing', false)
     }

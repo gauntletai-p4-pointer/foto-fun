@@ -16,7 +16,7 @@ import { TOOL_IDS } from '@/constants'
 export function ToolOptions() {
   const activeTool = useToolStore((state) => state.activeTool)
   const activeAdjustmentTool = useCanvasStore((state) => state.activeAdjustmentTool)
-  const { getToolOptions, updateOption, registerToolOptions } = useToolOptionsStore()
+  const { getToolOptions, updateOption, registerToolOptions, getOptionValue } = useToolOptionsStore()
   const [modifiers, setModifiers] = useState({ shift: false, alt: false })
   
   // Register default options on mount
@@ -126,12 +126,42 @@ export function ToolOptions() {
     }
   }
   
+  // Filter options for resize tool based on mode
+  const getFilteredOptions = (options: ToolOption[]): ToolOption[] => {
+    if (activeTool === TOOL_IDS.RESIZE) {
+      const mode = getOptionValue(TOOL_IDS.RESIZE, 'mode') as string
+      
+      return options.filter(option => {
+        // Always show mode selector and maintain aspect ratio
+        if (option.id === 'mode' || option.id === 'maintainAspectRatio') {
+          return true
+        }
+        
+        // Show percentage slider only in percentage mode
+        if (option.id === 'percentage') {
+          return mode === 'percentage'
+        }
+        
+        // Show width/height only in absolute mode
+        if (option.id === 'width' || option.id === 'height') {
+          return mode === 'absolute'
+        }
+        
+        return true
+      })
+    }
+    
+    return options
+  }
+  
+  const filteredOptions = getFilteredOptions(options)
+  
   // Show modifier hints for marquee tool
   const showModifierHints = activeTool === TOOL_IDS.MARQUEE_RECT
   
   return (
     <div className="flex items-center gap-6 px-4">
-      {options.map(renderOption)}
+      {filteredOptions.map(renderOption)}
       
       {showModifierHints && (
         <div className="flex items-center gap-4 ml-auto mr-4 text-xs text-foreground/60">

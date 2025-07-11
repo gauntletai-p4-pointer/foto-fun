@@ -86,24 +86,50 @@ NEVER ask for exact dimensions - interpret the user's intent.`
         store.updateOption(this.tool.id, 'percentage', params.width)
       } else {
         // For absolute mode, update width and height
-        const currentWidth = context.canvas.getWidth()
-        const currentHeight = context.canvas.getHeight()
-        const aspectRatio = currentWidth / currentHeight
-        
         store.updateOption(this.tool.id, 'width', params.width)
         
         if (params.height !== undefined) {
           store.updateOption(this.tool.id, 'height', params.height)
         } else if (params.maintainAspectRatio) {
-          // Calculate height based on aspect ratio
-          const calculatedHeight = Math.round(params.width / aspectRatio)
-          store.updateOption(this.tool.id, 'height', calculatedHeight)
+          // Calculate height based on aspect ratio of first target image
+          if (images.length > 0) {
+            const firstImage = images[0]
+            const objWidth = (firstImage.width || 0) * (firstImage.scaleX || 1)
+            const objHeight = (firstImage.height || 0) * (firstImage.scaleY || 1)
+            const aspectRatio = objWidth / objHeight
+            const calculatedHeight = Math.round(params.width / aspectRatio)
+            store.updateOption(this.tool.id, 'height', calculatedHeight)
+          }
         }
       }
       
-      const finalDimensions = params.mode === 'percentage' 
-        ? { width: params.width, height: params.width }
-        : { width: params.width, height: params.height || Math.round(params.width / (context.canvas.getWidth() / context.canvas.getHeight())) }
+      // Calculate final dimensions for the response
+      let finalDimensions: { width: number; height: number }
+      
+      if (params.mode === 'percentage') {
+        // For percentage mode, both dimensions use the same percentage when maintainAspectRatio is true
+        finalDimensions = params.maintainAspectRatio
+          ? { width: params.width, height: params.width }
+          : { width: params.width, height: params.height || params.width }
+      } else {
+        // For absolute mode, calculate the actual dimensions
+        if (params.height !== undefined) {
+          finalDimensions = { width: params.width, height: params.height }
+        } else if (params.maintainAspectRatio && images.length > 0) {
+          // Calculate height based on first image's aspect ratio
+          const firstImage = images[0]
+          const objWidth = (firstImage.width || 0) * (firstImage.scaleX || 1)
+          const objHeight = (firstImage.height || 0) * (firstImage.scaleY || 1)
+          const aspectRatio = objWidth / objHeight
+          finalDimensions = { 
+            width: params.width, 
+            height: Math.round(params.width / aspectRatio) 
+          }
+        } else {
+          // Default to square if no height provided and no aspect ratio
+          finalDimensions = { width: params.width, height: params.width }
+        }
+      }
       
       return {
         success: true,
