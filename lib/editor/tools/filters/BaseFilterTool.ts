@@ -218,7 +218,9 @@ export abstract class BaseFilterTool extends BaseTool {
     })
     
     // Render to show the cleaned state
-    this.canvas.renderAll()
+    if (this.canvas) {
+      this.canvas.renderAll()
+    }
   }
   
   /**
@@ -249,7 +251,9 @@ export abstract class BaseFilterTool extends BaseTool {
       }
     })
     
-    this.canvas.renderAll()
+    if (this.canvas) {
+      this.canvas.renderAll()
+    }
     this.originalFilterStates.clear()
     console.log('[BaseFilterTool] State restoration complete')
   }
@@ -285,7 +289,9 @@ export abstract class BaseFilterTool extends BaseTool {
       console.error(`[BaseFilterTool] Failed to preview ${filterName} filter:`, error)
     }
     
-    this.canvas.renderAll()
+    if (this.canvas) {
+      this.canvas.renderAll()
+    }
   }
   
   /**
