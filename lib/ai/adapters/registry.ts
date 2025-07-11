@@ -113,6 +113,7 @@ export async function autoDiscoverAdapters(): Promise<void> {
   try {
     // Import and register all adapters
     const { CropToolAdapter } = await import('./tools/crop')
+    const { MoveToolAdapter } = await import('./tools/move')
     const { BrightnessToolAdapter } = await import('./tools/brightness')
     const { ContrastToolAdapter } = await import('./tools/contrast')
     const { SaturationToolAdapter } = await import('./tools/saturation')
@@ -135,6 +136,7 @@ export async function autoDiscoverAdapters(): Promise<void> {
     // Register all adapters
     const adapters = [
       new CropToolAdapter(),
+      new MoveToolAdapter(),
       new BrightnessToolAdapter(),
       new ContrastToolAdapter(),
       new SaturationToolAdapter(),

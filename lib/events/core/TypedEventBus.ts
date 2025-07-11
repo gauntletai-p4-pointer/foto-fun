@@ -126,6 +126,54 @@ export interface EventRegistry {
     imageElement: HTMLImageElement
     dataUrl: string
   }
+  'document.autosaved': { 
+    documentId: string
+    location: 'local' | 'cloud' 
+  }
+  'document.recovered': { 
+    documentId: string
+    recoveredFrom: string 
+  }
+  'document.opened': { 
+    document: { 
+      id: string
+      name: string
+      path?: string
+      size?: number 
+    } 
+  }
+  'document.closed': { 
+    documentId?: string 
+  }
+  
+  // Recent files events
+  'recentFiles.updated': { 
+    files: Array<{ 
+      id: string
+      name: string
+      path?: string
+      lastOpened: Date
+      thumbnail?: string
+      size?: number 
+    }> 
+  }
+  'recentFiles.cleared': {}
+  
+  // Export events
+  'export.started': {
+    exportId: string
+    format: string
+    options: Record<string, unknown>
+  }
+  'export.completed': {
+    exportId: string
+    blob: Blob
+    size: number
+  }
+  'export.failed': {
+    exportId: string
+    error: string
+  }
   
   // Text events
   'text.created': {
@@ -199,42 +247,48 @@ export interface EventRegistry {
   }
   
     // Tool events
-  'tool.activated': {
+  'tool.activated': { 
     toolId: string
     previousToolId: string | null
   }
-  'tool.deactivated': {
-    toolId: string
+  'tool.deactivated': { 
+    toolId: string 
   }
-  'tool.option.changed': {
+  'tool.options.changed': {
     toolId: string
-    optionId: string
-    optionKey: string
-    value: unknown
-    previousValue: unknown
-  }
-  'tool.locked': {
-    toolId: string
-  }
-  'tool.unlocked': {
-    toolId: string
-  }
-  'tool.preset.saved': {
-    toolId: string
-    name: string
-    values: Record<string, unknown>
-  }
-  'tool.preset.applied': {
-    toolId: string
-    presetId: string
+    options: Record<string, unknown>
   }
   
   // History events
-  'history.undo': {
+  'history.snapshot.created': {
+    snapshotId: string
+    name: string
+    description?: string
+    eventId: string
+    timestamp: number
+  }
+  'history.snapshot.loaded': {
+    snapshotId: string
     eventId: string
   }
-  'history.redo': {
-    eventId: string
+  'history.snapshot.deleted': {
+    snapshotId: string
+  }
+  'history.branch.created': {
+    branchId: string
+    fromEventId: string
+    name?: string
+  }
+  'history.navigated': {
+    fromEventId: string | null
+    toEventId: string
+    method: 'undo' | 'redo' | 'jump' | 'snapshot'
+  }
+  'history.state.changed': {
+    canUndo: boolean
+    canRedo: boolean
+    currentEventId: string | null
+    totalEvents: number
   }
   
   // Workflow events

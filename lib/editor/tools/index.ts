@@ -26,6 +26,16 @@ import { grayscaleTool } from './filters/grayscaleTool'
 import { invertTool } from './filters/invertTool'
 import { vintageEffectsTool } from './filters/vintageEffectsTool'
 import { imageGenerationTool } from './ai-native/imageGenerationCanvasTool'
+import { EraserTool } from './drawing/eraserTool'
+import { CloneStampTool } from './drawing/cloneStampTool'
+import { HealingBrushTool } from './drawing/healingBrushTool'
+import { GradientTool } from './drawing/gradientTool'
+
+// Create instances
+const eraserTool = new EraserTool()
+const cloneStampTool = new CloneStampTool()
+const healingBrushTool = new HealingBrushTool()
+const gradientTool = new GradientTool()
 
 // Helper function to adapt canvas tools to UI tool interface
 function adaptTool(tool: CanvasTool): Tool {
@@ -77,6 +87,10 @@ export const tools: Tool[] = [
   adaptTool(vintageEffectsTool),
   // AI-Native tools
   adaptTool(imageGenerationTool),
+  adaptTool(eraserTool),
+  adaptTool(cloneStampTool),
+  adaptTool(healingBrushTool),
+  adaptTool(gradientTool),
 ]
 
 // Export individual tools
@@ -110,4 +124,8 @@ export {
   invertTool,
   vintageEffectsTool,
   imageGenerationTool,
+  eraserTool,
+  cloneStampTool,
+  healingBrushTool,
+  gradientTool,
 } 

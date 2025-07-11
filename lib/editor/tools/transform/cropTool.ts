@@ -559,7 +559,7 @@ export class CropTool extends BaseTool {
     }
     
     this.cropOverlay.add(this.gridOverlay)
-    this.currentOverlayType = overlayType as any
+    this.currentOverlayType = overlayType as 'none' | 'thirds' | 'grid' | 'golden'
   }
   
   /**

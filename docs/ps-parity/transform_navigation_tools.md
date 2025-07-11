@@ -6,11 +6,13 @@ This document tracks the implementation of Photoshop-style transform and navigat
 ## Implementation Status Summary
 
 ### ✅ Completed Tools
-1. **Move Tool (V)** - Fully refactored with PS parity features
-2. **Crop Tool (C)** - Partially refactored with interactive features
-3. **Hand Tool (H)** - Basic implementation exists
-4. **Zoom Tool (Z)** - Basic implementation exists
-5. **Eyedropper Tool (I)** - Basic implementation exists
+1. **Move Tool (V)** - Fully refactored with PS parity features ✅
+2. **Crop Tool (C)** - Partially refactored with interactive features ✅
+3. **Hand Tool (H)** - Basic implementation exists ✅
+4. **Zoom Tool (Z)** - Basic implementation exists ✅
+5. **Eyedropper Tool (I)** - Basic implementation exists ✅
+
+**All tools are properly wired up in the tool registry and free of lint/type errors.**
 
 ### 🚧 In Progress
 - Free Transform (Ctrl/Cmd+T) - Not yet implemented
@@ -136,6 +138,31 @@ Tool options are defined in `/components/editor/ToolOptions/defaultToolOptions.t
 - Move Tool: Auto-select type, smart guides, transform controls
 - Crop Tool: Aspect ratios, overlays, delete pixels, shield opacity
 - Other tools: Basic options, need enhancement
+
+## AI Adapter Integration
+
+### ✅ Tools with AI Adapters:
+1. **Move Tool** (`moveObjects`) - NEW!
+   - Move to exact positions
+   - Move by delta amounts
+   - Align to canvas edges/corners
+   - Distribute objects evenly
+   - Example: "Move the logo to the top right", "Center all objects", "Space images evenly"
+
+2. **Crop Tool** (`cropImage`) - Existing
+   - Crop to specific dimensions
+   - Crop to aspect ratios
+   - Smart cropping based on content
+   - Example: "Crop to square", "Remove 20% from edges", "Crop to 16:9"
+
+3. **Rotate Tool** (`rotateImage`) - Existing
+4. **Flip Tool** (`flipImage`) - Existing
+5. **Resize Tool** (`resizeImage`) - Existing
+
+### 🚧 Tools That Could Benefit from AI Adapters:
+1. **Zoom Tool** - For AI to focus on specific areas
+2. **Eyedropper Tool** - For AI to sample and analyze colors
+3. **Free Transform** (when implemented) - For complex transformations
 
 ## Next Steps
 

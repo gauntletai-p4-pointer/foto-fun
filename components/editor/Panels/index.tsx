@@ -9,10 +9,11 @@ import { GlyphsPanel } from './GlyphsPanel'
 import { TextEffectsPanel } from './TextEffectsPanel'
 import { AdjustmentsPanel } from './AdjustmentsPanel'
 import { AIChat } from './AIChat'
-import { Bot, Layers, Type, AlignLeft, Sparkles, Shapes, Sliders } from 'lucide-react'
+import { HistoryPanel } from './HistoryPanel'
+import { Bot, Layers, Type, AlignLeft, Sparkles, Shapes, Sliders, Clock } from 'lucide-react'
 import { featureManager, FEATURES, type Feature } from '@/lib/config/features'
 
-type PanelType = 'ai' | 'layers' | 'character' | 'paragraph' | 'glyphs' | 'effects' | 'adjustments'
+type PanelType = 'ai' | 'layers' | 'history' | 'character' | 'paragraph' | 'glyphs' | 'effects' | 'adjustments'
 
 interface PanelTab {
   id: PanelType
@@ -25,6 +26,7 @@ interface PanelTab {
 const allPanels: PanelTab[] = [
   { id: 'ai', label: 'AI', icon: Bot, component: AIChat, feature: FEATURES.AI_CHAT },
   { id: 'layers', label: 'Layers', icon: Layers, component: LayersPanel },
+  { id: 'history', label: 'History', icon: Clock, component: HistoryPanel },
   { id: 'adjustments', label: 'Adjustments', icon: Sliders, component: AdjustmentsPanel },
   { id: 'character', label: 'Character', icon: Type, component: CharacterPanel },
   { id: 'paragraph', label: 'Paragraph', icon: AlignLeft, component: ParagraphPanel },

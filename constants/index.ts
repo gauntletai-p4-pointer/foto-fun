@@ -46,7 +46,10 @@ export const TOOL_IDS = {
   HAND: 'hand',
   ZOOM: 'zoom',
   BRUSH: 'brush',
+  CLONE_STAMP: 'clone-stamp',
+  HEALING_BRUSH: 'healing-brush',
   ERASER: 'eraser',
+  GRADIENT: 'gradient',
   TYPE_HORIZONTAL: 'type-horizontal',
   TYPE_VERTICAL: 'type-vertical',
   TYPE_MASK: 'type-mask',
@@ -98,6 +101,15 @@ export const TOOL_GROUPS = {
   BRUSH: [
     TOOL_IDS.BRUSH,
     // TODO: Pencil, Color Replacement, Mixer Brush
+  ],
+  CLONE: [
+    TOOL_IDS.CLONE_STAMP,
+    TOOL_IDS.HEALING_BRUSH,
+    // TODO: Spot Healing, Patch Tool
+  ],
+  GRADIENT: [
+    TOOL_IDS.GRADIENT,
+    // TODO: Paint Bucket Tool
   ],
   ERASER: [
     TOOL_IDS.ERASER,

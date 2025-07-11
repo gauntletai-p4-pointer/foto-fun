@@ -1,173 +1,140 @@
-import Konva from 'konva'
 import { Brush } from 'lucide-react'
-import { BaseTool } from '../base/BaseTool'
-import type { ToolEvent } from '@/lib/editor/canvas/types'
+import { BasePixelTool } from '../base/BasePixelTool'
+import type { ToolEvent, Point } from '@/lib/editor/canvas/types'
+import { TOOL_IDS } from '@/constants'
 
 /**
- * Pixel-aware brush tool for painting on canvas
- * Supports pressure sensitivity, opacity, and various brush modes
+ * Enhanced Brush Tool with true pixel-based painting
+ * Supports pressure sensitivity, smoothing, and various blend modes
  */
-export class BrushTool extends BaseTool {
-  id = 'brush'
+export class BrushTool extends BasePixelTool {
+  id = TOOL_IDS.BRUSH
   name = 'Brush Tool'
   icon = Brush
-  cursor = 'crosshair'
+  cursor = 'none' // We'll use custom cursor
   shortcut = 'B'
   
-  // Drawing state
-  private isDrawing = false
-  private lastPoint: { x: number; y: number } | null = null
-  private currentStroke: Konva.Line | null = null
-  private drawingLayer: Konva.Layer | null = null
+  // Current brush color
+  private brushColor = { r: 0, g: 0, b: 0 }
+  private blendMode: GlobalCompositeOperation = 'source-over'
   
-  // Brush settings
-  private brushSize = 10
-  private brushOpacity = 1
-  private brushColor = '#000000'
-  private brushHardness = 0.8
-  private pressureSensitivity = 0.5
+  // Brush stamp cache
+  private currentBrushStamp: ImageData | null = null
+  private lastBrushSize = 0
   
   protected setupTool(): void {
-    const canvas = this.getCanvas()
+    super.setupTool()
     
-    // Create a dedicated drawing layer for real-time performance
-    this.drawingLayer = new Konva.Layer()
-    canvas.konvaStage.add(this.drawingLayer)
+    // Load color from options or use default
+    const color = (this.getOption('color') as string) || '#000000'
+    this.setBrushColor(color)
     
-    // Set initial brush options
-    this.brushSize = (this.getOption('size') as number) || 10
-    this.brushOpacity = (this.getOption('opacity') as number) || 1
-    this.brushColor = (this.getOption('color') as string) || '#000000'
-    this.brushHardness = (this.getOption('hardness') as number) || 0.8
-    this.pressureSensitivity = (this.getOption('pressureSensitivity') as number) || 0.5
+    // Load blend mode
+    this.blendMode = (this.getOption('blendMode') as GlobalCompositeOperation) || 'source-over'
+    
+    // Reset brush engine smoothing
+    this.brushEngine.resetSmoothing()
+    
+    // Update cursor
+    this.updateCursor()
   }
   
   protected cleanupTool(): void {
-    // Clean up drawing layer
-    if (this.drawingLayer) {
-      this.drawingLayer.destroy()
-      this.drawingLayer = null
-    }
-    
-    // Reset state
-    this.isDrawing = false
-    this.lastPoint = null
-    this.currentStroke = null
-  }
-  
-  onMouseDown(event: ToolEvent): void {
-    if (!this.drawingLayer) return
-    
-    this.isDrawing = true
-    this.lastPoint = { x: event.point.x, y: event.point.y }
-    
-    // Create a new stroke
-    this.currentStroke = new Konva.Line({
-      points: [event.point.x, event.point.y],
-      stroke: this.brushColor,
-      strokeWidth: this.calculateBrushSize(event.pressure),
-      lineCap: 'round',
-      lineJoin: 'round',
-      opacity: this.brushOpacity,
-      globalCompositeOperation: 'source-over',
-      tension: 0.5,
-      // Custom attributes for our brush
-      perfectDrawEnabled: false, // Performance optimization
-      shadowForStrokeEnabled: false // Performance optimization
-    })
-    
-    this.drawingLayer.add(this.currentStroke)
-    this.drawingLayer.batchDraw()
-  }
-  
-  onMouseMove(event: ToolEvent): void {
-    if (!this.isDrawing || !this.currentStroke || !this.drawingLayer) return
-    
-    const newPoint = { x: event.point.x, y: event.point.y }
-    
-    // Add points to the current stroke
-    const points = this.currentStroke.points()
-    points.push(newPoint.x, newPoint.y)
-    this.currentStroke.points(points)
-    
-    // Adjust stroke width based on pressure if available
-    if (event.pressure !== undefined && this.pressureSensitivity > 0) {
-      this.currentStroke.strokeWidth(this.calculateBrushSize(event.pressure))
-    }
-    
-    // Batch draw for performance
-    this.drawingLayer.batchDraw()
-    
-    this.lastPoint = newPoint
-  }
-  
-  onMouseUp(_event: ToolEvent): void {
-    if (!this.isDrawing || !this.currentStroke || !this.drawingLayer) return
-    
-    this.isDrawing = false
-    
-    // Finalize the stroke
-    this.finalizeStroke()
-    
-    // Reset state
-    this.lastPoint = null
-    this.currentStroke = null
+    super.cleanupTool()
+    this.currentBrushStamp = null
   }
   
   /**
-   * Calculate brush size based on pressure
+   * Begin a new brush stroke
    */
-  private calculateBrushSize(pressure?: number): number {
-    if (pressure === undefined || this.pressureSensitivity === 0) {
-      return this.brushSize
-    }
+  protected beginStroke(_event: ToolEvent): void {
+    // Initialize stroke data
+    const dimensions = this.pixelBuffer?.getDimensions()
+    if (!dimensions) return
     
-    // Apply pressure sensitivity
-    const pressureMultiplier = 0.5 + (pressure * 0.5 * this.pressureSensitivity)
-    return this.brushSize * pressureMultiplier
+    this.currentStroke = new ImageData(dimensions.width, dimensions.height)
+    
+    // Reset smoothing for new stroke
+    this.brushEngine.resetSmoothing()
   }
   
   /**
-   * Finalize the current stroke and merge it with the active layer
+   * Apply paint at a specific point
    */
-  private async finalizeStroke(): Promise<void> {
-    if (!this.currentStroke || !this.drawingLayer) return
+  protected applyPaint(point: Point, pressure: number): void {
+    if (!this.pixelBuffer || !this.currentStroke) return
     
+    // Calculate dynamic brush parameters
+    const size = this.calculateBrushSize(pressure)
+    const opacity = this.calculateOpacity(pressure)
+    const flow = this.calculateFlow(pressure)
+    
+    // Generate or get cached brush stamp
+    if (!this.currentBrushStamp || this.lastBrushSize !== size) {
+      this.currentBrushStamp = this.brushEngine.generateBrushTip(
+        size,
+        this.brushSettings.hardness
+      )
+      this.lastBrushSize = size
+    }
+    
+    // Apply brush stamp to pixel buffer
+    this.pixelBuffer.applyBrushStamp(
+      this.currentBrushStamp,
+      point.x,
+      point.y,
+      this.brushColor,
+      opacity * flow,
+      this.blendMode
+    )
+  }
+  
+  /**
+   * Set brush color from hex string
+   */
+  private setBrushColor(hexColor: string): void {
+    // Convert hex to RGB
+    const hex = hexColor.replace('#', '')
+    this.brushColor = {
+      r: parseInt(hex.substr(0, 2), 16),
+      g: parseInt(hex.substr(2, 2), 16),
+      b: parseInt(hex.substr(4, 2), 16)
+    }
+  }
+  
+  /**
+   * Update custom cursor
+   */
+  private updateCursor(): void {
+    const cursorCanvas = this.brushEngine.createBrushCursor(this.brushSettings)
+    const cursorUrl = cursorCanvas.toDataURL()
+    
+    // Update cursor style
     const canvas = this.getCanvas()
-    const activeLayer = canvas.getActiveLayer()
-    
-    if (!activeLayer) return
-    
-    // Convert the stroke to pixels and merge with the active layer
-    // This is where we'd implement the actual pixel manipulation
-    // For now, we'll move the stroke to the active layer
-    this.currentStroke.remove()
-    activeLayer.konvaLayer.add(this.currentStroke)
-    activeLayer.konvaLayer.batchDraw()
-    
-    // Emit event for history
-    await canvas.addObject({
-      type: 'path',
-      node: this.currentStroke
-    }, activeLayer.id)
+    if (canvas.konvaStage.container()) {
+      const container = canvas.konvaStage.container()
+      container.style.cursor = `url(${cursorUrl}) ${cursorCanvas.width / 2} ${cursorCanvas.height / 2}, crosshair`
+    }
   }
   
+  /**
+   * Handle option changes
+   */
   protected onOptionChange(key: string, value: unknown): void {
+    super.onOptionChange(key, value)
+    
     switch (key) {
-      case 'size':
-        this.brushSize = value as number
-        break
-      case 'opacity':
-        this.brushOpacity = value as number
-        break
       case 'color':
-        this.brushColor = value as string
+        this.setBrushColor(value as string)
         break
+      case 'blendMode':
+        this.blendMode = value as GlobalCompositeOperation
+        break
+      case 'size':
       case 'hardness':
-        this.brushHardness = value as number
-        break
-      case 'pressureSensitivity':
-        this.pressureSensitivity = value as number
+        // Invalidate brush stamp cache
+        this.currentBrushStamp = null
+        this.updateCursor()
         break
     }
   }
@@ -176,45 +143,108 @@ export class BrushTool extends BaseTool {
   static options = [
     {
       id: 'size',
-      type: 'slider',
+      type: 'slider' as const,
       label: 'Size',
       min: 1,
-      max: 200,
-      default: 10,
+      max: 500,
+      default: 20,
+      step: 1
+    },
+    {
+      id: 'hardness',
+      type: 'slider' as const,
+      label: 'Hardness',
+      min: 0,
+      max: 100,
+      default: 100,
       step: 1
     },
     {
       id: 'opacity',
-      type: 'slider',
+      type: 'slider' as const,
       label: 'Opacity',
       min: 0,
-      max: 1,
-      default: 1,
-      step: 0.01
+      max: 100,
+      default: 100,
+      step: 1
+    },
+    {
+      id: 'flow',
+      type: 'slider' as const,
+      label: 'Flow',
+      min: 0,
+      max: 100,
+      default: 100,
+      step: 1
+    },
+    {
+      id: 'spacing',
+      type: 'slider' as const,
+      label: 'Spacing',
+      min: 1,
+      max: 200,
+      default: 25,
+      step: 1
+    },
+    {
+      id: 'smoothing',
+      type: 'slider' as const,
+      label: 'Smoothing',
+      min: 0,
+      max: 100,
+      default: 0,
+      step: 1
     },
     {
       id: 'color',
-      type: 'color',
+      type: 'color' as const,
       label: 'Color',
       default: '#000000'
     },
     {
-      id: 'hardness',
-      type: 'slider',
-      label: 'Hardness',
-      min: 0,
-      max: 1,
-      default: 0.8,
-      step: 0.01
+      id: 'blendMode',
+      type: 'select' as const,
+      label: 'Blend Mode',
+      options: [
+        { value: 'source-over', label: 'Normal' },
+        { value: 'multiply', label: 'Multiply' },
+        { value: 'screen', label: 'Screen' },
+        { value: 'overlay', label: 'Overlay' },
+        { value: 'darken', label: 'Darken' },
+        { value: 'lighten', label: 'Lighten' },
+        { value: 'color-dodge', label: 'Color Dodge' },
+        { value: 'color-burn', label: 'Color Burn' },
+        { value: 'hard-light', label: 'Hard Light' },
+        { value: 'soft-light', label: 'Soft Light' },
+        { value: 'difference', label: 'Difference' },
+        { value: 'exclusion', label: 'Exclusion' }
+      ],
+      default: 'source-over'
     },
     {
       id: 'pressureSensitivity',
-      type: 'slider',
+      type: 'group' as const,
       label: 'Pressure Sensitivity',
-      min: 0,
-      max: 1,
-      default: 0.5,
-      step: 0.01
+      children: [
+        {
+          id: 'size',
+          type: 'checkbox' as const,
+          label: 'Size',
+          default: true
+        },
+        {
+          id: 'opacity',
+          type: 'checkbox' as const,
+          label: 'Opacity',
+          default: false
+        },
+        {
+          id: 'flow',
+          type: 'checkbox' as const,
+          label: 'Flow',
+          default: false
+        }
+      ]
     }
   ]
 }

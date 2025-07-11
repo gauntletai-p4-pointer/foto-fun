@@ -2,6 +2,8 @@ import { Event } from '../core/Event'
 import { EventStore } from '../core/EventStore'
 import { BaseStore } from '@/lib/store/base/BaseStore'
 import type { CanvasManager } from '@/lib/editor/canvas/types'
+import { TypedEventBus } from '../core/TypedEventBus'
+import { SnapshotManager } from './SnapshotManager'
 
 export interface HistoryState {
   canUndo: boolean
@@ -9,6 +11,7 @@ export interface HistoryState {
   undoStack: Event[]
   redoStack: Event[]
   currentEventId: string | null
+  totalEvents: number
 }
 
 /**
@@ -20,33 +23,46 @@ export interface HistoryState {
 export class EventBasedHistoryStore extends BaseStore<HistoryState> {
   private historyEventStore: EventStore
   private canvasManager: CanvasManager | null = null
+  private typedEventBus: TypedEventBus
+  private snapshotManager: SnapshotManager
   
-  constructor(eventStore: EventStore) {
+  constructor(eventStore: EventStore, typedEventBus: TypedEventBus) {
     super({
       canUndo: false,
       canRedo: false,
       undoStack: [],
       redoStack: [],
-      currentEventId: null
+      currentEventId: null,
+      totalEvents: 0
     }, eventStore)
     
     this.historyEventStore = eventStore
+    this.typedEventBus = typedEventBus
+    this.snapshotManager = new SnapshotManager(eventStore, typedEventBus)
+    
+    // Subscribe to events
+    this.subscribeToHistoryEvents()
   }
   
-  /**
-   * Define event handlers for history tracking
-   */
+  private subscribeToHistoryEvents(): void {
+    // Subscribe to all events to build history
+    this.historyEventStore.subscribe('*', (event) => {
+      this.handleEvent(event)
+    })
+    
+    // Subscribe to snapshot events
+    this.typedEventBus.on('history.snapshot.loaded', async (data) => {
+      await this.navigateToEvent(data.eventId)
+    })
+  }
+  
   protected getEventHandlers(): Map<string, (event: Event) => void> {
-    const handlers = new Map<string, (event: Event) => void>()
-    
-    // Subscribe to all non-history events
-    handlers.set('*', this.handleEvent.bind(this))
-    
-    return handlers
+    // We use TypedEventBus subscriptions instead
+    return new Map()
   }
   
   /**
-   * Set the canvas manager for applying events
+   * Set the canvas manager for state restoration
    */
   setCanvasManager(canvasManager: CanvasManager): void {
     this.canvasManager = canvasManager
@@ -68,8 +84,25 @@ export class EventBasedHistoryStore extends BaseStore<HistoryState> {
       redoStack: [], // Clear redo stack on new action
       currentEventId: event.id,
       canUndo: true,
-      canRedo: false
+      canRedo: false,
+      totalEvents: state.totalEvents + 1
     }))
+    
+    // Emit state change
+    this.emitStateChange()
+  }
+  
+  /**
+   * Emit history state change event
+   */
+  private emitStateChange(): void {
+    const state = this.getState()
+    this.typedEventBus.emit('history.state.changed', {
+      canUndo: state.canUndo,
+      canRedo: state.canRedo,
+      currentEventId: state.currentEventId,
+      totalEvents: state.totalEvents
+    })
   }
   
   /**
@@ -103,9 +136,18 @@ export class EventBasedHistoryStore extends BaseStore<HistoryState> {
       canRedo: true
     }))
     
+    // Emit navigation event
+    this.typedEventBus.emit('history.navigated', {
+      fromEventId: eventToUndo.id,
+      toEventId: reverseEvent.id,
+      method: 'undo'
+    })
+    
     // Emit history event
     const historyEvent = new HistoryUndoEvent(eventToUndo.id)
     await this.historyEventStore.append(historyEvent)
+    
+    this.emitStateChange()
   }
   
   /**
@@ -132,47 +174,24 @@ export class EventBasedHistoryStore extends BaseStore<HistoryState> {
       canRedo: state.redoStack.length > 1
     }))
     
+    // Emit navigation event
+    this.typedEventBus.emit('history.navigated', {
+      fromEventId: state.currentEventId,
+      toEventId: eventToRedo.id,
+      method: 'redo'
+    })
+    
     // Emit history event
     const historyEvent = new HistoryRedoEvent(eventToRedo.id)
     await this.historyEventStore.append(historyEvent)
-  }
-  
-  /**
-   * Clear history
-   */
-  clear(): void {
-    this.setState(() => ({
-      canUndo: false,
-      canRedo: false,
-      undoStack: [],
-      redoStack: [],
-      currentEventId: null
-    }))
-  }
-  
-  /**
-   * Get history entries for display
-   */
-  getHistory(): Array<{
-    id: string
-    description: string
-    timestamp: number
-    canUndo: boolean
-  }> {
-    const state = this.getState()
     
-    return state.undoStack.map((event, index) => ({
-      id: event.id,
-      description: event.getDescription(),
-      timestamp: event.timestamp,
-      canUndo: index === state.undoStack.length - 1
-    }))
+    this.emitStateChange()
   }
   
   /**
-   * Time travel to a specific event
+   * Navigate to a specific event
    */
-  async timeTravel(targetEventId: string): Promise<void> {
+  async navigateToEvent(targetEventId: string): Promise<void> {
     const state = this.getState()
     const targetIndex = state.undoStack.findIndex(e => e.id === targetEventId)
     
@@ -181,7 +200,6 @@ export class EventBasedHistoryStore extends BaseStore<HistoryState> {
       return
     }
     
-    // Calculate how many steps to undo/redo
     const currentIndex = state.undoStack.findIndex(e => e.id === state.currentEventId)
     const steps = currentIndex - targetIndex
     
@@ -196,6 +214,50 @@ export class EventBasedHistoryStore extends BaseStore<HistoryState> {
         await this.redo()
       }
     }
+    
+    // Emit navigation event
+    this.typedEventBus.emit('history.navigated', {
+      fromEventId: state.currentEventId,
+      toEventId: targetEventId,
+      method: 'jump'
+    })
+  }
+  
+  /**
+   * Clear history
+   */
+  clear(): void {
+    this.setState(() => ({
+      canUndo: false,
+      canRedo: false,
+      undoStack: [],
+      redoStack: [],
+      currentEventId: null,
+      totalEvents: 0
+    }))
+    
+    this.emitStateChange()
+  }
+  
+  /**
+   * Get history entries for display
+   */
+  getHistory(): Event[] {
+    return this.getState().undoStack
+  }
+  
+  /**
+   * Get snapshot manager
+   */
+  getSnapshotManager(): SnapshotManager {
+    return this.snapshotManager
+  }
+  
+  /**
+   * Time travel to a specific event
+   */
+  async timeTravel(targetEventId: string): Promise<void> {
+    await this.navigateToEvent(targetEventId)
   }
 }
 
@@ -283,9 +345,9 @@ let historyStoreInstance: EventBasedHistoryStore | null = null
 /**
  * Get or create the singleton history store instance
  */
-export function getHistoryStore(eventStore: EventStore): EventBasedHistoryStore {
+export function getHistoryStore(eventStore: EventStore, typedEventBus: TypedEventBus): EventBasedHistoryStore {
   if (!historyStoreInstance) {
-    historyStoreInstance = new EventBasedHistoryStore(eventStore)
+    historyStoreInstance = new EventBasedHistoryStore(eventStore, typedEventBus)
   }
   return historyStoreInstance
 }

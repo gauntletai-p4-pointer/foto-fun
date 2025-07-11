@@ -148,7 +148,12 @@ export abstract class BaseSelectionTool extends BaseTool {
     this.visualFeedback = node
     
     if (!node.getLayer()) {
-      this.overlayLayer.add(node)
+      // Ensure node is a valid type for adding to layer
+      if (node instanceof Konva.Shape || node instanceof Konva.Group) {
+        this.overlayLayer.add(node)
+      } else {
+        console.error('Invalid node type for visual feedback')
+      }
     }
     
     this.overlayLayer.batchDraw()

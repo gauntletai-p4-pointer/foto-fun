@@ -225,7 +225,6 @@ export class ZoomTool extends BaseTool {
    */
   private zoomToPoint(screenPoint: Point, newZoom: number): void {
     const canvas = this.getCanvas()
-    const stage = canvas.konvaStage
     const oldZoom = canvas.state.zoom
     const oldPan = canvas.state.pan
     

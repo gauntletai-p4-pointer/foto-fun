@@ -12,6 +12,7 @@ import { useTheme } from '@/hooks/useTheme'
 import { useAuth } from '@/hooks/useAuth'
 import { signOut } from '@/lib/auth/actions'
 import { NewDocumentDialog } from '@/components/dialogs/NewDocumentDialog'
+import { ExportDialog } from '@/components/editor/dialogs/ExportDialog'
 import { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
 import {
   DropdownMenu,
@@ -32,6 +33,7 @@ import { TOOL_IDS } from '@/constants'
 
 export function MenuBar() {
   const [newDocumentOpen, setNewDocumentOpen] = useState(false)
+  const [exportDialogOpen, setExportDialogOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const { fileInputRef: openFileInputRef, handleFileSelect: handleOpenFileSelect, triggerFileInput: triggerOpenFileInput } = useFileHandler('open')
   const { fileInputRef: insertFileInputRef, handleFileSelect: handleInsertFileSelect, triggerFileInput: triggerInsertFileInput } = useFileHandler('insert')
@@ -88,21 +90,11 @@ export function MenuBar() {
   }
   
   const handleSelectAll = () => {
-    if (!canvasManager) return
-    const selectionManager = canvasManager.getSelectionManager()
-    selectionManager.selectAll()
+    canvasManager?.selectAll()
   }
   
   const handleDeselect = () => {
-    if (!canvasManager) return
-    const selectionManager = canvasManager.getSelectionManager()
-    selectionManager.clear()
-  }
-  
-  const handleInvertSelection = () => {
-    if (!canvasManager) return
-    const selectionManager = canvasManager.getSelectionManager()
-    selectionManager.invert()
+    canvasManager?.deselectAll()
   }
   
   const handleExpandSelection = (pixels: number = 5) => {
@@ -174,7 +166,10 @@ export function MenuBar() {
                 Save
                 <DropdownMenuShortcut>⌘S</DropdownMenuShortcut>
               </DropdownMenuItem>
-              <DropdownMenuItem disabled>
+              <DropdownMenuItem 
+                onClick={() => setExportDialogOpen(true)}
+                disabled={!currentDocument}
+              >
                 <FileDown className="mr-2 h-4 w-4" />
                 Export As...
                 <DropdownMenuShortcut>⌘⇧E</DropdownMenuShortcut>
@@ -288,46 +283,23 @@ export function MenuBar() {
                 <DropdownMenuShortcut>⌘D</DropdownMenuShortcut>
               </DropdownMenuItem>
               <DropdownMenuItem 
-                onClick={handleInvertSelection}
-                disabled={false}
+                disabled={true} // TODO: Implement invert selection
               >
                 Inverse
                 <DropdownMenuShortcut>⌘⇧I</DropdownMenuShortcut>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuSub>
-                <DropdownMenuSubTrigger disabled={!hasPixelSelection}>
-                  Modify
-                </DropdownMenuSubTrigger>
-                <DropdownMenuSubContent className="w-48">
-                  <DropdownMenuItem onClick={() => handleExpandSelection(1)}>
-                    Expand... (1px)
+                <DropdownMenuSubTrigger>Modify Selection</DropdownMenuSubTrigger>
+                <DropdownMenuSubContent>
+                  <DropdownMenuItem onClick={() => handleExpandSelection()}>
+                    Expand...
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleExpandSelection(3)}>
-                    Expand... (3px)
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleExpandSelection(5)}>
-                    Expand... (5px)
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => handleContractSelection(1)}>
-                    Contract... (1px)
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleContractSelection(3)}>
-                    Contract... (3px)
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleContractSelection(5)}>
-                    Contract... (5px)
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => handleFeatherSelection(1)}>
-                    Feather... (1px)
+                  <DropdownMenuItem onClick={() => handleContractSelection()}>
+                    Contract...
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => handleFeatherSelection(2)}>
-                    Feather... (2px)
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleFeatherSelection(5)}>
-                    Feather... (5px)
+                    Feather...
                   </DropdownMenuItem>
                 </DropdownMenuSubContent>
               </DropdownMenuSub>
@@ -477,6 +449,12 @@ export function MenuBar() {
       <SettingsDialog
         open={settingsOpen}
         onOpenChange={setSettingsOpen}
+      />
+
+      {/* Export Dialog */}
+      <ExportDialog
+        open={exportDialogOpen}
+        onOpenChange={setExportDialogOpen}
       />
     </>
   )

@@ -1,423 +1,585 @@
-# Transform & Navigation Tools - Photoshop Parity Documentation
+## History & Actions - Detailed Breakdown
 
-## Overview
-This document tracks the implementation of Photoshop-style transform and navigation tools in our Konva-based editor, ensuring feature parity with Photoshop's professional capabilities.
+### **History Panel**
+**Core Functionality:**
+- Records every action as a history state
+- Default: 50 states (can increase to 1000)
+- Scroll through states to undo/redo non-linearly
+- Click any state to revert to that point
 
-## Architecture Status
+**Key Features:**
+- **Snapshots**: Save specific states permanently
+  - Won't be pushed out by new states
+  - Can create multiple snapshots
+  - Name them for reference
+  - Compare different approaches
 
-### ✅ Completed Foundation
-- **BaseTool** - Abstract base class providing common tool functionality
-  - Event handling (mouse, keyboard)
-  - Tool options management
-  - Canvas integration
-  - Execution context support
-  
-- **CanvasManager** - Core canvas operations
-  - Zoom and pan functionality
-  - Transform operations
-  - Konva stage management
-  - Event emission through TypedEventBus
+- **History Options:**
+  - Automatically Create First Snapshot
+  - Automatically Create New Snapshot When Saving
+  - Allow Non-Linear History (experimental changes)
+  - Show New Snapshot Dialog by Default
+  - Make Layer Visibility Changes Undoable
 
-### ✅ Completed Tools
-- **MoveTool** - Basic object selection and movement
-  - Click to select objects
-  - Drag to move
-  - Transformer integration for visual handles
-  - Event emission for transforms
+**New Document from State:**
+- Right-click any state → New Document
+- Creates fresh file from that point
+- Useful for saving variations
 
-- **CropTool** - Basic canvas cropping
-  - Drag to create crop area
-  - Visual overlay for crop preview
-  - Enter to apply, Esc to cancel
-  - Aspect ratio constraints with Shift
+### **History Brush Tool (Y)**
+**Concept:**
+- Paint from any previous history state
+- Selective undo/redo with brush control
 
-- **HandTool** - Canvas panning
-  - Uses Konva's built-in stage dragging
-  - Cursor changes (grab/grabbing)
-  - Temporary access via spacebar (needs implementation)
+**Workflow:**
+1. Set source state in History panel
+2. Paint to reveal that state
+3. Use opacity/flow for partial restoration
 
-- **ZoomTool** - Canvas zoom control
-  - Click to zoom in
-  - Alt-click to zoom out
-  - Marquee zoom functionality
-  - Keyboard shortcuts support
+**Art History Brush:**
+- Creates stylized strokes from history
+- Style options: Tight Short, Loose Medium, Dab, Tight Curl, etc.
+- Fidelity: How closely it follows the source
+- Area: Size of sampling area
+- Spacing: Distance between dabs
 
-## Tool Implementation Status
+### **Actions Panel**
+**What Actions Record:**
+- Tool selections and settings
+- Menu commands
+- Panel operations
+- Transformations
+- Most Photoshop operations
 
-### Transform Tools
+**What They Don't Record:**
+- Brush strokes (records the stroke, not the motion)
+- Zoom/pan operations
+- Time-dependent operations
 
-#### Move Tool (V) - 🟡 PARTIAL
-**Implemented:**
-- [x] Basic click and drag to move objects
-- [x] Visual selection with transformer
-- [x] Cursor feedback
-- [x] Event emission for undo/redo
-
-**Missing:**
-- [ ] Auto-Select option (click anywhere selects topmost layer)
-- [ ] Auto-Select Layer vs Group toggle
-- [ ] Show Transform Controls option
-- [ ] Align/Distribute buttons in options bar
-- [ ] Smart Guides for automatic alignment
-- [ ] Shift-drag to constrain to 45° angles
-- [ ] Alt-drag to duplicate while moving
-- [ ] Arrow key nudging (1px, Shift+arrows = 10px)
-- [ ] Multiple object selection and movement
-
-#### Crop Tool (C) - 🟡 PARTIAL
-**Implemented:**
-- [x] Drag to create crop boundary
-- [x] Visual overlay showing crop area
-- [x] Enter to apply, Esc to cancel
-- [x] Basic aspect ratio support
-
-**Missing:**
-- [ ] Interactive handles for adjustment
-- [ ] Rotation by hovering outside corners
-- [ ] Delete Cropped Pixels option
-- [ ] Content-Aware Fill for extending beyond image
-- [ ] Preset ratio buttons (1:1, 4:3, 16:9, etc.)
-- [ ] Overlay options (rule of thirds, grid, golden ratio)
-- [ ] Straighten tool integration
-- [ ] Options bar with dimension inputs
-
-#### Perspective Crop Tool - ❌ NOT IMPLEMENTED
-- [ ] Draw corners to match perspective
-- [ ] Transform and crop to correct perspective
-- [ ] Output dimension specification
-- [ ] Automatic perspective detection
-
-#### Free Transform (Ctrl/Cmd+T) - ❌ NOT IMPLEMENTED
-**Basic Transforms:**
-- [ ] Scale with corner/edge handles
-- [ ] Rotate by dragging outside bounds
-- [ ] Skew with Ctrl/Cmd+drag sides
-- [ ] Distort with Ctrl/Cmd+drag corners
-- [ ] Perspective with Ctrl/Cmd+Alt+Shift+drag
-
-**Transform Options:**
-- [ ] Reference point selector (9-point grid)
-- [ ] Numeric input for W, H, angle, X, Y
-- [ ] Chain link for aspect ratio
-- [ ] Reset button
-- [ ] Apply/Cancel buttons
-
-**Transform Submenu:**
-- [ ] Individual transform modes
-- [ ] Rotate 180°, 90° CW/CCW commands
-- [ ] Flip Horizontal/Vertical commands
-
-#### Warp Tool - ❌ NOT IMPLEMENTED
-- [ ] Mesh grid overlay
-- [ ] Bezier handle control
-- [ ] Preset warps (Arc, Arch, Bulge, Flag, Wave, etc.)
-- [ ] Custom warp mode
-- [ ] Grid density options (1x1 to 9x9)
-
-#### Content-Aware Scale - ❌ NOT IMPLEMENTED
-- [ ] Intelligent scaling algorithm
-- [ ] Protected area painting
-- [ ] Skin tone detection
-- [ ] Amount slider
-- [ ] Alpha channel support
-
-#### Puppet Warp - ❌ NOT IMPLEMENTED
-- [ ] Pin placement system
-- [ ] Natural deformation algorithm
-- [ ] Mesh density options
-- [ ] Pin depth control
-- [ ] Rotation around pins
-
-### Navigation & Measurement Tools
-
-#### Hand Tool (H) - 🟢 MOSTLY COMPLETE
-**Implemented:**
-- [x] Click and drag to pan
-- [x] Cursor changes (grab/grabbing)
-- [x] Clean integration with Konva
-
-**Missing:**
-- [ ] Spacebar for temporary hand tool
-- [ ] Double-click to fit to screen
-- [ ] Scroll All Windows option
-- [ ] Flick panning with momentum
-- [ ] Overscroll capability
-- [ ] Right-click quick zoom menu
-
-#### Zoom Tool (Z) - 🟡 PARTIAL
-**Implemented:**
-- [x] Click to zoom in
-- [x] Alt-click to zoom out
-- [x] Marquee zoom
-- [x] Keyboard shortcuts (Ctrl/Cmd +/-)
-
-**Missing:**
-- [ ] Double-click for 100% view
-- [ ] Resize Windows To Fit option
-- [ ] Zoom All Windows synchronization
-- [ ] Scrubby Zoom (click-drag left/right)
-- [ ] Animated zoom transitions
-- [ ] Zoom percentage in status bar
-
-#### Rotate View Tool (R) - ❌ NOT IMPLEMENTED
-- [ ] Temporary canvas rotation
-- [ ] Rotation without affecting image data
-- [ ] Reset button
-- [ ] Compass indicator
-- [ ] Smooth rotation
-
-#### Ruler Tool (I) - ❌ NOT IMPLEMENTED
-- [ ] Click-drag measurement
-- [ ] Distance, angle, X/Y delta display
-- [ ] Multi-segment measurement
-- [ ] Straighten Layer button
-- [ ] Integration with Info panel
-
-#### Count Tool - ❌ NOT IMPLEMENTED
-- [ ] Numbered marker placement
-- [ ] Custom colors and groups
-- [ ] Count data export
-- [ ] Marker management
-
-#### Eyedropper Tool (I) - 🟡 PARTIAL
-**Implemented:**
-- [x] Basic color sampling
-- [x] Magnifier preview
-- [x] Sample size options
-- [x] RGB color display
-
-**Missing:**
-- [ ] Alt-click for background color
-- [ ] Show Sampling Ring option
-- [ ] Sample from all layers option
-- [ ] Right-click color picker access
-- [ ] Screen-wide sampling
-- [ ] Integration with color stores
-- [ ] Info panel integration
-
-#### Color Sampler Tool - ❌ NOT IMPLEMENTED
-- [ ] Persistent sample point placement
-- [ ] Up to 10 sample points
-- [ ] Real-time value tracking
-- [ ] Multiple color mode display
-- [ ] Info panel integration
-
-## UI/Tool Grouping Implementation Status
-
-### Current Tool Palette Implementation
-The tool palette (`components/editor/ToolPalette/index.tsx`) has a basic grouping system:
-
-#### ✅ Implemented
-- **Tool Groups Definition** - Groups defined in `TOOL_GROUPS` constant
-- **Long-press to Expand** - Hold tool button to see grouped tools
-- **Primary Tool Selection** - Remembers last selected tool in group
-- **Visual Grouping** - Shows small arrow indicator for grouped tools
-
-#### 🟡 Partially Implemented Groups
-- **MARQUEE Group**: Has rect and ellipse, missing single row/column
-- **LASSO Group**: Only basic lasso, missing polygonal and magnetic
-- **QUICK_SELECTION Group**: Has quick selection and magic wand
-- **MOVE Group**: Only move tool (no artboard tool)
-- **CROP Group**: Only basic crop, missing slice and perspective crop
-- **BRUSH Group**: Only brush, missing pencil, color replacement, mixer brush
-- **ERASER Group**: Only basic eraser, missing background and magic eraser
-- **TYPE Group**: Has all 4 type tools
-- **NAV Group**: Has hand and zoom tools
-- **EYEDROPPER Group**: Only eyedropper, missing color sampler, ruler, note, count
-
-#### ❌ Missing Tool Groups (Photoshop Parity)
-- **Clone/Healing Group**: Clone Stamp, Pattern Stamp, Healing Brush, Spot Healing, Patch, Content-Aware Move, Red Eye
-- **History Brush Group**: History Brush, Art History Brush
-- **Paint Bucket Group**: Paint Bucket, Gradient, 3D Material Drop
-- **Blur/Sharpen/Smudge Group**: Blur, Sharpen, Smudge
-- **Dodge/Burn/Sponge Group**: Dodge, Burn, Sponge
-- **Pen Tool Group**: Pen, Freeform Pen, Add/Delete Anchor, Convert Point
-- **Path Selection Group**: Path Selection, Direct Selection
-- **Shape Tool Group**: Rectangle, Rounded Rectangle, Ellipse, Polygon, Line, Custom Shape
-
-### Options Bar Implementation
-The options bar (`components/editor/OptionsBar/index.tsx`) provides tool-specific options:
-
-#### ✅ Implemented
-- **Dynamic Options Display** - Shows options based on active tool
-- **Option Types Support**:
-  - Checkboxes (e.g., Auto-Select for Move tool)
-  - Number inputs (e.g., Feather for selections)
-  - Button groups (e.g., Selection modes)
-  - Sliders (e.g., Opacity, Flow)
-  - Dropdowns (e.g., Blend modes)
-  - Color pickers
-
-#### 🟡 Partially Implemented Tool Options
-- **Move Tool**: Has Auto-Select, Show Transform Controls, missing Align/Distribute buttons
-- **Marquee Tools**: Has selection mode, feather, anti-alias, missing Style dropdown
-- **Crop Tool**: Shows keyboard hints, missing ratio presets, overlay options, dimensions
-
-#### ❌ Missing Tool Options
-- **Transform Tools**: No reference point selector, dimension inputs, maintain ratio toggle
-- **Navigation Tools**: No zoom percentage, fit options, rotate angle display
-- **Eyedropper**: No sample size dropdown, sample layers toggle
-
-### Tool Organization Improvements Needed
-
-#### 1. Visual Hierarchy
-- [ ] Group separators in tool palette
-- [ ] Photoshop-style tool icons
-- [ ] Better group indicators (small triangle)
-- [ ] Keyboard shortcut tooltips
-
-#### 2. Tool Discovery
-- [ ] Tool tips with descriptions
-- [ ] "What's this?" help system
-- [ ] Video tutorials integration
-- [ ] Contextual help in options bar
-
-#### 3. Customization
-- [ ] Customizable tool palette layout
-- [ ] Save/load tool presets
-- [ ] Workspace management
-- [ ] Quick access toolbar
-
-#### 4. Professional Features
-- [ ] Tool recording for actions
-- [ ] Tool presets system
-- [ ] Context-sensitive options
-- [ ] Smart tool switching based on selection
-
-### Supporting Features
-
-#### Info Panel - ❌ NOT IMPLEMENTED
-- [ ] Mouse position display
-- [ ] Color values under cursor
-- [ ] Selection dimensions
-- [ ] Layer information
-- [ ] Document size and profile
-- [ ] Tool-specific measurements
-
-#### Guides, Grid & Snapping - ❌ NOT IMPLEMENTED
-**Guides:**
-- [ ] Drag from rulers
-- [ ] New Guide dialog
-- [ ] Smart Guides
-- [ ] Guide locking
-
-**Grid:**
-- [ ] Customizable spacing
-- [ ] Snap to Grid
-- [ ] Grid visibility toggle
-
-## Event Integration
-
-### Transform Events
-```typescript
-// Current implementation
-ObjectsTransformedEvent - Basic transform tracking
-CanvasCroppedEvent - Crop operations
-
-// Needed events
-TransformStartedEvent - For transform initiation
-TransformUpdatedEvent - For live preview
-TransformCompletedEvent - For finalization
-ViewRotatedEvent - For rotate view tool
-MeasurementEvent - For ruler/count tools
-ColorSampledEvent - For eyedropper/sampler
+**Action Structure:**
+```
+Action Set (folder)
+  └── Action
+      ├── Step 1 (Make selection)
+      ├── Step 2 (Apply filter)
+      ├── Step 3 (Adjust curves)
+      └── Step 4 (Save)
 ```
 
-## Keyboard Shortcuts
+**Recording Actions:**
+1. Click "Create new action"
+2. Name it, assign shortcut, color
+3. Click Record
+4. Perform operations
+5. Click Stop
 
-### Implemented
-- V - Move Tool
-- C - Crop Tool
-- H - Hand Tool
-- Z - Zoom Tool
-- I - Eyedropper Tool
+**Advanced Action Features:**
 
-### Missing
-- Ctrl/Cmd+T - Free Transform
-- R - Rotate View Tool
-- Shift+I - Ruler Tool
-- Spacebar - Temporary Hand Tool
-- Ctrl/Cmd+0 - Fit to Screen
-- Ctrl/Cmd+1 - 100% View
+**Modal Controls:**
+- Toggle dialog on/off per step
+- Shows dialog for user input
+- Allows customization during playback
 
-## UI Integration Requirements
+**Insert Menu Item:**
+- Add commands that can't be recorded
+- Useful for view changes
 
-### Options Bar
-Each tool needs specific options in the top bar:
-- **Move Tool**: Auto-Select, Show Transform Controls, Align buttons
-- **Crop Tool**: Ratio presets, Delete pixels toggle, Overlay options
-- **Transform**: Reference point, dimension inputs, maintain ratio
-- **Zoom Tool**: Resize windows, Scrubby zoom, Zoom all windows
-- **Eyedropper**: Sample size, Sample layers, Show ring
+**Insert Stop:**
+- Add message/instructions
+- Can include Continue button
+- Guide users through complex actions
 
-### Context Menus
-- Transform submenu in Edit menu
-- View options for guides and grid
-- Tool-specific right-click menus
+**Insert Path:**
+- Record specific paths
+- Useful for consistent selections
 
-## Performance Considerations
+**Conditional Actions:**
+- If/Then statements
+- Check for: Document mode, bit depth, layers, etc.
+- Branch to different actions
 
-### Transform Operations
-- Hardware acceleration for smooth transforms
-- Efficient redraw during live preview
-- Smart dirty region updates
+**Action Options:**
+- **Button Mode**: One-click colored buttons
+- **Playback Options**:
+  - Accelerated (fast)
+  - Step by Step (debugging)
+  - Pause For: X seconds
+- **Insert Action**: Nest actions
 
-### Navigation
-- Smooth pan and zoom with GPU acceleration
-- Efficient tile-based rendering for large canvases
-- Momentum scrolling physics
+### **Batch Processing**
+**File > Automate > Batch:**
+- **Source**: Folder, Import, Opened Files, Bridge
+- **Action**: Select set and action
+- **Destination**: None, Save and Close, Folder
+- **Naming**: Sequential numbers, dates, custom
+- **Override Options**:
+  - Override Action "Open" Commands
+  - Include All Subfolders
+  - Suppress File Open Options
+  - Suppress Color Profile Warnings
 
-## Next Steps
+**Error Handling:**
+- Stop For Errors
+- Log Errors To File
 
-### Phase 1: Complete Existing Tools
-1. Enhance MoveTool with auto-select and constraints
-2. Add interactive handles to CropTool
-3. Implement spacebar for temporary HandTool
-4. Add scrubby zoom to ZoomTool
+### **Droplets**
+- Standalone application icons
+- Drag files onto droplet to process
+- Created from File > Automate > Create Droplet
+- Cross-platform (with limitations)
 
-### Phase 2: Core Transform Tools
-1. Implement Free Transform with all modes
-2. Add transform options bar
-3. Create transform event system
-4. Add numeric input support
+### **Image Processor**
+**File > Scripts > Image Processor:**
+- Simpler than Batch
+- Convert multiple files to JPEG, PSD, TIFF
+- Resize options
+- Run actions as part of process
+- Save in same location or choose folder
 
-### Phase 3: Advanced Transform
-1. Implement Warp tool
-2. Add Content-Aware Scale
-3. Implement Puppet Warp
-4. Create Perspective Crop
+---
 
-### Phase 4: Measurement & View
-1. Implement Ruler Tool
-2. Add Rotate View Tool
-3. Create Count Tool
-4. Implement Color Sampler
+## Workspace & Productivity - Detailed Breakdown
 
-### Phase 5: Supporting Systems
-1. Create Info Panel
-2. Implement Guides system
-3. Add Grid and snapping
-4. Create Smart Guides
+### **Workspace Management**
+**Default Workspaces:**
+- Essentials (default)
+- 3D, Graphics and Web, Motion
+- Painting, Photography
+- Typography
+- Custom workspaces
 
-## Testing Checklist
+**Workspace Components:**
+- Panel locations and sizes
+- Tool panel configuration  
+- Keyboard shortcuts (optional)
+- Menu customization (optional)
+- Toolbar customization
 
-### Transform Tools
-- [ ] All transform modes work correctly
-- [ ] Numeric inputs update live
-- [ ] Constraints (Shift, Alt) work properly
-- [ ] Multiple object transforms
-- [ ] Undo/redo for all operations
+**Creating Custom Workspaces:**
+1. Arrange panels as desired
+2. Window > Workspace > New Workspace
+3. Name it
+4. Choose what to save:
+   - Panel locations
+   - Keyboard shortcuts
+   - Menus
+   - Toolbar
 
-### Navigation Tools
-- [ ] Smooth pan and zoom
-- [ ] All keyboard shortcuts work
-- [ ] Magnifier displays correctly
-- [ ] Measurement accuracy
-- [ ] Performance with large canvases
+### **Panel Management**
+**Panel Features:**
+- **Docking**: Snap to edges/other panels
+- **Tabbing**: Combine related panels
+- **Collapsing**: Double-click tab to minimize
+- **Floating**: Drag away from dock
+- **Stacking**: Vertical panel groups
+- **Icons**: Collapse to icons to save space
 
-### Integration
-- [ ] Events fire correctly
-- [ ] Options bar updates
-- [ ] Tool switching preserves state
-- [ ] Memory management
-- [ ] Cross-tool interactions 
+**Panel Options:**
+- Panel menu (≡) for panel-specific options
+- Auto-Collapse Icon Panels
+- Auto-Show Hidden Panels (on hover)
+
+### **Toolbar Customization**
+**Edit Toolbar:**
+- Click ... at bottom or Edit > Toolbar
+- Drag tools in/out
+- Group related tools
+- Create custom tool groups
+- Save as part of workspace
+
+**Tool Presets:**
+- Window > Tool Presets
+- Save tool with all settings
+- Includes: brush, colors, options
+- Current Tool Only checkbox
+- Load/save preset libraries
+
+### **Keyboard Shortcuts**
+**Edit > Keyboard Shortcuts:**
+- Application Menus
+- Panel Menus
+- Tools
+- Taskspaces (newer versions)
+
+**Features:**
+- Search for commands
+- See conflicts
+- Save/load sets
+- Summarize button: Creates text file
+- Multiple shortcut sets
+
+### **Menu Customization**
+**Edit > Menus:**
+- Show/hide menu items
+- Color-code menu items
+- Create task-focused menus
+- Save as part of workspace
+
+### **Libraries Panel**
+**Creative Cloud Libraries:**
+- **Assets Types**:
+  - Colors and color themes
+  - Character/paragraph styles
+  - Graphics (vectors/rasters)
+  - Brushes
+  - Layer styles
+  - Patterns
+
+**Features:**
+- Sync across devices/apps
+- Share with team members
+- Version history
+- Stock asset integration
+- Right-click to edit properties
+
+### **Export Features**
+
+**Quick Export:**
+- File > Export > Quick Export as [format]
+- One-click export with saved settings
+- Preferences for format, quality, metadata
+
+**Export As:**
+- File > Export > Export As
+- Multiple formats and sizes
+- Preview before export
+- Batch export artboards
+- Scale options: percentage, width, height
+
+**Generate Image Assets:**
+- For web/app developers
+- Name layers with extensions: "button.png"
+- Auto-exports when saved
+- Supports multiple sizes: "icon@2x.png"
+- Quality settings in filename
+
+**Save for Web (Legacy):**
+- Still available for compatibility
+- 4-up preview
+- Format optimization
+- Metadata removal
+- Image size adjustment
+
+### **Productivity Enhancements**
+
+**Auto-Recovery:**
+- Preferences > File Handling
+- Auto-save every 5-60 minutes
+- Recover information location
+
+**Background Save:**
+- Continue working while saving
+- Progress bar in document tab
+
+**Recent Files:**
+- Home screen shows recent work
+- Customizable number of files
+- Cloud document integration
+
+**Search Features:**
+- **Search Bar**: Find tools, panels, help
+- **Filter Layers**: By kind, name, effect, mode
+- **Find in Photoshop**: OS-level search integration
+
+**Performance Optimization:**
+- **Preferences > Performance**:
+  - Memory usage slider
+  - History states limit
+  - Cache levels and tile size
+  - GPU acceleration settings
+  - Scratch disk configuration
+
+**Presets Management:**
+- **Preset Manager**: 
+  - Brushes, Swatches, Gradients, Styles
+  - Patterns, Contours, Custom Shapes, Tools
+  - Load, save, replace sets
+  - Organize into groups
+
+**Script Management:**
+- File > Scripts
+- Browse to run any .jsx script
+- Script Events Manager: Trigger scripts automatically
+- Common scripts: Load Files into Stack, Statistics, etc.
+
+### **Cloud Documents**
+**Features:**
+- Auto-sync to Creative Cloud
+- Version history (up to 60 days)
+- Work across devices
+- Offline editing
+- Smaller file sizes (smart compression)
+
+**Limitations:**
+- Some features not supported
+- File size limits
+- Requires subscription
+
+These systems transform Photoshop from an image editor into a complete creative workflow platform. The key is setting up your workspace and automation to match your specific needs - every photographer, designer, and artist will have different optimal configurations.
+
+---
+
+## Implementation Plan for FotoFun
+
+### Overview
+This plan outlines the implementation of workspace and history features for FotoFun, following the 80/20 principle to focus on core functionality that most users need while maintaining clean architecture compatible with our Konva migration.
+
+### Architecture Alignment
+All implementations follow our established patterns:
+- **Event Sourcing**: All state changes through EventStore
+- **TypedEventBus**: Type-safe UI updates
+- **Service Container**: Dependency injection
+- **BaseStore Pattern**: Event-driven state management
+- **No Fabric.js**: Pure Konva implementation
+
+### Core Features to Implement
+
+#### 1. History System ✅⚡
+**Implemented:**
+- ✅ Basic undo/redo via EventBasedHistoryStore
+- ✅ Event-based architecture with reversal support
+
+**To Implement:**
+- ⚡ **History Panel** - Visual timeline of all actions
+  - Scrollable list of history states
+  - Click to navigate to any state
+  - Event descriptions and timestamps
+  - Search/filter capabilities
+  
+- ⚡ **Snapshot System** - Named checkpoints
+  - Create snapshots with custom names
+  - Persistent across sessions
+  - Compare different approaches
+  - Quick snapshot shortcuts
+  
+- ⚡ **Non-Linear History** - Branch exploration
+  - Create branches from any state
+  - Switch between branches
+  - Merge or discard experiments
+
+**Deferred:**
+- ❌ History Brush Tool - Low usage, complex implementation
+- ❌ Art History Brush - Specialty artistic feature
+
+#### 2. File Operations ✅⚡
+**Implemented:**
+- ✅ Basic open/insert functionality
+- ✅ Document store with state management
+
+**To Implement:**
+- ⚡ **Enhanced Save System**
+  - Save to local file system
+  - Multiple format support (PNG, JPEG, WebP, PDF)
+  - Quality and compression settings
+  - Background save (non-blocking)
+  
+- ⚡ **Export As Dialog**
+  - Format selection with previews
+  - Size and quality options
+  - Metadata preservation
+  - Export presets
+  
+- ⚡ **Quick Export**
+  - One-click export with saved settings
+  - Customizable presets
+  - Keyboard shortcuts
+  - Batch export selected layers
+  
+- ⚡ **Recent Files**
+  - Track last 10-20 opened files
+  - Thumbnail previews
+  - Quick access from File menu
+  - Clear history option
+
+**Deferred:**
+- ❌ Save for Web - Legacy feature, modern exports suffice
+- ❌ Generate Image Assets - Developer-specific feature
+- ❌ Cloud document sync - Requires infrastructure
+
+#### 3. Workspace Management ⚡
+**To Implement:**
+- ⚡ **Auto-Save System**
+  - Configurable intervals (5-60 minutes)
+  - Background operation
+  - Recovery on crash
+  - Visual save indicator
+  
+- ⚡ **Document Persistence**
+  - Save full canvas state
+  - Preserve layers and effects
+  - Maintain selection state
+  - Store tool settings
+  
+- ⚡ **Keyboard Shortcuts**
+  - Standard shortcuts (Cmd/Ctrl+S, etc.)
+  - Customizable bindings
+  - Shortcut reference panel
+  - Context-sensitive shortcuts
+
+**Deferred:**
+- ❌ Custom workspace layouts - Complex UI state management
+- ❌ Panel arrangement saving - Lower priority
+- ❌ Menu customization - Rarely used
+
+#### 4. Export Features ⚡
+**To Implement:**
+- ⚡ **Export Selection**
+  - Export only selected area
+  - Maintain transparency
+  - Multiple format support
+  - Size constraints
+  
+- ⚡ **Export Region**
+  - Define export areas without cropping
+  - Named regions
+  - Reusable boundaries
+  - Batch export regions
+  
+- ⚡ **Export Presets**
+  - Common sizes (social media, web, print)
+  - Quality profiles
+  - Format preferences
+  - One-click exports
+
+**Deferred:**
+- ❌ Batch processing - Complex workflow feature
+- ❌ Actions/Automation - Requires macro system
+- ❌ Droplets - OS integration complexity
+
+### Technical Implementation
+
+#### New Services
+```typescript
+// History Management
+HistoryPanelManager
+SnapshotManager
+BranchManager
+
+// File Operations  
+ExportManager
+DocumentSerializer
+AutoSaveManager
+RecoveryManager
+
+// Export System
+ExportPresetManager
+RegionExportManager
+QuickExportService
+```
+
+#### New Events
+```typescript
+// Document Events
+document.exported
+document.imported
+document.autosaved
+document.recovered
+
+// History Events
+history.snapshot.created
+history.snapshot.loaded
+history.branch.created
+history.navigated
+
+// Export Events
+export.started
+export.completed
+export.failed
+```
+
+#### Storage Strategy
+- **IndexedDB**: Document data, snapshots, history
+- **LocalStorage**: Preferences, recent files, presets
+- **File System**: Exports, saves, auto-recovery
+
+### Implementation Timeline
+- **Week 1**: History panel, snapshots, non-linear history
+- **Week 2**: Export system, save/load enhancements
+- **Week 3**: Auto-save, recovery, workspace features
+
+### Success Metrics
+- All core file operations working smoothly
+- History navigation intuitive and fast
+- Export process streamlined
+- No data loss through auto-save
+- Clean architecture maintained
+
+### Future Considerations
+Features we're building the foundation for but not implementing now:
+- Cloud storage integration
+- Collaborative features
+- Advanced automation
+- Plugin system
+- Version control integration
+
+### Implementation Status
+
+#### Completed Features ✅
+
+1. **History System**
+   - ✅ Basic undo/redo via EventBasedHistoryStore
+   - ✅ Event-based architecture with reversal support
+   - ✅ History Panel with visual timeline
+   - ✅ Snapshot system for named checkpoints
+   - ✅ Non-linear history navigation
+   - ✅ Search and filter capabilities in history panel
+   - ✅ Integration with TypedEventBus
+
+2. **File Operations**
+   - ✅ Basic open/insert functionality
+   - ✅ Document store with state management
+   - ✅ Document serialization (save/load)
+   - ✅ Export As dialog with multiple formats
+   - ✅ Export presets (PNG, JPEG, WebP)
+   - ✅ Export selection/region functionality
+   - ✅ Recent files tracking with thumbnails
+
+3. **Workspace Management**
+   - ✅ Auto-save system with configurable intervals
+   - ✅ Recovery system for crashed sessions
+   - ✅ Document persistence with IndexedDB
+   - ✅ Keyboard shortcuts for all major operations
+   - ✅ Shortcut manager with customizable bindings
+
+4. **Export Features**
+   - ✅ Export Manager with comprehensive options
+   - ✅ Multiple format support (PNG, JPEG, WebP)
+   - ✅ Quality and dimension controls
+   - ✅ Export presets for common sizes
+   - ✅ Social media size presets
+   - ✅ Export selection or full canvas
+
+#### Architecture Achievements
+
+- **Event-Driven**: All features integrated with EventStore and TypedEventBus
+- **Service Container**: All new services properly registered with dependency injection
+- **Type Safety**: Full TypeScript implementation with proper typing
+- **Persistence**: IndexedDB for large data, localStorage for preferences
+- **Performance**: Non-blocking operations, efficient memory usage
+- **Extensibility**: Clean interfaces for future enhancements
+
+#### Deferred Features ❌
+
+- ❌ History Brush Tool - Low usage, complex implementation
+- ❌ Art History Brush - Specialty artistic feature
+- ❌ Save for Web - Legacy feature, modern exports suffice
+- ❌ Generate Image Assets - Developer-specific feature
+- ❌ Cloud document sync - Requires infrastructure
+- ❌ Custom workspace layouts - Complex UI state management
+- ❌ Panel arrangement saving - Lower priority
+- ❌ Menu customization - Rarely used
+- ❌ Batch processing - Complex workflow feature
+- ❌ Actions/Automation - Requires macro system
+- ❌ Droplets - OS integration complexity
+
+### Summary
+
+We've successfully implemented the core workspace and history features following the 80/20 principle. The implementation provides:
+
+- **Complete history management** with visual timeline and snapshots
+- **Robust file operations** including save, load, and export
+- **Auto-save and recovery** for data protection
+- **Keyboard shortcuts** for efficient workflow
+- **Recent files** for quick access to previous work
+
+The architecture is clean, maintainable, and ready for future enhancements. All implementations follow the established patterns and integrate seamlessly with the existing Konva-based system.

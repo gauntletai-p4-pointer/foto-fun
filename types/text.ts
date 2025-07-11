@@ -61,4 +61,16 @@ export interface TextOnPathOptions {
   spacing?: number
   offset?: number
   side?: 'left' | 'right'
+}
+
+export interface TextMetrics {
+  width: number
+  height: number
+  ascent: number
+  descent: number
+  lineHeight: number
+  actualBoundingBoxLeft: number
+  actualBoundingBoxRight: number
+  actualBoundingBoxAscent: number
+  actualBoundingBoxDescent: number
 } 
