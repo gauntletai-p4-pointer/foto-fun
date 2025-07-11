@@ -5,6 +5,18 @@ import type { LayerAwareSelectionManager } from '../selection/LayerAwareSelectio
 import { SelectionAwareFilter } from './SelectionAwareFilter'
 import type { PixelSelection } from '@/types'
 
+// Import all filter algorithms statically
+import { BrightnessFilter } from './algorithms/brightness'
+import { ContrastFilter } from './algorithms/contrast'
+import { SaturationFilter } from './algorithms/saturation'
+import { HueFilter } from './algorithms/hue'
+import { GrayscaleFilter } from './algorithms/grayscale'
+import { InvertFilter } from './algorithms/invert'
+import { SepiaFilter } from './algorithms/sepia'
+import { BlurFilter } from './algorithms/blur'
+import { SharpenFilter } from './algorithms/sharpen'
+import { ColortemperatureFilter } from './algorithms/colortemperature'
+
 export interface FilterPipelineOptions {
   enableCaching?: boolean
   enableWebGL?: boolean
@@ -47,6 +59,8 @@ export class FilterPipeline {
     filterParams: any,
     targetImages?: FabricImage[]
   ): Promise<void> {
+    console.log('[FilterPipeline] applyFilter called:', { filterName, filterParams, targetImagesCount: targetImages?.length })
+    
     // Get target images
     const images = targetImages || this.getTargetImages()
     if (images.length === 0) {
@@ -56,12 +70,15 @@ export class FilterPipeline {
     
     // Check if we have an active selection
     const hasSelection = this.hasActiveSelection()
+    console.log('[FilterPipeline] Has active selection:', hasSelection)
     
     if (hasSelection) {
       // Use custom filter pipeline for selection-based filtering
+      console.log('[FilterPipeline] Using custom filter pipeline for selection')
       await this.applyWithSelection(filterName, filterParams, images)
     } else {
       // Use fabric.js filters for non-selected filtering
+      console.log('[FilterPipeline] Using fabric.js filters (no selection)')
       await this.applyWithFabric(filterName, filterParams, images)
     }
     
@@ -112,29 +129,41 @@ export class FilterPipeline {
     filterParams: any,
     images: FabricImage[]
   ): Promise<void> {
+    console.log('[FilterPipeline] applyWithSelection:', { filterName, filterParams })
+    
     // Get selection
     const selection = this.getActiveSelection()
     if (!selection) {
+      console.log('[FilterPipeline] No selection found, falling back to fabric.js')
       // Fallback to fabric.js if no selection found
       return this.applyWithFabric(filterName, filterParams, images)
     }
     
+    console.log('[FilterPipeline] Selection found:', { bounds: selection.bounds })
+    
     // Create custom filter
     const customFilter = await this.createCustomFilter(filterName)
     if (!customFilter) {
+      console.error(`[FilterPipeline] Failed to create custom filter: ${filterName}`)
       throw new Error(`Unsupported custom filter: ${filterName}`)
     }
     
+    console.log('[FilterPipeline] Custom filter created successfully')
+    
     // Apply to each image
     for (const image of images) {
+      console.log('[FilterPipeline] Applying filter to image')
+      
       // Generate cache key
       const cacheKey = this.generateCacheKey(image, filterName, filterParams, selection)
       
       // Check cache
       let filteredData: ImageData
       if (this.options.enableCaching && this.filterCache.has(cacheKey)) {
+        console.log('[FilterPipeline] Using cached filter result')
         filteredData = this.filterCache.get(cacheKey)!
       } else {
+        console.log('[FilterPipeline] Applying filter (not cached)')
         // Apply filter
         filteredData = await customFilter.applyToImage(image, filterParams, selection)
         
@@ -144,9 +173,12 @@ export class FilterPipeline {
         }
       }
       
+      console.log('[FilterPipeline] Updating image with filtered data')
       // Update the existing image with filtered data
       await this.updateImageWithFilteredData(image, filteredData)
     }
+    
+    console.log('[FilterPipeline] Filter application complete')
   }
   
   /**
@@ -218,22 +250,39 @@ export class FilterPipeline {
    * Create custom filter instance
    */
   private async createCustomFilter(filterName: string): Promise<SelectionAwareFilter | null> {
-    // Dynamically import the appropriate filter
+    console.log('[FilterPipeline] createCustomFilter:', filterName)
+    
+    // Use static imports instead of dynamic imports
+    // This fixes bundler compatibility issues
+    const filterMap: Record<string, new (canvas: Canvas, selectionManager: LayerAwareSelectionManager) => SelectionAwareFilter> = {
+      brightness: BrightnessFilter,
+      contrast: ContrastFilter,
+      saturation: SaturationFilter,
+      hue: HueFilter,
+      grayscale: GrayscaleFilter,
+      invert: InvertFilter,
+      sepia: SepiaFilter,
+      blur: BlurFilter,
+      sharpen: SharpenFilter,
+      colortemperature: ColortemperatureFilter,
+      colormatrix: ColortemperatureFilter // Alias for color temperature
+    }
+    
+    const FilterClass = filterMap[filterName.toLowerCase()]
+    
+    if (!FilterClass) {
+      console.error(`[FilterPipeline] Filter class not found for: ${filterName}`)
+      console.log('[FilterPipeline] Available filters:', Object.keys(filterMap))
+      return null
+    }
+    
     try {
-      const filterModule = await import(`./algorithms/${filterName.toLowerCase()}`)
-      
-      // Capitalize first letter for class name
-      const className = filterName.charAt(0).toUpperCase() + filterName.slice(1).toLowerCase() + 'Filter'
-      const FilterClass = filterModule[className] || filterModule.default
-      
-      if (!FilterClass) {
-        console.warn(`Filter class ${className} not found in module`, filterModule)
-        return null
-      }
-      
-      return new FilterClass(this.canvas, this.selectionManager)
+      console.log(`[FilterPipeline] Creating instance of ${FilterClass.name}`)
+      const instance = new FilterClass(this.canvas, this.selectionManager)
+      console.log('[FilterPipeline] Filter instance created successfully')
+      return instance
     } catch (error) {
-      console.warn(`Failed to load custom filter: ${filterName}`, error)
+      console.error(`[FilterPipeline] Failed to instantiate filter ${filterName}:`, error)
       return null
     }
   }

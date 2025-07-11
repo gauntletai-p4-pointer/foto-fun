@@ -1,5 +1,7 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import { SelectionAwareFilter } from '../SelectionAwareFilter'
+import type { FabricImage } from 'fabric'
+import type { PixelSelection } from '@/types'
 
 /**
  * Blur filter algorithm
@@ -12,7 +14,10 @@ export class BlurFilter extends SelectionAwareFilter {
   protected async applyFilter(imageData: ImageData, filterParams: { radius: number }): Promise<ImageData> {
     const radius = Math.max(0, filterParams.radius || 0) / 100 // Convert percentage to 0-1 range
     
+    console.log('[BlurFilter] applyFilter called with radius:', filterParams.radius, '→', radius)
+    
     if (radius === 0) {
+      console.log('[BlurFilter] Radius is 0, returning original image')
       // No blur needed
       return imageData
     }
@@ -22,6 +27,8 @@ export class BlurFilter extends SelectionAwareFilter {
     const passes = 3 // Number of box blur passes to approximate Gaussian
     const boxRadius = Math.ceil(radius * 10) // Scale to pixel radius
     
+    console.log('[BlurFilter] Applying box blur with radius:', boxRadius, 'passes:', passes)
+    
     let result = new ImageData(
       new Uint8ClampedArray(imageData.data),
       imageData.width,
@@ -30,10 +37,81 @@ export class BlurFilter extends SelectionAwareFilter {
     
     // Apply box blur multiple times
     for (let pass = 0; pass < passes; pass++) {
+      console.log('[BlurFilter] Applying pass', pass + 1, 'of', passes)
       result = this.applyBoxBlur(result, boxRadius)
     }
     
+    console.log('[BlurFilter] Blur complete')
     return result
+  }
+  
+  /**
+   * Apply blur filter only to selected pixels
+   * Override the base implementation because blur needs neighborhood access
+   */
+  protected async applyToSelection(
+    imageData: ImageData,
+    selection: PixelSelection,
+    filterParams: { radius: number },
+    image?: FabricImage
+  ): Promise<ImageData> {
+    console.log('[BlurFilter] applyToSelection override - using mask-aware blur')
+    
+    const radius = Math.max(0, filterParams.radius || 0) / 100
+    
+    if (radius === 0) {
+      console.log('[BlurFilter] Radius is 0, returning original image')
+      return imageData
+    }
+    
+    // Get transformation from canvas space to image space
+    let scaleX = 1, scaleY = 1
+    let imgLeft = 0, imgTop = 0
+    
+    if (image) {
+      const imgBounds = image.getBoundingRect()
+      const imgElement = image.getElement() as HTMLImageElement
+      const naturalWidth = imgElement.naturalWidth || imgElement.width
+      const naturalHeight = imgElement.naturalHeight || imgElement.height
+      
+      scaleX = naturalWidth / imgBounds.width
+      scaleY = naturalHeight / imgBounds.height
+      imgLeft = imgBounds.left
+      imgTop = imgBounds.top
+    }
+    
+    // Create a mask in image space
+    const imageMask = new Uint8ClampedArray(imageData.width * imageData.height * 4)
+    
+    // Transform selection mask to image space
+    for (let y = 0; y < selection.mask.height; y++) {
+      for (let x = 0; x < selection.mask.width; x++) {
+        const maskIndex = (y * selection.mask.width + x) * 4 + 3
+        const alpha = selection.mask.data[maskIndex]
+        
+        if (alpha > 0) {
+          const imageX = Math.round((x - imgLeft) * scaleX)
+          const imageY = Math.round((y - imgTop) * scaleY)
+          
+          if (imageX >= 0 && imageX < imageData.width && 
+              imageY >= 0 && imageY < imageData.height) {
+            const imageIndex = (imageY * imageData.width + imageX) * 4 + 3
+            imageMask[imageIndex] = alpha
+          }
+        }
+      }
+    }
+    
+    // Apply blur using the mask
+    const result = applyBlur(
+      imageData.data,
+      imageData.width,
+      imageData.height,
+      filterParams.radius,
+      imageMask
+    )
+    
+    return new ImageData(result, imageData.width, imageData.height)
   }
   
   /**
@@ -46,9 +124,9 @@ export class BlurFilter extends SelectionAwareFilter {
     a: number,
     _filterParams: { radius: number }
   ): Promise<[number, number, number, number]> {
-    // Single pixel processing not applicable for blur
-    // Return unchanged - actual blur is done in applyFilter
-    return [r, g, b, a]
+    // This method should not be called for blur
+    // The parent class applyToSelection is overridden
+    throw new Error('[BlurFilter] processPixel should not be called - use applyToSelection override')
   }
   
   /**

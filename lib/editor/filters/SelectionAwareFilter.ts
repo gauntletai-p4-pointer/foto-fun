@@ -43,10 +43,19 @@ export abstract class SelectionAwareFilter {
     filterParams: any,
     selection?: PixelSelection
   ): Promise<ImageData> {
+    console.log('[SelectionAwareFilter] applyToImage called:', {
+      filterType: this.constructor.name,
+      filterParams,
+      hasSelection: !!selection,
+      selectionBounds: selection?.bounds
+    })
+    
     // Get the actual image element and its natural dimensions
     const imgElement = image.getElement() as HTMLImageElement
     const width = imgElement.naturalWidth || imgElement.width
     const height = imgElement.naturalHeight || imgElement.height
+    
+    console.log('[SelectionAwareFilter] Image dimensions:', { width, height })
     
     // Create canvas for processing at natural size
     const tempCanvas = document.createElement('canvas')
@@ -62,10 +71,12 @@ export abstract class SelectionAwareFilter {
     
     // Apply filter
     if (selection) {
+      console.log('[SelectionAwareFilter] Applying filter to selection')
       // Apply filter only to selected pixels
       const filteredData = await this.applyToSelection(imageData, selection, filterParams, image)
       return filteredData
     } else {
+      console.log('[SelectionAwareFilter] Applying filter to entire image')
       // Apply filter to entire image
       const filteredData = await this.applyFilter(imageData, filterParams)
       return filteredData
@@ -81,6 +92,12 @@ export abstract class SelectionAwareFilter {
     filterParams: any,
     image?: FabricImage
   ): Promise<ImageData> {
+    console.log('[SelectionAwareFilter] applyToSelection called:', {
+      filterType: this.constructor.name,
+      maskSize: { width: selection.mask.width, height: selection.mask.height },
+      imageBounds: image ? image.getBoundingRect() : 'no image'
+    })
+    
     // Create a copy of the image data
     const resultData = new ImageData(
       new Uint8ClampedArray(imageData.data),
@@ -114,6 +131,10 @@ export abstract class SelectionAwareFilter {
     // Report progress
     this.reportProgress(0, mask.height, 'Processing selected pixels...')
     
+    // Safety check to prevent infinite loops
+    let processedPixels = 0
+    const maxPixels = mask.width * mask.height
+    
     // Process row by row for efficiency and progress reporting
     for (let y = 0; y < mask.height; y++) {
       for (let x = 0; x < mask.width; x++) {
@@ -121,6 +142,13 @@ export abstract class SelectionAwareFilter {
         const alpha = mask.data[maskIndex]
         
         if (alpha > 0) {
+          // Safety check
+          processedPixels++
+          if (processedPixels > maxPixels * 2) {
+            console.error('[SelectionAwareFilter] Too many pixels processed, possible infinite loop')
+            throw new Error('Filter processing exceeded expected pixel count')
+          }
+          
           // This pixel is selected
           // x and y are already in canvas space (absolute coordinates)
           // Transform canvas coordinates to image coordinates

@@ -4,6 +4,9 @@ import { TOOL_IDS } from '@/constants'
 import type { Canvas } from 'fabric'
 import { BaseFilterTool } from './BaseFilterTool'
 import { createToolState } from '../utils/toolState'
+import { useCanvasStore } from '@/store/canvasStore'
+import { LayerAwareSelectionManager } from '@/lib/editor/selection/LayerAwareSelectionManager'
+import { FilterPipeline } from '@/lib/editor/filters/FilterPipeline'
 
 // Define tool state
 type SharpenToolState = {
@@ -37,9 +40,28 @@ class SharpenTool extends BaseFilterTool {
   
   // Required: Setup
   protected setupFilterTool(canvas: Canvas): void {
+    console.log('[SharpenTool] Setting up sharpen tool')
+    
+    // Initialize filter pipeline and selection manager
+    const canvasStore = useCanvasStore.getState()
+    this.selectionManager = canvasStore.selectionManager as LayerAwareSelectionManager
+    
+    if (!this.selectionManager) {
+      console.error('[SharpenTool] Selection manager not found')
+      return
+    }
+    
+    this.filterPipeline = new FilterPipeline(canvas, this.selectionManager)
+    console.log('[SharpenTool] Filter pipeline created')
+    
+    // Track original filter states for preview
+    this.originalFilterStates = new Map()
+    this.isPreviewMode = false
+    
     // Subscribe to tool options
     this.subscribeToToolOptions(async () => {
       const strength = this.getOptionValue('sharpen')
+      console.log('[SharpenTool] Tool option changed, strength:', strength)
       if (typeof strength === 'number' && strength !== this.state.get('strength')) {
         await this.applySharpen(strength)
         this.state.set('strength', strength)
@@ -48,6 +70,7 @@ class SharpenTool extends BaseFilterTool {
     
     // Apply initial value if any
     const initialStrength = this.getOptionValue('sharpen')
+    console.log('[SharpenTool] Initial strength:', initialStrength)
     if (typeof initialStrength === 'number' && initialStrength !== 0) {
       this.applySharpen(initialStrength).then(() => {
         this.state.set('strength', initialStrength)
@@ -56,6 +79,7 @@ class SharpenTool extends BaseFilterTool {
     
     // Show selection indicator on tool activation
     this.showSelectionIndicator()
+    console.log('[SharpenTool] Setup complete')
   }
   
   // Required: Cleanup
@@ -76,14 +100,23 @@ class SharpenTool extends BaseFilterTool {
    * Apply sharpen filter
    */
   private async applySharpen(strength: number): Promise<void> {
-    if (this.state.get('isApplying')) return
+    console.log('[SharpenTool] applySharpen called with strength:', strength)
+    
+    if (this.state.get('isApplying')) {
+      console.log('[SharpenTool] Already applying, skipping')
+      return
+    }
     
     this.state.set('isApplying', true)
     this.state.set('strength', strength)
     
     try {
+      console.log('[SharpenTool] Calling base class applyFilter')
       // Use the base class applyFilter method
       await this.applyFilter({ strength })
+      console.log('[SharpenTool] Sharpen filter applied successfully')
+    } catch (error) {
+      console.error('[SharpenTool] Error applying sharpen:', error)
     } finally {
       this.state.set('isApplying', false)
     }

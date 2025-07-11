@@ -140,7 +140,7 @@ export abstract class BaseFilterTool extends BaseTool {
   }
   
   /**
-   * Tool-specific setup - override in subclasses
+   * Setup filter tool
    */
   protected abstract setupFilterTool(canvas: Canvas): void
   
@@ -255,38 +255,45 @@ export abstract class BaseFilterTool extends BaseTool {
   }
   
   /**
-   * Apply filter in preview mode (temporary, no command)
+   * Apply filter preview (temporary)
    */
-  protected async applyFilterPreview(filterParams?: any): Promise<void> {
-    console.log('[BaseFilterTool] applyFilterPreview called with params:', filterParams)
-    console.log('[BaseFilterTool] Current preview mode:', this.isPreviewMode)
+  protected async previewFilter(filterParams?: any): Promise<void> {
+    const filterName = this.getFilterName()
+    console.log(`[BaseFilterTool] previewFilter called for ${filterName}:`, filterParams)
     
     if (!this.canvas || !this.filterPipeline) {
-      console.error('[BaseFilterTool] No canvas or filter pipeline available')
+      console.error('[BaseFilterTool] Filter tool not properly initialized')
       return
     }
     
     const params = filterParams || this.getDefaultParams()
-    const filterName = this.getFilterName()
+    console.log(`[BaseFilterTool] Using params for preview:`, params)
     
-    // Save state on first preview
+    // Enter preview mode
     if (!this.isPreviewMode) {
-      console.log('[BaseFilterTool] First preview, saving original state')
-      this.saveOriginalState()
+      console.log('[BaseFilterTool] Entering preview mode')
       this.isPreviewMode = true
+      this.saveOriginalState()
     }
     
-    // Apply filter directly without command
-    console.log('[BaseFilterTool] Applying preview filter:', filterName, 'with params:', params)
-    await this.filterPipeline.applyFilter(filterName, params)
-    console.log('[BaseFilterTool] Preview filter applied')
+    // Apply filter using pipeline
+    try {
+      console.log(`[BaseFilterTool] Applying ${filterName} filter preview`)
+      await this.filterPipeline.applyFilter(this.getFilterName(), params)
+      console.log('[BaseFilterTool] Preview applied successfully')
+    } catch (error) {
+      console.error(`[BaseFilterTool] Failed to preview ${filterName} filter:`, error)
+    }
+    
+    this.canvas.renderAll()
   }
   
   /**
    * Apply filter with command (permanent)
    */
   protected async applyFilter(filterParams?: any): Promise<void> {
-    console.log('[BaseFilterTool] applyFilter called with params:', filterParams)
+    const filterName = this.getFilterName()
+    console.log(`[BaseFilterTool] applyFilter called for ${filterName} with params:`, filterParams)
     
     if (!this.canvas || !this.filterPipeline || !this.selectionManager) {
       console.error('[BaseFilterTool] Filter tool not properly initialized')
@@ -294,7 +301,7 @@ export abstract class BaseFilterTool extends BaseTool {
     }
     
     const params = filterParams || this.getDefaultParams()
-    const filterName = this.getFilterName()
+    console.log(`[BaseFilterTool] Using params for apply:`, params)
     
     // Exit preview mode
     console.log('[BaseFilterTool] Exiting preview mode')
@@ -304,7 +311,7 @@ export abstract class BaseFilterTool extends BaseTool {
     // Check if we have a selection
     const hasSelection = this.hasActiveSelection()
     const selectionInfo = hasSelection ? ' to selection' : ''
-    console.log('[BaseFilterTool] Has selection:', hasSelection)
+    console.log(`[BaseFilterTool] Has selection: ${hasSelection}`)
     
     // Create and execute filter command
     const command = new ApplyFilterCommand(
@@ -318,10 +325,10 @@ export abstract class BaseFilterTool extends BaseTool {
     )
     
     try {
-      console.log('[BaseFilterTool] Executing filter command')
+      console.log(`[BaseFilterTool] Executing ${filterName} filter command`)
       // Execute with history tracking
       await this.executeCommand(command)
-      console.log('[BaseFilterTool] Filter command executed successfully')
+      console.log(`[BaseFilterTool] ${filterName} filter command executed successfully`)
       
       // Update filter state in store
       this.updateFilterState()

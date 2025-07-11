@@ -4,6 +4,9 @@ import { TOOL_IDS } from '@/constants'
 import type { Canvas } from 'fabric'
 import { BaseFilterTool } from './BaseFilterTool'
 import { createToolState } from '../utils/toolState'
+import { useCanvasStore } from '@/store/canvasStore'
+import { LayerAwareSelectionManager } from '@/lib/editor/selection/LayerAwareSelectionManager'
+import { FilterPipeline } from '@/lib/editor/filters/FilterPipeline'
 
 // Define tool state
 type BlurToolState = {
@@ -37,9 +40,28 @@ class BlurTool extends BaseFilterTool {
   
   // Required: Setup
   protected setupFilterTool(canvas: Canvas): void {
+    console.log('[BlurTool] Setting up blur tool')
+    
+    // Initialize filter pipeline and selection manager
+    const canvasStore = useCanvasStore.getState()
+    this.selectionManager = canvasStore.selectionManager as LayerAwareSelectionManager
+    
+    if (!this.selectionManager) {
+      console.error('[BlurTool] Selection manager not found')
+      return
+    }
+    
+    this.filterPipeline = new FilterPipeline(canvas, this.selectionManager)
+    console.log('[BlurTool] Filter pipeline created')
+    
+    // Track original filter states for preview
+    this.originalFilterStates = new Map()
+    this.isPreviewMode = false
+    
     // Subscribe to tool options
     this.subscribeToToolOptions(async () => {
       const radius = this.getOptionValue('blur')
+      console.log('[BlurTool] Tool option changed, radius:', radius)
       if (typeof radius === 'number' && radius !== this.state.get('radius')) {
         await this.applyBlur(radius)
         this.state.set('radius', radius)
@@ -48,6 +70,7 @@ class BlurTool extends BaseFilterTool {
     
     // Apply initial value if any
     const initialRadius = this.getOptionValue('blur')
+    console.log('[BlurTool] Initial radius:', initialRadius)
     if (typeof initialRadius === 'number' && initialRadius !== 0) {
       this.applyBlur(initialRadius).then(() => {
         this.state.set('radius', initialRadius)
@@ -56,6 +79,7 @@ class BlurTool extends BaseFilterTool {
     
     // Show selection indicator on tool activation
     this.showSelectionIndicator()
+    console.log('[BlurTool] Setup complete')
   }
   
   // Required: Cleanup
@@ -76,14 +100,23 @@ class BlurTool extends BaseFilterTool {
    * Apply blur filter
    */
   private async applyBlur(radius: number): Promise<void> {
-    if (this.state.get('isAdjusting')) return
+    console.log('[BlurTool] applyBlur called with radius:', radius)
+    
+    if (this.state.get('isAdjusting')) {
+      console.log('[BlurTool] Already adjusting, skipping')
+      return
+    }
     
     this.state.set('isAdjusting', true)
     this.state.set('radius', radius)
     
     try {
+      console.log('[BlurTool] Calling base class applyFilter')
       // Use the base class applyFilter method
       await this.applyFilter({ radius })
+      console.log('[BlurTool] Blur filter applied successfully')
+    } catch (error) {
+      console.error('[BlurTool] Error applying blur:', error)
     } finally {
       this.state.set('isAdjusting', false)
     }

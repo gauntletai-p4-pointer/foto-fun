@@ -1,6 +1,8 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import { SelectionAwareFilter } from '../SelectionAwareFilter'
 import { applyBlur } from './blur'
+import type { FabricImage } from 'fabric'
+import type { PixelSelection } from '@/types'
 
 /**
  * Sharpen filter algorithm
@@ -13,7 +15,10 @@ export class SharpenFilter extends SelectionAwareFilter {
   protected async applyFilter(imageData: ImageData, filterParams: { strength: number }): Promise<ImageData> {
     const strength = Math.max(0, filterParams.strength || 0) / 100 // Convert percentage to 0-1 range
     
+    console.log('[SharpenFilter] applyFilter called with strength:', filterParams.strength, '→', strength)
+    
     if (strength === 0) {
+      console.log('[SharpenFilter] Strength is 0, returning original image')
       // No sharpening needed
       return imageData
     }
@@ -26,10 +31,14 @@ export class SharpenFilter extends SelectionAwareFilter {
     const { width, height, data } = imageData
     const output = new Uint8ClampedArray(data)
     
+    console.log('[SharpenFilter] Creating blurred version for unsharp mask')
+    
     // Create blurred version with a small radius
     // Typical unsharp mask uses radius 1-3 pixels
     const blurRadius = 20; // This will be scaled down in applyBlur (20/100 * 10 = 2 pixels)
     const blurred = applyBlur(data, width, height, blurRadius)
+    
+    console.log('[SharpenFilter] Applying unsharp mask formula')
     
     // Apply unsharp mask formula: output = original + strength * (original - blurred)
     for (let i = 0; i < data.length; i += 4) {
@@ -47,11 +56,81 @@ export class SharpenFilter extends SelectionAwareFilter {
       output[i + 3] = data[i + 3] // Keep alpha unchanged
     }
     
+    console.log('[SharpenFilter] Sharpen complete')
     return new ImageData(output, width, height)
   }
   
   /**
-   * Process a single pixel - sharpen requires neighborhood access
+   * Apply sharpen filter only to selected pixels
+   * Override the base implementation because sharpen needs neighborhood access
+   */
+  protected async applyToSelection(
+    imageData: ImageData,
+    selection: PixelSelection,
+    filterParams: { strength: number },
+    image?: FabricImage
+  ): Promise<ImageData> {
+    console.log('[SharpenFilter] applyToSelection override - using mask-aware sharpen')
+    
+    const strength = Math.max(0, filterParams.strength || 0) / 100
+    
+    if (strength === 0) {
+      console.log('[SharpenFilter] Strength is 0, returning original image')
+      return imageData
+    }
+    
+    // Get transformation from canvas space to image space
+    let scaleX = 1, scaleY = 1
+    let imgLeft = 0, imgTop = 0
+    
+    if (image) {
+      const imgBounds = image.getBoundingRect()
+      const imgElement = image.getElement() as HTMLImageElement
+      const naturalWidth = imgElement.naturalWidth || imgElement.width
+      const naturalHeight = imgElement.naturalHeight || imgElement.height
+      
+      scaleX = naturalWidth / imgBounds.width
+      scaleY = naturalHeight / imgBounds.height
+      imgLeft = imgBounds.left
+      imgTop = imgBounds.top
+    }
+    
+    // Create a mask in image space
+    const imageMask = new Uint8ClampedArray(imageData.width * imageData.height * 4)
+    
+    // Transform selection mask to image space
+    for (let y = 0; y < selection.mask.height; y++) {
+      for (let x = 0; x < selection.mask.width; x++) {
+        const maskIndex = (y * selection.mask.width + x) * 4 + 3
+        const alpha = selection.mask.data[maskIndex]
+        
+        if (alpha > 0) {
+          const imageX = Math.round((x - imgLeft) * scaleX)
+          const imageY = Math.round((y - imgTop) * scaleY)
+          
+          if (imageX >= 0 && imageX < imageData.width && 
+              imageY >= 0 && imageY < imageData.height) {
+            const imageIndex = (imageY * imageData.width + imageX) * 4 + 3
+            imageMask[imageIndex] = alpha
+          }
+        }
+      }
+    }
+    
+    // Apply sharpen using the mask
+    const result = applySharpen(
+      imageData.data,
+      imageData.width,
+      imageData.height,
+      filterParams.strength,
+      imageMask
+    )
+    
+    return new ImageData(result, imageData.width, imageData.height)
+  }
+  
+  /**
+   * Process a single pixel
    */
   protected async processPixel(
     r: number,
@@ -60,9 +139,9 @@ export class SharpenFilter extends SelectionAwareFilter {
     a: number,
     _filterParams: { strength: number }
   ): Promise<[number, number, number, number]> {
-    // Single pixel processing not applicable for sharpen
-    // Return unchanged - actual sharpening is done in applyFilter
-    return [r, g, b, a]
+    // This method should not be called for sharpen
+    // The parent class applyToSelection is overridden
+    throw new Error('[SharpenFilter] processPixel should not be called - use applyToSelection override')
   }
 }
 
