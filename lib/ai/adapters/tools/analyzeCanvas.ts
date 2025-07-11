@@ -4,7 +4,6 @@ import { BaseToolAdapter } from '../base'
 import type { CanvasObject } from '@/lib/editor/canvas/types'
 import type { Tool } from '@/types'
 import type { CanvasContext } from '@/lib/ai/tools/canvas-bridge'
-import type { ExecutionContext } from '@/lib/events/execution/ExecutionContext'
 
 export interface AnalyzeCanvasInput {
   includeHistogram?: boolean

@@ -161,7 +161,7 @@ export function ExportDialog({ open, onOpenChange }: ExportDialogProps) {
               Document
             </TabsTrigger>
             <TabsTrigger value="selection" disabled={!canvasManager?.getSelectionData()}>
-              <Image className="h-4 w-4 mr-2" aria-hidden="true" />
+              <Image className="h-4 w-4 mr-2" alt="" />
               Selection
             </TabsTrigger>
             <TabsTrigger value="region">

@@ -554,7 +554,7 @@ export abstract class FilterToolAdapter<
     images: CanvasImage[],
     params: TInput,
     canvas: CanvasManager,
-    executionContext?: ExecutionContext
+    _executionContext?: ExecutionContext
   ): Promise<void> {
     const filterType = this.getFilterType()
     

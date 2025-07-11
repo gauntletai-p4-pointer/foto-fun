@@ -7,13 +7,11 @@ import { Button } from '@/components/ui/button'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { useService } from '@/lib/core/AppInitializer'
 import { useStore } from '@/lib/store/base/BaseStore'
-import { EventTextStore } from '@/lib/store/text/EventTextStore'
 import { EventSelectionStore } from '@/lib/store/selection/EventSelectionStore'
 import { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
 import { getMetadataValue } from '@/lib/editor/canvas/types'
 
 export function IndentControls() {
-  const textStore = useService<EventTextStore>('TextStore')
   const selectionStore = useService<EventSelectionStore>('SelectionStore')
   const canvasManager = useService<CanvasManager>('CanvasManager')
   

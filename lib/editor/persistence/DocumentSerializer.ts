@@ -1,4 +1,5 @@
 import { CanvasManager } from '../canvas/CanvasManager'
+import type { CanvasObject, BlendMode } from '@/lib/editor/canvas/types'
 import { EventDocumentStore, type Document } from '@/lib/store/document/EventDocumentStore'
 import { TypedEventBus } from '@/lib/events/core/TypedEventBus'
 
@@ -61,10 +62,10 @@ export class DocumentSerializer {
         modified: new Date()
       },
       canvas: {
-        width: canvasData.dimensions.width,
-        height: canvasData.dimensions.height,
-        backgroundColor: canvasData.backgroundColor,
-        layers: canvasData.layers,
+        width: (canvasData.dimensions as { width: number; height: number }).width,
+        height: (canvasData.dimensions as { width: number; height: number }).height,
+        backgroundColor: canvasData.backgroundColor as string,
+        layers: canvasData.layers as Array<{ id?: string; name: string; visible: boolean; locked: boolean; opacity: number; blendMode: string; objects?: unknown[] }>,
         selection: this.canvasManager.serializeSelection()
       },
       metadata: {
@@ -145,8 +146,8 @@ export class DocumentSerializer {
       await this.loadCanvasState(serialized.canvas)
       
       // Restore selection if any
-      if (serialized.canvas.selection) {
-        this.canvasManager.deserializeSelection(serialized.canvas.selection)
+      if (serialized.canvas.selection && typeof serialized.canvas.selection === 'object' && 'type' in serialized.canvas.selection) {
+        this.canvasManager.deserializeSelection(serialized.canvas.selection as { type: string; objects?: Array<{ id: string }>; objectIds?: string[]; data?: unknown; bounds?: { x: number; y: number; width: number; height: number } })
       }
       
       // Mark as saved (just loaded)
@@ -251,13 +252,13 @@ export class DocumentSerializer {
         visible: layerData.visible,
         locked: layerData.locked,
         opacity: layerData.opacity,
-        blendMode: layerData.blendMode as any // Cast to any since BlendMode type is complex
+        blendMode: layerData.blendMode as BlendMode
       })
       
       // Load objects in the layer
       if (layerData.objects && Array.isArray(layerData.objects)) {
         for (const objData of layerData.objects) {
-          await this.canvasManager.addObject(objData as any, layer.id)
+          await this.canvasManager.addObject(objData as CanvasObject, layer.id)
         }
       }
     }

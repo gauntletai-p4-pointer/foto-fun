@@ -121,7 +121,7 @@ export function AdjustmentsPanel() {
   if (!isAdjustmentTool || !activeToolId) {
     return (
       <div className="p-4 text-center text-foreground/60">
-        <Image className="w-8 h-8 mx-auto mb-3 opacity-50" aria-hidden="true" />
+        <Image className="w-8 h-8 mx-auto mb-3 opacity-50" alt="" />
         <p className="text-sm">Select an adjustment or filter tool</p>
       </div>
     )

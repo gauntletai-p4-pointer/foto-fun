@@ -1240,7 +1240,7 @@ export class CanvasManager implements ICanvasManager {
     this.selectionRenderer.startRendering()
   }
 
-  serializeSelection(): any {
+  serializeSelection(): { type: string; objects?: unknown[]; bounds?: { x: number; y: number; width: number; height: number }; data?: unknown } | null {
     if (!this.state.selection) return null
     
     if (this.state.selection.type === 'objects') {
@@ -1248,17 +1248,17 @@ export class CanvasManager implements ICanvasManager {
       return {
         type: 'objects',
         objects: serializeCanvasObjects(selectedObjects),
-        bounds: this.getSelectionBounds()
+        bounds: this.getSelectionBounds() || undefined
       }
     }
     
     return {
       type: this.state.selection.type,
-      data: (this.state.selection as any).data
+      data: ('data' in this.state.selection ? this.state.selection.data : undefined)
     }
   }
 
-  deserializeSelection(data: any): void {
+  deserializeSelection(data: { type: string; objects?: Array<{ id: string }>; objectIds?: string[]; data?: unknown; bounds?: { x: number; y: number; width: number; height: number } } | null): void {
     if (!data) {
       this.clearSelection()
       return
@@ -1266,7 +1266,7 @@ export class CanvasManager implements ICanvasManager {
     
     if (data.type === 'objects' && data.objects) {
       // Find objects by ID and select them
-      const objectIds = data.objects.map((obj: any) => obj.id)
+      const objectIds = data.objects.map((obj) => obj.id)
       const objects = this.findObjectsByIds(objectIds)
       if (objects.length > 0) {
         this.selectObjects(objects.map(obj => obj.id))
@@ -1277,11 +1277,11 @@ export class CanvasManager implements ICanvasManager {
         this._state.selection = {
           type: 'pixel',
           bounds: data.bounds || { x: 0, y: 0, width: 0, height: 0 },
-          mask: data.data
+          mask: data.data as ImageData
         }
         // SelectionManager will handle restoring the pixel selection
         if (data.data && this.selectionManager) {
-          this.selectionManager.restoreSelection(data.data, data.bounds)
+          this.selectionManager.restoreSelection(data.data as ImageData, data.bounds || { x: 0, y: 0, width: 0, height: 0 })
         }
       } else {
         // Other selection types
@@ -1333,16 +1333,16 @@ export class CanvasManager implements ICanvasManager {
     return canvasObject
   }
 
-  private applyFiltersToNode(node: Konva.Node, filters: Array<{ type: string; params: any }>): void {
+  private applyFiltersToNode(node: Konva.Node, filters: Array<{ type: string; params: Record<string, unknown> }>): void {
     if (!(node instanceof Konva.Image)) return
     
     const imageNode = node as Konva.Image
-    const filterFuncs: any[] = []
+    const filterFuncs: ((imageData: ImageData) => void)[] = []
     
     filters.forEach(filter => {
       switch (filter.type) {
         case 'brightness':
-          imageNode.brightness((filter.params.value || 0) / 100)
+          imageNode.brightness((Number(filter.params.value) || 0) / 100)
           filterFuncs.push(Konva.Filters.Brighten)
           break
           
@@ -1408,7 +1408,7 @@ export class CanvasManager implements ICanvasManager {
     }
   }
 
-  toJSON(): any {
+  toJSON(): Record<string, unknown> {
     return {
       dimensions: { 
         width: this._state.width,
@@ -1521,7 +1521,7 @@ export class CanvasManager implements ICanvasManager {
     }
   }
 
-  getSelectionData(): any {
+  getSelectionData(): { type: string; objects?: unknown[]; count?: number; bounds?: { x: number; y: number; width: number; height: number }; data?: unknown } | null {
     if (!this._state.selection) return null
     
     if (this._state.selection.type === 'objects') {
@@ -1530,13 +1530,13 @@ export class CanvasManager implements ICanvasManager {
         type: 'objects',
         objects: serializeCanvasObjects(objects),
         count: objects.length,
-        bounds: this.getSelectionBounds()
+        bounds: this.getSelectionBounds() || undefined
       }
     }
     
     return {
       type: this._state.selection.type,
-      data: (this._state.selection as any).data
+      data: ('data' in this._state.selection ? this._state.selection.data : undefined)
     }
   }
 
