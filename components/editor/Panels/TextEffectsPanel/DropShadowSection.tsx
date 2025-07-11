@@ -2,7 +2,9 @@
 
 import { useState, useEffect } from 'react'
 import Konva from 'konva'
-import type { CanvasObject } from '@/lib/editor/canvas/types'
+import type { CanvasObject } from '@/lib/editor/objects/types'
+import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
+import { useService } from '@/lib/core/AppInitializer'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Slider } from '@/components/ui/slider'
 import { Input } from '@/components/ui/input'
@@ -22,6 +24,7 @@ interface DropShadowSectionProps {
 }
 
 export function DropShadowSection({ object, onChange }: DropShadowSectionProps) {
+  const canvasManager = useService<CanvasManager>('CanvasManager')
   const [enabled, setEnabled] = useState(false)
   const [options, setOptions] = useState<DropShadowOptions>({
     color: '#000000',
@@ -34,11 +37,14 @@ export function DropShadowSection({ object, onChange }: DropShadowSectionProps) 
   // Check if object has shadow on mount
   useEffect(() => {
     // Type guard inside useEffect
-    if (!object || (object.type !== 'text' && object.type !== 'verticalText') || !object.node) {
+    if (!object || (object.type !== 'text' && object.type !== 'verticalText') || !canvasManager) {
       return
     }
     
-    const textNode = object.node as Konva.Text
+    const node = canvasManager.getNode(object.id)
+    if (!node || !(node instanceof Konva.Text)) return
+    
+    const textNode = node as Konva.Text
     // Check for Konva shadow properties
     const shadowColor = textNode.shadowColor()
     const shadowBlur = textNode.shadowBlur()
@@ -55,7 +61,7 @@ export function DropShadowSection({ object, onChange }: DropShadowSectionProps) 
         blur: shadowBlur || 5,
       })
     }
-  }, [object])
+  }, [object, canvasManager])
   
   const handleToggle = (checked: boolean) => {
     setEnabled(checked)
@@ -70,8 +76,12 @@ export function DropShadowSection({ object, onChange }: DropShadowSectionProps) 
   }
   
   const applyDropShadow = (shadowOptions: DropShadowOptions) => {
-    if (!object || !object.node) return
-    const textNode = object.node as Konva.Text
+    if (!object || !canvasManager) return
+    
+    const node = canvasManager.getNode(object.id)
+    if (!node || !(node instanceof Konva.Text)) return
+    
+    const textNode = node as Konva.Text
     
     // Calculate offset from angle and distance
     const radians = shadowOptions.angle * Math.PI / 180
@@ -91,8 +101,12 @@ export function DropShadowSection({ object, onChange }: DropShadowSectionProps) 
   }
   
   const removeDropShadow = () => {
-    if (!object || !object.node) return
-    const textNode = object.node as Konva.Text
+    if (!object || !canvasManager) return
+    
+    const node = canvasManager.getNode(object.id)
+    if (!node || !(node instanceof Konva.Text)) return
+    
+    const textNode = node as Konva.Text
     
     textNode.shadowColor('')
     textNode.shadowOpacity(0)
@@ -119,7 +133,7 @@ export function DropShadowSection({ object, onChange }: DropShadowSectionProps) 
   }
   
   // Type guard for text objects
-  if (!object || (object.type !== 'text' && object.type !== 'verticalText') || !object.node) {
+  if (!object || (object.type !== 'text' && object.type !== 'verticalText')) {
     return null
   }
   

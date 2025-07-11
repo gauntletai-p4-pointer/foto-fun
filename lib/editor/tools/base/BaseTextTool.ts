@@ -128,7 +128,7 @@ export abstract class BaseTextTool extends BaseTool {
    * Check if a canvas object is a text object
    */
   protected isTextObject(obj: CanvasObject): boolean {
-    return obj.type === 'text' || obj.type === 'verticalText'
+    return obj.type === 'text'
   }
   
   /**
@@ -170,7 +170,7 @@ export abstract class BaseTextTool extends BaseTool {
    */
   protected async createNewText(point: Point): Promise<void> {
     const canvas = this.getCanvas()
-    const activeLayer = canvas.getActiveLayer()
+    // No longer need active layer - objects are managed directly
     if (!activeLayer) return
     
     const textNode = this.createTextObject(point.x, point.y)
@@ -340,11 +340,14 @@ export abstract class BaseTextTool extends BaseTool {
       currentText.text(finalText)
       currentText.show()
       
-      // Find canvas object
+      // Find canvas object by matching the text node
       let canvasObject: CanvasObject | null = null
-      for (const layer of canvas.state.layers) {
-        const obj = layer.objects.find(o => o.node === currentText)
-        if (obj) {
+      const allObjects = canvas.getAllObjects()
+      for (const obj of allObjects) {
+        // For text objects, we need to find by matching text content and position
+        if (obj.type === 'text' && 
+            Math.abs(obj.x - currentText.x()) < 1 && 
+            Math.abs(obj.y - currentText.y()) < 1) {
           canvasObject = obj
           break
         }

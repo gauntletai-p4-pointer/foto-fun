@@ -9,6 +9,7 @@ import { OptionButtonGroup } from './OptionButtonGroup'
 import { OptionSlider } from './OptionSlider'
 import { OptionColor } from './OptionColor'
 import { OptionDropdown } from './OptionDropdown'
+import { OptionModelQuality } from './OptionModelQuality'
 import { VintageEffectsOptions } from './VintageEffectsOptions'
 import { TOOL_IDS } from '@/constants'
 import { defaultToolOptions } from './defaultToolOptions'
@@ -127,6 +128,15 @@ export function ToolOptions() {
       case 'dropdown':
         return (
           <OptionDropdown
+            key={key}
+            option={option as ToolOption<string>}
+            onChange={(value) => handleOptionChange(option.id, value)}
+          />
+        )
+      
+      case 'model-quality':
+        return (
+          <OptionModelQuality
             key={key}
             option={option as ToolOption<string>}
             onChange={(value) => handleOptionChange(option.id, value)}

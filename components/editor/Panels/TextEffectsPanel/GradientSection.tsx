@@ -1,7 +1,7 @@
 'use client'
 
 import { Button } from '@/components/ui/button'
-import type { CanvasObject } from '@/lib/editor/canvas/types'
+import type { CanvasObject } from '@/lib/editor/objects/types'
 import { TextLayerStyles } from '@/lib/editor/text/effects'
 
 interface GradientSectionProps {

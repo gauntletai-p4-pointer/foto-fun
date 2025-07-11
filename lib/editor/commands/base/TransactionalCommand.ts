@@ -170,7 +170,7 @@ export abstract class TransactionalCommand extends Command {
     if (!canvas) return
     
     // Clear existing layers
-    const currentLayers = [...canvas.state.layers]
+    const currentObjects = canvas.getAllObjects()
     for (const layer of currentLayers) {
       canvas.removeLayer(layer.id)
     }

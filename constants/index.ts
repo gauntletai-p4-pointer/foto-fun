@@ -72,6 +72,16 @@ export const TOOL_IDS = {
   VINTAGE_EFFECTS: 'vintage-effects',
   // AI-Native tools
   AI_IMAGE_GENERATION: 'ai-image-generation',
+  AI_BACKGROUND_REMOVAL: 'background-removal',
+  AI_OBJECT_REMOVAL: 'ai-object-removal',
+  AI_STYLE_TRANSFER: 'ai-style-transfer',
+  AI_VARIATION: 'ai-variation',
+  AI_RELIGHTING: 'ai-relighting',
+  AI_UPSCALING: 'ai-upscaling',
+  AI_FACE_ENHANCEMENT: 'face-enhancement',
+  AI_INPAINTING: 'inpainting',
+  AI_OUTPAINTING: 'outpainting',
+  AI_SEMANTIC_SELECTION: 'semantic-selection',
 } as const
 
 // Tool Groups
@@ -149,5 +159,20 @@ export const TOOL_GROUPS = {
     TOOL_IDS.GRAYSCALE,
     TOOL_IDS.INVERT,
     TOOL_IDS.VINTAGE_EFFECTS,
+  ],
+
+  // AI tools (new group)
+  AI_TOOLS: [
+    TOOL_IDS.AI_IMAGE_GENERATION,
+    TOOL_IDS.AI_BACKGROUND_REMOVAL,
+    TOOL_IDS.AI_OBJECT_REMOVAL,
+    TOOL_IDS.AI_STYLE_TRANSFER,
+    TOOL_IDS.AI_VARIATION,
+    TOOL_IDS.AI_RELIGHTING,
+    TOOL_IDS.AI_UPSCALING,
+    TOOL_IDS.AI_FACE_ENHANCEMENT,
+    TOOL_IDS.AI_INPAINTING,
+    TOOL_IDS.AI_OUTPAINTING,
+    TOOL_IDS.AI_SEMANTIC_SELECTION,
   ],
 } as const 

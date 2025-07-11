@@ -1,7 +1,8 @@
 import { BaseStore } from '../base/BaseStore'
 import type { EventStore } from '@/lib/events/core/EventStore'
 import type { Event } from '@/lib/events/core/Event'
-import type { CanvasObject, Layer, Selection, Point } from '@/lib/editor/canvas/types'
+import type { Layer, Selection, Point } from '@/lib/editor/canvas/types'
+import type { CanvasObject } from '@/lib/editor/objects/types'
 
 export interface CanvasStoreState {
   // Document properties

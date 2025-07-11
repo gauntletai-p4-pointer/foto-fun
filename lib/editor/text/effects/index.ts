@@ -2,7 +2,7 @@ export { type TextEffects, type DropShadowOptions, type StrokeOptions, type Glow
 export { TextWarp, type WarpStyle, type WarpOptions } from './TextWarp'
 
 // Konva-compatible text layer styles
-import type { CanvasObject } from '@/lib/editor/canvas/types'
+import type { CanvasObject } from '@/lib/editor/objects/types'
 import type { TextEffects, StrokeOptions, GradientOptions } from './LayerStyles'
 import Konva from 'konva'
 

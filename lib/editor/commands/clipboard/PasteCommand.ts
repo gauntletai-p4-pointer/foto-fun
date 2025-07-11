@@ -1,5 +1,6 @@
 import { Command } from '../base'
-import type { CanvasManager, CanvasObject } from '@/lib/editor/canvas/types'
+import type { CanvasManager } from '@/lib/editor/canvas/types'
+import type { CanvasObject } from '@/lib/editor/objects/types'
 import { ClipboardManager } from '../../clipboard'
 import { ServiceContainer } from '@/lib/core/ServiceContainer'
 import type { TypedEventBus } from '@/lib/events/core/TypedEventBus'
@@ -27,9 +28,8 @@ export class PasteCommand extends Command {
     // Emit addition events
     for (const obj of this.pastedObjects) {
       this.typedEventBus.emit('canvas.object.added', {
-        canvasId: 'main', // TODO: Get actual canvas ID
-        object: obj,
-        layerId: obj.layerId
+        canvasId: this.canvasManager.konvaStage.id() || 'main',
+        object: obj
       })
     }
     
@@ -49,7 +49,7 @@ export class PasteCommand extends Command {
       
       // Emit removal event
       this.typedEventBus.emit('canvas.object.removed', {
-        canvasId: 'main', // TODO: Get actual canvas ID
+        canvasId: this.canvasManager.konvaStage.id() || 'main',
         objectId: obj.id
       })
     }

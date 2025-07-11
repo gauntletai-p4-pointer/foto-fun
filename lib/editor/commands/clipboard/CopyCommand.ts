@@ -1,6 +1,6 @@
 import { Command } from '../base'
 import type { ClipboardManager } from '@/lib/editor/clipboard/ClipboardManager'
-import type { CanvasObject } from '@/lib/editor/canvas/types'
+import type { CanvasObject } from '@/lib/editor/objects/types'
 
 /**
  * Command to copy selection or objects

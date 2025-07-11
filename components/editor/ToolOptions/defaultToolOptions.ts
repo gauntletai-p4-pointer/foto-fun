@@ -1136,5 +1136,481 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         }
       }
     ]
+  },
+
+  // AI Tool Options
+  [TOOL_IDS.AI_BACKGROUND_REMOVAL]: {
+    toolId: TOOL_IDS.AI_BACKGROUND_REMOVAL,
+    options: [
+      {
+        id: 'modelTier',
+        type: 'model-quality',
+        label: 'Quality',
+        value: 'best',
+        props: {
+          tiers: {
+            best: {
+              name: 'SAM 2 Large',
+              description: 'Exceptional quality - handles hair and complex edges',
+              cost: 0.003,
+              quality: 'exceptional'
+            },
+            fast: {
+              name: 'RemBG',
+              description: 'Good quality - fast for clean backgrounds',
+              cost: 0.0005,
+              quality: 'good'
+            }
+          }
+        }
+      },
+      {
+        id: 'createNewObject',
+        type: 'checkbox',
+        label: 'Create New Object',
+        value: false,
+        props: {
+          tooltip: 'Create a new object instead of modifying the original'
+        }
+      }
+    ]
+  },
+
+  [TOOL_IDS.AI_OBJECT_REMOVAL]: {
+    toolId: TOOL_IDS.AI_OBJECT_REMOVAL,
+    options: [
+      {
+        id: 'modelTier',
+        type: 'model-quality',
+        label: 'Quality',
+        value: 'best',
+        props: {
+          tiers: {
+            best: {
+              name: 'LaMa',
+              description: 'Best quality object removal',
+              cost: 0.002,
+              quality: 'exceptional'
+            },
+            alternative: {
+              name: 'SD Inpainting',
+              description: 'Alternative removal method',
+              cost: 0.001,
+              quality: 'very-good'
+            }
+          }
+        }
+      }
+    ]
+  },
+
+  [TOOL_IDS.AI_STYLE_TRANSFER]: {
+    toolId: TOOL_IDS.AI_STYLE_TRANSFER,
+    options: [
+      {
+        id: 'modelTier',
+        type: 'model-quality',
+        label: 'Quality',
+        value: 'best',
+        props: {
+          tiers: {
+            best: {
+              name: 'High Quality',
+              description: 'Best style transfer quality',
+              cost: 0.003,
+              quality: 'exceptional'
+            },
+            fast: {
+              name: 'Fast',
+              description: 'Quick style transfer',
+              cost: 0.001,
+              quality: 'good'
+            }
+          }
+        }
+      },
+      {
+        id: 'strength',
+        type: 'slider',
+        label: 'Style Strength',
+        value: 0.8,
+        props: {
+          min: 0.1,
+          max: 1.0,
+          step: 0.1
+        }
+      },
+      {
+        id: 'preserveColors',
+        type: 'checkbox',
+        label: 'Preserve Colors',
+        value: false
+      }
+    ]
+  },
+
+  [TOOL_IDS.AI_VARIATION]: {
+    toolId: TOOL_IDS.AI_VARIATION,
+    options: [
+      {
+        id: 'modelTier',
+        type: 'model-quality',
+        label: 'Quality',
+        value: 'best',
+        props: {
+          tiers: {
+            best: {
+              name: 'High Quality',
+              description: 'Best variation quality',
+              cost: 0.003,
+              quality: 'exceptional'
+            },
+            fast: {
+              name: 'Fast',
+              description: 'Quick variations',
+              cost: 0.001,
+              quality: 'good'
+            }
+          }
+        }
+      },
+      {
+        id: 'variationStrength',
+        type: 'slider',
+        label: 'Variation Strength',
+        value: 0.7,
+        props: {
+          min: 0.1,
+          max: 1.0,
+          step: 0.1
+        }
+      },
+      {
+        id: 'count',
+        type: 'number',
+        label: 'Count',
+        value: 2,
+        props: {
+          min: 1,
+          max: 4,
+          step: 1
+        }
+      }
+    ]
+  },
+
+  [TOOL_IDS.AI_RELIGHTING]: {
+    toolId: TOOL_IDS.AI_RELIGHTING,
+    options: [
+      {
+        id: 'modelTier',
+        type: 'model-quality',
+        label: 'Quality',
+        value: 'best',
+        props: {
+          tiers: {
+            best: {
+              name: 'High Quality',
+              description: 'Best relighting quality',
+              cost: 0.004,
+              quality: 'exceptional'
+            },
+            fast: {
+              name: 'Fast',
+              description: 'Quick relighting',
+              cost: 0.002,
+              quality: 'good'
+            }
+          }
+        }
+      },
+      {
+        id: 'intensity',
+        type: 'slider',
+        label: 'Light Intensity',
+        value: 1.0,
+        props: {
+          min: 0.1,
+          max: 2.0,
+          step: 0.1
+        }
+      },
+      {
+        id: 'softness',
+        type: 'slider',
+        label: 'Light Softness',
+        value: 0.5,
+        props: {
+          min: 0.0,
+          max: 1.0,
+          step: 0.1
+        }
+      },
+      {
+        id: 'colorTemperature',
+        type: 'dropdown',
+        label: 'Color Temperature',
+        value: 'neutral',
+        props: {
+          options: [
+            { value: 'warm', label: 'Warm' },
+            { value: 'neutral', label: 'Neutral' },
+            { value: 'cool', label: 'Cool' }
+          ]
+        }
+      }
+    ]
+  },
+
+  [TOOL_IDS.AI_UPSCALING]: {
+    toolId: TOOL_IDS.AI_UPSCALING,
+    options: [
+      {
+        id: 'modelTier',
+        type: 'model-quality',
+        label: 'Quality',
+        value: 'best',
+        props: {
+          tiers: {
+            best: {
+              name: 'Real-ESRGAN',
+              description: 'Best upscaling quality',
+              cost: 0.005,
+              quality: 'exceptional'
+            },
+            fast: {
+              name: 'Fast Upscaler',
+              description: 'Quick upscaling',
+              cost: 0.002,
+              quality: 'good'
+            }
+          }
+        }
+      },
+      {
+        id: 'scaleFactor',
+        type: 'dropdown',
+        label: 'Scale Factor',
+        value: 4,
+        props: {
+          options: [
+            { value: 2, label: '2x' },
+            { value: 4, label: '4x' },
+            { value: 8, label: '8x' }
+          ]
+        }
+      },
+      {
+        id: 'enhanceDetails',
+        type: 'checkbox',
+        label: 'Enhance Details',
+        value: true
+      },
+      {
+        id: 'preserveSharpness',
+        type: 'checkbox',
+        label: 'Preserve Sharpness',
+        value: true
+      }
+    ]
+  },
+
+  [TOOL_IDS.AI_FACE_ENHANCEMENT]: {
+    toolId: TOOL_IDS.AI_FACE_ENHANCEMENT,
+    options: [
+      {
+        id: 'modelTier',
+        type: 'model-quality',
+        label: 'Quality',
+        value: 'best',
+        props: {
+          tiers: {
+            best: {
+              name: 'GFPGAN',
+              description: 'Best face enhancement quality',
+              cost: 0.003,
+              quality: 'exceptional'
+            },
+            fast: {
+              name: 'Fast Enhancement',
+              description: 'Quick face enhancement',
+              cost: 0.001,
+              quality: 'good'
+            }
+          }
+        }
+      },
+      {
+        id: 'enhancementScale',
+        type: 'slider',
+        label: 'Enhancement Scale',
+        value: 2,
+        props: {
+          min: 1,
+          max: 4,
+          step: 1
+        }
+      },
+      {
+        id: 'autoDetect',
+        type: 'checkbox',
+        label: 'Auto Detect Faces',
+        value: true
+      }
+    ]
+  },
+
+  [TOOL_IDS.AI_INPAINTING]: {
+    toolId: TOOL_IDS.AI_INPAINTING,
+    options: [
+      {
+        id: 'modelTier',
+        type: 'model-quality',
+        label: 'Quality',
+        value: 'best',
+        props: {
+          tiers: {
+            best: {
+              name: 'SD Inpainting',
+              description: 'Best inpainting quality',
+              cost: 0.003,
+              quality: 'exceptional'
+            },
+            fast: {
+              name: 'Fast Inpaint',
+              description: 'Quick inpainting',
+              cost: 0.001,
+              quality: 'good'
+            }
+          }
+        }
+      },
+      {
+        id: 'brushSize',
+        type: 'slider',
+        label: 'Brush Size',
+        value: 20,
+        props: {
+          min: 5,
+          max: 100,
+          step: 1,
+          unit: 'px'
+        }
+      }
+    ]
+  },
+
+  [TOOL_IDS.AI_OUTPAINTING]: {
+    toolId: TOOL_IDS.AI_OUTPAINTING,
+    options: [
+      {
+        id: 'modelTier',
+        type: 'model-quality',
+        label: 'Quality',
+        value: 'best',
+        props: {
+          tiers: {
+            best: {
+              name: 'SD Outpainting',
+              description: 'Best outpainting quality',
+              cost: 0.004,
+              quality: 'exceptional'
+            },
+            fast: {
+              name: 'Fast Outpaint',
+              description: 'Quick outpainting',
+              cost: 0.002,
+              quality: 'good'
+            }
+          }
+        }
+      },
+      {
+        id: 'expandSize',
+        type: 'number',
+        label: 'Expand Size',
+        value: 256,
+        props: {
+          min: 32,
+          max: 512,
+          step: 32,
+          unit: 'px'
+        }
+      },
+      {
+        id: 'direction',
+        type: 'dropdown',
+        label: 'Direction',
+        value: 'all',
+        props: {
+          options: [
+            { value: 'all', label: 'All Directions' },
+            { value: 'top', label: 'Top' },
+            { value: 'right', label: 'Right' },
+            { value: 'bottom', label: 'Bottom' },
+            { value: 'left', label: 'Left' }
+          ]
+        }
+      },
+      {
+        id: 'seamlessBlend',
+        type: 'checkbox',
+        label: 'Seamless Blend',
+        value: true
+      }
+    ]
+  },
+
+  [TOOL_IDS.AI_SEMANTIC_SELECTION]: {
+    toolId: TOOL_IDS.AI_SEMANTIC_SELECTION,
+    options: [
+      {
+        id: 'modelTier',
+        type: 'model-quality',
+        label: 'Quality',
+        value: 'best',
+        props: {
+          tiers: {
+            best: {
+              name: 'GroundingDINO',
+              description: 'Best semantic understanding',
+              cost: 0.002,
+              quality: 'exceptional'
+            },
+            fast: {
+              name: 'Fast Detection',
+              description: 'Quick semantic detection',
+              cost: 0.001,
+              quality: 'good'
+            }
+          }
+        }
+      },
+      {
+        id: 'threshold',
+        type: 'slider',
+        label: 'Confidence Threshold',
+        value: 0.3,
+        props: {
+          min: 0.1,
+          max: 1.0,
+          step: 0.1
+        }
+      },
+      {
+        id: 'mode',
+        type: 'dropdown',
+        label: 'Selection Mode',
+        value: 'new',
+        props: {
+          options: [
+            { value: 'new', label: 'New Selection' },
+            { value: 'add', label: 'Add to Selection' },
+            { value: 'subtract', label: 'Subtract from Selection' },
+            { value: 'intersect', label: 'Intersect Selection' }
+          ]
+        }
+      }
+    ]
   }
 } 

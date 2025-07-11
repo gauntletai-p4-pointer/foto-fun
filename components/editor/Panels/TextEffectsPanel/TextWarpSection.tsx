@@ -14,7 +14,7 @@ import {
 import { WarpStyle } from '@/lib/editor/text/effects/TextWarp'
 import { useService } from '@/lib/core/AppInitializer'
 import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
-import type { CanvasObject } from '@/lib/editor/canvas/types'
+import type { CanvasObject } from '@/lib/editor/objects/types'
 
 interface TextWarpSectionProps {
   object: CanvasObject | null

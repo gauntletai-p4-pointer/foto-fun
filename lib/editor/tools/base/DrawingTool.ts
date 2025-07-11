@@ -217,7 +217,7 @@ export abstract class DrawingTool extends BaseTool {
         skewY: 0
       },
       node: null!,
-      layerId: this.canvas.state.activeLayerId || this.canvas.state.layers[0].id,
+              layerId: 'main', // Objects are managed directly now
       data: pathData,
       style: {
         stroke: this.strokeColor,

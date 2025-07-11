@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { tool } from 'ai'
 import type { Tool, Filter } from '@/lib/editor/canvas/types'
 import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
-import type { CanvasObject } from '@/lib/editor/canvas/types'
+import type { CanvasObject } from '@/lib/editor/objects/types'
 import type { CanvasContext } from '../tools/canvas-bridge'
 import type { SelectionSnapshot } from '../execution/SelectionSnapshot'
 import type { ExecutionContext } from '@/lib/events/execution/ExecutionContext'
@@ -229,16 +229,8 @@ export abstract class BaseToolAdapter<
       return []
     }
     
-    // TODO: Implement selection snapshot logic for new canvas
-    // For now, return selected objects
-    const selection = canvas.state.selection
-    if (selection?.type === 'objects') {
-      return selection.objectIds
-        .map(id => canvas.findObject(id))
-        .filter((obj): obj is CanvasObject => obj !== null)
-    }
-    
-    return []
+    // Get selected objects using new architecture
+    return canvas.getSelectedObjects()
   }
   
   /**
@@ -261,8 +253,15 @@ export abstract class BaseToolAdapter<
       id: obj.id,
       type: obj.type,
       name: obj.name,
-      transform: { ...obj.transform },
-      style: obj.style ? { ...obj.style } : undefined,
+      transform: {
+        x: obj.x,
+        y: obj.y,
+        width: obj.width,
+        height: obj.height,
+        rotation: obj.rotation,
+        scaleX: obj.scaleX,
+        scaleY: obj.scaleY
+      },
       opacity: obj.opacity,
       visible: obj.visible,
       locked: obj.locked,
@@ -366,8 +365,7 @@ export abstract class CanvasToolAdapter<
    * Get all image objects from canvas
    */
   protected getAllImages(canvas: CanvasManager): CanvasImage[] {
-    return canvas.state.layers
-      .flatMap(layer => layer.objects)
+    return canvas.getAllObjects()
       .filter(obj => obj.type === 'image') as CanvasImage[]
   }
   
@@ -512,9 +510,7 @@ export abstract class CanvasToolAdapter<
    * Common canExecute implementation - checks for images on canvas
    */
   canExecute?(canvas: CanvasManager): boolean {
-    const hasImages = canvas.state.layers.some(layer => 
-      layer.objects.some(obj => obj.type === 'image')
-    )
+    const hasImages = canvas.getAllObjects().some(obj => obj.type === 'image')
     if (!hasImages) {
       console.warn(`${this.aiName}: No images on canvas`)
     }
@@ -574,17 +570,13 @@ export abstract class FilterToolAdapter<
         if (this.shouldApplyFilter(params)) {
           const filter = this.createFilter(params)
           
-          // Apply filter to the entire layer
-          await canvas.applyFilterToLayer(filter, layerId)
+          // Apply filter to objects (new architecture doesn't use layer-based filters)
+          console.warn('[FilterToolAdapter] Layer-based filtering deprecated - use object-based filters')
+          // TODO: Implement object-based filter application
         } else {
-          // Remove existing filters of this type from the layer
-          const layer = canvas.state.layers.find(l => l.id === layerId)
-          if (layer && layer.filterStack) {
-            const filterToRemove = layer.filterStack.filters.find(f => f.filter.type === filterType)
-            if (filterToRemove) {
-              await canvas.removeFilterFromLayer(layerId, filterToRemove.id)
-            }
-          }
+          // Remove existing filters of this type from objects
+          console.warn('[FilterToolAdapter] Layer-based filter removal deprecated - use object-based filters')
+          // TODO: Implement object-based filter removal
         }
       }
       

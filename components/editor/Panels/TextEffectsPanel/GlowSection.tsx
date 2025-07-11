@@ -2,7 +2,9 @@
 
 import { useState, useEffect } from 'react'
 import Konva from 'konva'
-import type { CanvasObject } from '@/lib/editor/canvas/types'
+import type { CanvasObject } from '@/lib/editor/objects/types'
+import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
+import { useService } from '@/lib/core/AppInitializer'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Slider } from '@/components/ui/slider'
 import { Input } from '@/components/ui/input'
@@ -21,6 +23,7 @@ interface GlowSectionProps {
 }
 
 export function GlowSection({ object, onChange }: GlowSectionProps) {
+  const canvasManager = useService<CanvasManager>('CanvasManager')
   const [enabled, setEnabled] = useState(false)
   const [options, setOptions] = useState<GlowOptions>({
     color: '#ffffff',
@@ -32,11 +35,14 @@ export function GlowSection({ object, onChange }: GlowSectionProps) {
   // Check if object has glow effect on mount
   useEffect(() => {
     // Type guard inside useEffect
-    if (!object || (object.type !== 'text' && object.type !== 'verticalText') || !object.node) {
+    if (!object || (object.type !== 'text' && object.type !== 'verticalText') || !canvasManager) {
       return
     }
     
-    const textNode = object.node as Konva.Text
+    const node = canvasManager.getNode(object.id)
+    if (!node || !(node instanceof Konva.Text)) return
+    
+    const textNode = node as Konva.Text
     // Check for existing glow effect (using shadow properties for glow)
     const shadowColor = textNode.shadowColor()
     const shadowBlur = textNode.shadowBlur()
@@ -50,7 +56,7 @@ export function GlowSection({ object, onChange }: GlowSectionProps) {
         inner: false, // Konva doesn't have inner glow, so default to false
       })
     }
-  }, [object])
+  }, [object, canvasManager])
   
   const handleToggle = (checked: boolean) => {
     setEnabled(checked)
@@ -65,8 +71,12 @@ export function GlowSection({ object, onChange }: GlowSectionProps) {
   }
   
   const applyGlow = (glowOptions: GlowOptions) => {
-    if (!object || !object.node) return
-    const textNode = object.node as Konva.Text
+    if (!object || !canvasManager) return
+    
+    const node = canvasManager.getNode(object.id)
+    if (!node || !(node instanceof Konva.Text)) return
+    
+    const textNode = node as Konva.Text
     
     // Apply glow effect using Konva shadow properties
     textNode.shadowColor(glowOptions.color)
@@ -81,8 +91,12 @@ export function GlowSection({ object, onChange }: GlowSectionProps) {
   }
   
   const removeGlow = () => {
-    if (!object || !object.node) return
-    const textNode = object.node as Konva.Text
+    if (!object || !canvasManager) return
+    
+    const node = canvasManager.getNode(object.id)
+    if (!node || !(node instanceof Konva.Text)) return
+    
+    const textNode = node as Konva.Text
     
     textNode.shadowColor('')
     textNode.shadowBlur(0)
@@ -109,7 +123,7 @@ export function GlowSection({ object, onChange }: GlowSectionProps) {
   }
   
   // Type guard for text objects
-  if (!object || (object.type !== 'text' && object.type !== 'verticalText') || !object.node) {
+  if (!object || (object.type !== 'text' && object.type !== 'verticalText')) {
     return null
   }
   

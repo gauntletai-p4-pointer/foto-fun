@@ -35,13 +35,13 @@ export function ModelQualityToggle({
   const getQualityColor = (quality: ModelTier['quality']) => {
     switch (quality) {
       case 'exceptional':
-        return 'text-purple-600'
+        return 'text-primary'
       case 'very-good':
-        return 'text-blue-600'
+        return 'text-foreground'
       case 'good':
-        return 'text-green-600'
+        return 'text-muted-foreground'
       default:
-        return 'text-gray-600'
+        return 'text-muted-foreground'
     }
   }
   

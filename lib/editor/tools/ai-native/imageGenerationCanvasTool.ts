@@ -2,7 +2,8 @@ import { Sparkles } from 'lucide-react'
 import Konva from 'konva'
 import { TOOL_IDS } from '@/constants'
 import { BaseTool } from '../base/BaseTool'
-import type { Point, CanvasObject, ToolEvent } from '@/lib/editor/canvas/types'
+import type { Point, ToolEvent } from '@/lib/editor/canvas/types'
+import type { CanvasObject } from '@/lib/editor/objects/types'
 import { ImageGeneratedEvent, GenerationFailedEvent } from '@/lib/events/canvas/ToolEvents'
 import { ObjectAddedEvent } from '@/lib/events/canvas/CanvasEvents'
 
@@ -91,8 +92,8 @@ export class ImageGenerationTool extends BaseTool {
     
     // Default position to center if not provided
     const pos = position || {
-      x: ((canvas.state.documentBounds?.width || 0) - width) / 2,
-      y: ((canvas.state.documentBounds?.height || 0) - height) / 2
+      x: (canvas.state.canvasWidth - width) / 2,
+      y: (canvas.state.canvasHeight - height) / 2
     }
     
     try {
@@ -145,7 +146,7 @@ export class ImageGenerationTool extends BaseTool {
       })
       
       // Add to active layer
-      const activeLayer = canvas.getActiveLayer()
+      // Objects are managed directly now, no need for active layer
       if (!activeLayer) {
         throw new Error('No active layer')
       }

@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react'
 import { useService } from '@/lib/core/AppInitializer'
 import { TypedCanvasStore, useCanvasStore } from '@/lib/store/canvas/TypedCanvasStore'
-import type { CanvasObject } from '@/lib/editor/canvas/types'
+import type { CanvasObject } from '@/lib/editor/objects/types'
+import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
 import Konva from 'konva'
 import { AlignmentButtons } from './AlignmentButtons'
 import { IndentControls } from './IndentControls'
@@ -19,6 +20,7 @@ import { AlignLeft } from 'lucide-react'
  */
 export function ParagraphPanel() {
   const canvasStore = useService<TypedCanvasStore>('CanvasStore')
+  const canvasManager = useService<CanvasManager>('CanvasManager')
   const canvasState = useCanvasStore(canvasStore)
   const [activeTextObject, setActiveTextObject] = useState<CanvasObject | null>(null)
   
@@ -39,9 +41,12 @@ export function ParagraphPanel() {
   }
 
   const updateTextProperty = (property: string, value: unknown) => {
-    if (!activeTextObject || !activeTextObject.node) return
+    if (!activeTextObject || !canvasManager) return
     
-    const textNode = activeTextObject.node as Konva.Text
+    const node = canvasManager.getNode(activeTextObject.id)
+    if (!node || !(node instanceof Konva.Text)) return
+    
+    const textNode = node as Konva.Text
     
     // Update the Konva text node properties
     switch (property) {
@@ -68,12 +73,13 @@ export function ParagraphPanel() {
     const layer = textNode.getLayer()
     if (layer) layer.batchDraw()
     
-    // Update the canvas object data
-    activeTextObject.data = textNode.text()
+    // Update the canvas object through the object manager
+    // (The object manager will handle updating the data properly)
   }
 
   // Extract text properties from the Konva text node
-  const textNode = activeTextObject.node as Konva.Text
+  const node = canvasManager?.getNode(activeTextObject.id)
+  const textNode = node instanceof Konva.Text ? node : null
   const textStyle = {
     textAlign: textNode?.align() || 'left',
     lineHeight: textNode?.lineHeight() || 1.2,
@@ -106,6 +112,7 @@ export function ParagraphPanel() {
         <label className="text-xs font-medium text-foreground">Spacing</label>
         <SpacingControls
           textObject={activeTextObject}
+          textStyle={textStyle}
           onChange={updateTextProperty}
         />
       </div>

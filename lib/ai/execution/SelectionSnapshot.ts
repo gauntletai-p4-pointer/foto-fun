@@ -1,4 +1,4 @@
-import type { CanvasObject } from '@/lib/editor/canvas/types'
+import type { CanvasObject } from '@/lib/editor/objects/types'
 import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
 import { nanoid } from 'nanoid'
 
@@ -77,7 +77,7 @@ export class SelectionSnapshot {
   verifyIntegrity(canvas: CanvasManager): boolean {
     // Check if all snapshot objects still exist by ID
     for (const obj of this.objects) {
-      const foundObject = canvas.findObject(obj.id)
+      const foundObject = canvas.getObject(obj.id)
       if (!foundObject) {
         console.warn(`[SelectionSnapshot ${this.id}] Object ${obj.id} no longer exists on canvas`)
         return false
@@ -92,7 +92,7 @@ export class SelectionSnapshot {
    */
   getValidObjects(canvas: CanvasManager): CanvasObject[] {
     return this.objects.filter(obj => {
-      const foundObject = canvas.findObject(obj.id)
+      const foundObject = canvas.getObject(obj.id)
       return foundObject !== null
     })
   }
@@ -146,14 +146,8 @@ export class SelectionSnapshotFactory {
     }
     
     if (fallbackType) {
-      const allOfType: CanvasObject[] = []
-      canvas.state.layers.forEach(layer => {
-        layer.objects.forEach(obj => {
-          if (obj.type === fallbackType) {
-            allOfType.push(obj)
-          }
-        })
-      })
+      const allObjects = canvas.getAllObjects()
+      const allOfType = allObjects.filter(obj => obj.type === fallbackType)
       return new SelectionSnapshot(allOfType)
     }
     

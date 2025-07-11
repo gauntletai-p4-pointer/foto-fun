@@ -1,5 +1,6 @@
 import { Event } from '../core/Event'
-import type { Selection, CanvasObject, Rect } from '@/lib/editor/canvas/types'
+import type { Selection, Rect } from '@/lib/editor/canvas/types'
+import type { CanvasObject } from '@/lib/editor/objects/types'
 
 // Define state interfaces
 interface SelectionState {

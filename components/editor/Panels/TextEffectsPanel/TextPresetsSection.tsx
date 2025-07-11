@@ -1,7 +1,9 @@
 'use client'
 
 import { Button } from '@/components/ui/button'
-import type { CanvasObject } from '@/lib/editor/canvas/types'
+import type { CanvasObject } from '@/lib/editor/objects/types'
+import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
+import { useService } from '@/lib/core/AppInitializer'
 import { TextLayerStyles } from '@/lib/editor/text/effects'
 import type Konva from 'konva'
 
@@ -11,6 +13,8 @@ interface TextPresetsSectionProps {
 }
 
 export function TextPresetsSection({ object, onChange }: TextPresetsSectionProps) {
+  const canvasManager = useService<CanvasManager>('CanvasManager')
+  
   // Type guard for text objects
   if (!object || (object.type !== 'text' && object.type !== 'verticalText')) {
     return null
@@ -56,19 +60,22 @@ export function TextPresetsSection({ object, onChange }: TextPresetsSectionProps
             position: 'outside',
           },
         })
-        // Update fill color using Konva node
-        const textNode = object.node as Konva.Text
-        if (textNode && textNode.fill) {
-          textNode.fill('#ffffff')
-          // Store in metadata
-          object.metadata = {
-            ...object.metadata,
-            fill: '#ffffff'
-          }
-          // Force redraw
-          const layer = textNode.getLayer()
-          if (layer) {
-            layer.batchDraw()
+        // Update fill color using CanvasManager
+        if (canvasManager) {
+          const node = canvasManager.getNode(object.id)
+          if (node && node instanceof Konva.Text) {
+            const textNode = node as Konva.Text
+            textNode.fill('#ffffff')
+            // Store in metadata
+            object.metadata = {
+              ...object.metadata,
+              fill: '#ffffff'
+            }
+            // Force redraw
+            const layer = textNode.getLayer()
+            if (layer) {
+              layer.batchDraw()
+            }
           }
         }
         break

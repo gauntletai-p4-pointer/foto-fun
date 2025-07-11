@@ -57,27 +57,17 @@ export abstract class WebGLFilterTool extends BaseTool {
    */
   protected determineFilterTarget(): FilterTarget | null {
     const canvas = this.getCanvas()
-    const selection = canvas.state.selection
-    const activeLayer = canvas.getActiveLayer()
+    const selectedObjects = canvas.getSelectedObjects()
     
-    if (!activeLayer) {
-      console.warn('[WebGLFilterTool] No active layer')
+    if (selectedObjects.length === 0) {
+      console.warn('[WebGLFilterTool] No objects selected')
       return null
     }
     
-    // If there's a pixel selection, use it
-    if (selection && selection.type !== 'objects') {
-      return {
-        type: 'selection',
-        layerId: activeLayer.id,
-        selection
-      }
-    }
-    
-    // Otherwise apply to the entire active layer
+    // Apply filter to selected objects
     return {
-      type: 'layer',
-      layerId: activeLayer.id
+      type: 'objects',
+      objectIds: selectedObjects.map(obj => obj.id)
     }
   }
   

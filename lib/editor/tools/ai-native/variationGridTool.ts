@@ -35,6 +35,16 @@ export class VariationGridTool extends ObjectTool {
     this.eventBus = new TypedEventBus()
   }
   
+  async setupTool(): Promise<void> {
+    // Initialize tool-specific resources
+    this.isProcessing = false
+  }
+  
+  async cleanupTool(): Promise<void> {
+    // Clean up resources
+    this.isProcessing = false
+  }
+  
   getOptions(): VariationGridOptions {
     return {
       gridSize: 3,

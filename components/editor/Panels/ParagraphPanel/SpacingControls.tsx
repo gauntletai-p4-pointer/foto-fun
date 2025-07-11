@@ -1,6 +1,7 @@
 'use client'
 
-import { CanvasObject, getMetadataValue } from '@/lib/editor/canvas/types'
+import type { CanvasObject } from '@/lib/editor/objects/types'
+import { getMetadataValue } from '@/lib/editor/canvas/types'
 import { Slider } from '@/components/ui/slider'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
@@ -8,19 +9,19 @@ import Konva from 'konva'
 
 interface SpacingControlsProps {
   textObject: CanvasObject | null
+  textStyle: {
+    lineHeight: number
+  }
   onChange: (property: string, value: unknown) => void
 }
 
-export function SpacingControls({ textObject, onChange }: SpacingControlsProps) {
+export function SpacingControls({ textObject, textStyle, onChange }: SpacingControlsProps) {
   if (!textObject || (textObject.type !== 'text' && textObject.type !== 'verticalText')) {
     return null
   }
   
-  const textNode = textObject.node as Konva.Text
-  if (!textNode) return null
-  
   // Line height (leading)
-  const lineHeight = textNode.lineHeight() || 1.16
+  const lineHeight = textStyle.lineHeight || 1.16
   
   // Paragraph spacing (custom properties from metadata)
   const spaceBefore = getMetadataValue(textObject, 'spaceBefore', 0) as number

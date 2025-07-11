@@ -7,12 +7,12 @@ import type { Tool } from 'ai'
  * Maps canvas tools to AI-compatible tool adapters
  */
 class AdapterRegistry {
-  private adapters = new Map<string, ToolAdapter | UnifiedToolAdapter<Record<string, unknown>, Record<string, unknown>>>()
+  private adapters = new Map<string, ToolAdapter | UnifiedToolAdapter<any, any>>()
   
   /**
    * Register a tool adapter
    */
-  register(adapter: ToolAdapter | UnifiedToolAdapter<Record<string, unknown>, Record<string, unknown>>): void {
+  register(adapter: ToolAdapter | UnifiedToolAdapter<any, any>): void {
     this.adapters.set(adapter.aiName, adapter)
     // console.log(`[AdapterRegistry] Registered AI adapter: ${adapter.aiName}`)
     // console.log(`[AdapterRegistry] Adapter description: ${adapter.description}`)
@@ -21,7 +21,7 @@ class AdapterRegistry {
   /**
    * Register multiple adapters at once
    */
-  registerMany(adapters: (ToolAdapter | UnifiedToolAdapter<Record<string, unknown>, Record<string, unknown>>)[]): void {
+  registerMany(adapters: (ToolAdapter | UnifiedToolAdapter<any, any>)[]): void {
     adapters.forEach(adapter => this.register(adapter))
   }
   
@@ -80,11 +80,11 @@ class AdapterRegistry {
    */
   getByCategory(category: 'canvas-editing' | 'ai-native'): (ToolAdapter | UnifiedToolAdapter<any, any>)[] {
     return this.getAll().filter(adapter => {
-      // UnifiedToolAdapter doesn't have metadata.category, so we'll consider them all canvas-editing for now
-      if ('metadata' in adapter) {
+      // Check if this is a ToolAdapter with metadata property
+      if ('metadata' in adapter && adapter.metadata && typeof adapter.metadata === 'object' && 'category' in adapter.metadata) {
         return adapter.metadata.category === category
       } else {
-        // UnifiedToolAdapter - assume canvas-editing
+        // UnifiedToolAdapter or ToolAdapter without metadata - assume canvas-editing
         return category === 'canvas-editing'
       }
     })
@@ -120,7 +120,7 @@ export async function autoDiscoverAdapters(): Promise<void> {
   // console.log('[AdapterRegistry] Starting auto-discovery of tool adapters')
   
   try {
-    // Import and register all adapters
+    // Import and register all canvas tool adapters
     const { CropToolAdapter } = await import('./tools/crop')
     const { MoveToolAdapter } = await import('./tools/move')
     const { BrightnessToolAdapter } = await import('./tools/brightness')
@@ -129,7 +129,6 @@ export async function autoDiscoverAdapters(): Promise<void> {
     const { ResizeToolAdapter } = await import('./tools/resize')
     const { FlipToolAdapter } = await import('./tools/flip')
     const { RotateToolAdapter } = await import('./tools/rotate')
-    const { ImageGenerationAdapter } = await import('./tools/ImageGenerationAdapter')
     const { ExposureToolAdapter } = await import('./tools/exposure')
     const { HueToolAdapter } = await import('./tools/hue')
     const { BlurToolAdapter } = await import('./tools/blur')
@@ -143,10 +142,23 @@ export async function autoDiscoverAdapters(): Promise<void> {
     const { BrushToolAdapter } = await import('./tools/brush')
     const { EraserToolAdapter } = await import('./tools/eraser')
     const { GradientToolAdapter } = await import('./tools/gradient')
+    
+    // Import and register all AI tool adapters
+    const { ImageGenerationAdapter } = await import('./tools/ImageGenerationAdapter')
+    const { ObjectRemovalAdapter } = await import('./tools/ObjectRemovalAdapter')
+    const { StyleTransferAdapter } = await import('./tools/StyleTransferAdapter')
+    const { VariationAdapter } = await import('./tools/VariationAdapter')
+    const { RelightingAdapter } = await import('./tools/RelightingAdapter')
+    const { UpscalingAdapter } = await import('./tools/UpscalingAdapter')
+    const { FaceEnhancementAdapter } = await import('./tools/FaceEnhancementAdapter')
+    const { InpaintingAdapter } = await import('./tools/InpaintingAdapter')
+    const { OutpaintingAdapter } = await import('./tools/OutpaintingAdapter')
+    const { SemanticSelectionAdapter } = await import('./tools/SemanticSelectionAdapter')
+    
     const { registerChainAdapter } = await import('../execution/ChainAdapter')
     
-    // Register all adapters
-    const adapters = [
+    // Register all canvas tool adapters
+    const canvasAdapters = [
       new CropToolAdapter(),
       new MoveToolAdapter(),
       new BrightnessToolAdapter(),
@@ -155,7 +167,6 @@ export async function autoDiscoverAdapters(): Promise<void> {
       new ResizeToolAdapter(),
       new FlipToolAdapter(),
       new RotateToolAdapter(),
-      new ImageGenerationAdapter(),
       new ExposureToolAdapter(),
       new HueToolAdapter(),
       new BlurToolAdapter(),
@@ -170,7 +181,23 @@ export async function autoDiscoverAdapters(): Promise<void> {
       new EraserToolAdapter(),
       new GradientToolAdapter()
     ]
-    adapterRegistry.registerMany(adapters)
+    
+    // Register all AI tool adapters
+    const aiAdapters = [
+      new ImageGenerationAdapter(),
+      new ObjectRemovalAdapter(),
+      new StyleTransferAdapter(),
+      new VariationAdapter(),
+      new RelightingAdapter(),
+      new UpscalingAdapter(),
+      new FaceEnhancementAdapter(),
+      new InpaintingAdapter(),
+      new OutpaintingAdapter(),
+      new SemanticSelectionAdapter()
+    ]
+    
+    // Register all adapters
+    adapterRegistry.registerMany([...canvasAdapters, ...aiAdapters])
     
     // Register the chain adapter
     registerChainAdapter()

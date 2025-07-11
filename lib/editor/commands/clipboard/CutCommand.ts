@@ -1,5 +1,6 @@
 import { Command } from '../base'
-import type { CanvasManager, CanvasObject } from '@/lib/editor/canvas/types'
+import type { CanvasManager } from '@/lib/editor/canvas/types'
+import type { CanvasObject } from '@/lib/editor/objects/types'
 import { ClipboardManager } from '../../clipboard'
 import { ServiceContainer } from '@/lib/core/ServiceContainer'
 import type { TypedEventBus } from '@/lib/events/core/TypedEventBus'
@@ -11,7 +12,6 @@ export class CutCommand extends Command {
   private canvasManager: CanvasManager
   private objects: CanvasObject[]
   private objectIds: string[]
-  private layerIds: string[]
   private clipboard: ClipboardManager
   private typedEventBus: TypedEventBus
   
@@ -20,7 +20,6 @@ export class CutCommand extends Command {
     this.canvasManager = canvasManager
     this.objects = objects
     this.objectIds = objects.map(obj => obj.id)
-    this.layerIds = [...new Set(objects.map(obj => obj.layerId))]
     this.clipboard = ClipboardManager.getInstance()
     this.typedEventBus = ServiceContainer.getInstance().getSync<TypedEventBus>('TypedEventBus')
   }
@@ -35,7 +34,7 @@ export class CutCommand extends Command {
       
       // Emit removal event
       this.typedEventBus.emit('canvas.object.removed', {
-        canvasId: 'main', // TODO: Get actual canvas ID
+        canvasId: this.canvasManager.konvaStage.id() || 'main',
         objectId
       })
     }
@@ -44,13 +43,12 @@ export class CutCommand extends Command {
   async undo(): Promise<void> {
     // Re-add objects to canvas
     for (const obj of this.objects) {
-      await this.canvasManager.addObject(obj, obj.layerId)
+      await this.canvasManager.addObject(obj)
       
       // Emit addition event
       this.typedEventBus.emit('canvas.object.added', {
-        canvasId: 'main', // TODO: Get actual canvas ID
-        object: obj,
-        layerId: obj.layerId
+        canvasId: this.canvasManager.konvaStage.id() || 'main',
+        object: obj
       })
     }
   }

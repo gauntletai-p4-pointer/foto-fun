@@ -1,23 +1,26 @@
 'use client'
 
 import Konva from 'konva'
-import type { CanvasObject } from '@/lib/editor/canvas/types'
+import type { CanvasObject } from '@/lib/editor/objects/types'
 import { Toggle } from '@/components/ui/toggle'
 import { Bold, Italic, Underline } from 'lucide-react'
 
 interface FontStyleButtonsProps {
   textObject: CanvasObject | null
+  textStyle: {
+    fontStyle: string
+    textDecoration: string
+  }
   onChange: (property: string, value: unknown) => void
 }
 
-export function FontStyleButtons({ textObject, onChange }: FontStyleButtonsProps) {
+export function FontStyleButtons({ textObject, textStyle, onChange }: FontStyleButtonsProps) {
   if (!textObject || (textObject.type !== 'text' && textObject.type !== 'verticalText')) {
     return null
   }
   
-  const textNode = textObject.node as Konva.Text
-  const fontStyle = textNode.fontStyle() || 'normal'
-  const textDecoration = textNode.textDecoration() || ''
+  const fontStyle = textStyle.fontStyle || 'normal'
+  const textDecoration = textStyle.textDecoration || ''
   
   // Parse font style for bold/italic
   const isBold = fontStyle.includes('bold')

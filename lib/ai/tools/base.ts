@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import type { tool as createTool } from 'ai'
 import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
-import type { CanvasObject } from '@/lib/editor/canvas/types'
+import type { CanvasObject } from '@/lib/editor/objects/types'
 
 // Type for the tool function from AI SDK v5
 export type AISDKTool<TInput = unknown, TOutput = unknown> = ReturnType<typeof createTool<TInput, TOutput>>

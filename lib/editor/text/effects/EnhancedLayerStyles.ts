@@ -1,5 +1,5 @@
 import Konva from 'konva'
-import type { CanvasObject } from '@/lib/editor/canvas/types'
+import type { CanvasObject } from '@/lib/editor/objects/types'
 import { getTypedEventBus } from '@/lib/events/core/TypedEventBus'
 import { nanoid } from 'nanoid'
 

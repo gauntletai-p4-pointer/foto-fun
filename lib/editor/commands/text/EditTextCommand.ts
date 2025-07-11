@@ -1,4 +1,5 @@
-import type { CanvasObject, CanvasManager } from '@/lib/editor/canvas/types'
+import type { CanvasManager } from '@/lib/editor/canvas/types'
+import type { CanvasObject } from '@/lib/editor/objects/types'
 import { Command } from '../base/Command'
 import { getTypedEventBus } from '@/lib/events/core/TypedEventBus'
 import { ServiceContainer } from '@/lib/core/ServiceContainer'
@@ -32,7 +33,7 @@ export class EditTextCommand extends Command {
     
     // Update the text object
     await canvas.updateObject(textObject.id, {
-      data: this.newText
+      data: { text: this.newText }
     })
     
     // Emit event for state tracking
@@ -89,9 +90,9 @@ export class EditTextCommand extends Command {
    * Find the text object in the canvas
    */
   private findTextObject(canvas: CanvasManager): CanvasObject | null {
-    for (const layer of canvas.state.layers) {
-      const obj = layer.objects.find(o => o.id === this.textObjectId && (o.type === 'text' || o.type === 'verticalText'))
-      if (obj) return obj
+    const obj = canvas.getObject(this.textObjectId)
+    if (obj && obj.type === 'text') {
+      return obj
     }
     return null
   }

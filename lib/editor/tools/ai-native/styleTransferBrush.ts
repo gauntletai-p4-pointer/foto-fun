@@ -34,7 +34,7 @@ export class StyleTransferBrush extends ObjectDrawingTool {
   
   private replicateService: ReplicateService
   private eventBus: TypedEventBus
-  private isDrawing = false
+  protected isDrawing = false
   private currentStroke: BrushStroke | null = null
   private strokeCanvas: HTMLCanvasElement | null = null
   private strokeCtx: CanvasRenderingContext2D | null = null
@@ -43,6 +43,19 @@ export class StyleTransferBrush extends ObjectDrawingTool {
     super()
     this.replicateService = new ReplicateService()
     this.eventBus = new TypedEventBus()
+  }
+  
+  async setupTool(): Promise<void> {
+    // Initialize tool-specific resources
+    // No special setup needed for style transfer brush
+  }
+  
+  async cleanupTool(): Promise<void> {
+    // Clean up any active strokes
+    this.isDrawing = false
+    this.currentStroke = null
+    this.strokeCanvas = null
+    this.strokeCtx = null
   }
   
   getOptions(): StyleTransferBrushOptions {
@@ -67,6 +80,7 @@ export class StyleTransferBrush extends ObjectDrawingTool {
     await super.onActivate(canvas)
     
     this.eventBus.emit('tool.message', {
+      toolId: this.id,
       type: 'info',
       message: 'Paint on images to apply artistic styles to specific areas'
     })
@@ -80,6 +94,7 @@ export class StyleTransferBrush extends ObjectDrawingTool {
     const targetObject = canvas.getObjectAtPoint(event.point)
     if (!targetObject || !isImageObject(targetObject)) {
       this.eventBus.emit('tool.message', {
+        toolId: this.id,
         type: 'info',
         message: 'Click and drag on an image to apply artistic style'
       })

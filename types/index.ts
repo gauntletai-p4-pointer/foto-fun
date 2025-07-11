@@ -4,7 +4,6 @@ import type { Point } from '@/lib/editor/canvas/types'
 
 // Re-export canvas types from the new location
 export type { 
-  CanvasObject,
   Layer,
   Selection,
   BlendMode,
@@ -13,6 +12,15 @@ export type {
   Rect,
   Transform
 } from '@/lib/editor/canvas/types'
+
+// Re-export CanvasObject from objects/types
+export type { 
+  CanvasObject,
+  ImageData,
+  TextData,
+  ShapeData,
+  EffectGroup
+} from '@/lib/editor/objects/types'
 
 // Selection types for pixel-based selections
 export type SelectionMode = 'replace' | 'add' | 'subtract' | 'intersect'

@@ -92,6 +92,22 @@ export class PromptAdjustmentTool extends ObjectTool {
     ]
   }
   
+  async setupTool(): Promise<void> {
+    // Initialize tool-specific resources
+    // ReplicateService doesn't need initialization
+    
+    // Set default options using the options system
+    // Options are handled by the base class
+  }
+  
+  async cleanupTool(): Promise<void> {
+    // Clean up resources
+    this.adjustmentPresets = []
+    
+    // Reset any active operations
+    // No persistent state to clean up for this tool
+  }
+  
   getOptions(): PromptAdjustmentOptions {
     return {
       prompt: '',
@@ -107,6 +123,7 @@ export class PromptAdjustmentTool extends ObjectTool {
     const options = this.getOptions()
     if (!options.prompt) {
       this.eventBus.emit('tool.message', {
+        toolId: this.id,
         type: 'info',
         message: 'Enter a natural language prompt like "make it warmer" or "increase contrast"'
       })
@@ -121,6 +138,7 @@ export class PromptAdjustmentTool extends ObjectTool {
     
     if (!options.prompt || options.prompt.trim() === '') {
       this.eventBus.emit('tool.message', {
+        toolId: this.id,
         type: 'error',
         message: 'Please enter an adjustment prompt first'
       })
@@ -137,7 +155,10 @@ export class PromptAdjustmentTool extends ObjectTool {
       }
     } else if (options.targetMode === 'selected') {
       // Apply to selected objects
-      targetObjects = this.getSelectedObjects().filter(isImageObject)
+      const selectedIds = Array.from(canvas.state.selectedObjectIds)
+      targetObjects = selectedIds
+        .map(id => canvas.getObject(id))
+        .filter(obj => obj && isImageObject(obj)) as (CanvasObject & { data: import('@/lib/editor/objects/types').ImageData })[]
     } else if (options.targetMode === 'all') {
       // Apply to all image objects
       targetObjects = canvas.getAllObjects().filter(isImageObject)
@@ -145,6 +166,7 @@ export class PromptAdjustmentTool extends ObjectTool {
     
     if (targetObjects.length === 0) {
       this.eventBus.emit('tool.message', {
+        toolId: this.id,
         type: 'warning',
         message: 'No image objects to adjust. Select images or change target mode.'
       })

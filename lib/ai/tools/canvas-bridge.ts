@@ -1,5 +1,6 @@
 import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
-import type { CanvasObject, Selection } from '@/lib/editor/canvas/types'
+import type { Selection } from '@/lib/editor/canvas/types'
+import type { CanvasObject } from '@/lib/editor/objects/types'
 
 /**
  * Enhanced context for AI tools

@@ -412,6 +412,10 @@ export class CanvasManager implements ICanvasManager {
     return this.objectManager.getAllObjects()
   }
   
+  getNode(objectId: string): Konva.Node | null {
+    return this.nodeMap.get(objectId) || null
+  }
+  
   // Selection operations
   setSelection(selection: Selection | null): void {
     if (selection?.type === 'objects') {

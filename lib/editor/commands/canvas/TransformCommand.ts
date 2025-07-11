@@ -1,5 +1,6 @@
 import { Command } from '../base'
-import type { CanvasManager, CanvasObject, Transform } from '@/lib/editor/canvas/types'
+import type { CanvasManager, Transform } from '@/lib/editor/canvas/types'
+import type { CanvasObject } from '@/lib/editor/objects/types'
 import { ServiceContainer } from '@/lib/core/ServiceContainer'
 import type { TypedEventBus } from '@/lib/events/core/TypedEventBus'
 

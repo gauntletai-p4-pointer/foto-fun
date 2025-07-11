@@ -7,7 +7,8 @@ import {
   ObjectRemovedEvent, 
   ObjectModifiedEvent
 } from '../canvas/CanvasEvents'
-import type { CanvasManager, CanvasObject } from '@/lib/editor/canvas/types'
+import type { CanvasManager } from '@/lib/editor/canvas/types'
+import type { CanvasObject } from '@/lib/editor/objects/types'
 
 /**
  * @deprecated This adapter is being phased out as commands are migrated to event-driven architecture
@@ -203,27 +204,18 @@ export class CommandAdapter {
     getBoundingRect: () => { left: number; top: number; width: number; height: number }
   } {
     return {
-      id: obj.id,
-      type: obj.type,
-      name: obj.name,
-      visible: obj.visible,
-      locked: obj.locked,
-      opacity: obj.opacity,
-      blendMode: obj.blendMode,
-      transform: obj.transform,
-      left: obj.transform.x,
-      top: obj.transform.y,
-      angle: obj.transform.rotation,
-      layerId: obj.layerId,
-      node: obj.node,
+      ...obj,
+      left: obj.x,
+      top: obj.y,
+      angle: obj.rotation,
       // Add any other properties that might be needed
       set: () => {},
       setCoords: () => {},
       getBoundingRect: () => ({
-        left: obj.transform.x,
-        top: obj.transform.y,
-        width: 100,
-        height: 100
+        left: obj.x,
+        top: obj.y,
+        width: obj.width,
+        height: obj.height
       })
     }
   }
@@ -241,17 +233,16 @@ export class CommandAdapter {
   } {
     return {
       ...obj,
-      left: obj.transform.x,
-      top: obj.transform.y,
-      angle: obj.transform.rotation,
-      // Remove scaleX as it doesn't exist in CanvasObject
+      left: obj.x,
+      top: obj.y,
+      angle: obj.rotation,
       set: () => {},
       setCoords: () => {},
       getBoundingRect: () => ({
-        left: obj.transform.x,
-        top: obj.transform.y,
-        width: 100, // Default values
-        height: 100
+        left: obj.x,
+        top: obj.y,
+        width: obj.width,
+        height: obj.height
       })
     }
   }

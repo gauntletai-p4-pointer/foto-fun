@@ -1,7 +1,8 @@
 import { EventStore } from './EventStore'
 import { TypedEventBus } from './TypedEventBus'
 import type { Event } from './Event'
-import type { Selection, CanvasObject, Layer } from '@/lib/editor/canvas/types'
+import type { Selection, Layer } from '@/lib/editor/canvas/types'
+import type { CanvasObject } from '@/lib/editor/objects/types'
 
 /**
  * Bridge between EventStore (event sourcing) and TypedEventBus (UI updates)

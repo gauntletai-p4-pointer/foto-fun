@@ -1,5 +1,5 @@
 import Konva from 'konva'
-import type { CanvasObject } from '@/lib/editor/canvas/types'
+import type { CanvasObject } from '@/lib/editor/objects/types'
 import { textToPathConverter } from '../services/TextToPathConverter'
 import type { PathData, TextOptions } from '../services/TextToPathConverter'
 import { getTypedEventBus } from '@/lib/events/core/TypedEventBus'

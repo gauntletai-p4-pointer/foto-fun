@@ -112,6 +112,16 @@ export abstract class UnifiedToolAdapter<TInput = Record<string, unknown>, TOutp
   }
   
   /**
+   * Metadata for categorization and routing
+   */
+  metadata = {
+    category: 'ai-native' as const,
+    type: 'unified' as const,
+    supportsPreview: true,
+    requiresConfirmation: false
+  }
+
+  /**
    * Get tool metadata for AI
    */
   getMetadata() {
@@ -119,7 +129,8 @@ export abstract class UnifiedToolAdapter<TInput = Record<string, unknown>, TOutp
       toolId: this.toolId,
       aiName: this.aiName,
       description: this.description,
-      schema: this.inputSchema
+      schema: this.inputSchema,
+      ...this.metadata
     }
   }
   

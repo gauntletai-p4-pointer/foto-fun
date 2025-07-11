@@ -1,4 +1,5 @@
-import type { CanvasManager, CanvasObject } from '@/lib/editor/canvas/types'
+import type { CanvasManager } from '@/lib/editor/canvas/types'
+import type { CanvasObject } from '@/lib/editor/objects/types'
 import { nanoid } from 'nanoid'
 
 export interface ClipboardData {
@@ -88,12 +89,17 @@ export class ClipboardManager {
       newObj.id = nanoid()
       
       // Offset position
-      newObj.transform.x += offset
-      newObj.transform.y += offset
+      newObj.x += offset
+      newObj.y += offset
       
       // Add to canvas
-      const addedObj = await canvas.addObject(newObj)
-      pastedObjects.push(addedObj)
+      const objectId = await canvas.addObject(newObj)
+      
+      // Get the actual object back from canvas
+      const addedObj = canvas.getObject(objectId)
+      if (addedObj) {
+        pastedObjects.push(addedObj)
+      }
     }
     
     return pastedObjects
@@ -125,12 +131,20 @@ export class ClipboardManager {
       locked: obj.locked,
       opacity: obj.opacity,
       blendMode: obj.blendMode,
-      transform: { ...obj.transform },
-      node: undefined!, // Will be created when added to canvas
-      layerId: obj.layerId,
-      data: obj.data ? this.cloneData(obj.data) : undefined,
-      filters: obj.filters ? [...obj.filters] : undefined,
-      style: obj.style ? { ...obj.style } : undefined,
+      // Copy individual transform properties instead of transform object
+      x: obj.x,
+      y: obj.y,
+      width: obj.width,
+      height: obj.height,
+      rotation: obj.rotation,
+      scaleX: obj.scaleX,
+      scaleY: obj.scaleY,
+      zIndex: obj.zIndex,
+      layerId: obj.layerId, // Keep for compatibility but will be managed by canvas
+      data: this.cloneData(obj.data),
+      filters: [...obj.filters],
+      adjustments: [...obj.adjustments],
+      children: obj.children ? [...obj.children] : undefined,
       metadata: obj.metadata ? { ...obj.metadata } : undefined
     }
   }
@@ -138,16 +152,22 @@ export class ClipboardManager {
   /**
    * Clone object data based on type
    */
-  private cloneData(data: HTMLImageElement | string | Record<string, unknown>): HTMLImageElement | string | Record<string, unknown> {
-    if (data instanceof HTMLImageElement) {
-      // For images, we'll need to reload them
-      return data.src
-    }
-    if (typeof data === 'string') {
-      return data
-    }
-    if (typeof data === 'object') {
+  private cloneData(data: import('@/lib/editor/objects/types').ImageData | import('@/lib/editor/objects/types').TextData | import('@/lib/editor/objects/types').ShapeData): import('@/lib/editor/objects/types').ImageData | import('@/lib/editor/objects/types').TextData | import('@/lib/editor/objects/types').ShapeData {
+    // Clone based on the actual data type
+    if ('element' in data) {
+      // ImageData
       return { ...data }
+    }
+    if ('content' in data) {
+      // TextData
+      return { ...data }
+    }
+    if ('type' in data) {
+      // ShapeData
+      return {
+        ...data,
+        points: data.points ? [...data.points] : undefined
+      }
     }
     return data
   }

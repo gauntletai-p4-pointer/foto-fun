@@ -1,4 +1,4 @@
-import type { CanvasObject } from '@/lib/editor/canvas/types'
+import type { CanvasObject } from '@/lib/editor/objects/types'
 import { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
 import { ExecutionContext } from './ExecutionContext'
 import { EventStore } from '../core/EventStore'
@@ -112,10 +112,10 @@ export class EventBasedToolChain {
    */
   async prepareForAIOperation(requiresSelection: boolean = false): Promise<void> {
     // Store current selection state
-    const selection = this.canvas.state.selection
-    if (selection && selection.type === 'objects') {
+    const selectedIds = Array.from(this.canvas.state.selectedObjectIds)
+    if (selectedIds.length > 0) {
       this.originalSelection = []
-      for (const id of selection.objectIds) {
+      for (const id of selectedIds) {
         const obj = this.findObject(id)
         if (obj) {
           this.originalSelection.push(obj)
@@ -201,13 +201,18 @@ export class EventBasedToolChain {
    */
   private captureObjectState(obj: CanvasObject): Record<string, unknown> {
     return {
-      transform: { ...obj.transform },
+      x: obj.x,
+      y: obj.y,
+      width: obj.width,
+      height: obj.height,
+      rotation: obj.rotation,
+      scaleX: obj.scaleX,
+      scaleY: obj.scaleY,
       opacity: obj.opacity,
       visible: obj.visible,
       locked: obj.locked,
       blendMode: obj.blendMode,
       filters: obj.filters ? [...obj.filters] : [],
-      style: obj.style ? { ...obj.style } : {},
       data: obj.data
     }
   }
@@ -216,11 +221,7 @@ export class EventBasedToolChain {
    * Find object by ID
    */
   private findObject(id: string): CanvasObject | null {
-    for (const layer of this.canvas.state.layers) {
-      const obj = layer.objects.find(o => o.id === id)
-      if (obj) return obj
-    }
-    return null
+    return this.canvas.getObject(id)
   }
   
   /**
@@ -289,14 +290,11 @@ export class EventBasedToolChain {
     
     // For multiple objects, create a group selection
     // In Konva, we handle this through the selection system
-    this.canvas.setSelection({
-      type: 'objects',
-      objectIds: objects.map(o => o.id)
-    })
+    this.canvas.selectMultiple(objects.map(o => o.id))
     
     // Emit selection event for tracking
     this.typedEventBus.emit('selection.changed', {
-      selection: this.canvas.state.selection,
+      selection: { type: 'objects', objectIds: objects.map(o => o.id) } as any,
       previousSelection: null
     })
   }
@@ -305,12 +303,12 @@ export class EventBasedToolChain {
    * Clear object selection
    */
   async clearObjectSelection(): Promise<void> {
-    const previousSelection = this.canvas.state.selection
+    const previousSelection = Array.from(this.canvas.state.selectedObjectIds)
     this.canvas.deselectAll()
     
-    if (previousSelection) {
+    if (previousSelection.length > 0) {
       this.typedEventBus.emit('selection.cleared', {
-        previousSelection
+        previousSelection: { type: 'objects', objectIds: previousSelection } as any
       })
     }
   }

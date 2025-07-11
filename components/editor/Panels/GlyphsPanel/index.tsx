@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useService } from '@/lib/core/AppInitializer'
 import { TypedCanvasStore, useCanvasStore } from '@/lib/store/canvas/TypedCanvasStore'
-import type { CanvasObject } from '@/lib/editor/canvas/types'
+import type { CanvasObject } from '@/lib/editor/objects/types'
 import { Smile, Hash, AtSign, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'

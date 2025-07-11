@@ -2,7 +2,8 @@ import { Type } from 'lucide-react'
 import Konva from 'konva'
 import { TOOL_IDS } from '@/constants'
 import { BaseTextTool } from '../base/BaseTextTool'
-import type { ToolEvent, CanvasObject } from '@/lib/editor/canvas/types'
+import type { ToolEvent } from '@/lib/editor/canvas/types'
+import type { CanvasObject } from '@/lib/editor/objects/types'
 import { TextEngine } from '@/lib/editor/text/engines/TextEngine'
 
 /**

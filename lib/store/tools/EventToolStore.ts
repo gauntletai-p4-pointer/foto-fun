@@ -5,7 +5,7 @@ import { TypedEventBus } from '@/lib/events/core/TypedEventBus'
 import type { Tool } from '@/lib/editor/canvas/types'
 
 // Re-export types that components expect
-export type OptionType = 'slider' | 'checkbox' | 'dropdown' | 'number' | 'button-group' | 'color'
+export type OptionType = 'slider' | 'checkbox' | 'dropdown' | 'number' | 'button-group' | 'color' | 'model-quality'
 
 export interface ToolOption<T = unknown> {
   id: string

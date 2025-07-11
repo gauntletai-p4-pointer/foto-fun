@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useService } from '@/lib/core/AppInitializer'
 import { TypedCanvasStore, useCanvasStore } from '@/lib/store/canvas/TypedCanvasStore'
-import type { CanvasObject } from '@/lib/editor/canvas/types'
+import type { CanvasObject } from '@/lib/editor/objects/types'
 import { Sparkles } from 'lucide-react'
 import { DropShadowSection } from './DropShadowSection'
 import { StrokeSection } from './StrokeSection'

@@ -44,6 +44,23 @@ export class MagicEraserTool extends ObjectTool {
     this.replicateService = new ReplicateService()
     this.eventBus = new TypedEventBus()
   }
+
+  protected setupTool(): void {
+    // Set default options
+    this.setOption('mode', 'object')
+    this.setOption('brushSize', 50)
+    this.setOption('autoFill', true)
+    this.setOption('fillQuality', 'balanced')
+  }
+
+  protected cleanupTool(): void {
+    // Clean up any ongoing erasure state
+    this.isErasing = false
+    this.erasureCanvas = null
+    this.erasureCtx = null
+    this.currentObject = null
+    this.lassoPoints = []
+  }
   
   getOptions(): MagicEraserOptions {
     return {
@@ -59,6 +76,7 @@ export class MagicEraserTool extends ObjectTool {
     
     const options = this.getOptions()
     this.eventBus.emit('tool.message', {
+      toolId: this.id,
       type: 'info',
       message: `Magic Eraser (${options.mode} mode): Click to remove objects intelligently`
     })
@@ -129,9 +147,12 @@ export class MagicEraserTool extends ObjectTool {
     const options = this.getOptions()
     
     try {
+      const taskId = `${this.id}-${Date.now()}`
       this.eventBus.emit('ai.processing.started', {
+        taskId,
         toolId: this.id,
-        operation: 'object-removal'
+        description: 'Removing object with AI',
+        targetObjectIds: [object.id]
       })
       
       if (isImageObject(object)) {
@@ -145,9 +166,10 @@ export class MagicEraserTool extends ObjectTool {
       await canvas.removeObject(object.id)
       
       this.eventBus.emit('ai.processing.completed', {
+        taskId,
         toolId: this.id,
-        operation: 'object-removal',
-        result: 'success'
+        success: true,
+        affectedObjectIds: [object.id]
       })
       
     } catch (error) {

@@ -1,4 +1,4 @@
-import type { CanvasObject } from '@/lib/editor/canvas/types'
+import type { CanvasObject } from '@/lib/editor/objects/types'
 import { nanoid } from 'nanoid'
 
 /**

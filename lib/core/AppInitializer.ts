@@ -17,12 +17,13 @@ import { EventStoreBridge } from '@/lib/events/core/EventStoreBridge'
 // Stores
 import { TypedCanvasStore } from '@/lib/store/canvas/TypedCanvasStore'
 import { EventToolStore } from '@/lib/store/tools/EventToolStore'
-import { EventLayerStore } from '@/lib/store/layers/EventLayerStore'
+
 import { EventSelectionStore } from '@/lib/store/selection/EventSelectionStore'
 import { EventColorStore } from '@/lib/store/color/EventColorStore'
 import { getHistoryStore } from '@/lib/events/history/EventBasedHistoryStore'
 import { ObjectManager } from '@/lib/editor/objects'
 import { ObjectStore } from '@/lib/store/objects'
+import { getEventDocumentStore } from '@/lib/store/document/EventDocumentStore'
 
 // Managers
 import { FontManager } from '@/lib/editor/fonts/FontManager'
@@ -110,14 +111,7 @@ export class AppInitializer {
       return store
     })
     
-    container.registerSingleton('LayerStore', () => {
-      const store = new EventLayerStore(
-        container.getSync('EventStore'),
-        container.getSync('TypedEventBus')
-      )
-      store.initialize()
-      return store
-    })
+    // LayerStore removed - using object-based model instead
     
     container.registerSingleton('SelectionStore', () => {
       const store = new EventSelectionStore(
@@ -147,6 +141,14 @@ export class AppInitializer {
       return new ObjectManager(
         container.getSync('TypedEventBus'),
         container.getSync('EventStore')
+      )
+    })
+
+    // Register DocumentStore
+    container.registerSingleton('DocumentStore', () => {
+      return getEventDocumentStore(
+        container.getSync('EventStore'),
+        container.getSync('TypedEventBus')
       )
     })
 

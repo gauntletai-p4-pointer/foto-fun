@@ -1,5 +1,5 @@
 import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
-import type { CanvasObject } from '@/lib/editor/canvas/types'
+import type { CanvasObject } from '@/lib/editor/objects/types'
 import { CanvasToolBridge } from '@/lib/ai/tools/canvas-bridge'
 import type { CanvasContext } from '@/lib/ai/tools/canvas-bridge'
 
@@ -34,27 +34,16 @@ export class CanvasContextManager {
    * Get current target images based on selection state
    */
   private getCurrentTargetImages(): CanvasObject[] {
-    const selection = this.canvasManager.state.selection
-    const allImages: CanvasObject[] = []
+    // Get all image objects using new architecture
+    const allImages = this.canvasManager.getAllObjects()
+      .filter(obj => obj.type === 'image')
     
-    // Collect all image objects from all layers
-    this.canvasManager.state.layers.forEach(layer => {
-      layer.objects.forEach(obj => {
-        if (obj.type === 'image') {
-          allImages.push(obj)
-        }
-      })
-    })
+    // Get selected objects
+    const selectedObjects = this.canvasManager.getSelectedObjects()
+    const selectedImages = selectedObjects.filter(obj => obj.type === 'image')
     
-    // If there's an object-based selection, only target selected images
-    if (selection?.type === 'objects' && selection.objectIds.length > 0) {
-      const selectedImages: CanvasObject[] = []
-      selection.objectIds.forEach(id => {
-        const obj = this.canvasManager.findObject(id)
-        if (obj && obj.type === 'image') {
-          selectedImages.push(obj)
-        }
-      })
+    // If there are selected images, only target those
+    if (selectedImages.length > 0) {
       return selectedImages
     }
     
@@ -95,10 +84,7 @@ export class CanvasContextManager {
       return // Keep existing selection
     }
     
-    const allObjects: CanvasObject[] = []
-    this.canvasManager.state.layers.forEach(layer => {
-      allObjects.push(...layer.objects)
-    })
+    const allObjects = this.canvasManager.getAllObjects()
     
     switch (operationType) {
       case 'image':
@@ -130,10 +116,7 @@ export class CanvasContextManager {
    * Get objects by type
    */
   getObjectsByType(type: 'image' | 'text'): CanvasObject[] {
-    const allObjects: CanvasObject[] = []
-    this.canvasManager.state.layers.forEach(layer => {
-      allObjects.push(...layer.objects)
-    })
+    const allObjects = this.canvasManager.getAllObjects()
     
     if (type === 'image') {
       return allObjects.filter(obj => obj.type === 'image')

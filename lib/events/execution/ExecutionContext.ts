@@ -1,5 +1,5 @@
 import { nanoid } from 'nanoid'
-import type { CanvasObject } from '@/lib/editor/canvas/types'
+import type { CanvasObject } from '@/lib/editor/objects/types'
 import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
 import { EventStore } from '../core/EventStore'
 import { Event } from '../core/Event'
@@ -228,12 +228,12 @@ export class ExecutionContext {
    */
   getCanvasContext(canvas: CanvasManager): CanvasContext {
     const targetImages = this.getTargetImages()
-    const selection = canvas.state.selection
+    const selectedIds = Array.from(canvas.state.selectedObjectIds)
     
     // Determine targeting mode based on selection and image count
     let targetingMode: CanvasContext['targetingMode'] = 'none'
     if (targetImages.length > 0) {
-      if (selection?.type === 'objects' && this.selectionSnapshot.objectIds.size > 0) {
+      if (selectedIds.length > 0 && this.selectionSnapshot.objectIds.size > 0) {
         targetingMode = 'selection'
       } else if (targetImages.length === 1) {
         targetingMode = 'auto-single'
@@ -247,10 +247,10 @@ export class ExecutionContext {
       targetImages,
       targetingMode,
       dimensions: {
-        width: (canvas.state.documentBounds?.width || 0),
-        height: (canvas.state.documentBounds?.height || 0)
+        width: canvas.state.canvasWidth,
+        height: canvas.state.canvasHeight
       },
-      selection
+      selectedObjectIds: selectedIds
     }
   }
   

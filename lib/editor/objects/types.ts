@@ -9,8 +9,11 @@ export interface Adjustment {
 
 export interface CanvasObject {
   id: string
-  type: 'image' | 'text' | 'shape' | 'group'
+  type: 'image' | 'text' | 'shape' | 'group' | 'verticalText'
   name: string
+  
+  // Layer association
+  layerId?: string
   
   // Position & Transform
   x: number
@@ -67,6 +70,8 @@ export interface TextData {
   align: 'left' | 'center' | 'right'
   lineHeight?: number
   letterSpacing?: number
+  // For vertical text
+  direction?: 'horizontal' | 'vertical'
 }
 
 export interface ShapeData {

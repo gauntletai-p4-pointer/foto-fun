@@ -1,5 +1,5 @@
 import Konva from 'konva'
-import type { CanvasObject } from '@/lib/editor/canvas/types'
+import type { CanvasObject } from '@/lib/editor/objects/types'
 
 // Type for text objects in our system
 type TextObject = CanvasObject & {

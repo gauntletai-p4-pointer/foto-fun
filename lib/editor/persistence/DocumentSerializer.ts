@@ -1,5 +1,6 @@
 import { CanvasManager } from '../canvas/CanvasManager'
-import type { CanvasObject, BlendMode } from '@/lib/editor/canvas/types'
+import type { BlendMode } from '@/lib/editor/canvas/types'
+import type { CanvasObject } from '@/lib/editor/objects/types'
 import { EventDocumentStore, type Document } from '@/lib/store/document/EventDocumentStore'
 import { TypedEventBus } from '@/lib/events/core/TypedEventBus'
 

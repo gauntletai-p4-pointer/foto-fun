@@ -1,7 +1,7 @@
 import { Command } from '../base/Command'
 import { ServiceContainer } from '@/lib/core/ServiceContainer'
 import type { TypedEventBus } from '@/lib/events/core/TypedEventBus'
-import type { CanvasObject } from '@/lib/editor/canvas/types'
+import type { CanvasObject } from '@/lib/editor/objects/types'
 
 export class AddObjectCommand extends Command {
   private object: CanvasObject

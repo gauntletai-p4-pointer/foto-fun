@@ -1,4 +1,5 @@
-import type { CanvasManager, CanvasObject, Selection } from '@/lib/editor/canvas/types'
+import type { CanvasManager, Selection } from '@/lib/editor/canvas/types'
+import type { CanvasObject } from '@/lib/editor/objects/types'
 import { PixelSelection, SelectionMode } from '@/types'
 import Konva from 'konva'
 import { TypedEventBus } from '@/lib/events/core/TypedEventBus'

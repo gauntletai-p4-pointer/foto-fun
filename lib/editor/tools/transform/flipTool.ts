@@ -1,7 +1,8 @@
 import { FlipHorizontal2 } from 'lucide-react'
 import { TOOL_IDS } from '@/constants'
 import { BaseTool } from '../base/BaseTool'
-import type { CanvasObject, Transform } from '@/lib/editor/canvas/types'
+import type { Transform } from '@/lib/editor/canvas/types'
+import type { CanvasObject } from '@/lib/editor/objects/types'
 import { ObjectsTransformedEvent } from '@/lib/events/canvas/ToolEvents'
 
 /**
@@ -67,22 +68,36 @@ export class FlipTool extends BaseTool {
       
       // Apply flip to each target
       for (const target of targets) {
-        const before = { ...target.transform }
-        
-        // Flip by negating the appropriate scale
-        if (direction === 'horizontal') {
-          target.transform.scaleX = -target.transform.scaleX
-        } else {
-          target.transform.scaleY = -target.transform.scaleY
+        const before = {
+          x: target.x,
+          y: target.y,
+          scaleX: target.scaleX,
+          scaleY: target.scaleY,
+          rotation: target.rotation,
+          skewX: 0,
+          skewY: 0
         }
         
-        // Update Konva node
-        target.node.setAttrs({
-          scaleX: target.transform.scaleX,
-          scaleY: target.transform.scaleY
+        // Calculate new scale values
+        const newScaleX = direction === 'horizontal' ? -target.scaleX : target.scaleX
+        const newScaleY = direction === 'vertical' ? -target.scaleY : target.scaleY
+        
+        // Update object through canvas manager
+        const canvas = this.getCanvas()
+        await canvas.updateObject(target.id, {
+          scaleX: newScaleX,
+          scaleY: newScaleY
         })
         
-        const after = { ...target.transform }
+        const after = {
+          x: target.x,
+          y: target.y,
+          scaleX: newScaleX,
+          scaleY: newScaleY,
+          rotation: target.rotation,
+          skewX: 0,
+          skewY: 0
+        }
         transformedObjects.push({ objectId: target.id, before, after })
       }
       
@@ -96,12 +111,8 @@ export class FlipTool extends BaseTool {
       }
       
       const canvas = this.getCanvas()
-      for (const layerId of affectedLayers) {
-        const layer = canvas.state.layers.find(l => l.id === layerId)
-        if (layer) {
-          layer.konvaLayer.batchDraw()
-        }
-      }
+      // Redraw the canvas - objects are managed directly now
+      canvas.render()
       
       // Emit event if in ExecutionContext
       if (this.executionContext && transformedObjects.length > 0) {
@@ -126,20 +137,16 @@ export class FlipTool extends BaseTool {
    */
   private getTargetObjects(): CanvasObject[] {
     const canvas = this.getCanvas()
-    const selection = canvas.state.selection
+    const selectedIds = Array.from(canvas.state.selectedObjectIds)
     
-    if (selection?.type === 'objects') {
+    if (selectedIds.length > 0) {
       // Flip selected objects
-      return selection.objectIds
+      return selectedIds
         .map(id => this.findObject(id))
         .filter((obj): obj is CanvasObject => obj !== null && !obj.locked)
     } else {
-      // Flip all objects on active layer
-      const activeLayer = canvas.state.layers.find(l => l.id === canvas.state.activeLayerId)
-      if (activeLayer) {
-        return activeLayer.objects.filter(obj => !obj.locked && obj.visible)
-      }
-      return []
+      // Flip all visible, unlocked objects
+      return canvas.getAllObjects().filter(obj => !obj.locked && obj.visible)
     }
   }
   
@@ -148,21 +155,15 @@ export class FlipTool extends BaseTool {
    */
   private findObject(objectId: string): CanvasObject | null {
     const canvas = this.getCanvas()
-    for (const layer of canvas.state.layers) {
-      const obj = layer.objects.find(o => o.id === objectId)
-      if (obj) return obj
-    }
-    return null
+    return canvas.getObject(objectId)
   }
   
   /**
-   * Find the layer containing an object
+   * Find the layer containing an object (no longer needed with object-based model)
    */
   private findLayerForObject(obj: CanvasObject) {
-    const canvas = this.getCanvas()
-    return canvas.state.layers.find(layer => 
-      layer.objects.some(o => o.id === obj.id)
-    )
+    // Objects are managed directly now, no need for layer lookup
+    return null
   }
   
   /**
@@ -175,18 +176,15 @@ export class FlipTool extends BaseTool {
     if (targetObjects) {
       // Store current targets and apply to specific objects
       const canvas = this.getCanvas()
-      const originalSelection = canvas.state.selection
+      const originalSelection = Array.from(canvas.state.selectedObjectIds)
       
       // Temporarily set selection to target objects
-      canvas.state.selection = {
-        type: 'objects',
-        objectIds: targetObjects.map(obj => obj.id)
-      }
+      canvas.selectMultiple(targetObjects.map(obj => obj.id))
       
       await this.applyFlip(direction)
       
       // Restore original selection
-      canvas.state.selection = originalSelection
+      canvas.selectMultiple(originalSelection)
     } else {
       await this.applyFlip(direction)
     }

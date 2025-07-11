@@ -11,7 +11,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Loader2 } from 'lucide-react'
-import { ImageGenerationAdapter } from '@/lib/ai/adapters/tools/imageGeneration'
+import { ImageGenerationAdapter } from '@/lib/ai/adapters/tools/ImageGenerationAdapter'
 import type { CanvasContext } from '@/lib/ai/tools/canvas-bridge'
 // Toast notifications - TODO: implement proper toast system
 

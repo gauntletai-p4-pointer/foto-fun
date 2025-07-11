@@ -56,7 +56,7 @@ export function checkToolRequirements(
   canvas: CanvasManager
 ): { canActivate: boolean; reason?: string } {
   // Check document requirement
-  if (requirements.needsDocument && !canvas.hasDocument?.()) {
+  if (requirements.needsDocument && canvas.getAllObjects().length === 0) {
     return {
       canActivate: false,
       reason: 'This tool requires a document. Create a new document or open an image to continue.'
@@ -64,7 +64,7 @@ export function checkToolRequirements(
   }
   
   // Check selection requirement
-  if (requirements.needsSelection && !canvas.state.selection) {
+  if (requirements.needsSelection && canvas.state.selectedObjectIds.size === 0) {
     return {
       canActivate: false,
       reason: 'This tool requires an active selection.'
@@ -72,7 +72,7 @@ export function checkToolRequirements(
   }
   
   // Check layers requirement
-  if (requirements.needsLayers && canvas.state.layers.length === 0) {
+  if (requirements.needsLayers && canvas.getAllObjects().length === 0) {
     return {
       canActivate: false,
       reason: 'This tool requires at least one layer.'
