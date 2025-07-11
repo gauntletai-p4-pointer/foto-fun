@@ -46,10 +46,8 @@ export function useToolCallHandler({
   }, [canvasFactory])
   
   const handleToolCall = useCallback(async ({ toolCall }: { toolCall: {
-    toolName?: string
-    name?: string
-    args?: unknown
-    input?: unknown
+    toolName: string
+    input: unknown
   } }) => {
     try {
       console.log('[AIChat] ===== onToolCall TRIGGERED =====')
@@ -63,27 +61,25 @@ export function useToolCallHandler({
         throw new Error('Canvas failed to initialize. Please refresh the page and try again.')
       }
       
-      // Extract tool name - AI SDK v5 might prefix with 'tool-'
-      let toolName = toolCall.toolName || (toolCall as unknown as { name?: string }).name || 'unknown'
+      // Extract tool name - AI SDK v5 uses consistent toolName field
+      let toolName = toolCall.toolName
       
-      // Remove 'tool-' prefix if present
+      // Remove 'tool-' prefix if present (AI SDK v5 might include it)
       if (toolName.startsWith('tool-')) {
         toolName = toolName.substring(5)
       }
       
-      // Extract args from various possible locations
-      const args = 'args' in toolCall ? (toolCall as unknown as { args: unknown }).args : 
-                   'input' in toolCall ? (toolCall as unknown as { input: unknown }).input : 
-                   undefined
+      // AI SDK v5 only uses 'input' parameter
+      const input = toolCall.input
       
       console.log('[AIChat] Extracted toolName:', toolName)
-      console.log('[AIChat] Extracted args:', args)
+      console.log('[AIChat] Extracted input:', input)
       
       // SPECIAL HANDLING: If this is the captureAndEvaluate tool
       if (toolName === 'captureAndEvaluate') {
         console.log('[AIChat] === CAPTURE AND EVALUATE DETECTED ===')
         
-        const evalRequest = args as {
+        const evalRequest = input as {
           canvasScreenshot?: string
           originalRequest?: string
           iterationCount?: number
@@ -111,7 +107,7 @@ export function useToolCallHandler({
       // SPECIAL HANDLING: If this is the executeApprovedPlan tool
       if (toolName === 'executeApprovedPlan') {
         console.log('[AIChat] === EXECUTE APPROVED PLAN DETECTED ===')
-        const planData = args as { 
+        const planData = input as { 
           type?: string
           toolExecutions?: Array<{ 
             toolName: string
@@ -279,7 +275,7 @@ export function useToolCallHandler({
         // Start agent thinking
         onAgentThinkingStart?.()
         
-        const agentResult = args as {
+        const agentResult = input as {
           success?: boolean
           approvalRequired?: boolean
           step?: {
@@ -455,7 +451,7 @@ export function useToolCallHandler({
         }
         
         // If no tool executions, just return the agent result
-        return args
+        return input
       }
       
       // Handle client-side tool execution
@@ -508,7 +504,7 @@ Once you've made your selection, just tell me what you'd like to do!`,
       }
       
       // Execute the tool
-      const result = await ClientToolExecutor.execute(toolName, args)
+      const result = await ClientToolExecutor.execute(toolName, input)
       console.log('[AIChat] Tool execution result:', result)
       return result
     } catch (error) {

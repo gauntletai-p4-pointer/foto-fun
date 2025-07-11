@@ -343,7 +343,7 @@ Analyze the complexity and confidence for this request.`,
     // Only use mock canvas as fallback if no analysis exists
     console.log('[BaseExecutionAgent] WARNING: Using mock canvas for analysis - this should not happen in production')
     const canvas = this.context.canvas
-    const objects = canvas.getObjects()
+    const objects = canvas.getAllObjects()
     
     this.context.canvasAnalysis = {
       dimensions: {

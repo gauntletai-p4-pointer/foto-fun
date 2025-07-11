@@ -111,8 +111,6 @@ export class VerticalTypeTool extends BaseTool {
    */
   private async createNewVerticalText(point: Point): Promise<void> {
     const canvas = this.getCanvas()
-    const activeLayer = canvas.getActiveLayer()
-    if (!activeLayer) return
     
     // Create group for vertical text
     const group = new Konva.Group({
@@ -120,9 +118,6 @@ export class VerticalTypeTool extends BaseTool {
       y: point.y,
       draggable: true
     })
-    
-    // Add to layer
-    activeLayer.konvaLayer.add(group)
     
     // Create canvas object
     const canvasObject: CanvasObject = {
@@ -133,22 +128,24 @@ export class VerticalTypeTool extends BaseTool {
       locked: false,
       opacity: 1,
       blendMode: 'normal',
-      transform: {
-        x: point.x,
-        y: point.y,
-        scaleX: 1,
-        scaleY: 1,
-        rotation: 0,
-        skewX: 0,
-        skewY: 0
-      },
-      node: group,
-      layerId: activeLayer.id,
-      data: ' ' // Start with space
+      x: point.x,
+      y: point.y,
+      width: 50, // Initial width estimate
+      height: 200, // Initial height estimate
+      rotation: 0,
+      scaleX: 1,
+      scaleY: 1,
+      data: ' ', // Start with space
+      metadata: {
+        konvaNode: group,
+        fontFamily: this.getOption('fontFamily') as string,
+        fontSize: this.getOption('fontSize') as number,
+        isVerticalText: true
+      }
     }
     
-    // Add to layer objects
-    activeLayer.objects.push(canvasObject)
+    // Add object to canvas using object-based API
+    canvas.addObject(canvasObject)
     
     // Emit event
     if (this.executionContext) {
@@ -162,10 +159,16 @@ export class VerticalTypeTool extends BaseTool {
           locked: canvasObject.locked,
           opacity: canvasObject.opacity,
           blendMode: canvasObject.blendMode,
-          transform: canvasObject.transform,
+          x: canvasObject.x,
+          y: canvasObject.y,
+          width: canvasObject.width,
+          height: canvasObject.height,
+          rotation: canvasObject.rotation,
+          scaleX: canvasObject.scaleX,
+          scaleY: canvasObject.scaleY,
           data: canvasObject.data
         },
-        activeLayer.id,
+        null, // No layer ID needed in object-based system
         this.executionContext.getMetadata()
       ))
     }
@@ -334,11 +337,12 @@ export class VerticalTypeTool extends BaseTool {
     // Show group
     this.editingGroup.show()
     
-    // Find canvas object
+    // Find canvas object by matching the Konva node
     let canvasObject: CanvasObject | null = null
-    for (const layer of canvas.state.layers) {
-      const obj = layer.objects.find(o => o.node === this.editingGroup)
-      if (obj) {
+    const allObjects = canvas.getAllObjects()
+    for (const obj of allObjects) {
+      // Match by Konva node reference stored in metadata
+      if (obj.type === 'verticalText' && obj.metadata?.konvaNode === this.editingGroup) {
         canvasObject = obj
         break
       }

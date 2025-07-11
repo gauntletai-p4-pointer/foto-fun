@@ -3,6 +3,7 @@ import { ObjectTool } from '@/lib/editor/tools/base/ObjectTool'
 import type { CanvasObject } from '@/lib/editor/objects/types'
 import type { ToolEvent } from '@/lib/editor/canvas/types'
 import { ReplicateService } from '@/lib/ai/services/replicate'
+import { TypedEventBus } from '@/lib/events/core/TypedEventBus'
 import Konva from 'konva'
 
 /**
@@ -23,6 +24,7 @@ export class InpaintingTool extends ObjectTool {
   private maskContext: CanvasRenderingContext2D | null = null
   private isDrawingMask = false
   private maskGroup: Konva.Group | null = null
+  private eventBus = new TypedEventBus()
   
   protected setupTool(): void {
     // Initialize Replicate service
@@ -191,6 +193,14 @@ export class InpaintingTool extends ObjectTool {
     this.isProcessing = true
     const canvas = this.getCanvas()
     
+    const taskId = `${this.id}-${Date.now()}`
+    this.eventBus.emit('ai.processing.started', {
+      taskId,
+      toolId: this.id,
+      description: `Inpainting with prompt: ${prompt}`,
+      targetObjectIds: [object.id]
+    })
+    
     try {
       // Update object to show processing state
       await canvas.updateObject(object.id, {
@@ -232,14 +242,27 @@ export class InpaintingTool extends ObjectTool {
         }
       })
       
-      // Emit success event
-      if (this.executionContext) {
-        await this.executionContext.emit({
-          type: 'ai.inpainting.completed',
-          objectId: object.id,
-          prompt
-        } as any)
-      }
+      // Emit success events
+      this.eventBus.emit('ai.inpainting.completed', {
+        taskId,
+        toolId: this.id,
+        objectId: object.id,
+        prompt,
+        success: true,
+        maskArea: {
+          x: 0,
+          y: 0,
+          width: maskData.width,
+          height: maskData.height
+        }
+      })
+      
+      this.eventBus.emit('ai.processing.completed', {
+        taskId,
+        toolId: this.id,
+        success: true,
+        affectedObjectIds: [object.id]
+      })
       
     } catch (error) {
       console.error('[InpaintingTool] Inpainting failed:', error)
@@ -251,6 +274,12 @@ export class InpaintingTool extends ObjectTool {
           isProcessing: false,
           lastError: error instanceof Error ? error.message : 'Inpainting failed'
         }
+      })
+      
+      this.eventBus.emit('ai.processing.failed', {
+        taskId,
+        toolId: this.id,
+        error: error instanceof Error ? error.message : 'Inpainting failed'
       })
       
     } finally {

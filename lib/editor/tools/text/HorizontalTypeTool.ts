@@ -150,8 +150,6 @@ export class HorizontalTypeTool extends BaseTool {
    */
   private async createNewText(point: Point): Promise<void> {
     const canvas = this.getCanvas()
-    const activeLayer = canvas.getActiveLayer()
-    if (!activeLayer) return
     
     // Create text node with current options
     const text = new Konva.Text({
@@ -171,9 +169,6 @@ export class HorizontalTypeTool extends BaseTool {
       padding: 5
     })
     
-    // Add to layer
-    activeLayer.konvaLayer.add(text)
-    
     // Create canvas object
     const canvasObject: CanvasObject = {
       id: `text-${Date.now()}`,
@@ -183,22 +178,24 @@ export class HorizontalTypeTool extends BaseTool {
       locked: false,
       opacity: 1,
       blendMode: 'normal',
-      transform: {
-        x: point.x,
-        y: point.y,
-        scaleX: 1,
-        scaleY: 1,
-        rotation: 0,
-        skewX: 0,
-        skewY: 0
-      },
-      node: text,
-      layerId: activeLayer.id,
-      data: text.text()
+      x: point.x,
+      y: point.y,
+      width: text.width(),
+      height: text.height(),
+      rotation: 0,
+      scaleX: 1,
+      scaleY: 1,
+      data: text.text(),
+      metadata: {
+        konvaNode: text,
+        fontFamily: this.getOption('fontFamily') as string,
+        fontSize: this.getOption('fontSize') as number,
+        fontStyle: this.getFontStyle()
+      }
     }
     
-    // Add to layer objects
-    activeLayer.objects.push(canvasObject)
+    // Add object to canvas using object-based API
+    canvas.addObject(canvasObject)
     
     // Emit event
     if (this.executionContext) {
@@ -212,10 +209,16 @@ export class HorizontalTypeTool extends BaseTool {
           locked: canvasObject.locked,
           opacity: canvasObject.opacity,
           blendMode: canvasObject.blendMode,
-          transform: canvasObject.transform,
+          x: canvasObject.x,
+          y: canvasObject.y,
+          width: canvasObject.width,
+          height: canvasObject.height,
+          rotation: canvasObject.rotation,
+          scaleX: canvasObject.scaleX,
+          scaleY: canvasObject.scaleY,
           data: canvasObject.data
         },
-        activeLayer.id,
+        null, // No layer ID needed in object-based system
         this.executionContext.getMetadata()
       ))
     }
@@ -359,11 +362,12 @@ export class HorizontalTypeTool extends BaseTool {
     this.currentTextNode.text(finalText)
     this.currentTextNode.show()
     
-    // Find canvas object
+    // Find canvas object by matching the Konva node
     let canvasObject: CanvasObject | null = null
-    for (const layer of canvas.state.layers) {
-      const obj = layer.objects.find(o => o.node === this.currentTextNode)
-      if (obj) {
+    const allObjects = canvas.getAllObjects()
+    for (const obj of allObjects) {
+      // Match by Konva node reference stored in metadata
+      if (obj.type === 'text' && obj.metadata?.konvaNode === this.currentTextNode) {
         canvasObject = obj
         break
       }

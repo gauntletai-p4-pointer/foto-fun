@@ -41,13 +41,12 @@ export class AgentFactory {
     // Create workflow memory
     const workflowMemory = new WorkflowMemory(canvas)
     
-    // Analyze canvas
-    const canvasState = canvas.state
-    const objects = canvasState.layers.flatMap(layer => layer.objects)
+    // Analyze canvas using object-based API
+    const objects = canvas.getAllObjects()
     const canvasAnalysis = {
       dimensions: {
-        width: canvasState.width,
-        height: canvasState.height
+        width: canvas.getWidth(),
+        height: canvas.getHeight()
       },
       hasContent: objects.length > 0,
       objectCount: objects.length,

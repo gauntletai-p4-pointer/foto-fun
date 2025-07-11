@@ -39,7 +39,7 @@ export abstract class UnifiedToolAdapter<TInput = Record<string, unknown>, TOutp
   /**
    * Zod schema for input validation
    */
-  abstract inputSchema: z.ZodType<TInput>
+  abstract inputSchema: z.ZodType<TInput, z.ZodTypeDef, unknown>
   
   /**
    * Execute the tool operation

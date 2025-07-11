@@ -3,6 +3,7 @@ import { ObjectTool } from '@/lib/editor/tools/base/ObjectTool'
 import type { CanvasObject } from '@/lib/editor/objects/types'
 import type { ToolEvent } from '@/lib/editor/canvas/types'
 import { ReplicateService } from '@/lib/ai/services/replicate'
+import { TypedEventBus } from '@/lib/events/core/TypedEventBus'
 import Konva from 'konva'
 
 /**
@@ -21,6 +22,7 @@ export class OutpaintingTool extends ObjectTool {
   private isProcessing = false
   private previewRect: Konva.Rect | null = null
   private expandDirection: 'top' | 'right' | 'bottom' | 'left' | 'all' = 'all'
+  private eventBus = new TypedEventBus()
   
   protected setupTool(): void {
     // Initialize Replicate service
@@ -162,9 +164,17 @@ export class OutpaintingTool extends ObjectTool {
     
     const prompt = this.getOption('prompt') as string
     const expandSize = this.getOption('expandSize') as number
+    const taskId = `${this.id}-${Date.now()}`
     
     this.isProcessing = true
     const canvas = this.getCanvas()
+    
+    this.eventBus.emit('ai.processing.started', {
+      taskId,
+      toolId: this.id,
+      description: `Outpainting image in ${this.expandDirection} direction`,
+      targetObjectIds: [object.id]
+    })
     
     try {
       // Update object to show processing state
@@ -233,15 +243,22 @@ export class OutpaintingTool extends ObjectTool {
         }
       })
       
-      // Emit success event
-      if (this.executionContext) {
-        await this.executionContext.emit({
-          type: 'ai.outpainting.completed',
-          objectId: object.id,
-          direction: this.expandDirection,
-          expandSize
-        } as any)
-      }
+      // Emit tool-specific completion event
+      this.eventBus.emit('ai.outpainting.completed', {
+        taskId,
+        toolId: this.id,
+        objectId: object.id,
+        direction: this.expandDirection,
+        expandSize
+      })
+      
+      // Emit general completion event
+      this.eventBus.emit('ai.processing.completed', {
+        taskId,
+        toolId: this.id,
+        success: true,
+        affectedObjectIds: [object.id]
+      })
       
     } catch (error) {
       console.error('[OutpaintingTool] Outpainting failed:', error)
@@ -255,6 +272,14 @@ export class OutpaintingTool extends ObjectTool {
         }
       })
       
+      // Emit failure event
+      this.eventBus.emit('ai.processing.failed', {
+        taskId,
+        toolId: this.id,
+        error: error instanceof Error ? error.message : 'Outpainting failed'
+      })
+      
+      throw error
     } finally {
       this.isProcessing = false
       this.cleanupPreview()

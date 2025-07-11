@@ -161,22 +161,18 @@ export function EnhancedAIChat() {
                 
                 {/* Tool invocations display */}
                 {message.parts?.some(part => 
-                  part.type === 'tool-invocation' || 
                   part.type?.startsWith('tool-')
                 ) && (
                   <div className="mt-2 space-y-1">
                     {message.parts
                       .filter(part => 
-                        part.type === 'tool-invocation' || 
                         part.type?.startsWith('tool-')
                       )
                       .map((part, idx) => {
                         const toolName = part.type?.startsWith('tool-') 
                           ? part.type.substring(5) 
-                          : (part as { toolInvocation?: { toolName?: string } }).toolInvocation?.toolName || 'unknown'
-                        const state = (part as { state?: string }).state || 
-                                    (part as { toolInvocation?: { state?: string } }).toolInvocation?.state || 
-                                    'pending'
+                          : 'unknown'
+                        const state = (part as { state?: string }).state || 'pending'
                         
                         return (
                           <div key={idx} className="text-xs opacity-70">

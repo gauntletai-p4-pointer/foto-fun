@@ -2,6 +2,7 @@ import { ObjectTool } from '@/lib/editor/tools/base/ObjectTool'
 import { Palette } from 'lucide-react'
 import { ReplicateService } from '../services/replicate'
 import { ModelPreferencesManager } from '@/lib/settings/ModelPreferences'
+import { TypedEventBus } from '@/lib/events/core/TypedEventBus'
 import type { CanvasObject } from '@/lib/editor/objects/types'
 
 export interface StyleTransferOptions {
@@ -24,6 +25,7 @@ export class StyleTransferTool extends ObjectTool {
   private replicateService: ReplicateService | null = null
   private isProcessing = false
   private preferencesManager = ModelPreferencesManager.getInstance()
+  private eventBus = new TypedEventBus()
   
   protected setupTool(): void {
     // Initialize Replicate service
@@ -54,6 +56,14 @@ export class StyleTransferTool extends ObjectTool {
     }
     
     this.isProcessing = true
+    
+    const taskId = `${this.id}-${Date.now()}`
+    this.eventBus.emit('ai.processing.started', {
+      taskId,
+      toolId: this.id,
+      description: 'Applying style transfer with AI',
+      targetObjectIds: [imageObject.id]
+    })
     
     try {
       const imageData = imageObject.data as import('@/lib/editor/objects/types').ImageData
@@ -104,7 +114,22 @@ export class StyleTransferTool extends ObjectTool {
         throw new Error('Failed to create styled object')
       }
       
+      this.eventBus.emit('ai.processing.completed', {
+        taskId,
+        toolId: this.id,
+        success: true,
+        affectedObjectIds: [styledObjectId]
+      })
+      
       return styledObject
+    } catch (error) {
+      console.error('Style transfer failed:', error)
+      this.eventBus.emit('ai.processing.failed', {
+        taskId,
+        toolId: this.id,
+        error: error instanceof Error ? error.message : 'Style transfer failed'
+      })
+      throw error
     } finally {
       this.isProcessing = false
     }

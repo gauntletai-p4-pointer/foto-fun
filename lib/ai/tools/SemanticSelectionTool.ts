@@ -3,6 +3,7 @@ import { ObjectTool } from '@/lib/editor/tools/base/ObjectTool'
 import type { CanvasObject } from '@/lib/editor/objects/types'
 import type { ToolEvent } from '@/lib/editor/canvas/types'
 import { ReplicateService } from '@/lib/ai/services/replicate'
+import { TypedEventBus } from '@/lib/events/core/TypedEventBus'
 
 /**
  * Semantic Selection Tool - Natural language object selection
@@ -18,6 +19,7 @@ export class SemanticSelectionTool extends ObjectTool {
   // Service
   private replicateService: ReplicateService | null = null
   private isProcessing = false
+  private eventBus = new TypedEventBus()
   
   protected setupTool(): void {
     // Initialize Replicate service
@@ -53,6 +55,14 @@ export class SemanticSelectionTool extends ObjectTool {
     
     this.isProcessing = true
     const canvas = this.getCanvas()
+    const taskId = `${this.id}-${Date.now()}`
+    
+    this.eventBus.emit('ai.processing.started', {
+      taskId,
+      toolId: this.id,
+      description: `Semantic selection: ${searchQuery}`,
+      targetObjectIds: []
+    })
     
     try {
       // Get all visible objects
@@ -126,18 +136,33 @@ export class SemanticSelectionTool extends ObjectTool {
       // Apply selection based on mode
       this.applySelection(matchedObjectIds, mode)
       
-      // Emit event
-      if (this.executionContext) {
-        await this.executionContext.emit({
-          type: 'ai.semantic.selection',
-          query: searchQuery,
-          matchedCount: matchedObjectIds.length,
-          objectIds: matchedObjectIds
-        } as any)
-      }
+      // Emit tool-specific completion event
+      this.eventBus.emit('ai.semantic.selection', {
+        taskId,
+        toolId: this.id,
+        query: searchQuery,
+        matchedCount: matchedObjectIds.length,
+        objectIds: matchedObjectIds
+      })
+      
+      // Emit general completion event
+      this.eventBus.emit('ai.processing.completed', {
+        taskId,
+        toolId: this.id,
+        success: true,
+        affectedObjectIds: matchedObjectIds
+      })
       
       console.log(`[SemanticSelectionTool] Found ${matchedObjectIds.length} objects matching "${searchQuery}"`)
       
+    } catch (error) {
+      console.error('[SemanticSelectionTool] Selection failed:', error)
+      this.eventBus.emit('ai.processing.failed', {
+        taskId,
+        toolId: this.id,
+        error: error instanceof Error ? error.message : 'Semantic selection failed'
+      })
+      throw error
     } finally {
       this.isProcessing = false
     }

@@ -8,11 +8,7 @@ const inputSchema = z.object({
   style: z.enum(['detailed', 'artistic', 'photographic']).default('detailed').describe('Enhancement style: detailed for comprehensive descriptions, artistic for creative flair, photographic for realistic specifications')
 })
 
-interface Input {
-  prompt: string
-  maxLength?: number
-  style?: 'detailed' | 'artistic' | 'photographic'
-}
+type Input = z.output<typeof inputSchema>
 
 interface Output {
   originalPrompt: string

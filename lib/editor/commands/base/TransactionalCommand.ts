@@ -190,7 +190,7 @@ export abstract class TransactionalCommand extends Command {
       for (const objectId of snapshot.selectedObjectIds) {
         const object = canvas.getObject(objectId)
         if (object) {
-          canvas.selectObject(objectId, true) // true = add to selection
+          canvas.selectObject(objectId)
         }
       }
     } else {

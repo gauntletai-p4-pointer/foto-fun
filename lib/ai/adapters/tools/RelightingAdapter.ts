@@ -14,17 +14,7 @@ const inputSchema = z.object({
   modelTier: z.enum(['best', 'fast']).default('best').describe('Quality tier: best for highest quality, fast for speed')
 })
 
-interface Input {
-  lightDirection: {
-    x: number
-    y: number
-    z: number
-  }
-  intensity: number
-  softness: number
-  colorTemperature: 'warm' | 'neutral' | 'cool'
-  modelTier: 'best' | 'fast'
-}
+type Input = z.output<typeof inputSchema>
 
 interface Output {
   objectId: string

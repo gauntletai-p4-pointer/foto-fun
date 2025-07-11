@@ -442,6 +442,16 @@ export class CanvasManager implements ICanvasManager {
     this.objectManager.selectMultiple(objectIds)
   }
   
+  // Alias for selectMultiple to support legacy API
+  selectObjects(objectIds: string[]): void {
+    this.objectManager.selectMultiple(objectIds)
+  }
+  
+  // Alias for deselectAll to support legacy API
+  clearSelection(): void {
+    this.objectManager.selectMultiple([])
+  }
+  
   getSelectionManager(): SelectionManager {
     return this.selectionManager!
   }
@@ -496,6 +506,15 @@ export class CanvasManager implements ICanvasManager {
   
   setDraggable(draggable: boolean): void {
     this.stage.draggable(draggable)
+  }
+  
+  // Canvas dimensions
+  getWidth(): number {
+    return this._state.canvasWidth
+  }
+  
+  getHeight(): number {
+    return this._state.canvasHeight
   }
   
   // Object finding

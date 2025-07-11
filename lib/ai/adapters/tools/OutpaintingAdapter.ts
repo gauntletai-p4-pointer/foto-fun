@@ -9,12 +9,7 @@ const inputSchema = z.object({
   seamlessBlend: z.boolean().default(true).describe('Whether to blend the expansion seamlessly with the original image')
 })
 
-interface Input {
-  direction: 'top' | 'right' | 'bottom' | 'left' | 'all'
-  expandSize: number
-  prompt?: string
-  seamlessBlend: boolean
-}
+type Input = z.output<typeof inputSchema>
 
 interface Output {
   objectId: string

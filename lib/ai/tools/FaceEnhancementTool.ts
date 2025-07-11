@@ -3,6 +3,7 @@ import { ObjectTool } from '@/lib/editor/tools/base/ObjectTool'
 import type { CanvasObject } from '@/lib/editor/objects/types'
 import type { ToolEvent } from '@/lib/editor/canvas/types'
 import { ReplicateService } from '@/lib/ai/services/replicate'
+import { TypedEventBus } from '@/lib/events/core/TypedEventBus'
 // import { TOOL_IDS } from '@/constants'
 
 /**
@@ -19,6 +20,7 @@ export class FaceEnhancementTool extends ObjectTool {
   // Service
   private replicateService: ReplicateService | null = null
   private isProcessing = false
+  private eventBus = new TypedEventBus()
   
   protected setupTool(): void {
     // Initialize Replicate service
@@ -79,6 +81,14 @@ export class FaceEnhancementTool extends ObjectTool {
     this.isProcessing = true
     const canvas = this.getCanvas()
     
+    const taskId = `${this.id}-${Date.now()}`
+    this.eventBus.emit('ai.processing.started', {
+      taskId,
+      toolId: this.id,
+      description: 'Enhancing faces with AI',
+      targetObjectIds: [object.id]
+    })
+    
     try {
       // Update object to show processing state
       await canvas.updateObject(object.id, {
@@ -113,14 +123,21 @@ export class FaceEnhancementTool extends ObjectTool {
         }
       })
       
-      // Emit success event
-      if (this.executionContext) {
-        await this.executionContext.emit({
-          type: 'ai.face.enhanced',
-          objectId: object.id,
-          scale: this.getOption('enhancementScale')
-        } as { type: string; objectId: string; scale: unknown })
-      }
+      // Emit success events
+      this.eventBus.emit('ai.face.enhanced', {
+        taskId,
+        toolId: this.id,
+        objectId: object.id,
+        enhancementScale: this.getOption('enhancementScale') as number,
+        success: true
+      })
+      
+      this.eventBus.emit('ai.processing.completed', {
+        taskId,
+        toolId: this.id,
+        success: true,
+        affectedObjectIds: [object.id]
+      })
       
     } catch (error) {
       console.error('[FaceEnhancementTool] Enhancement failed:', error)
@@ -134,14 +151,20 @@ export class FaceEnhancementTool extends ObjectTool {
         }
       })
       
-      // Emit error event
-      if (this.executionContext) {
-        await this.executionContext.emit({
-          type: 'ai.face.error',
-          objectId: object.id,
-          error: error instanceof Error ? error.message : 'Unknown error'
-        } as any)
-      }
+      // Emit error events
+      this.eventBus.emit('ai.face.error', {
+        taskId,
+        toolId: this.id,
+        objectId: object.id,
+        error: error instanceof Error ? error.message : 'Unknown error',
+        enhancementScale: this.getOption('enhancementScale') as number
+      })
+      
+      this.eventBus.emit('ai.processing.failed', {
+        taskId,
+        toolId: this.id,
+        error: error instanceof Error ? error.message : 'Face enhancement failed'
+      })
     } finally {
       this.isProcessing = false
     }

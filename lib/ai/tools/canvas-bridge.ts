@@ -56,7 +56,7 @@ export class CanvasToolBridge {
     if (selection?.type === 'objects') {
       // Get selected image objects
       targetImages = selection.objectIds
-        .map(id => canvas.findObject(id))
+        .map(id => canvas.getObject(id))
         .filter((obj): obj is CanvasObject => obj !== null && obj.type === 'image')
       
       if (targetImages.length > 0) {
@@ -64,14 +64,7 @@ export class CanvasToolBridge {
       }
     } else if (!selection) {
       // No selection - check for single image auto-target
-      const allImages: CanvasObject[] = []
-      canvas.state.layers.forEach(layer => {
-        layer.objects.forEach(obj => {
-          if (obj.type === 'image') {
-            allImages.push(obj)
-          }
-        })
-      })
+      const allImages = canvas.getAllObjects().filter(obj => obj.type === 'image')
       
       if (allImages.length === 1) {
         targetingMode = 'auto-single'
@@ -87,8 +80,8 @@ export class CanvasToolBridge {
       targetImages,
       targetingMode,
       dimensions: {
-        width: (canvas.state.documentBounds?.width || 0),
-        height: (canvas.state.documentBounds?.height || 0)
+        width: canvas.getWidth(),
+        height: canvas.getHeight()
       },
       selection
     }
@@ -114,8 +107,8 @@ export class CanvasToolBridge {
   static hasContent(): boolean {
     if (!this.canvasInstance) return false
     
-    // Check if any layer has objects
-    return this.canvasInstance.state.layers.some(layer => layer.objects.length > 0)
+    // Check if canvas has any objects
+    return this.canvasInstance.getAllObjects().length > 0
   }
   
   /**
@@ -125,8 +118,8 @@ export class CanvasToolBridge {
     if (!this.canvasInstance) return null
     
     return {
-      width: this.canvasInstance.state.width,
-      height: this.canvasInstance.state.height
+      width: this.canvasInstance.getWidth(),
+      height: this.canvasInstance.getHeight()
     }
   }
 }

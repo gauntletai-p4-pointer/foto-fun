@@ -8,11 +8,7 @@ const inputSchema = z.object({
   autoDetect: z.boolean().optional().describe('Automatically detect and enhance all faces in the image')
 })
 
-interface Input {
-  modelTier?: 'best' | 'fast'
-  enhancementScale?: number
-  autoDetect?: boolean
-}
+type Input = z.output<typeof inputSchema>
 
 interface Output {
   objectId: string

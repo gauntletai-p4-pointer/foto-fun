@@ -7,10 +7,7 @@ const inputSchema = z.object({
   strength: z.number().min(0.1).max(2.0).default(1.0).describe('Strength of the edit: lower values for subtle changes, higher values for dramatic changes')
 })
 
-interface Input {
-  instruction: string
-  strength?: number
-}
+type Input = z.output<typeof inputSchema>
 
 interface Output {
   objectId: string

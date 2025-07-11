@@ -8,11 +8,7 @@ const inputSchema = z.object({
   mode: z.enum(['new', 'add', 'subtract', 'intersect']).default('new').describe('Selection mode: new replaces current selection, add extends it, subtract removes matches, intersect keeps only overlapping')
 })
 
-interface Input {
-  query: string
-  threshold: number
-  mode: 'new' | 'add' | 'subtract' | 'intersect'
-}
+type Input = z.output<typeof inputSchema>
 
 interface Output {
   matchedObjects: string[]

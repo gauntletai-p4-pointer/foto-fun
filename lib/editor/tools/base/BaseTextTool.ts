@@ -170,13 +170,8 @@ export abstract class BaseTextTool extends BaseTool {
    */
   protected async createNewText(point: Point): Promise<void> {
     const canvas = this.getCanvas()
-    // No longer need active layer - objects are managed directly
-    if (!activeLayer) return
     
     const textNode = this.createTextObject(point.x, point.y)
-    
-    // Add to layer
-    activeLayer.konvaLayer.add(textNode)
     
     // Create canvas object
     const canvasObject: CanvasObject = {
@@ -187,22 +182,21 @@ export abstract class BaseTextTool extends BaseTool {
       locked: false,
       opacity: 1,
       blendMode: 'normal',
-      transform: {
-        x: point.x,
-        y: point.y,
-        scaleX: 1,
-        scaleY: 1,
-        rotation: 0,
-        skewX: 0,
-        skewY: 0
-      },
-      node: textNode,
-      layerId: activeLayer.id,
-      data: textNode.text()
+      x: point.x,
+      y: point.y,
+      width: textNode.width(),
+      height: textNode.height(),
+      rotation: 0,
+      scaleX: 1,
+      scaleY: 1,
+      data: textNode.text(),
+      metadata: {
+        konvaNode: textNode
+      }
     }
     
-    // Add to layer objects
-    activeLayer.objects.push(canvasObject)
+    // Add object to canvas using object-based API
+    canvas.addObject(canvasObject)
     
     // Emit event
     if (this.executionContext) {
@@ -216,10 +210,16 @@ export abstract class BaseTextTool extends BaseTool {
           locked: canvasObject.locked,
           opacity: canvasObject.opacity,
           blendMode: canvasObject.blendMode,
-          transform: canvasObject.transform,
+          x: canvasObject.x,
+          y: canvasObject.y,
+          width: canvasObject.width,
+          height: canvasObject.height,
+          rotation: canvasObject.rotation,
+          scaleX: canvasObject.scaleX,
+          scaleY: canvasObject.scaleY,
           data: canvasObject.data
         },
-        activeLayer.id,
+        null, // No layer ID needed in object-based system
         this.executionContext.getMetadata()
       ))
     }
@@ -340,14 +340,12 @@ export abstract class BaseTextTool extends BaseTool {
       currentText.text(finalText)
       currentText.show()
       
-      // Find canvas object by matching the text node
+      // Find canvas object by matching the Konva node
       let canvasObject: CanvasObject | null = null
       const allObjects = canvas.getAllObjects()
       for (const obj of allObjects) {
-        // For text objects, we need to find by matching text content and position
-        if (obj.type === 'text' && 
-            Math.abs(obj.x - currentText.x()) < 1 && 
-            Math.abs(obj.y - currentText.y()) < 1) {
+        // Match by Konva node reference stored in metadata
+        if (obj.type === 'text' && obj.metadata?.konvaNode === currentText) {
           canvasObject = obj
           break
         }

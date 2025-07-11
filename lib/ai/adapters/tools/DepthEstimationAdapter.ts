@@ -6,9 +6,7 @@ const inputSchema = z.object({
   outputFormat: z.enum(['grayscale', 'colored']).default('grayscale').describe('Output format for the depth map: grayscale for standard depth maps, colored for visualization')
 })
 
-interface Input {
-  outputFormat?: 'grayscale' | 'colored'
-}
+type Input = z.output<typeof inputSchema>
 
 interface Output {
   objectId: string

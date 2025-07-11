@@ -409,6 +409,72 @@ export interface EventRegistry {
     type: 'info' | 'warning' | 'error' | 'success'
     data?: Record<string, unknown>
   }
+  
+  // Tool-specific completion events
+  'ai.inpainting.completed': {
+    taskId: string
+    toolId: string
+    objectId: string
+    prompt: string
+    success: boolean
+    maskArea?: { x: number; y: number; width: number; height: number }
+  }
+  'ai.outpainting.completed': {
+    taskId: string
+    toolId: string
+    objectId: string
+    direction: 'left' | 'right' | 'top' | 'bottom' | 'all'
+    expandSize: number
+    success: boolean
+  }
+  'ai.semantic.selection': {
+    taskId: string
+    toolId: string
+    query: string
+    matchedCount: number
+    objectIds: string[]
+    confidence: number
+  }
+  'ai.face.enhanced': {
+    taskId: string
+    toolId: string
+    objectId: string
+    enhancementScale: number
+    success: boolean
+  }
+  'ai.face.error': {
+    taskId: string
+    toolId: string
+    objectId: string
+    error: string
+    enhancementScale?: number
+  }
+  
+  // Selection enforcement events
+  'ai.tool.selection.required': {
+    toolId: string
+    objectCount: number
+    message: string
+    requiresSelection: boolean
+  }
+  
+  // Approval system events
+  'ai.tool.preview.generated': {
+    toolId: string
+    previewData: string
+    confidence: number
+    requiresApproval: boolean
+  }
+  
+  // Agent workflow events
+  'ai.workflow.step.completed': {
+    workflowId: string
+    stepId: string
+    toolId: string
+    success: boolean
+    result?: unknown
+    executionTime?: number
+  }
 }
 
 /**
