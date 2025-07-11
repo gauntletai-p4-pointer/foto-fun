@@ -24,10 +24,9 @@ export function EnhancedAIChat() {
   
   const isCanvasReady = !!canvasManager?.konvaStage
   
-  const hasContent = useCallback(() => {
-    if (!canvasManager) return false
-    return canvasManager.state.layers.some(layer => layer.objects.length > 0)
-  }, [canvasManager])
+  const hasContent = () => {
+    return canvasManager.getAllObjects().length > 0
+  }
   
   // Auto-resize textarea with max height
   const adjustTextareaHeight = useCallback(() => {
@@ -92,11 +91,10 @@ export function EnhancedAIChat() {
     if (input.trim() && !isLoading && canvasManager && isCanvasReady) {
       const canvasContext = {
         dimensions: {
-          width: canvasManager.state.width,
-          height: canvasManager.state.height
+          width: canvasManager.state.canvasWidth,
+          height: canvasManager.state.canvasHeight
         },
-        hasContent: hasContent(),
-        objectCount: canvasManager.state.layers.reduce((count, layer) => count + layer.objects.length, 0)
+        objectCount: canvasManager.getAllObjects().length
       }
       
       sendMessage(
@@ -105,7 +103,7 @@ export function EnhancedAIChat() {
       )
       setInput('')
     }
-  }, [input, isLoading, sendMessage, canvasManager, hasContent, agentMode, isCanvasReady])
+  }, [input, isLoading, sendMessage, canvasManager, agentMode, isCanvasReady])
 
   const handleApprovalDecision = (decision: ApprovalDecision) => {
     console.log('Approval decision:', decision)

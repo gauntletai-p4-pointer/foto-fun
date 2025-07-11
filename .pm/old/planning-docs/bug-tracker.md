@@ -1,2 +1,0 @@
--select / delete an image
--new canvas (how do you add/insert an image)

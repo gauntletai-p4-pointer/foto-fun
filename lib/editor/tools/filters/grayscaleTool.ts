@@ -1,173 +1,73 @@
 import { Palette } from 'lucide-react'
 import { TOOL_IDS } from '@/constants'
-import { BaseTool } from '../base/BaseTool'
-import type { FilterTarget } from '@/lib/editor/filters/FilterManager'
-import type { Filter } from '@/lib/editor/canvas/types'
+import { ObjectWebGLFilterTool } from '../base/ObjectWebGLFilterTool'
 
 /**
- * Grayscale Tool - Convert images to black and white
- * Now uses layer-based filtering exclusively
+ * Object-based Grayscale Tool
+ * Converts selected objects to black and white using WebGL
  */
-export class GrayscaleTool extends BaseTool {
+export class GrayscaleTool extends ObjectWebGLFilterTool {
   // Tool identification
   id = TOOL_IDS.GRAYSCALE
   name = 'Grayscale'
   icon = Palette
   cursor = 'default'
-  shortcut = undefined // Access via filters menu
+  shortcut = undefined // Accessed via filters panel
   
-  // Track if filter is applied
-  private isApplied = false
-  private isApplying = false
-  
-  protected setupTool(): void {
-    // Set default state
-    this.setOption('enabled', false)
+  // Filter configuration
+  protected getFilterType(): string {
+    return 'grayscale'
   }
   
-  protected cleanupTool(): void {
-    // Nothing to clean up
-  }
-  
-  /**
-   * Handle option changes from the UI
-   */
-  protected onOptionChange(key: string, value: unknown): void {
-    if (key === 'enabled' && typeof value === 'boolean') {
-      // Toggle grayscale
-      if (value) {
-        this.applyGrayscale()
-      } else {
-        this.removeGrayscale()
-      }
-    }
-  }
-  
-  /**
-   * Apply grayscale filter
-   */
-  async applyGrayscale(): Promise<void> {
-    if (this.isApplying) return
-    
-    this.isApplying = true
-    
-    try {
-      const canvas = this.getCanvas()
-      const filterManager = canvas.getFilterManager?.()
-      
-      if (!filterManager) {
-        console.error('[GrayscaleTool] FilterManager not available')
-        return
-      }
-      
-      // Create filter
-      const filter: Filter = {
-        type: 'grayscale',
-        params: {}
-      }
-      
-      // Determine target
-      const target = this.determineFilterTarget()
-      
-      if (!target) {
-        console.warn('[GrayscaleTool] No valid target for filter')
-        return
-      }
-      
-      // Apply filter through FilterManager
-      await filterManager.applyFilter(filter, target, this.executionContext)
-      
-      this.isApplied = true
-      this.setOption('enabled', true)
-    } finally {
-      this.isApplying = false
-    }
-  }
-  
-  /**
-   * Remove grayscale filter
-   */
-  async removeGrayscale(): Promise<void> {
-    if (this.isApplying) return
-    
-    this.isApplying = true
-    
-    try {
-      const canvas = this.getCanvas()
-      const filterManager = canvas.getFilterManager?.()
-      const activeLayer = canvas.getActiveLayer()
-      
-      if (!filterManager || !activeLayer) {
-        return
-      }
-      
-      // Find and remove grayscale filter from layer
-      if (activeLayer.filterStack) {
-        const grayscaleFilter = activeLayer.filterStack.filters.find(
-          f => f.filter.type === 'grayscale'
-        )
-        
-        if (grayscaleFilter) {
-          await filterManager.removeFilterFromLayer(
-            activeLayer.id,
-            grayscaleFilter.id,
-            this.executionContext
-          )
-        }
-      }
-      
-      this.isApplied = false
-      this.setOption('enabled', false)
-    } finally {
-      this.isApplying = false
-    }
-  }
-  
-  /**
-   * Determine the filter target based on current selection
-   */
-  private determineFilterTarget(): FilterTarget | null {
-    const canvas = this.getCanvas()
-    const selection = canvas.state.selection
-    const activeLayer = canvas.getActiveLayer()
-    
-    if (!activeLayer) {
-      console.warn('[GrayscaleTool] No active layer')
-      return null
-    }
-    
-    // If there's a pixel selection, use it
-    if (selection && selection.type !== 'objects') {
-      return {
-        type: 'selection',
-        layerId: activeLayer.id,
-        selection
-      }
-    }
-    
-    // Otherwise apply to the entire active layer
+  protected getDefaultParams(): Record<string, number> {
     return {
-      type: 'layer',
-      layerId: activeLayer.id
+      amount: 1 // 0 = no effect, 1 = full grayscale
     }
+  }
+  
+  // Tool options configuration
+  static options = [
+    {
+      id: 'amount',
+      type: 'slider' as const,
+      label: 'Amount',
+      min: 0,
+      max: 100,
+      default: 100,
+      step: 1,
+      suffix: '%'
+    }
+  ]
+  
+  /**
+   * Convert UI value to WebGL parameter
+   */
+  protected getAllOptions(): Record<string, number> {
+    const amount = (this.getOption('amount') as number) || 100
+    return {
+      amount: amount / 100 // Convert percentage to 0-1 range
+    }
+  }
+  
+  /**
+   * Public method for programmatic grayscale application
+   */
+  async applyGrayscale(amount: number = 100): Promise<void> {
+    this.setOption('amount', amount)
+    await this.applyImmediate()
   }
   
   /**
    * Toggle grayscale on/off
    */
   async toggleGrayscale(): Promise<void> {
-    if (this.isApplied) {
-      await this.removeGrayscale()
+    const currentAmount = (this.getOption('amount') as number) || 0
+    if (currentAmount > 0) {
+      this.setOption('amount', 0)
     } else {
-      await this.applyGrayscale()
+      this.setOption('amount', 100)
     }
-  }
-  
-  /**
-   * Apply grayscale for AI operations
-   */
-  async applyWithContext(): Promise<void> {
-    await this.applyGrayscale()
+    await this.applyImmediate()
   }
 }
 

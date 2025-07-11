@@ -34,8 +34,8 @@ export class WorkflowMemory implements IWorkflowMemory {
       selection: this.canvas.state.selection,
       activeLayerId: this.canvas.state.activeLayerId,
       backgroundColor: this.canvas.state.backgroundColor,
-      width: this.canvas.state.width,
-      height: this.canvas.state.height
+      width: this.canvas.state.documentBounds?.width || 0,
+      height: this.canvas.state.documentBounds?.height || 0
     }
     this.checkpoints.set(id, {
       id,

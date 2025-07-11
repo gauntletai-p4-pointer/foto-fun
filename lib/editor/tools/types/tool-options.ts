@@ -143,9 +143,7 @@ export interface LassoOptions {
   antiAlias: BaseOption<boolean>
 }
 
-export interface HandOptions {
-  // No options for hand tool
-}
+export type HandOptions = Record<string, never> // No options for hand tool
 
 export interface EraserOptions {
   size: BaseOption<number> & { min: 1; max: 100 }

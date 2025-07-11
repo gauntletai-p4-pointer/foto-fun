@@ -85,8 +85,8 @@ export abstract class EnhancedDrawingTool extends BaseTool {
   /**
    * Start drawing
    */
-  protected startDrawing(event: ToolEvent, context: ToolContext): void {
-    const point = this.getEventPoint(event, context.canvas as any)
+  protected startDrawing(event: ToolEvent, _context: ToolContext): void {
+    const point = this.getEventPoint(event)
     if (!point) return
     
     // Initialize drawing context
@@ -126,10 +126,10 @@ export abstract class EnhancedDrawingTool extends BaseTool {
   /**
    * Continue drawing
    */
-  protected continueDrawing(event: ToolEvent, context: ToolContext): void {
+  protected continueDrawing(event: ToolEvent, _context: ToolContext): void {
     if (!this.drawingContext.isDrawing) return
     
-    const point = this.getEventPoint(event, context.canvas as any)
+    const point = this.getEventPoint(event)
     if (!point) return
     
     // Add point with smoothing
@@ -354,7 +354,7 @@ export abstract class EnhancedDrawingTool extends BaseTool {
   /**
    * Get point from tool event
    */
-  protected getEventPoint(event: ToolEvent, canvas: any): DrawingPoint {
+  protected getEventPoint(event: ToolEvent): DrawingPoint {
     const pressure = 0.5 // Default pressure since ToolEvent doesn't have pressure info
     
     return {

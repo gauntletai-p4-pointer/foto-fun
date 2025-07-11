@@ -136,8 +136,8 @@ Be specific in your descriptions for better results. The generated image will be
       const imageObject = await canvas.loadImage(imageUrl)
       
       // Scale the image to fit the canvas while maintaining aspect ratio
-      const canvasWidth = canvas.state.width
-      const canvasHeight = canvas.state.height
+      const canvasWidth = (canvas.state.documentBounds?.width || 0)
+      const canvasHeight = (canvas.state.documentBounds?.height || 0)
       
       // Get image dimensions from the loaded object
       let imgWidth = 512
@@ -182,8 +182,8 @@ Be specific in your descriptions for better results. The generated image will be
    * Find the best position for a new image on the canvas
    */
   private findBestPosition(canvas: CanvasManager, width: number, height: number): { left: number; top: number } {
-    const canvasWidth = canvas.state.width
-    const canvasHeight = canvas.state.height
+    const canvasWidth = (canvas.state.documentBounds?.width || 0)
+    const canvasHeight = (canvas.state.documentBounds?.height || 0)
     
     // Get all existing objects
     const existingObjects = canvas.state.layers.flatMap(layer => layer.objects)

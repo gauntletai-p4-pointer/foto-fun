@@ -1,15 +1,15 @@
 import { Crop } from 'lucide-react'
 import Konva from 'konva'
 import { TOOL_IDS, ASPECT_RATIOS } from '@/constants'
-import { BaseTool } from '../base/BaseTool'
+import { ObjectTool } from '../base/ObjectTool'
 import type { ToolEvent, Point, Rect } from '@/lib/editor/canvas/types'
-import { CanvasCroppedEvent } from '@/lib/events/canvas/ToolEvents'
+import type { CanvasObject } from '@/lib/editor/objects/types'
 
 /**
- * Crop Tool - Allows cropping the canvas content
- * Konva implementation with non-destructive cropping
+ * Crop Tool - Crop individual objects (images)
+ * Non-destructive cropping with visual preview
  */
-export class CropTool extends BaseTool {
+export class CropTool extends ObjectTool {
   // Tool identification
   id = TOOL_IDS.CROP
   name = 'Crop Tool'
@@ -23,18 +23,14 @@ export class CropTool extends BaseTool {
   private cropRect: Konva.Rect | null = null
   private cropOverlay: Konva.Group | null = null
   private overlayLayer: Konva.Layer | null = null
-  private disabled = false
+  private targetObject: CanvasObject | null = null
+  private originalBounds: Rect | null = null
   
   // Interactive handles
   private handles: Konva.Rect[] = []
   private activeHandle: Konva.Rect | null = null
   private handleType: string | null = null
   private isDraggingHandle = false
-  
-  // Rotation
-  private rotation = 0
-  private rotationHandle: Konva.Circle | null = null
-  private isRotating = false
   
   // Grid overlay
   private gridOverlay: Konva.Group | null = null
@@ -43,22 +39,22 @@ export class CropTool extends BaseTool {
   protected setupTool(): void {
     const canvas = this.getCanvas()
     
-    // Use the existing overlay layer instead of creating a new one
+    // Use the existing overlay layer
     const stage = canvas.konvaStage
-    // The CanvasManager has an overlayLayer at index 2 (after background and selection layers)
-    this.overlayLayer = stage.children[2] as Konva.Layer
+    this.overlayLayer = stage.children[stage.children.length - 1] as Konva.Layer
     
     // Set default options
     this.setOption('aspectRatio', 'free')
-    this.setOption('deletePixels', false)
     this.setOption('overlayType', 'thirds')
     this.setOption('shieldOpacity', 0.5)
-    this.setOption('shieldColor', '#000000')
     
-    // Reset state
-    this.disabled = false
-    this.rotation = 0
-    this.currentOverlayType = 'thirds'
+    // Get selected object
+    this.targetObject = this.getTargetObject()
+    
+    // If an image object is selected, show crop bounds
+    if (this.targetObject && this.targetObject.type === 'image') {
+      this.showCropBounds()
+    }
   }
   
   protected cleanupTool(): void {
@@ -78,36 +74,45 @@ export class CropTool extends BaseTool {
       this.gridOverlay = null
     }
     
-    // Don't destroy the overlay layer as it's shared
-    this.overlayLayer = null
-    
     // Clean up handles
     this.handles.forEach(handle => handle.destroy())
     this.handles = []
     
-    if (this.rotationHandle) {
-      this.rotationHandle.destroy()
-      this.rotationHandle = null
-    }
-    
     // Reset state
     this.isDrawing = false
     this.startPoint = null
-    this.disabled = false
+    this.targetObject = null
+    this.originalBounds = null
     this.activeHandle = null
     this.handleType = null
     this.isDraggingHandle = false
-    this.isRotating = false
-    this.rotation = 0
   }
   
-  async onMouseDown(event: ToolEvent): Promise<void> {
-    if (!this.overlayLayer || this.disabled) return
+  /**
+   * Show crop bounds for selected object
+   */
+  private showCropBounds(): void {
+    if (!this.targetObject || !this.overlayLayer) return
     
-    this.isDrawing = true
-    this.startPoint = { x: event.point.x, y: event.point.y }
+    // Store original bounds
+    this.originalBounds = {
+      x: this.targetObject.x,
+      y: this.targetObject.y,
+      width: this.targetObject.width,
+      height: this.targetObject.height
+    }
     
-    // Remove existing crop overlay if any
+    // Create crop overlay
+    this.createCropOverlay(this.originalBounds)
+  }
+  
+  /**
+   * Create crop overlay for the object
+   */
+  private createCropOverlay(bounds: Rect): void {
+    if (!this.overlayLayer) return
+    
+    // Remove existing overlay
     if (this.cropOverlay) {
       this.cropOverlay.destroy()
     }
@@ -116,51 +121,51 @@ export class CropTool extends BaseTool {
     this.cropOverlay = new Konva.Group()
     this.overlayLayer.add(this.cropOverlay)
     
-    // Create semi-transparent overlay for areas outside crop
-    const canvas = this.getCanvas()
-    const stage = canvas.konvaStage
+    // Create semi-transparent overlay around the object
+    const stage = this.getCanvas().konvaStage
+    const opacity = (this.getOption('shieldOpacity') as number) || 0.5
     
-    // Create dark overlay rectangles
+    // Create dark overlay rectangles around the crop area
     const topOverlay = new Konva.Rect({
       x: 0,
       y: 0,
       width: stage.width(),
-      height: event.point.y,
-      fill: 'rgba(0, 0, 0, 0.5)'
+      height: bounds.y,
+      fill: `rgba(0, 0, 0, ${opacity})`
     })
     
     const bottomOverlay = new Konva.Rect({
       x: 0,
-      y: event.point.y,
+      y: bounds.y + bounds.height,
       width: stage.width(),
-      height: stage.height() - event.point.y,
-      fill: 'rgba(0, 0, 0, 0.5)'
+      height: stage.height() - (bounds.y + bounds.height),
+      fill: `rgba(0, 0, 0, ${opacity})`
     })
     
     const leftOverlay = new Konva.Rect({
       x: 0,
-      y: event.point.y,
-      width: event.point.x,
-      height: 0,
-      fill: 'rgba(0, 0, 0, 0.5)'
+      y: bounds.y,
+      width: bounds.x,
+      height: bounds.height,
+      fill: `rgba(0, 0, 0, ${opacity})`
     })
     
     const rightOverlay = new Konva.Rect({
-      x: event.point.x,
-      y: event.point.y,
-      width: stage.width() - event.point.x,
-      height: 0,
-      fill: 'rgba(0, 0, 0, 0.5)'
+      x: bounds.x + bounds.width,
+      y: bounds.y,
+      width: stage.width() - (bounds.x + bounds.width),
+      height: bounds.height,
+      fill: `rgba(0, 0, 0, ${opacity})`
     })
     
     this.cropOverlay.add(topOverlay, bottomOverlay, leftOverlay, rightOverlay)
     
-    // Create crop rectangle with dashed border
+    // Create crop rectangle
     this.cropRect = new Konva.Rect({
-      x: event.point.x,
-      y: event.point.y,
-      width: 0,
-      height: 0,
+      x: bounds.x,
+      y: bounds.y,
+      width: bounds.width,
+      height: bounds.height,
       stroke: '#ffffff',
       strokeWidth: 2,
       dash: [5, 5],
@@ -168,42 +173,51 @@ export class CropTool extends BaseTool {
     })
     
     this.cropOverlay.add(this.cropRect)
+    
+    // Add handles and grid
+    this.addCropHandles(bounds)
+    this.updateGridOverlay(bounds)
+    
     this.overlayLayer.batchDraw()
   }
   
-  onMouseMove(event: ToolEvent): void {
-    const canvas = this.getCanvas()
-    const stage = canvas.konvaStage
+  async onMouseDown(event: ToolEvent): Promise<void> {
+    if (!this.overlayLayer) return
     
-    // Handle rotation
-    if (this.isRotating && this.cropRect) {
-      const bounds = this.cropRect.getAttrs() as Rect
-      const centerX = bounds.x + bounds.width / 2
-      const centerY = bounds.y + bounds.height / 2
-      
-      const angle = Math.atan2(event.point.y - centerY, event.point.x - centerX)
-      this.rotation = angle * 180 / Math.PI + 90
-      
-      if (this.cropOverlay) {
-        this.cropOverlay.rotation(this.rotation)
-        this.cropOverlay.x(centerX)
-        this.cropOverlay.y(centerY)
-        this.cropOverlay.offsetX(centerX - bounds.x)
-        this.cropOverlay.offsetY(centerY - bounds.y)
-      }
-      
-      this.overlayLayer?.batchDraw()
+    // Check if clicking on a different object
+    const clickedObject = this.getCanvas().getObjectAtPoint(event.point)
+    if (clickedObject && clickedObject !== this.targetObject && clickedObject.type === 'image') {
+      // Switch to new object
+      this.targetObject = clickedObject
+      this.getCanvas().selectObject(clickedObject.id)
+      this.showCropBounds()
       return
     }
     
+    // If no crop bounds shown yet, start drawing
+    if (!this.cropRect && this.targetObject) {
+      this.isDrawing = true
+      this.startPoint = { x: event.point.x, y: event.point.y }
+      
+      // Create initial crop overlay
+      this.createCropOverlay({
+        x: event.point.x,
+        y: event.point.y,
+        width: 0,
+        height: 0
+      })
+    }
+  }
+  
+  onMouseMove(event: ToolEvent): void {
     // Handle dragging handles
     if (this.isDraggingHandle && this.activeHandle && this.handleType && this.cropRect) {
       this.updateCropBoundsFromHandle(event.point)
       return
     }
     
-    // Regular crop drawing
-    if (!this.isDrawing || !this.startPoint || !this.cropRect || !this.cropOverlay || this.disabled) return
+    // Handle drawing new crop area
+    if (!this.isDrawing || !this.startPoint || !this.cropRect || !this.cropOverlay) return
     
     // Calculate bounds
     const bounds = {
@@ -236,54 +250,11 @@ export class CropTool extends BaseTool {
     
     // Update crop rectangle
     this.cropRect.setAttrs(bounds)
-    
-    // Update overlay rectangles
-    const overlays = this.cropOverlay.getChildren()
-    
-    // Top overlay
-    overlays[0].setAttrs({
-      x: 0,
-      y: 0,
-      width: stage.width(),
-      height: bounds.y
-    })
-    
-    // Bottom overlay
-    overlays[1].setAttrs({
-      x: 0,
-      y: bounds.y + bounds.height,
-      width: stage.width(),
-      height: stage.height() - (bounds.y + bounds.height)
-    })
-    
-    // Left overlay
-    overlays[2].setAttrs({
-      x: 0,
-      y: bounds.y,
-      width: bounds.x,
-      height: bounds.height
-    })
-    
-    // Right overlay
-    overlays[3].setAttrs({
-      x: bounds.x + bounds.width,
-      y: bounds.y,
-      width: stage.width() - (bounds.x + bounds.width),
-      height: bounds.height
-    })
-    
+    this.updateOverlays(bounds)
     this.overlayLayer?.batchDraw()
   }
   
   async onMouseUp(): Promise<void> {
-    // Handle rotation end
-    if (this.isRotating) {
-      this.isRotating = false
-      const stage = this.getCanvas().konvaStage
-      stage.container().style.cursor = this.cursor
-      return
-    }
-    
     // Handle dragging end
     if (this.isDraggingHandle) {
       this.isDraggingHandle = false
@@ -294,13 +265,13 @@ export class CropTool extends BaseTool {
       return
     }
     
-    // Regular drawing end
+    // Handle drawing end
     if (!this.isDrawing) return
     
     this.isDrawing = false
     
-    // Add crop handles for fine-tuning
-    if (this.cropRect && this.overlayLayer) {
+    // Update handles for the new bounds
+    if (this.cropRect) {
       const bounds = this.cropRect.getAttrs() as Rect
       
       // Only show handles if crop area is large enough
@@ -366,7 +337,7 @@ export class CropTool extends BaseTool {
         shadowOpacity: 0.3
       })
       
-      // Store handle type as custom attribute
+      // Store handle type
       handle.setAttr('handleType', config.type)
       handle.setAttr('cursor', config.cursor)
       
@@ -398,67 +369,11 @@ export class CropTool extends BaseTool {
       this.cropOverlay!.add(handle)
     })
     
-    // Add rotation handle
-    this.addRotationHandle(bounds)
-    
-    // Add grid overlay
-    this.updateGridOverlay(bounds)
-    
     this.overlayLayer.batchDraw()
   }
   
   /**
-   * Add rotation handle outside the crop area
-   */
-  private addRotationHandle(bounds: Rect): void {
-    if (!this.cropOverlay || !this.overlayLayer) return
-    
-    if (this.rotationHandle) {
-      this.rotationHandle.destroy()
-    }
-    
-    // Position rotation handle above the top edge
-    const rotationHandleY = bounds.y - 30
-    
-    this.rotationHandle = new Konva.Circle({
-      x: bounds.x + bounds.width / 2,
-      y: rotationHandleY,
-      radius: 8,
-      fill: 'white',
-      stroke: '#333',
-      strokeWidth: 2,
-      shadowBlur: 2,
-      shadowOpacity: 0.3
-    })
-    
-    this.rotationHandle.on('mouseenter', () => {
-      const stage = this.getCanvas().konvaStage
-      stage.container().style.cursor = 'grab'
-      this.rotationHandle?.fill('#007AFF')
-      this.overlayLayer?.batchDraw()
-    })
-    
-    this.rotationHandle.on('mouseleave', () => {
-      if (!this.isRotating) {
-        const stage = this.getCanvas().konvaStage
-        stage.container().style.cursor = this.cursor
-        this.rotationHandle?.fill('white')
-        this.overlayLayer?.batchDraw()
-      }
-    })
-    
-    this.rotationHandle.on('mousedown', (e) => {
-      e.cancelBubble = true
-      this.isRotating = true
-      const stage = this.getCanvas().konvaStage
-      stage.container().style.cursor = 'grabbing'
-    })
-    
-    this.cropOverlay.add(this.rotationHandle)
-  }
-  
-  /**
-   * Update grid overlay based on current option
+   * Update grid overlay
    */
   private updateGridOverlay(bounds: Rect): void {
     if (!this.cropOverlay || !this.overlayLayer) return
@@ -561,7 +476,7 @@ export class CropTool extends BaseTool {
   }
   
   /**
-   * Update crop bounds based on handle dragging
+   * Update crop bounds from handle
    */
   private updateCropBoundsFromHandle(mousePoint: Point): void {
     if (!this.cropRect || !this.handleType) return
@@ -650,10 +565,11 @@ export class CropTool extends BaseTool {
     
     const canvas = this.getCanvas()
     const stage = canvas.konvaStage
+    const opacity = (this.getOption('shieldOpacity') as number) || 0.5
+    
     const overlays = this.cropOverlay.getChildren().filter(child => 
       child !== this.cropRect && 
-      !this.handles.includes(child as Konva.Rect) && 
-      (!this.rotationHandle || child !== this.rotationHandle) &&
+      !this.handles.includes(child as Konva.Rect) &&
       (!this.gridOverlay || child !== this.gridOverlay)
     )
     
@@ -663,7 +579,8 @@ export class CropTool extends BaseTool {
         x: 0,
         y: 0,
         width: stage.width(),
-        height: bounds.y
+        height: bounds.y,
+        fill: `rgba(0, 0, 0, ${opacity})`
       })
       
       // Bottom overlay
@@ -671,7 +588,8 @@ export class CropTool extends BaseTool {
         x: 0,
         y: bounds.y + bounds.height,
         width: stage.width(),
-        height: stage.height() - (bounds.y + bounds.height)
+        height: stage.height() - (bounds.y + bounds.height),
+        fill: `rgba(0, 0, 0, ${opacity})`
       })
       
       // Left overlay
@@ -679,7 +597,8 @@ export class CropTool extends BaseTool {
         x: 0,
         y: bounds.y,
         width: bounds.x,
-        height: bounds.height
+        height: bounds.height,
+        fill: `rgba(0, 0, 0, ${opacity})`
       })
       
       // Right overlay
@@ -687,50 +606,58 @@ export class CropTool extends BaseTool {
         x: bounds.x + bounds.width,
         y: bounds.y,
         width: stage.width() - (bounds.x + bounds.width),
-        height: bounds.height
+        height: bounds.height,
+        fill: `rgba(0, 0, 0, ${opacity})`
       })
     }
   }
   
   /**
-   * Apply the crop operation
+   * Apply the crop to the selected object
    */
   private async applyCrop(): Promise<void> {
-    if (!this.cropRect || this.disabled) return
+    if (!this.cropRect || !this.targetObject || this.targetObject.type !== 'image') return
     
     const canvas = this.getCanvas()
-    const bounds = this.cropRect.getAttrs() as Rect
+    const cropBounds = this.cropRect.getAttrs() as Rect
     
     // Validate bounds
-    if (bounds.width < 1 || bounds.height < 1) {
+    if (cropBounds.width < 1 || cropBounds.height < 1) {
       console.warn('[CropTool] Invalid crop bounds')
       return
     }
     
-    // Get current canvas bounds for the event
-    const previousBounds: Rect = {
-      x: 0,
-      y: 0,
-      width: canvas.state.width,
-      height: canvas.state.height
+    // Calculate relative crop bounds within the object
+    const relativeBounds = {
+      x: cropBounds.x - this.targetObject.x,
+      y: cropBounds.y - this.targetObject.y,
+      width: cropBounds.width,
+      height: cropBounds.height
     }
     
-    // Apply the crop
-    await canvas.crop(bounds)
-    
-    // Emit event if in ExecutionContext
-    if (this.executionContext) {
-      await this.executionContext.emit(new CanvasCroppedEvent(
-        'canvas',
-        previousBounds,
-        bounds,
-        this.executionContext.getMetadata()
-      ))
-    }
+    // Update object with crop information
+    await canvas.updateObject(this.targetObject.id, {
+      // Update position to crop position
+      x: cropBounds.x,
+      y: cropBounds.y,
+      width: cropBounds.width,
+      height: cropBounds.height,
+      // Store crop data in metadata
+      metadata: {
+        ...this.targetObject.metadata,
+        crop: {
+          x: relativeBounds.x,
+          y: relativeBounds.y,
+          width: relativeBounds.width,
+          height: relativeBounds.height,
+          originalWidth: this.originalBounds?.width,
+          originalHeight: this.originalBounds?.height
+        }
+      }
+    })
     
     // Clean up
     this.cancelCrop()
-    this.disabled = true
   }
   
   /**
@@ -750,13 +677,20 @@ export class CropTool extends BaseTool {
       this.overlayLayer.batchDraw()
     }
     
-    this.disabled = false
+    // Clear handles
+    this.handles.forEach(handle => handle.destroy())
+    this.handles = []
+    
+    this.targetObject = null
+    this.originalBounds = null
   }
   
   protected onOptionChange(key: string): void {
-    // Handle aspect ratio changes during crop
-    if (key === 'aspectRatio' && this.cropRect && this.isDrawing) {
-      // Could update the crop rectangle to match new aspect ratio
+    // Handle option changes during crop
+    if (key === 'overlayType' && this.cropRect) {
+      const bounds = this.cropRect.getAttrs() as Rect
+      this.updateGridOverlay(bounds)
+      this.overlayLayer?.batchDraw()
     }
   }
 }

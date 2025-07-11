@@ -1,6 +1,7 @@
 import type { Tool, ToolEvent, CanvasManager } from '@/lib/editor/canvas/types'
 import { ResourceManager } from '@/lib/core/ResourceManager'
 import type { ExecutionContext } from '@/lib/events/execution/ExecutionContext'
+import { type ToolRequirements, DEFAULT_TOOL_REQUIREMENTS, checkToolRequirements } from './ToolRequirements'
 
 /**
  * Base class for all canvas tools
@@ -13,13 +14,39 @@ export abstract class BaseTool implements Tool {
   abstract cursor: string
   shortcut?: string
   
+  /**
+   * Tool requirements - override in subclasses
+   */
+  protected requirements: ToolRequirements = DEFAULT_TOOL_REQUIREMENTS
+  
   protected canvas: CanvasManager | null = null
   protected isActive = false
   protected resourceManager: ResourceManager | null = null
   protected executionContext: ExecutionContext | null = null
   
+  /**
+   * Check if this tool can be activated
+   */
+  canActivate(canvas: CanvasManager): { canActivate: boolean; reason?: string } {
+    return checkToolRequirements(this.requirements, canvas)
+  }
+  
+  /**
+   * Get tool requirements
+   */
+  getRequirements(): ToolRequirements {
+    return this.requirements
+  }
+  
   // Tool lifecycle
   onActivate(canvas: CanvasManager): void {
+    // Check requirements
+    const { canActivate, reason } = this.canActivate(canvas)
+    if (!canActivate) {
+      console.warn(`Tool ${this.id} cannot be activated: ${reason}`)
+      throw new Error(reason || 'Tool requirements not met')
+    }
+    
     this.canvas = canvas
     this.isActive = true
     

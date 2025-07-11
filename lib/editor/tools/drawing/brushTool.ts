@@ -1,38 +1,59 @@
 import { Brush } from 'lucide-react'
-import { BasePixelTool } from '../base/BasePixelTool'
+import { ObjectDrawingTool } from '../base/ObjectDrawingTool'
 import type { ToolEvent, Point } from '@/lib/editor/canvas/types'
+import type { CanvasObject, ImageData as ObjectImageData } from '@/lib/editor/objects/types'
 import { TOOL_IDS } from '@/constants'
+import { BrushEngine } from '../engines/BrushEngine'
 
 /**
- * Enhanced Brush Tool with true pixel-based painting
- * Supports pressure sensitivity, smoothing, and various blend modes
+ * Object-based Brush Tool
+ * Paints on existing image objects or creates new paint objects
  */
-export class BrushTool extends BasePixelTool {
+export class BrushTool extends ObjectDrawingTool {
   id = TOOL_IDS.BRUSH
   name = 'Brush Tool'
   icon = Brush
-  cursor = 'none' // We'll use custom cursor
+  cursor = 'none' // Custom cursor
   shortcut = 'B'
   
-  // Current brush color
+  // Brush engine for generating stamps
+  private brushEngine: BrushEngine
+  
+  // Current brush settings
   private brushColor = { r: 0, g: 0, b: 0 }
+  private brushSize = 20
+  private brushHardness = 100
+  private brushOpacity = 1
+  private brushFlow = 1
+  private brushSpacing = 0.25
   private blendMode: GlobalCompositeOperation = 'source-over'
+  
+  // Stroke tracking
+  private lastPoint: Point | null = null
+  private distance = 0
   
   // Brush stamp cache
   private currentBrushStamp: ImageData | null = null
   private lastBrushSize = 0
   
+  constructor() {
+    super()
+    this.brushEngine = new BrushEngine()
+  }
+  
   protected setupTool(): void {
-    super.setupTool()
-    
-    // Load color from options or use default
+    // Load settings from options
     const color = (this.getOption('color') as string) || '#000000'
     this.setBrushColor(color)
     
-    // Load blend mode
+    this.brushSize = (this.getOption('size') as number) || 20
+    this.brushHardness = (this.getOption('hardness') as number) || 100
+    this.brushOpacity = ((this.getOption('opacity') as number) || 100) / 100
+    this.brushFlow = ((this.getOption('flow') as number) || 100) / 100
+    this.brushSpacing = ((this.getOption('spacing') as number) || 25) / 100
     this.blendMode = (this.getOption('blendMode') as GlobalCompositeOperation) || 'source-over'
     
-    // Reset brush engine smoothing
+    // Reset brush engine
     this.brushEngine.resetSmoothing()
     
     // Update cursor
@@ -40,31 +61,75 @@ export class BrushTool extends BasePixelTool {
   }
   
   protected cleanupTool(): void {
-    super.cleanupTool()
     this.currentBrushStamp = null
+    this.lastPoint = null
+  }
+  
+  onMouseDown(event: ToolEvent): void {
+    super.onMouseDown(event)
+    
+    // Start stroke
+    this.lastPoint = event.point
+    this.distance = 0
+    
+    // Apply initial paint
+    this.applyBrush(event.point, event.pressure || 1)
+  }
+  
+  onMouseMove(event: ToolEvent): void {
+    super.onMouseMove(event)
+    
+    if (!this.isDrawing || !this.lastPoint) return
+    
+    // Calculate distance for spacing
+    const dx = event.point.x - this.lastPoint.x
+    const dy = event.point.y - this.lastPoint.y
+    const distance = Math.sqrt(dx * dx + dy * dy)
+    
+    if (distance === 0) return
+    
+    // Apply smoothing
+    const smoothedPoint = this.brushEngine.smoothPoint(
+      event.point,
+      this.lastPoint,
+      (this.getOption('smoothing') as number) || 0
+    )
+    
+    // Calculate spacing
+    const spacing = this.brushSize * this.brushSpacing
+    const steps = Math.floor((this.distance + distance) / spacing)
+    
+    if (steps > 0) {
+      // Interpolate between points
+      for (let i = 0; i < steps; i++) {
+        const t = (i + 1) / steps
+        const x = this.lastPoint.x + (smoothedPoint.x - this.lastPoint.x) * t
+        const y = this.lastPoint.y + (smoothedPoint.y - this.lastPoint.y) * t
+        
+        this.applyBrush({ x, y }, event.pressure || 1)
+      }
+      
+      this.distance = (this.distance + distance) % spacing
+    } else {
+      this.distance += distance
+    }
+    
+    this.lastPoint = smoothedPoint
+  }
+  
+  onMouseUp(event: ToolEvent): void {
+    super.onMouseUp(event)
+    this.lastPoint = null
   }
   
   /**
-   * Begin a new brush stroke
+   * Apply brush at a point
    */
-  protected beginStroke(_event: ToolEvent): void {
-    // Initialize stroke data
-    const dimensions = this.pixelBuffer?.getDimensions()
-    if (!dimensions) return
+  private applyBrush(point: Point, pressure: number): void {
+    const object = this.getDrawingObject()
+    if (!object || object.type !== 'image') return
     
-    this.currentStroke = new ImageData(dimensions.width, dimensions.height)
-    
-    // Reset smoothing for new stroke
-    this.brushEngine.resetSmoothing()
-  }
-  
-  /**
-   * Apply paint at a specific point
-   */
-  protected applyPaint(point: Point, pressure: number): void {
-    if (!this.pixelBuffer || !this.currentStroke) return
-    
-    // Calculate dynamic brush parameters
+    // Calculate dynamic parameters
     const size = this.calculateBrushSize(pressure)
     const opacity = this.calculateOpacity(pressure)
     const flow = this.calculateFlow(pressure)
@@ -73,27 +138,88 @@ export class BrushTool extends BasePixelTool {
     if (!this.currentBrushStamp || this.lastBrushSize !== size) {
       this.currentBrushStamp = this.brushEngine.generateBrushTip(
         size,
-        this.brushSettings.hardness
+        this.brushHardness
       )
       this.lastBrushSize = size
     }
     
-    // Apply brush stamp to pixel buffer
-    this.pixelBuffer.applyBrushStamp(
-      this.currentBrushStamp,
-      point.x,
-      point.y,
-      this.brushColor,
-      opacity * flow,
-      this.blendMode
-    )
+    // Draw on object
+    this.drawOnObject(object, (ctx) => {
+      // Convert point from canvas space to object space
+      const localX = point.x - object.x
+      const localY = point.y - object.y
+      
+      // Set composite operation
+      ctx.globalCompositeOperation = this.blendMode
+      ctx.globalAlpha = opacity * flow
+      
+      // Create temporary canvas for brush stamp
+      const stampCanvas = document.createElement('canvas')
+      stampCanvas.width = this.currentBrushStamp!.width
+      stampCanvas.height = this.currentBrushStamp!.height
+      const stampCtx = stampCanvas.getContext('2d')!
+      
+      // Apply color to stamp
+      const stampData = stampCtx.createImageData(
+        this.currentBrushStamp!.width,
+        this.currentBrushStamp!.height
+      )
+      
+      for (let i = 0; i < this.currentBrushStamp!.data.length; i += 4) {
+        stampData.data[i] = this.brushColor.r
+        stampData.data[i + 1] = this.brushColor.g
+        stampData.data[i + 2] = this.brushColor.b
+        stampData.data[i + 3] = this.currentBrushStamp!.data[i + 3]
+      }
+      
+      stampCtx.putImageData(stampData, 0, 0)
+      
+      // Draw stamp
+      ctx.drawImage(
+        stampCanvas,
+        localX - size / 2,
+        localY - size / 2
+      )
+    })
+  }
+  
+  /**
+   * Calculate dynamic brush size based on pressure
+   */
+  private calculateBrushSize(pressure: number): number {
+    const usePressure = this.getOption('pressureSensitivity.size') as boolean
+    if (usePressure) {
+      return Math.max(1, this.brushSize * pressure)
+    }
+    return this.brushSize
+  }
+  
+  /**
+   * Calculate dynamic opacity based on pressure
+   */
+  private calculateOpacity(pressure: number): number {
+    const usePressure = this.getOption('pressureSensitivity.opacity') as boolean
+    if (usePressure) {
+      return this.brushOpacity * pressure
+    }
+    return this.brushOpacity
+  }
+  
+  /**
+   * Calculate dynamic flow based on pressure
+   */
+  private calculateFlow(pressure: number): number {
+    const usePressure = this.getOption('pressureSensitivity.flow') as boolean
+    if (usePressure) {
+      return this.brushFlow * pressure
+    }
+    return this.brushFlow
   }
   
   /**
    * Set brush color from hex string
    */
   private setBrushColor(hexColor: string): void {
-    // Convert hex to RGB
     const hex = hexColor.replace('#', '')
     this.brushColor = {
       r: parseInt(hex.substr(0, 2), 16),
@@ -106,13 +232,27 @@ export class BrushTool extends BasePixelTool {
    * Update custom cursor
    */
   private updateCursor(): void {
-    const cursorCanvas = this.brushEngine.createBrushCursor(this.brushSettings)
+    const cursorCanvas = this.brushEngine.createBrushCursor({
+      size: this.brushSize,
+      hardness: this.brushHardness,
+      opacity: this.brushOpacity * 100,
+      flow: this.brushFlow * 100,
+      spacing: this.brushSpacing * 100,
+      smoothing: (this.getOption('smoothing') as number) || 0,
+      pressureSensitivity: {
+        size: this.getOption('pressureSensitivity.size') as boolean || false,
+        opacity: this.getOption('pressureSensitivity.opacity') as boolean || false,
+        flow: this.getOption('pressureSensitivity.flow') as boolean || false
+      }
+    })
     const cursorUrl = cursorCanvas.toDataURL()
     
     // Update cursor style
     const canvas = this.getCanvas()
-    if (canvas.konvaStage.container()) {
-      const container = canvas.konvaStage.container()
+    // @ts-expect-error - getStage method exists on implementation
+    const stage = canvas.getStage?.() || canvas.konvaStage
+    if (stage && stage.container()) {
+      const container = stage.container()
       container.style.cursor = `url(${cursorUrl}) ${cursorCanvas.width / 2} ${cursorCanvas.height / 2}, crosshair`
     }
   }
@@ -127,14 +267,27 @@ export class BrushTool extends BasePixelTool {
       case 'color':
         this.setBrushColor(value as string)
         break
-      case 'blendMode':
-        this.blendMode = value as GlobalCompositeOperation
-        break
       case 'size':
-      case 'hardness':
-        // Invalidate brush stamp cache
+        this.brushSize = value as number
         this.currentBrushStamp = null
         this.updateCursor()
+        break
+      case 'hardness':
+        this.brushHardness = value as number
+        this.currentBrushStamp = null
+        this.updateCursor()
+        break
+      case 'opacity':
+        this.brushOpacity = (value as number) / 100
+        break
+      case 'flow':
+        this.brushFlow = (value as number) / 100
+        break
+      case 'spacing':
+        this.brushSpacing = (value as number) / 100
+        break
+      case 'blendMode':
+        this.blendMode = value as GlobalCompositeOperation
         break
     }
   }

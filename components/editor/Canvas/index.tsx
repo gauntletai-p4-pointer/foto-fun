@@ -1,17 +1,17 @@
 'use client'
 
 import React, { useRef, useEffect, useState } from 'react'
-import { useService, useAsyncService } from '@/lib/core/AppInitializer'
-import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
-import { CanvasManagerFactory } from '@/lib/editor/canvas/CanvasManagerFactory'
-import { TypedCanvasStore } from '@/lib/store/canvas/TypedCanvasStore'
-import { EventToolStore } from '@/lib/store/tools/EventToolStore'
-import { getTypedEventBus } from '@/lib/events/core/TypedEventBus'
-import { TOOL_IDS } from '@/constants'
-import type { ToolEvent } from '@/lib/editor/canvas/types'
-import { useCanvasStore as useTypedCanvasStore } from '@/lib/store/canvas/TypedCanvasStore'
+import { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
 import { useFileHandler } from '@/hooks/useFileHandler'
+import { useService, useAsyncService } from '@/lib/core/AppInitializer'
+import { EventToolStore } from '@/lib/store/tools/EventToolStore'
+import { TypedCanvasStore, useCanvasStore as useTypedCanvasStore } from '@/lib/store/canvas/TypedCanvasStore'
 import { ServiceContainer } from '@/lib/core/ServiceContainer'
+
+import { getTypedEventBus } from '@/lib/events/core/TypedEventBus'
+import { CanvasManagerFactory } from '@/lib/editor/canvas/CanvasManagerFactory'
+import type { ToolEvent } from '@/lib/editor/canvas/types'
+import { TOOL_IDS } from '@/constants'
 
 export function Canvas() {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -28,10 +28,11 @@ export function Canvas() {
   // Get the service container to update the CanvasManager instance
   const container = ServiceContainer.getInstance()
   
-  // Use the typed canvas store (removed unused variable)
+  // Use the typed canvas store
   useTypedCanvasStore(canvasStore)
   
-  const { handleDrop, handleDragOver } = useFileHandler('insert')
+  // File handler for drag and drop
+  const { handleDrop, handleDragOver } = useFileHandler()
   
   // Initialize canvas
   useEffect(() => {
@@ -49,8 +50,7 @@ export function Canvas() {
       // Register the active CanvasManager instance in the container
       container.updateInstance('CanvasManager', manager)
       
-      // Add initial layer
-      manager.addLayer({ name: 'Layer 1' })
+      // Canvas is always ready - no document needed
       
       console.log('[Canvas] Konva initialization complete after', Date.now() - startTime, 'ms')
     } catch (error) {
@@ -69,63 +69,6 @@ export function Canvas() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canvasFactory, loading, canvasStore, toolStore, eventBus, container])
-  
-  // Handle document image loading
-  useEffect(() => {
-    if (!canvasManager) return
-    
-    console.log('[Canvas] Setting up document.image.ready listener')
-    
-    const unsubscribe = eventBus.on('document.image.ready', async (data: { imageElement: HTMLImageElement }) => {
-      console.log('[Canvas] Received document.image.ready event', data)
-      console.log('[Canvas] Loading document image...')
-      
-      try {
-        // Clear existing content
-        const layers = [...canvasManager.state.layers]
-        console.log('[Canvas] Clearing', layers.length, 'layers')
-        layers.forEach(layer => {
-          layer.objects.forEach(obj => {
-            canvasManager.removeObject(obj.id)
-          })
-        })
-        
-        // Resize canvas to match image
-        console.log('[Canvas] Resizing canvas to', data.imageElement.width, 'x', data.imageElement.height)
-        await canvasManager.resize(data.imageElement.width, data.imageElement.height)
-        
-        // Add the image to the canvas
-        console.log('[Canvas] Adding image to canvas')
-        await canvasManager.addObject({
-          type: 'image',
-          data: data.imageElement,
-          name: 'Background',
-          transform: {
-            x: 0,
-            y: 0,
-            scaleX: 1,
-            scaleY: 1,
-            rotation: 0,
-            skewX: 0,
-            skewY: 0
-          }
-        })
-        
-        // Fit to screen
-        console.log('[Canvas] Fitting to screen')
-        canvasManager.fitToScreen()
-        
-        console.log('[Canvas] Document image loaded successfully')
-      } catch (error) {
-        console.error('[Canvas] Failed to load document image:', error)
-      }
-    })
-    
-    return () => {
-      console.log('[Canvas] Removing document.image.ready listener')
-      unsubscribe()
-    }
-  }, [canvasManager, eventBus])
   
   // Handle tool activation
   useEffect(() => {
@@ -467,11 +410,11 @@ export function Canvas() {
       // Delete key handling
       else if (e.key === 'Delete' || e.key === 'Backspace') {
         e.preventDefault()
-        const selection = canvasManager.state.selection
-        if (selection?.type === 'objects') {
+        const selectedObjects = canvasManager.getSelectedObjects()
+        if (selectedObjects.length > 0) {
           // Delete selected objects
-          selection.objectIds.forEach(id => {
-            canvasManager.removeObject(id)
+          selectedObjects.forEach(obj => {
+            canvasManager.removeObject(obj.id)
           })
         }
       }
@@ -537,22 +480,13 @@ export function Canvas() {
     )
   }
   
+  // Canvas always renders - no empty state
   return (
     <div 
-      ref={containerRef}
-      data-canvas-container
-      className="relative flex-1 bg-content-background min-w-0 overflow-hidden"
+      ref={containerRef} 
+      className="flex-1 relative overflow-hidden bg-content-background"
       onDrop={handleDrop}
       onDragOver={handleDragOver}
-    >
-      {/* Konva will create the canvas elements inside the container */}
-      
-      {/* Zoom indicator */}
-      {canvasManager && (
-        <div className="absolute bottom-4 right-4 bg-background/90 backdrop-blur-sm text-foreground px-3 py-1 rounded-md text-sm font-mono border border-foreground/10 shadow-lg">
-          {Math.round(canvasManager.state.zoom * 100)}%
-        </div>
-      )}
-    </div>
+    />
   )
 } 

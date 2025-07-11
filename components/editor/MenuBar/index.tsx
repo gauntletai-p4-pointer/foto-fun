@@ -3,15 +3,15 @@
 import React, { useState } from 'react'
 import { useService } from '@/lib/core/AppInitializer'
 import { useStore } from '@/lib/store/base/BaseStore'
-import { EventDocumentStore } from '@/lib/store/document/EventDocumentStore'
 import { EventSelectionStore } from '@/lib/store/selection/EventSelectionStore'
 import { EventToolStore } from '@/lib/store/tools/EventToolStore'
+import { ObjectManager } from '@/lib/editor/objects/ObjectManager'
 import { useEventHistoryStore } from '@/lib/events/history/EventBasedHistoryStore'
 import { useFileHandler } from '@/hooks/useFileHandler'
+
 import { useTheme } from '@/hooks/useTheme'
 import { useAuth } from '@/hooks/useAuth'
 import { signOut } from '@/lib/auth/actions'
-import { NewDocumentDialog } from '@/components/dialogs/NewDocumentDialog'
 import { ExportDialog } from '@/components/editor/dialogs/ExportDialog'
 import { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
 import {
@@ -27,24 +27,35 @@ import {
   DropdownMenuGroup,
   DropdownMenuLabel,
 } from '@/components/ui/dropdown-menu'
-import { FileDown, FileImage, FilePlus, Save, Sun, Moon, LogOut, Undo, Redo, Copy, Scissors, Clipboard, Settings } from 'lucide-react'
+import { FileDown, FileImage, Sun, Moon, LogOut, Undo, Redo, Copy, Scissors, Clipboard, Settings } from 'lucide-react'
 import { SettingsDialog } from './SettingsDialog'
 import { TOOL_IDS } from '@/constants'
 
 export function MenuBar() {
-  const [newDocumentOpen, setNewDocumentOpen] = useState(false)
   const [exportDialogOpen, setExportDialogOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const { fileInputRef: openFileInputRef, handleFileSelect: handleOpenFileSelect, triggerFileInput: triggerOpenFileInput } = useFileHandler('open')
-  const { fileInputRef: insertFileInputRef, handleFileSelect: handleInsertFileSelect, triggerFileInput: triggerInsertFileInput } = useFileHandler('insert')
-  const documentStore = useService<EventDocumentStore>('DocumentStore')
-  const documentState = useStore(documentStore)
-  const currentDocument = documentState.currentDocument
-  const hasUnsavedChanges = documentState.hasUnsavedChanges
+  const { fileInputRef, handleFileSelect, triggerFileInput } = useFileHandler()
   
   const selectionStore = useService<EventSelectionStore>('SelectionStore')
   const selectionState = useStore(selectionStore)
   const hasSelection = selectionState.selectedObjectIds.size > 0
+  const hasMultipleSelection = selectionState.selectedObjectIds.size > 1
+  
+  const objectManager = useService<ObjectManager>('ObjectManager')
+  const [hasObjects, setHasObjects] = useState(false)
+  
+  // Check for objects periodically
+  React.useEffect(() => {
+    const checkObjects = () => {
+      const objects = objectManager.getAllObjects()
+      setHasObjects(objects.length > 0)
+    }
+    
+    checkObjects()
+    const interval = setInterval(checkObjects, 500) // Check every 500ms
+    
+    return () => clearInterval(interval)
+  }, [objectManager])
   
   const toolStore = useService<EventToolStore>('ToolStore')
   const canvasManager = useService<CanvasManager>('CanvasManager')
@@ -55,12 +66,6 @@ export function MenuBar() {
   
   // Check if we have a pixel selection
   const hasPixelSelection = canvasManager?.getSelectionManager()?.hasSelection() || false
-  
-  const handleSave = () => {
-    if (currentDocument) {
-      documentStore.saveDocument()
-    }
-  }
   
   const handleSignOut = async () => {
     await signOut()
@@ -134,6 +139,54 @@ export function MenuBar() {
     toolStore.activateTool(toolId)
   }
   
+  // Object menu handlers
+  const handleGroup = async () => {
+    const selectedIds = Array.from(selectionState.selectedObjectIds)
+    if (selectedIds.length > 1) {
+      const groupId = await objectManager.createGroup(selectedIds)
+      selectionStore.selectObjects([groupId])
+    }
+  }
+  
+  const handleUngroup = async () => {
+    const selectedIds = Array.from(selectionState.selectedObjectIds)
+    for (const id of selectedIds) {
+      const object = objectManager.getObject(id)
+      if (object && object.type === 'group') {
+        const childIds = await objectManager.ungroup(id)
+        selectionStore.selectObjects(childIds)
+      }
+    }
+  }
+  
+  const handleBringForward = async () => {
+    const selectedIds = Array.from(selectionState.selectedObjectIds)
+    for (const id of selectedIds) {
+      await objectManager.bringForward(id)
+    }
+  }
+  
+  const handleSendBackward = async () => {
+    const selectedIds = Array.from(selectionState.selectedObjectIds)
+    for (const id of selectedIds) {
+      await objectManager.sendBackward(id)
+    }
+  }
+  
+  const handleBringToFront = async () => {
+    const selectedIds = Array.from(selectionState.selectedObjectIds)
+    for (const id of selectedIds) {
+      await objectManager.bringToFront(id)
+    }
+  }
+  
+  const handleSendToBack = async () => {
+    const selectedIds = Array.from(selectionState.selectedObjectIds)
+    for (const id of selectedIds) {
+      await objectManager.sendToBack(id)
+    }
+  }
+  
   return (
     <>
       <div className="h-8 bg-background border-b border-foreground/10 flex items-center px-2 text-sm text-foreground">
@@ -143,35 +196,20 @@ export function MenuBar() {
               File
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="w-56">
-              <DropdownMenuItem onClick={() => setNewDocumentOpen(true)}>
-                <FilePlus className="mr-2 h-4 w-4" />
-                New
-                <DropdownMenuShortcut>⌘N</DropdownMenuShortcut>
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={triggerOpenFileInput}>
+              <DropdownMenuItem 
+                onClick={triggerFileInput}
+              >
                 <FileImage className="mr-2 h-4 w-4" />
-                Open...
+                Open Image...
                 <DropdownMenuShortcut>⌘O</DropdownMenuShortcut>
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={triggerInsertFileInput}>
-                <FileImage className="mr-2 h-4 w-4" />
-                Insert Image...
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem 
-                onClick={handleSave}
-                disabled={!currentDocument}
-              >
-                <Save className="mr-2 h-4 w-4" />
-                Save
-                <DropdownMenuShortcut>⌘S</DropdownMenuShortcut>
-              </DropdownMenuItem>
-              <DropdownMenuItem 
                 onClick={() => setExportDialogOpen(true)}
-                disabled={!currentDocument}
+                disabled={!hasObjects}
               >
                 <FileDown className="mr-2 h-4 w-4" />
-                Export As...
+                Export...
                 <DropdownMenuShortcut>⌘⇧E</DropdownMenuShortcut>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
@@ -245,7 +283,6 @@ export function MenuBar() {
               <DropdownMenuSeparator />
               <DropdownMenuItem 
                 onClick={handleSelectAll}
-                disabled={false} // Selection through event system
               >
                 Select All
                 <DropdownMenuShortcut>⌘A</DropdownMenuShortcut>
@@ -261,7 +298,57 @@ export function MenuBar() {
           </DropdownMenu>
           
           <button className="hover:text-foreground/80" disabled>Image</button>
-          <button className="hover:text-foreground/80" disabled>Layer</button>
+          
+          <DropdownMenu>
+            <DropdownMenuTrigger className="hover:text-foreground/80 outline-none">
+              Object
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-56">
+              <DropdownMenuItem 
+                onClick={handleGroup}
+                disabled={!hasMultipleSelection}
+              >
+                Group
+                <DropdownMenuShortcut>⌘G</DropdownMenuShortcut>
+              </DropdownMenuItem>
+              <DropdownMenuItem 
+                onClick={handleUngroup}
+                disabled={!hasSelection}
+              >
+                Ungroup
+                <DropdownMenuShortcut>⌘⇧G</DropdownMenuShortcut>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem 
+                onClick={handleBringForward}
+                disabled={!hasSelection}
+              >
+                Bring Forward
+                <DropdownMenuShortcut>⌘]</DropdownMenuShortcut>
+              </DropdownMenuItem>
+              <DropdownMenuItem 
+                onClick={handleSendBackward}
+                disabled={!hasSelection}
+              >
+                Send Backward
+                <DropdownMenuShortcut>⌘[</DropdownMenuShortcut>
+              </DropdownMenuItem>
+              <DropdownMenuItem 
+                onClick={handleBringToFront}
+                disabled={!hasSelection}
+              >
+                Bring to Front
+                <DropdownMenuShortcut>⌘⇧]</DropdownMenuShortcut>
+              </DropdownMenuItem>
+              <DropdownMenuItem 
+                onClick={handleSendToBack}
+                disabled={!hasSelection}
+              >
+                Send to Back
+                <DropdownMenuShortcut>⌘⇧[</DropdownMenuShortcut>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           
           <DropdownMenu>
             <DropdownMenuTrigger className="hover:text-foreground/80 outline-none">
@@ -270,7 +357,6 @@ export function MenuBar() {
             <DropdownMenuContent align="start" className="w-56">
               <DropdownMenuItem 
                 onClick={handleSelectAll}
-                disabled={false} // Selection through event system
               >
                 All
                 <DropdownMenuShortcut>⌘A</DropdownMenuShortcut>
@@ -327,13 +413,19 @@ export function MenuBar() {
             <DropdownMenuContent align="start" className="w-56">
               <DropdownMenuGroup>
                 <DropdownMenuLabel>Adjustments</DropdownMenuLabel>
-                <DropdownMenuItem onClick={() => activateFilterTool(TOOL_IDS.BRIGHTNESS)}>
+                <DropdownMenuItem 
+                  onClick={() => activateFilterTool(TOOL_IDS.BRIGHTNESS)}
+                >
                   Brightness/Contrast...
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => activateFilterTool(TOOL_IDS.HUE)}>
+                <DropdownMenuItem 
+                  onClick={() => activateFilterTool(TOOL_IDS.HUE)}
+                >
                   Hue/Saturation...
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => activateFilterTool(TOOL_IDS.EXPOSURE)}>
+                <DropdownMenuItem 
+                  onClick={() => activateFilterTool(TOOL_IDS.EXPOSURE)}
+                >
                   Exposure
                 </DropdownMenuItem>
               </DropdownMenuGroup>
@@ -342,10 +434,14 @@ export function MenuBar() {
               
               <DropdownMenuGroup>
                 <DropdownMenuLabel>Blur & Sharpen</DropdownMenuLabel>
-                <DropdownMenuItem onClick={() => activateFilterTool(TOOL_IDS.BLUR)}>
+                <DropdownMenuItem 
+                  onClick={() => activateFilterTool(TOOL_IDS.BLUR)}
+                >
                   Blur...
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => activateFilterTool(TOOL_IDS.SHARPEN)}>
+                <DropdownMenuItem 
+                  onClick={() => activateFilterTool(TOOL_IDS.SHARPEN)}
+                >
                   Sharpen...
                 </DropdownMenuItem>
               </DropdownMenuGroup>
@@ -354,7 +450,9 @@ export function MenuBar() {
               
               <DropdownMenuGroup>
                 <DropdownMenuLabel>Artistic</DropdownMenuLabel>
-                <DropdownMenuItem onClick={() => activateFilterTool(TOOL_IDS.VINTAGE_EFFECTS)}>
+                <DropdownMenuItem 
+                  onClick={() => activateFilterTool(TOOL_IDS.VINTAGE_EFFECTS)}
+                >
                   Vintage Effects...
                 </DropdownMenuItem>
               </DropdownMenuGroup>
@@ -363,10 +461,14 @@ export function MenuBar() {
               
               <DropdownMenuGroup>
                 <DropdownMenuLabel>Other</DropdownMenuLabel>
-                <DropdownMenuItem onClick={() => activateFilterTool(TOOL_IDS.GRAYSCALE)}>
+                <DropdownMenuItem 
+                  onClick={() => activateFilterTool(TOOL_IDS.GRAYSCALE)}
+                >
                   Grayscale
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => activateFilterTool(TOOL_IDS.INVERT)}>
+                <DropdownMenuItem 
+                  onClick={() => activateFilterTool(TOOL_IDS.INVERT)}
+                >
                   Invert
                 </DropdownMenuItem>
               </DropdownMenuGroup>
@@ -412,37 +514,21 @@ export function MenuBar() {
           </DropdownMenu>
         </div>
         
-        {/* Document title in center */}
+        {/* Title in center */}
         <div className="flex-1 text-center">
-          {currentDocument && (
-            <span className="text-foreground/60">
-              {currentDocument.name}
-              {hasUnsavedChanges && ' •'}
-            </span>
-          )}
+          <span className="text-foreground/60">
+            Foto Fun
+          </span>
         </div>
       </div>
       
       {/* Hidden file input */}
       <input
-        ref={openFileInputRef}
+        ref={fileInputRef}
         type="file"
         accept="image/*"
-        onChange={handleOpenFileSelect}
+        onChange={handleFileSelect}
         className="hidden"
-      />
-      <input
-        ref={insertFileInputRef}
-        type="file"
-        accept="image/*"
-        onChange={handleInsertFileSelect}
-        className="hidden"
-      />
-      
-      {/* New Document Dialog */}
-      <NewDocumentDialog 
-        open={newDocumentOpen}
-        onOpenChange={setNewDocumentOpen}
       />
       
       {/* Settings Dialog */}

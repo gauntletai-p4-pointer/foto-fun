@@ -1,373 +1,370 @@
 import { Eraser } from 'lucide-react'
-import { BasePixelTool } from '../base/BasePixelTool'
-import type { Point } from '@/lib/editor/canvas/types'
+import { ObjectDrawingTool } from '../base/ObjectDrawingTool'
+import type { ToolEvent, Point } from '@/lib/editor/canvas/types'
+import type { CanvasObject } from '@/lib/editor/objects/types'
 import { TOOL_IDS } from '@/constants'
+import { BrushEngine } from '../engines/BrushEngine'
 
 /**
- * Eraser Tool with multiple modes
- * Supports Brush, Pencil, Block modes and Background Eraser
+ * Object-based Eraser Tool
+ * Erases from existing image objects
  */
-export class EraserTool extends BasePixelTool {
+export class EraserTool extends ObjectDrawingTool {
   id = TOOL_IDS.ERASER
   name = 'Eraser Tool'
   icon = Eraser
   cursor = 'none' // Custom cursor
   shortcut = 'E'
   
-  // Eraser modes
-  private mode: 'brush' | 'pencil' | 'block' | 'background' = 'brush'
+  // Brush engine for generating stamps
+  private brushEngine: BrushEngine
   
-  // Background eraser settings
-  private tolerance = 50 // 0-255
-  private sampleContinuous = true
-  private protectForeground = false
+  // Eraser settings
+  private eraserSize = 20
+  private eraserHardness = 100
+  private eraserOpacity = 1
+  private eraserFlow = 1
+  private eraserSpacing = 0.25
   
-  // Current eraser stamp
+  // Stroke tracking
+  private lastPoint: Point | null = null
+  private distance = 0
+  
+  // Eraser stamp cache
   private currentEraserStamp: ImageData | null = null
   private lastEraserSize = 0
   
+  constructor() {
+    super()
+    this.brushEngine = new BrushEngine()
+  }
+  
   protected setupTool(): void {
-    super.setupTool()
+    // Load settings from options
+    this.eraserSize = (this.getOption('size') as number) || 20
+    this.eraserHardness = (this.getOption('hardness') as number) || 100
+    this.eraserOpacity = ((this.getOption('opacity') as number) || 100) / 100
+    this.eraserFlow = ((this.getOption('flow') as number) || 100) / 100
+    this.eraserSpacing = ((this.getOption('spacing') as number) || 25) / 100
     
-    // Set default eraser settings
-    this.brushSettings = {
-      size: 20,
-      hardness: 0,
-      opacity: 100,
-      flow: 100,
-      spacing: 25,
-      smoothing: 10,
-      pressureSensitivity: {
-        size: true,
-        opacity: true,
-        flow: false
-      }
-    }
-  }
-  
-  /**
-   * Get tool-specific options
-   */
-  getToolOptions(): Record<string, unknown> {
-    return {
-      mode: {
-        type: 'select',
-        label: 'Mode',
-        value: this.mode,
-        options: [
-          { value: 'brush', label: 'Brush' },
-          { value: 'pencil', label: 'Pencil' },
-          { value: 'block', label: 'Block' },
-          { value: 'background', label: 'Background Eraser' }
-        ],
-        onChange: (value: string) => {
-          this.mode = value as typeof this.mode
-          this.updateBrushSettings()
-        }
-      },
-      size: {
-        type: 'slider',
-        label: 'Size',
-        value: this.brushSettings.size,
-        min: 1,
-        max: 500,
-        onChange: (value: number) => {
-          this.brushSettings.size = value
-          this.currentEraserStamp = null
-        }
-      },
-      hardness: {
-        type: 'slider',
-        label: 'Hardness',
-        value: this.brushSettings.hardness,
-        min: 0,
-        max: 100,
-        disabled: this.mode === 'pencil' || this.mode === 'block',
-        onChange: (value: number) => {
-          this.brushSettings.hardness = value
-          this.currentEraserStamp = null
-        }
-      },
-      opacity: {
-        type: 'slider',
-        label: 'Opacity',
-        value: this.brushSettings.opacity,
-        min: 0,
-        max: 100,
-        onChange: (value: number) => {
-          this.brushSettings.opacity = value
-        }
-      },
-      flow: {
-        type: 'slider',
-        label: 'Flow',
-        value: this.brushSettings.flow,
-        min: 0,
-        max: 100,
-        disabled: this.mode === 'background',
-        onChange: (value: number) => {
-          this.brushSettings.flow = value
-        }
-      },
-      tolerance: {
-        type: 'slider',
-        label: 'Tolerance',
-        value: this.tolerance,
-        min: 0,
-        max: 255,
-        disabled: this.mode !== 'background',
-        onChange: (value: number) => {
-          this.tolerance = value
-        }
-      },
-      sampleContinuous: {
-        type: 'toggle',
-        label: 'Sample Continuous',
-        value: this.sampleContinuous,
-        disabled: this.mode !== 'background',
-        onChange: (value: boolean) => {
-          this.sampleContinuous = value
-        }
-      }
-    }
-  }
-  
-  /**
-   * Update brush settings based on mode
-   */
-  private updateBrushSettings(): void {
-    switch (this.mode) {
-      case 'pencil':
-        this.brushSettings.hardness = 100
-        break
-      case 'block':
-        this.brushSettings.hardness = 100
-        this.brushSettings.spacing = 0
-        break
-      case 'background':
-        // Background eraser uses edge detection
-        break
-    }
-    this.currentEraserStamp = null
-  }
-  
-  /**
-   * Generate eraser stamp based on mode
-   */
-  private generateEraserStamp(): ImageData {
-    const size = Math.ceil(this.brushSettings.size)
-    
-    if (this.mode === 'block') {
-      // Simple square stamp
-      const stamp = new ImageData(size, size)
-      for (let i = 0; i < stamp.data.length; i += 4) {
-        stamp.data[i + 3] = 255 // Full alpha
-      }
-      return stamp
-    }
-    
-    // For brush and pencil modes, use brush engine
-    const hardness = this.mode === 'pencil' ? 100 : this.brushSettings.hardness
-    return this.brushEngine.generateBrushTip(size, hardness)
-  }
-  
-  /**
-   * Apply paint (eraser) at the given point - required by BasePixelTool
-   */
-  protected applyPaint(point: Point, pressure: number = 1): void {
-    this.applyToolAtPoint(point, pressure)
-  }
-  
-  /**
-   * Apply eraser at the given point
-   */
-  protected applyToolAtPoint(point: Point, pressure: number = 1): void {
-    if (!this.pixelBuffer || !this.currentStroke) return
-    
-    // Generate or update eraser stamp
-    if (!this.currentEraserStamp || this.lastEraserSize !== this.brushSettings.size) {
-      this.currentEraserStamp = this.generateEraserStamp()
-      this.lastEraserSize = this.brushSettings.size
-    }
-    
-    // Calculate actual opacity based on pressure
-    const opacity = this.brushSettings.pressureSensitivity.opacity
-      ? this.brushSettings.opacity * pressure / 100
-      : this.brushSettings.opacity / 100
-    
-    if (this.mode === 'background') {
-      this.applyBackgroundEraser(point, opacity)
-    } else {
-      this.applyStandardEraser(point, opacity)
-    }
-  }
-  
-  /**
-   * Apply standard eraser (brush/pencil/block modes)
-   */
-  private applyStandardEraser(point: Point, opacity: number): void {
-    if (!this.currentEraserStamp || !this.currentStroke) return
-    
-    const stampSize = this.currentEraserStamp.width
-    const halfSize = Math.floor(stampSize / 2)
-    
-    // Get stroke dimensions
-    const { width, height } = this.currentStroke
-    
-    // Apply eraser stamp
-    for (let sy = 0; sy < stampSize; sy++) {
-      for (let sx = 0; sx < stampSize; sx++) {
-        const x = Math.floor(point.x - halfSize + sx)
-        const y = Math.floor(point.y - halfSize + sy)
-        
-        // Check bounds
-        if (x < 0 || x >= width || y < 0 || y >= height) continue
-        
-        const strokeIndex = (y * width + x) * 4
-        const stampIndex = (sy * stampSize + sx) * 4
-        
-        // Get stamp alpha
-        const stampAlpha = this.currentEraserStamp.data[stampIndex + 3] / 255
-        
-        // Apply eraser with flow
-        if (stampAlpha > 0) {
-          const eraserStrength = stampAlpha * opacity
-          const currentAlpha = this.currentStroke.data[strokeIndex + 3] / 255
-          
-          // Calculate new alpha with flow
-          const newAlpha = this.brushSettings.flow < 100
-            ? currentAlpha * (1 - eraserStrength * this.brushSettings.flow / 100)
-            : currentAlpha * (1 - eraserStrength)
-          
-          // Set new alpha (erasing)
-          this.currentStroke.data[strokeIndex + 3] = Math.floor(newAlpha * 255)
-        }
-      }
-    }
-  }
-  
-  /**
-   * Apply background eraser with edge detection
-   */
-  private applyBackgroundEraser(point: Point, opacity: number): void {
-    if (!this.currentEraserStamp || !this.currentStroke || !this.pixelBuffer) return
-    
-    // Sample color at cursor center
-    const layerData = this.pixelBuffer.getPixelData()
-    if (!layerData) return
-    
-    const sampleX = Math.floor(point.x)
-    const sampleY = Math.floor(point.y)
-    const sampleIndex = (sampleY * layerData.width + sampleX) * 4
-    
-    const sampleColor = {
-      r: layerData.data[sampleIndex],
-      g: layerData.data[sampleIndex + 1],
-      b: layerData.data[sampleIndex + 2],
-      a: layerData.data[sampleIndex + 3]
-    }
-    
-    const stampSize = this.currentEraserStamp.width
-    const halfSize = Math.floor(stampSize / 2)
-    const { width, height } = this.currentStroke
-    
-    // Apply background eraser
-    for (let sy = 0; sy < stampSize; sy++) {
-      for (let sx = 0; sx < stampSize; sx++) {
-        const x = Math.floor(point.x - halfSize + sx)
-        const y = Math.floor(point.y - halfSize + sy)
-        
-        if (x < 0 || x >= width || y < 0 || y >= height) continue
-        
-        const strokeIndex = (y * width + x) * 4
-        const stampIndex = (sy * stampSize + sx) * 4
-        const layerIndex = (y * layerData.width + x) * 4
-        
-        // Get stamp alpha
-        const stampAlpha = this.currentEraserStamp.data[stampIndex + 3] / 255
-        if (stampAlpha === 0) continue
-        
-        // Get pixel color from layer
-        const pixelColor = {
-          r: layerData.data[layerIndex],
-          g: layerData.data[layerIndex + 1],
-          b: layerData.data[layerIndex + 2],
-          a: layerData.data[layerIndex + 3]
-        }
-        
-        // Calculate color difference
-        const diff = Math.sqrt(
-          Math.pow(pixelColor.r - sampleColor.r, 2) +
-          Math.pow(pixelColor.g - sampleColor.g, 2) +
-          Math.pow(pixelColor.b - sampleColor.b, 2)
-        )
-        
-        // Check if within tolerance
-        if (diff <= this.tolerance) {
-          const eraserStrength = stampAlpha * opacity
-          const currentAlpha = this.currentStroke.data[strokeIndex + 3] / 255
-          const newAlpha = currentAlpha * (1 - eraserStrength)
-          
-          this.currentStroke.data[strokeIndex + 3] = Math.floor(newAlpha * 255)
-        }
-      }
-    }
-  }
-  
-  /**
-   * Begin eraser stroke
-   */
-  protected beginStroke(): void {
-    const dimensions = this.pixelBuffer?.getDimensions()
-    if (!dimensions) return
-    
-    // Create stroke buffer
-    this.currentStroke = new ImageData(dimensions.width, dimensions.height)
-    
-    // Copy existing alpha channel (we'll subtract from it)
-    const layerData = this.pixelBuffer?.getPixelData()
-    if (layerData) {
-      for (let i = 0; i < layerData.data.length; i += 4) {
-        this.currentStroke.data[i + 3] = layerData.data[i + 3]
-      }
-    }
-    
-    // Reset smoothing
+    // Reset brush engine
     this.brushEngine.resetSmoothing()
+    
+    // Update cursor
+    this.updateCursor()
+  }
+  
+  protected cleanupTool(): void {
+    this.currentEraserStamp = null
+    this.lastPoint = null
+  }
+  
+  onMouseDown(event: ToolEvent): void {
+    // Don't call super - we don't want to create new objects
+    this.lastMousePosition = event.point
+    
+    // Only erase on existing objects
+    const target = this.getTargetObject()
+    if (!target || target.type !== 'image') {
+      return
+    }
+    
+    this.currentDrawingObject = target.id
+    this.isDrawing = true
+    
+    // Start stroke
+    this.lastPoint = event.point
+    this.distance = 0
+    
+    // Apply initial erase
+    this.applyEraser(event.point, event.pressure || 1)
+  }
+  
+  onMouseMove(event: ToolEvent): void {
+    this.lastMousePosition = event.point
+    
+    if (!this.isDrawing || !this.lastPoint) return
+    
+    // Calculate distance for spacing
+    const dx = event.point.x - this.lastPoint.x
+    const dy = event.point.y - this.lastPoint.y
+    const distance = Math.sqrt(dx * dx + dy * dy)
+    
+    if (distance === 0) return
+    
+    // Apply smoothing
+    const smoothedPoint = this.brushEngine.smoothPoint(
+      event.point,
+      this.lastPoint,
+      (this.getOption('smoothing') as number) || 0
+    )
+    
+    // Calculate spacing
+    const spacing = this.eraserSize * this.eraserSpacing
+    const steps = Math.floor((this.distance + distance) / spacing)
+    
+    if (steps > 0) {
+      // Interpolate between points
+      for (let i = 0; i < steps; i++) {
+        const t = (i + 1) / steps
+        const x = this.lastPoint.x + (smoothedPoint.x - this.lastPoint.x) * t
+        const y = this.lastPoint.y + (smoothedPoint.y - this.lastPoint.y) * t
+        
+        this.applyEraser({ x, y }, event.pressure || 1)
+      }
+      
+      this.distance = (this.distance + distance) % spacing
+    } else {
+      this.distance += distance
+    }
+    
+    this.lastPoint = smoothedPoint
+  }
+  
+  onMouseUp(_event: ToolEvent): void {
+    this.stopDrawing()
+    this.lastPoint = null
   }
   
   /**
-   * Update stroke - apply to pixel buffer
+   * Apply eraser at a point
    */
-  protected updateStroke(): void {
-    if (!this.currentStroke || !this.pixelBuffer) return
+  private applyEraser(point: Point, pressure: number): void {
+    const object = this.getDrawingObject()
+    if (!object || object.type !== 'image') return
     
-    // Apply eraser stroke to layer
-    const layerData = this.pixelBuffer.getPixelData()
-    if (!layerData) return
+    // Calculate dynamic parameters
+    const size = this.calculateEraserSize(pressure)
+    const opacity = this.calculateOpacity(pressure)
+    const flow = this.calculateFlow(pressure)
     
-    // Apply the erased alpha channel
-    for (let i = 0; i < layerData.data.length; i += 4) {
-      layerData.data[i + 3] = this.currentStroke.data[i + 3]
+    // Generate or get cached eraser stamp
+    if (!this.currentEraserStamp || this.lastEraserSize !== size) {
+      this.currentEraserStamp = this.brushEngine.generateBrushTip(
+        size,
+        this.eraserHardness
+      )
+      this.lastEraserSize = size
     }
     
-    // Update the pixel buffer
-    this.pixelBuffer.updatePixels(layerData)
+    // Erase from object
+    this.drawOnObject(object, (ctx) => {
+      // Convert point from canvas space to object space
+      const localX = point.x - object.x
+      const localY = point.y - object.y
+      
+      // Save composite operation
+      const prevOperation = ctx.globalCompositeOperation
+      
+      // Set eraser composite operation
+      ctx.globalCompositeOperation = 'destination-out'
+      ctx.globalAlpha = opacity * flow
+      
+      // Create temporary canvas for eraser stamp
+      const stampCanvas = document.createElement('canvas')
+      stampCanvas.width = this.currentEraserStamp!.width
+      stampCanvas.height = this.currentEraserStamp!.height
+      const stampCtx = stampCanvas.getContext('2d')!
+      
+      // Create white stamp with alpha from brush tip
+      const stampData = stampCtx.createImageData(
+        this.currentEraserStamp!.width,
+        this.currentEraserStamp!.height
+      )
+      
+      for (let i = 0; i < this.currentEraserStamp!.data.length; i += 4) {
+        stampData.data[i] = 255
+        stampData.data[i + 1] = 255
+        stampData.data[i + 2] = 255
+        stampData.data[i + 3] = this.currentEraserStamp!.data[i + 3]
+      }
+      
+      stampCtx.putImageData(stampData, 0, 0)
+      
+      // Draw stamp
+      ctx.drawImage(
+        stampCanvas,
+        localX - size / 2,
+        localY - size / 2
+      )
+      
+      // Restore composite operation
+      ctx.globalCompositeOperation = prevOperation
+    })
   }
   
   /**
-   * Get custom cursor for eraser
+   * Calculate dynamic eraser size based on pressure
    */
-  getCursor(): string {
-    if (this.mode === 'block') {
-      return 'crosshair'
+  private calculateEraserSize(pressure: number): number {
+    const usePressure = this.getOption('pressureSensitivity.size') as boolean
+    if (usePressure) {
+      return Math.max(1, this.eraserSize * pressure)
     }
-    
-    // Generate brush cursor
-    const size = Math.ceil(this.brushSettings.size)
-    const cursor = this.brushEngine.createBrushCursor(this.brushSettings)
-    const dataUrl = cursor.toDataURL()
-    
-    return `url(${dataUrl}) ${size / 2} ${size / 2}, crosshair`
+    return this.eraserSize
   }
-} 
+  
+  /**
+   * Calculate dynamic opacity based on pressure
+   */
+  private calculateOpacity(pressure: number): number {
+    const usePressure = this.getOption('pressureSensitivity.opacity') as boolean
+    if (usePressure) {
+      return this.eraserOpacity * pressure
+    }
+    return this.eraserOpacity
+  }
+  
+  /**
+   * Calculate dynamic flow based on pressure
+   */
+  private calculateFlow(pressure: number): number {
+    const usePressure = this.getOption('pressureSensitivity.flow') as boolean
+    if (usePressure) {
+      return this.eraserFlow * pressure
+    }
+    return this.eraserFlow
+  }
+  
+  /**
+   * Update custom cursor
+   */
+  private updateCursor(): void {
+    const cursorCanvas = this.brushEngine.createBrushCursor({
+      size: this.eraserSize,
+      hardness: this.eraserHardness,
+      opacity: this.eraserOpacity * 100,
+      flow: this.eraserFlow * 100,
+      spacing: this.eraserSpacing * 100,
+      smoothing: (this.getOption('smoothing') as number) || 0,
+      pressureSensitivity: {
+        size: this.getOption('pressureSensitivity.size') as boolean || false,
+        opacity: this.getOption('pressureSensitivity.opacity') as boolean || false,
+        flow: this.getOption('pressureSensitivity.flow') as boolean || false
+      }
+    })
+    const cursorUrl = cursorCanvas.toDataURL()
+    
+    // Update cursor style
+    const canvas = this.getCanvas()
+    // @ts-expect-error - getStage method exists on implementation
+    const stage = canvas.getStage?.() || canvas.konvaStage
+    if (stage && stage.container()) {
+      const container = stage.container()
+      container.style.cursor = `url(${cursorUrl}) ${cursorCanvas.width / 2} ${cursorCanvas.height / 2}, crosshair`
+    }
+  }
+  
+  /**
+   * Handle option changes
+   */
+  protected onOptionChange(key: string, value: unknown): void {
+    switch (key) {
+      case 'size':
+        this.eraserSize = value as number
+        this.currentEraserStamp = null
+        this.updateCursor()
+        break
+      case 'hardness':
+        this.eraserHardness = value as number
+        this.currentEraserStamp = null
+        this.updateCursor()
+        break
+      case 'opacity':
+        this.eraserOpacity = (value as number) / 100
+        break
+      case 'flow':
+        this.eraserFlow = (value as number) / 100
+        break
+      case 'spacing':
+        this.eraserSpacing = (value as number) / 100
+        break
+    }
+  }
+  
+  // Tool options configuration
+  static options = [
+    {
+      id: 'size',
+      type: 'slider' as const,
+      label: 'Size',
+      min: 1,
+      max: 500,
+      default: 20,
+      step: 1
+    },
+    {
+      id: 'hardness',
+      type: 'slider' as const,
+      label: 'Hardness',
+      min: 0,
+      max: 100,
+      default: 100,
+      step: 1
+    },
+    {
+      id: 'opacity',
+      type: 'slider' as const,
+      label: 'Opacity',
+      min: 0,
+      max: 100,
+      default: 100,
+      step: 1
+    },
+    {
+      id: 'flow',
+      type: 'slider' as const,
+      label: 'Flow',
+      min: 0,
+      max: 100,
+      default: 100,
+      step: 1
+    },
+    {
+      id: 'spacing',
+      type: 'slider' as const,
+      label: 'Spacing',
+      min: 1,
+      max: 200,
+      default: 25,
+      step: 1
+    },
+    {
+      id: 'smoothing',
+      type: 'slider' as const,
+      label: 'Smoothing',
+      min: 0,
+      max: 100,
+      default: 0,
+      step: 1
+    },
+    {
+      id: 'pressureSensitivity',
+      type: 'group' as const,
+      label: 'Pressure Sensitivity',
+      children: [
+        {
+          id: 'size',
+          type: 'checkbox' as const,
+          label: 'Size',
+          default: true
+        },
+        {
+          id: 'opacity',
+          type: 'checkbox' as const,
+          label: 'Opacity',
+          default: false
+        },
+        {
+          id: 'flow',
+          type: 'checkbox' as const,
+          label: 'Flow',
+          default: false
+        }
+      ]
+    }
+  ]
+}
+
+// Export singleton instance
+export const eraserTool = new EraserTool() 

@@ -1,14 +1,15 @@
 import { Lasso } from 'lucide-react'
 import Konva from 'konva'
 import { TOOL_IDS } from '@/constants'
-import { BaseTool } from '../base/BaseTool'
+import { ObjectTool } from '../base/ObjectTool'
 import type { ToolEvent, Point } from '@/lib/editor/canvas/types'
+import type { CanvasObject } from '@/lib/editor/objects/types'
 
 /**
- * Lasso Tool - Creates freehand selections
- * Konva implementation with pixel-aware selection and path smoothing
+ * Lasso Tool - Creates freehand selections for objects
+ * Selects objects within the lasso path or pixels within a single object
  */
-export class LassoTool extends BaseTool {
+export class LassoTool extends ObjectTool {
   // Tool identification
   id = TOOL_IDS.LASSO
   name = 'Lasso Tool'
@@ -24,7 +25,7 @@ export class LassoTool extends BaseTool {
   private minDistance = 3 // Minimum distance between points for smoothing
   
   protected setupTool(): void {
-    // No need to create a layer - we'll use the overlay layer when needed
+    // No setup needed - we'll use the overlay layer when needed
   }
   
   protected cleanupTool(): void {
@@ -135,12 +136,83 @@ export class LassoTool extends BaseTool {
     }
     overlayLayer.batchDraw()
     
-    // Create selection from path
-    const selectionManager = canvas.getSelectionManager()
-    
     // Get the current selection mode
     const mode = this.getOption('mode') as 'new' | 'add' | 'subtract' | 'intersect' || 'new'
-    const selectionMode = mode === 'new' ? 'replace' : mode
+    const pixelMode = this.getOption('pixelMode') as boolean || false
+    
+    if (pixelMode && this.getTargetObject()) {
+      // Pixel selection within the selected object
+      await this.createPixelSelection(mode)
+    } else {
+      // Object selection
+      await this.selectObjectsInPath(mode)
+    }
+    
+    // Clean up visual feedback
+    this.cleanupSelection()
+  }
+  
+  /**
+   * Select objects that are within the lasso path
+   */
+  private async selectObjectsInPath(mode: 'new' | 'add' | 'subtract' | 'intersect'): Promise<void> {
+    const canvas = this.getCanvas()
+    const objects = canvas.getAllObjects()
+    const selectedIds: string[] = []
+    
+    // Check each object to see if it's within the path
+    for (const object of objects) {
+      if (object.locked || !object.visible) continue
+      
+      // Check if object center is within the lasso path
+      const centerX = object.x + object.width / 2
+      const centerY = object.y + object.height / 2
+      
+      if (this.isPointInPath(centerX, centerY)) {
+        selectedIds.push(object.id)
+      }
+    }
+    
+    // Apply selection based on mode
+    const currentSelection = Array.from(canvas.state.selectedObjectIds)
+    let finalSelection: string[] = []
+    
+    switch (mode) {
+      case 'new':
+        finalSelection = selectedIds
+        break
+      case 'add':
+        finalSelection = [...new Set([...currentSelection, ...selectedIds])]
+        break
+      case 'subtract':
+        finalSelection = currentSelection.filter(id => !selectedIds.includes(id))
+        break
+      case 'intersect':
+        finalSelection = currentSelection.filter(id => selectedIds.includes(id))
+        break
+    }
+    
+    // Update selection
+    if (finalSelection.length === 0) {
+      canvas.deselectAll()
+    } else if (finalSelection.length === 1) {
+      canvas.selectObject(finalSelection[0])
+    } else {
+      canvas.selectMultiple(finalSelection)
+    }
+  }
+  
+  /**
+   * Create pixel selection within the selected object
+   */
+  private async createPixelSelection(mode: 'new' | 'add' | 'subtract' | 'intersect'): Promise<void> {
+    const canvas = this.getCanvas()
+    const targetObject = this.getTargetObject()
+    
+    if (!targetObject || targetObject.type !== 'image') {
+      console.warn('[LassoTool] Pixel selection requires an image object')
+      return
+    }
     
     // Convert points to SVG path data
     let pathData = `M ${this.points[0].x} ${this.points[0].y}`
@@ -157,13 +229,33 @@ export class LassoTool extends BaseTool {
     pathData += ` Q ${lastPoint.x} ${lastPoint.y} ${this.points[0].x} ${this.points[0].y}`
     pathData += ' Z' // Close path
     
-    // Create selection from path
+    // Create pixel selection
+    const selectionManager = canvas.getSelectionManager()
+    const selectionMode = mode === 'new' ? 'replace' : mode
     selectionManager.createFromPath(pathData, selectionMode)
+  }
+  
+  /**
+   * Check if a point is inside the lasso path
+   */
+  private isPointInPath(x: number, y: number): boolean {
+    // Ray casting algorithm
+    let inside = false
+    const n = this.points.length
     
-    // The selection events will be emitted by the SelectionManager
+    for (let i = 0, j = n - 1; i < n; j = i++) {
+      const xi = this.points[i].x
+      const yi = this.points[i].y
+      const xj = this.points[j].x
+      const yj = this.points[j].y
+      
+      const intersect = ((yi > y) !== (yj > y)) &&
+        (x < (xj - xi) * (y - yi) / (yj - yi) + xi)
+      
+      if (intersect) inside = !inside
+    }
     
-    // Clean up visual feedback
-    this.cleanupSelection()
+    return inside
   }
   
   onKeyDown(event: KeyboardEvent): void {
@@ -214,26 +306,15 @@ export class LassoTool extends BaseTool {
       console.log('[LassoTool] Magnetic lasso not yet implemented')
     }
     
-    // Create selection from provided points
-    const canvas = this.getCanvas()
-    const selectionManager = canvas.getSelectionManager()
-    
     // Get the current selection mode
     const mode = this.getOption('mode') as 'new' | 'add' | 'subtract' | 'intersect' || 'new'
-    const selectionMode = mode === 'new' ? 'replace' : mode
+    const pixelMode = this.getOption('pixelMode') as boolean || false
     
-    // Convert points to SVG path data
-    let pathData = `M ${points[0].x} ${points[0].y}`
-    
-    for (let i = 1; i < points.length; i++) {
-      pathData += ` L ${points[i].x} ${points[i].y}`
+    if (pixelMode && this.getTargetObject()) {
+      await this.createPixelSelection(mode)
+    } else {
+      await this.selectObjectsInPath(mode)
     }
-    pathData += ' Z' // Close path
-    
-    // Create selection from path
-    selectionManager.createFromPath(pathData, selectionMode)
-    
-    // The selection events will be emitted by the SelectionManager
   }
 }
 

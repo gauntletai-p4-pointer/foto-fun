@@ -83,8 +83,8 @@ Use this when you need to understand what's currently on the canvas.`
       
       const analysis: AnalyzeCanvasOutput['analysis'] = {
         dimensions: {
-          width: canvas.state.width,
-          height: canvas.state.height
+          width: (canvas.state.documentBounds?.width || 0),
+          height: (canvas.state.documentBounds?.height || 0)
         },
         hasContent: objects.length > 0,
         objectCount: objects.length,

@@ -28,8 +28,8 @@ export class CropCommand extends Command {
     
     // Store previous state
     this.previousState = {
-      width: canvasManager.state.width,
-      height: canvasManager.state.height
+      width: (canvasManager.state.documentBounds?.width || 0),
+      height: (canvasManager.state.documentBounds?.height || 0)
     }
   }
   
@@ -78,7 +78,7 @@ export class CropCommand extends Command {
            this.cropRect.height > 0 &&
            this.cropRect.x >= 0 &&
            this.cropRect.y >= 0 &&
-           this.cropRect.x + this.cropRect.width <= this.canvasManager.state.width &&
-           this.cropRect.y + this.cropRect.height <= this.canvasManager.state.height
+           this.cropRect.x + this.cropRect.width <= (this.canvasManager.state.documentBounds?.width || 0) &&
+           this.cropRect.y + this.cropRect.height <= (this.canvasManager.state.documentBounds?.height || 0)
   }
 } 

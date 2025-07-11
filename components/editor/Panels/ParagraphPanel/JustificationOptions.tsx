@@ -26,7 +26,7 @@ export function JustificationOptions() {
   
   // Get selected text objects
   const selectedTextObjects = Array.from(selectionState.selectedObjectIds)
-    .map(id => canvasManager.getObjectById(id))
+    .map(id => canvasManager.getObject(id))
     .filter(obj => obj && obj.type === 'text')
   
   // Get current values from first selected text object

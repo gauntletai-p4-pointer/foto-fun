@@ -2,10 +2,12 @@ import { ZoomIn } from 'lucide-react'
 import { TOOL_IDS } from '@/constants'
 import { BaseTool } from '../base/BaseTool'
 import type { ToolEvent, Point } from '@/lib/editor/canvas/types'
+import { NAVIGATION_TOOL_REQUIREMENTS } from '../base/ToolRequirements'
 
 /**
  * Zoom Tool - Canvas zoom control
  * Konva implementation with click zoom and marquee zoom
+ * Works without a document
  */
 export class ZoomTool extends BaseTool {
   // Tool identification
@@ -14,6 +16,9 @@ export class ZoomTool extends BaseTool {
   icon = ZoomIn
   cursor = 'zoom-in'
   shortcut = 'Z'
+  
+  // Navigation tools don't need a document
+  protected requirements = NAVIGATION_TOOL_REQUIREMENTS
   
   // Zoom state
   private isDrawingMarquee = false

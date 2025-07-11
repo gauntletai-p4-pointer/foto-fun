@@ -91,8 +91,8 @@ export function ImageGenerationDialog() {
           targetImages: [],
           targetingMode: 'auto-single',
           dimensions: {
-            width: canvasManager.getWidth(),
-            height: canvasManager.getHeight()
+            width: canvasManager.state.canvasWidth,
+            height: canvasManager.state.canvasHeight
           },
           selection: {
             type: 'none' as const,

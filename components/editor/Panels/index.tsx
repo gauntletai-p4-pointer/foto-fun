@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect } from 'react'
 import { cn } from '@/lib/utils'
-import { LayersPanel } from './LayersPanel'
+import { ObjectsPanel } from './ObjectsPanel'
 import { CharacterPanel } from './CharacterPanel'
 import { ParagraphPanel } from './ParagraphPanel'
 import { GlyphsPanel } from './GlyphsPanel'
@@ -10,10 +10,10 @@ import { TextEffectsPanel } from './TextEffectsPanel'
 import { AdjustmentsPanel } from './AdjustmentsPanel'
 import { AIChat } from './AIChat'
 import { HistoryPanel } from './HistoryPanel'
-import { Bot, Layers, Type, AlignLeft, Sparkles, Shapes, Sliders, Clock } from 'lucide-react'
+import { Bot, Square, Type, AlignLeft, Sparkles, Shapes, Sliders, Clock } from 'lucide-react'
 import { featureManager, FEATURES, type Feature } from '@/lib/config/features'
 
-type PanelType = 'ai' | 'layers' | 'history' | 'character' | 'paragraph' | 'glyphs' | 'effects' | 'adjustments'
+type PanelType = 'ai' | 'objects' | 'history' | 'character' | 'paragraph' | 'glyphs' | 'effects' | 'adjustments'
 
 interface PanelTab {
   id: PanelType
@@ -25,7 +25,7 @@ interface PanelTab {
 
 const allPanels: PanelTab[] = [
   { id: 'ai', label: 'AI', icon: Bot, component: AIChat, feature: FEATURES.AI_CHAT },
-  { id: 'layers', label: 'Layers', icon: Layers, component: LayersPanel },
+  { id: 'objects', label: 'Objects', icon: Square, component: ObjectsPanel },
   { id: 'history', label: 'History', icon: Clock, component: HistoryPanel },
   { id: 'adjustments', label: 'Adjustments', icon: Sliders, component: AdjustmentsPanel },
   { id: 'character', label: 'Character', icon: Type, component: CharacterPanel },
@@ -53,8 +53,8 @@ export function Panels() {
   
   // Set initial panel
   const [activePanel, setActivePanel] = useState<PanelType>(() => {
-    // Default to layers which is always available
-    return 'layers'
+    // Default to objects which is always available
+    return 'objects'
   })
   
   // Update mounted state after hydration
@@ -72,7 +72,7 @@ export function Panels() {
     }
   }, [mounted, panels]) // Include panels dependency
   
-  const ActivePanelComponent = panels.find(p => p.id === activePanel)?.component || LayersPanel
+  const ActivePanelComponent = panels.find(p => p.id === activePanel)?.component || ObjectsPanel
   
   return (
     <div className="w-80 bg-background border-l border-foreground/10 flex flex-col h-full flex-shrink-0 overflow-hidden">

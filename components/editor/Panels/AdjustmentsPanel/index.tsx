@@ -15,7 +15,7 @@ import {
   Camera,
   Brush,
   Focus,
-  Image,
+  Image as ImageIcon,
   CircleOff,
   RotateCcw,
   Check,
@@ -93,7 +93,7 @@ const toolConfigs: Record<string, ToolConfig> = {
     ]
   },
   [TOOL_IDS.GRAYSCALE]: {
-    icon: Image,
+    icon: ImageIcon,
     label: 'Black & White',
     controls: [
       { id: 'enabled', label: 'Apply', type: 'toggle', default: false }
@@ -121,7 +121,7 @@ export function AdjustmentsPanel() {
   if (!isAdjustmentTool || !activeToolId) {
     return (
       <div className="p-4 text-center text-foreground/60">
-        <Image className="w-8 h-8 mx-auto mb-3 opacity-50" alt="" />
+        <ImageIcon className="w-8 h-8 mx-auto mb-3 opacity-50" />
         <p className="text-sm">Select an adjustment or filter tool</p>
       </div>
     )

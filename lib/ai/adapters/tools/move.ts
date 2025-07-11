@@ -145,8 +145,8 @@ The tool works on selected objects or all objects if none selected.`
     canvas: CanvasManager,
     positions: MoveOutput['positions']
   ): Promise<void> {
-    const canvasWidth = canvas.state.width
-    const canvasHeight = canvas.state.height
+    const canvasWidth = (canvas.state.documentBounds?.width || 0)
+    const canvasHeight = (canvas.state.documentBounds?.height || 0)
     
     for (const obj of objects) {
       const oldPos = { x: obj.transform.x, y: obj.transform.y }

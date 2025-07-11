@@ -201,8 +201,8 @@ export class DerivedStore<TParentState, TState> {
  */
 import { useEffect, useState, useRef } from 'react'
 
-export function useStore<TState>(
-  store: BaseStore<TState> | DerivedStore<any, TState>
+export function useStore<TState, TParentState = unknown>(
+  store: BaseStore<TState> | DerivedStore<TParentState, TState>
 ): TState {
   const [state, setState] = useState(() => store.getState())
   const storeRef = useRef(store)

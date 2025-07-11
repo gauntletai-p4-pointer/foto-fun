@@ -1,11 +1,14 @@
 import { CanvasManager } from './CanvasManager'
 import { EventStore } from '@/lib/events/core/EventStore'
 import { ResourceManager } from '@/lib/core/ResourceManager'
+import { TypedEventBus } from '@/lib/events/core/TypedEventBus'
+import { ObjectManager } from '@/lib/editor/objects/ObjectManager'
 import { ExecutionContext } from '@/lib/events/execution/ExecutionContext'
+import { ServiceContainer } from '@/lib/core/ServiceContainer'
 
 /**
  * Factory for creating CanvasManager instances
- * Ensures proper dependency injection and initialization
+ * Creates object-based CanvasManager implementation
  */
 export class CanvasManagerFactory {
   constructor(
@@ -20,11 +23,16 @@ export class CanvasManagerFactory {
     container: HTMLDivElement,
     executionContext?: ExecutionContext
   ): CanvasManager {
+    // Get services from container
+    const serviceContainer = ServiceContainer.getInstance()
+    const typedEventBus = serviceContainer.getSync<TypedEventBus>('TypedEventBus')
+    const objectManager = serviceContainer.getSync<ObjectManager>('ObjectManager')
+    
+    // Create CanvasManager which implements our new object-based architecture
     const canvas = new CanvasManager(
       container,
-      this.eventStore,
-      this.resourceManager,
-      executionContext
+      typedEventBus,
+      objectManager
     )
     
     // Register for cleanup

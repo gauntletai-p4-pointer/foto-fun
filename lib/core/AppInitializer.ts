@@ -5,10 +5,13 @@ import { ResourceManager } from './ResourceManager'
 import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
 import type { DocumentSerializer } from '@/lib/editor/persistence/DocumentSerializer'
 import type { ExportManager } from '@/lib/editor/export/ExportManager'
+import type { ImageLoaderService } from '@/lib/editor/canvas/services/ImageLoaderService'
+import type { LayerManager } from '@/lib/editor/canvas/services/LayerManager'
+import type { RenderPipeline } from '@/lib/editor/canvas/services/RenderPipeline'
 
 // Event System
 import { EventStore } from '@/lib/events/core/EventStore'
-import { getTypedEventBus } from '@/lib/events/core/TypedEventBus'
+import { TypedEventBus } from '@/lib/events/core/TypedEventBus'
 import { EventStoreBridge } from '@/lib/events/core/EventStoreBridge'
 
 // Stores
@@ -16,9 +19,10 @@ import { TypedCanvasStore } from '@/lib/store/canvas/TypedCanvasStore'
 import { EventToolStore } from '@/lib/store/tools/EventToolStore'
 import { EventLayerStore } from '@/lib/store/layers/EventLayerStore'
 import { EventSelectionStore } from '@/lib/store/selection/EventSelectionStore'
-import { EventDocumentStore } from '@/lib/store/document/EventDocumentStore'
 import { EventColorStore } from '@/lib/store/color/EventColorStore'
 import { getHistoryStore } from '@/lib/events/history/EventBasedHistoryStore'
+import { ObjectManager } from '@/lib/editor/objects'
+import { ObjectStore } from '@/lib/store/objects'
 
 // Managers
 import { FontManager } from '@/lib/editor/fonts/FontManager'
@@ -39,7 +43,7 @@ export class AppInitializer {
     
     // Event System - Use singleton instance
     container.registerSingleton('EventStore', () => EventStore.getInstance())
-    container.registerSingleton('TypedEventBus', () => getTypedEventBus())
+    container.registerSingleton('TypedEventBus', () => new TypedEventBus())
     
     // Initialize the EventStoreBridge to connect EventStore to TypedEventBus
     container.registerSingleton('EventStoreBridge', () => {
@@ -63,6 +67,31 @@ export class AppInitializer {
     // Register a placeholder for the active CanvasManager instance
     // This will be set by the Canvas component when it creates the manager
     container.registerSingleton('CanvasManager', () => null)
+    
+    // Image Loading Services
+    container.registerSingleton('ImageLoaderService', async () => {
+      const { ImageLoaderService } = await import('@/lib/editor/canvas/services/ImageLoaderService')
+      const service = new ImageLoaderService()
+      return service
+    })
+    
+    // Layer Manager - Transient that requires CanvasManager
+    container.registerTransient('LayerManager', async () => {
+      const { LayerManager } = await import('@/lib/editor/canvas/services/LayerManager')
+      // This will be called when needed, so CanvasManager should be available by then
+      const canvasManager = container.getSync<CanvasManager>('CanvasManager')
+      return new LayerManager(canvasManager)
+    })
+    
+    // Render Pipeline - Transient that requires CanvasManager
+    container.registerTransient('RenderPipeline', async () => {
+      const { RenderPipeline } = await import('@/lib/editor/canvas/services/RenderPipeline')
+      // This will be called when needed, so CanvasManager should be available by then
+      const canvasManager = container.getSync<CanvasManager>('CanvasManager')
+      return new RenderPipeline(canvasManager)
+    })
+    
+
     
     // Stores
     container.registerSingleton('CanvasStore', () => 
@@ -99,21 +128,26 @@ export class AppInitializer {
       return store
     })
     
-    container.registerSingleton('DocumentStore', () => {
-      const store = new EventDocumentStore(
-        container.getSync('EventStore'),
-        container.getSync('TypedEventBus')
-      )
-      store.initialize()
-      return store
-    })
-    
     // Register ColorStore
     container.registerSingleton('ColorStore', () => {
       const store = new EventColorStore(
         container.getSync('EventStore')
       )
       return store
+    })
+
+    // Register ObjectStore
+    container.registerSingleton('ObjectStore', () => {
+      const store = new ObjectStore(container.getSync('TypedEventBus'))
+      return store
+    })
+
+    // Register ObjectManager
+    container.registerSingleton('ObjectManager', () => {
+      return new ObjectManager(
+        container.getSync('TypedEventBus'),
+        container.getSync('EventStore')
+      )
     })
 
     // Register EventBasedHistoryStore
@@ -220,7 +254,7 @@ export class AppInitializer {
 // React integration
 import { createContext, useContext, useState, useEffect } from 'react'
 
-const ServiceContainerContext = createContext<ServiceContainer | null>(null)
+export const ServiceContainerContext = createContext<ServiceContainer | null>(null)
 
 export const ServiceContainerProvider = ServiceContainerContext.Provider
 
@@ -230,6 +264,14 @@ export function useService<T>(token: string): T {
     throw new Error('useService must be used within ServiceContainerProvider')
   }
   return container.getSync<T>(token)
+}
+
+export function useServiceContainer(): ServiceContainer {
+  const container = useContext(ServiceContainerContext)
+  if (!container) {
+    throw new Error('useServiceContainer must be used within ServiceContainerProvider')
+  }
+  return container
 }
 
 // Async service hook for components that need async services

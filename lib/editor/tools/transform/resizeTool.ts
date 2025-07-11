@@ -1,14 +1,16 @@
 import { Maximize2 } from 'lucide-react'
 import { TOOL_IDS } from '@/constants'
-import { BaseTool } from '../base/BaseTool'
-import type { CanvasObject, Transform } from '@/lib/editor/canvas/types'
+import { ObjectTool } from '../base/ObjectTool'
+import type { CanvasObject } from '@/lib/editor/objects/types'
+import type { Transform } from '@/lib/editor/canvas/types'
 import { ObjectsTransformedEvent } from '@/lib/events/canvas/ToolEvents'
+import Konva from 'konva'
 
 /**
- * Resize Tool - Smart resizing with quality options
- * Konva implementation with proper scaling and positioning
+ * Resize Tool - Smart resizing with quality options for objects
+ * Works with object-based architecture
  */
-export class ResizeTool extends BaseTool {
+export class ResizeTool extends ObjectTool {
   // Tool identification
   id = TOOL_IDS.RESIZE
   name = 'Resize'
@@ -18,30 +20,85 @@ export class ResizeTool extends BaseTool {
   
   // Track resize state
   private isResizing = false
-  private lastScaleX = 1
-  private lastScaleY = 1
-  private originalCanvasSize = { width: 0, height: 0 }
+  private transformer: Konva.Transformer | null = null
   
   protected setupTool(): void {
     const canvas = this.getCanvas()
     
-    // Capture original canvas dimensions
-    this.originalCanvasSize = {
-      width: canvas.state.width,
-      height: canvas.state.height
-    }
-    
     // Initialize tool options
-    this.setOption('mode', 'percentage')
+    this.setOption('mode', 'percentage') // 'percentage' or 'absolute'
     this.setOption('percentage', 100)
-    this.setOption('width', canvas.state.width)
-    this.setOption('height', canvas.state.height)
+    this.setOption('width', 100)
+    this.setOption('height', 100)
     this.setOption('maintainAspectRatio', true)
+    this.setOption('anchorPoint', 'center') // 'center', 'topLeft', 'topRight', 'bottomLeft', 'bottomRight'
+    
+    // Create transformer for visual feedback
+    const stage = canvas.konvaStage
+    const overlayLayer = stage.children[2] as Konva.Layer
+    
+    this.transformer = new Konva.Transformer({
+      enabledAnchors: ['top-left', 'top-right', 'bottom-left', 'bottom-right'],
+      boundBoxFunc: (oldBox, newBox) => {
+        // Maintain aspect ratio if enabled
+        if (this.getOption('maintainAspectRatio')) {
+          const aspectRatio = oldBox.width / oldBox.height
+          const newAspectRatio = newBox.width / newBox.height
+          
+          if (newAspectRatio > aspectRatio) {
+            newBox.height = newBox.width / aspectRatio
+          } else {
+            newBox.width = newBox.height * aspectRatio
+          }
+        }
+        return newBox
+      }
+    })
+    
+    overlayLayer.add(this.transformer)
+    
+    // Update transformer when selection changes
+    this.updateTransformer()
   }
   
   protected cleanupTool(): void {
-    // Reset state but keep transformations
+    // Clean up transformer
+    if (this.transformer) {
+      this.transformer.destroy()
+      this.transformer = null
+    }
+    
+    // Reset state
     this.isResizing = false
+  }
+  
+  /**
+   * Update transformer based on selected objects
+   */
+  private updateTransformer(): void {
+    if (!this.transformer) return
+    
+    const targets = this.getTargetObjects()
+    const canvas = this.getCanvas()
+    const stage = canvas.konvaStage
+    const mainLayer = stage.children[1] as Konva.Layer
+    
+    if (targets.length === 0) {
+      this.transformer.nodes([])
+    } else {
+      // Find Konva nodes for selected objects
+      const nodes: Konva.Node[] = []
+      for (const target of targets) {
+        const node = mainLayer.findOne(`#${target.id}`)
+        if (node) {
+          nodes.push(node)
+        }
+      }
+      this.transformer.nodes(nodes)
+    }
+    
+    const overlayLayer = stage.children[2] as Konva.Layer
+    overlayLayer.batchDraw()
   }
   
   protected onOptionChange(key: string, value: unknown): void {
@@ -52,13 +109,19 @@ export class ResizeTool extends BaseTool {
     
     if (mode === 'percentage' && key === 'percentage') {
       const percentage = value as number
-      this.applyResize('percentage', percentage, percentage, maintainAspectRatio)
+      this.applyResize(percentage / 100, percentage / 100, maintainAspectRatio)
     } else if (mode === 'absolute' && (key === 'width' || key === 'height')) {
       const width = this.getOption('width') as number
       const height = this.getOption('height') as number
-      const widthPercentage = (width / this.originalCanvasSize.width) * 100
-      const heightPercentage = (height / this.originalCanvasSize.height) * 100
-      this.applyResize('absolute', widthPercentage, heightPercentage, maintainAspectRatio)
+      
+      // Get first selected object to calculate scale
+      const targets = this.getTargetObjects()
+      if (targets.length > 0) {
+        const target = targets[0]
+        const scaleX = width / target.width
+        const scaleY = height / target.height
+        this.applyResize(scaleX, scaleY, maintainAspectRatio)
+      }
     }
   }
   
@@ -66,9 +129,8 @@ export class ResizeTool extends BaseTool {
    * Apply resize transformation
    */
   async applyResize(
-    mode: 'percentage' | 'absolute',
-    widthValue: number,
-    heightValue: number,
+    scaleX: number,
+    scaleY: number,
     maintainAspectRatio: boolean
   ): Promise<void> {
     if (this.isResizing) return
@@ -77,18 +139,15 @@ export class ResizeTool extends BaseTool {
     
     try {
       const targets = this.getTargetObjects()
+      const canvas = this.getCanvas()
       
       if (targets.length === 0) {
         console.warn('[ResizeTool] No objects to resize')
         return
       }
       
-      // Calculate scale factors
-      let scaleX = widthValue / 100
-      let scaleY = heightValue / 100
-      
+      // Maintain aspect ratio if needed
       if (maintainAspectRatio) {
-        // Use the smaller scale to maintain aspect ratio
         const scale = Math.min(scaleX, scaleY)
         scaleX = scale
         scaleY = scale
@@ -96,78 +155,69 @@ export class ResizeTool extends BaseTool {
       
       const transformedObjects: Array<{
         objectId: string
-        before: Transform
-        after: Transform
+        before: Partial<CanvasObject>
+        after: Partial<CanvasObject>
       }> = []
+      
+      const anchorPoint = this.getOption('anchorPoint') as string
       
       // Apply resize to each target
       for (const target of targets) {
-        const before = { ...target.transform }
-        
-        // Calculate new scale relative to last scale
-        const relativeScaleX = scaleX / this.lastScaleX
-        const relativeScaleY = scaleY / this.lastScaleY
-        
-        const newScaleX = (target.transform.scaleX || 1) * relativeScaleX
-        const newScaleY = (target.transform.scaleY || 1) * relativeScaleY
-        
-        // Calculate new position to keep centered
-        const canvas = this.getCanvas()
-        const centerX = canvas.state.width / 2
-        const centerY = canvas.state.height / 2
-        
-        // Get object dimensions from node
-        const nodeWidth = target.node.width() || 0
-        const nodeHeight = target.node.height() || 0
-        
-        // Get object center
-        const objCenterX = target.transform.x + (nodeWidth * (target.transform.scaleX || 1)) / 2
-        const objCenterY = target.transform.y + (nodeHeight * (target.transform.scaleY || 1)) / 2
-        
-        // Calculate new position
-        const newCenterX = centerX + (objCenterX - centerX) * relativeScaleX
-        const newCenterY = centerY + (objCenterY - centerY) * relativeScaleY
-        
-        const newX = newCenterX - (nodeWidth * newScaleX) / 2
-        const newY = newCenterY - (nodeHeight * newScaleY) / 2
-        
-        // Update transform
-        target.transform = {
-          ...target.transform,
-          x: newX,
-          y: newY,
-          scaleX: newScaleX,
-          scaleY: newScaleY
+        const before = {
+          x: target.x,
+          y: target.y,
+          width: target.width,
+          height: target.height,
+          scaleX: target.scaleX,
+          scaleY: target.scaleY
         }
         
-        // Update Konva node
-        target.node.setAttrs({
+        // Calculate new dimensions
+        const newWidth = target.width * scaleX
+        const newHeight = target.height * scaleY
+        
+        // Calculate new position based on anchor point
+        let newX = target.x
+        let newY = target.y
+        
+        switch (anchorPoint) {
+          case 'center':
+            newX = target.x + (target.width - newWidth) / 2
+            newY = target.y + (target.height - newHeight) / 2
+            break
+          case 'topRight':
+            newX = target.x + (target.width - newWidth)
+            // newY stays the same
+            break
+          case 'bottomLeft':
+            // newX stays the same
+            newY = target.y + (target.height - newHeight)
+            break
+          case 'bottomRight':
+            newX = target.x + (target.width - newWidth)
+            newY = target.y + (target.height - newHeight)
+            break
+          // 'topLeft' is default - position doesn't change
+        }
+        
+        // Update object
+        const updates = {
           x: newX,
           y: newY,
-          scaleX: newScaleX,
-          scaleY: newScaleY
-        })
+          width: newWidth,
+          height: newHeight,
+          scaleX: target.scaleX * scaleX,
+          scaleY: target.scaleY * scaleY
+        }
         
-        const after = { ...target.transform }
+        await canvas.updateObject(target.id, updates)
+        
+        const after = { ...updates }
         transformedObjects.push({ objectId: target.id, before, after })
       }
       
-      // Redraw all affected layers
-      const affectedLayers = new Set<string>()
-      for (const target of targets) {
-        const layer = this.findLayerForObject(target)
-        if (layer) {
-          affectedLayers.add(layer.id)
-        }
-      }
-      
-      const canvas = this.getCanvas()
-      for (const layerId of affectedLayers) {
-        const layer = canvas.state.layers.find(l => l.id === layerId)
-        if (layer) {
-          layer.konvaLayer.batchDraw()
-        }
-      }
+      // Update transformer
+      this.updateTransformer()
       
       // Emit event if in ExecutionContext
       if (this.executionContext && transformedObjects.length > 0) {
@@ -175,64 +225,36 @@ export class ResizeTool extends BaseTool {
           'canvas',
           transformedObjects.map(t => ({
             objectId: t.objectId,
-            previousTransform: { ...t.before } as unknown as Record<string, unknown>,
-            newTransform: { ...t.after } as unknown as Record<string, unknown>
+            previousTransform: t.before as Record<string, unknown>,
+            newTransform: t.after as Record<string, unknown>
           })),
           this.executionContext.getMetadata()
         ))
       }
-      
-      // Update state
-      this.lastScaleX = scaleX
-      this.lastScaleY = scaleY
       
     } finally {
       this.isResizing = false
     }
   }
   
-  /**
-   * Get target objects based on selection
-   */
-  private getTargetObjects(): CanvasObject[] {
-    const canvas = this.getCanvas()
-    const selection = canvas.state.selection
+  onMouseDown(): void {
+    // Update transformer when clicking
+    this.updateTransformer()
+  }
+  
+  onActivate(canvas: import('@/lib/editor/canvas/types').CanvasManager): void {
+    super.onActivate(canvas)
+    // Update transformer when tool is activated
+    this.updateTransformer()
     
-    if (selection?.type === 'objects') {
-      // Resize selected objects
-      return selection.objectIds
-        .map(id => this.findObject(id))
-        .filter((obj): obj is CanvasObject => obj !== null && !obj.locked)
-    } else {
-      // Resize all objects on active layer
-      const activeLayer = canvas.state.layers.find(l => l.id === canvas.state.activeLayerId)
-      if (activeLayer) {
-        return activeLayer.objects.filter(obj => !obj.locked && obj.visible)
-      }
-      return []
-    }
+    // Listen for selection changes
+    canvas.on?.('selection:changed', () => this.updateTransformer())
   }
   
-  /**
-   * Find an object by ID
-   */
-  private findObject(objectId: string): CanvasObject | null {
-    const canvas = this.getCanvas()
-    for (const layer of canvas.state.layers) {
-      const obj = layer.objects.find(o => o.id === objectId)
-      if (obj) return obj
-    }
-    return null
-  }
-  
-  /**
-   * Find the layer containing an object
-   */
-  private findLayerForObject(obj: CanvasObject) {
-    const canvas = this.getCanvas()
-    return canvas.state.layers.find(layer => 
-      layer.objects.some(o => o.id === obj.id)
-    )
+  onDeactivate(canvas: import('@/lib/editor/canvas/types').CanvasManager): void {
+    super.onDeactivate(canvas)
+    // Remove event listeners
+    canvas.off?.('selection:changed', () => this.updateTransformer())
   }
   
   /**
@@ -244,22 +266,23 @@ export class ResizeTool extends BaseTool {
     targetObjects?: CanvasObject[]
   ): Promise<void> {
     if (targetObjects) {
-      // Store current targets and apply to specific objects
+      // Store current selection and apply to specific objects
       const canvas = this.getCanvas()
-      const originalSelection = canvas.state.selection
+      const originalSelection = Array.from(canvas.state.selectedObjectIds)
       
       // Temporarily set selection to target objects
-      canvas.state.selection = {
-        type: 'objects',
-        objectIds: targetObjects.map(obj => obj.id)
-      }
+      canvas.selectMultiple(targetObjects.map(obj => obj.id))
       
-      await this.applyResize('percentage', scalePercentage, scalePercentage, maintainAspectRatio)
+      await this.applyResize(scalePercentage / 100, scalePercentage / 100, maintainAspectRatio)
       
       // Restore original selection
-      canvas.state.selection = originalSelection
+      if (originalSelection.length === 0) {
+        canvas.deselectAll()
+      } else {
+        canvas.selectMultiple(originalSelection)
+      }
     } else {
-      await this.applyResize('percentage', scalePercentage, scalePercentage, maintainAspectRatio)
+      await this.applyResize(scalePercentage / 100, scalePercentage / 100, maintainAspectRatio)
     }
   }
 }

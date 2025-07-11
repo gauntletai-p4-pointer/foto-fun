@@ -1,15 +1,16 @@
 import { Wand2 } from 'lucide-react'
 import Konva from 'konva'
 import { TOOL_IDS } from '@/constants'
-import { BaseTool } from '../base/BaseTool'
+import { ObjectTool } from '../base/ObjectTool'
 import type { ToolEvent, Point, Selection } from '@/lib/editor/canvas/types'
+import type { CanvasObject } from '@/lib/editor/objects/types'
 import { SelectionCreatedEvent } from '@/lib/events/canvas/ToolEvents'
 
 /**
- * Magic Wand Tool - Selects areas of similar color
- * Konva implementation with flood fill algorithm and tolerance
+ * Magic Wand Tool - Selects areas of similar color within objects
+ * Works on individual objects to create pixel selections
  */
-export class MagicWandTool extends BaseTool {
+export class MagicWandTool extends ObjectTool {
   // Tool identification
   id = TOOL_IDS.MAGIC_WAND
   name = 'Magic Wand Tool'
@@ -23,12 +24,10 @@ export class MagicWandTool extends BaseTool {
   private isSelecting = false
   
   protected setupTool(): void {
-    // No need to create a layer - we'll use the overlay layer when needed
-    
     // Set default options
     this.setOption('tolerance', 32) // 0-255 range
     this.setOption('contiguous', true) // Select only connected pixels
-    this.setOption('sampleAllLayers', false) // Sample from all layers or just active
+    this.setOption('mode', 'new') // Selection mode
   }
   
   protected cleanupTool(): void {
@@ -53,10 +52,31 @@ export class MagicWandTool extends BaseTool {
   async onMouseDown(event: ToolEvent): Promise<void> {
     if (this.isSelecting) return
     
+    const canvas = this.getCanvas()
+    const point = event.point
+    
+    // Find which object was clicked
+    const clickedObject = await this.getObjectAtPoint(point)
+    
+    if (!clickedObject) {
+      console.warn('[MagicWandTool] No object at click point')
+      return
+    }
+    
+    // Select the object if it's not already selected
+    if (!canvas.state.selectedObjectIds.has(clickedObject.id)) {
+      canvas.selectObject(clickedObject.id)
+    }
+    
+    // Only work on image objects
+    if (clickedObject.type !== 'image') {
+      console.warn('[MagicWandTool] Can only select pixels in image objects')
+      return
+    }
+    
     this.isSelecting = true
     
     // Create selection group in overlay layer
-    const canvas = this.getCanvas()
     const stage = canvas.konvaStage
     const overlayLayer = stage.children[2] as Konva.Layer
     if (!overlayLayer) {
@@ -68,18 +88,31 @@ export class MagicWandTool extends BaseTool {
     overlayLayer.add(this.selectionGroup)
     
     try {
-      const point = event.point
-      
       // Get tool options
       const tolerance = (this.getOption('tolerance') as number) || 32
       const contiguous = (this.getOption('contiguous') as boolean) !== false
-      // const sampleAllLayers = (this.getOption('sampleAllLayers') as boolean) || false
+      const mode = this.getOption('mode') as 'new' | 'add' | 'subtract' | 'intersect' || 'new'
       
-      // Get image data from canvas
-      const imageData = canvas.getImageData()
+      // Get image data from the specific object
+      const imageData = await this.getObjectImageData(clickedObject)
+      if (!imageData) {
+        console.error('[MagicWandTool] Could not get image data from object')
+        return
+      }
+      
+      // Convert click point to object-relative coordinates
+      const relativeX = point.x - clickedObject.x
+      const relativeY = point.y - clickedObject.y
+      
+      // Check bounds
+      if (relativeX < 0 || relativeX >= imageData.width || 
+          relativeY < 0 || relativeY >= imageData.height) {
+        console.warn('[MagicWandTool] Click point outside object bounds')
+        return
+      }
       
       // Get the color at the clicked point
-      const pixelIndex = (Math.floor(point.y) * imageData.width + Math.floor(point.x)) * 4
+      const pixelIndex = (Math.floor(relativeY) * imageData.width + Math.floor(relativeX)) * 4
       const targetColor = {
         r: imageData.data[pixelIndex],
         g: imageData.data[pixelIndex + 1],
@@ -95,13 +128,13 @@ export class MagicWandTool extends BaseTool {
         this.floodFill(
           imageData,
           selectionMask,
-          Math.floor(point.x),
-          Math.floor(point.y),
+          Math.floor(relativeX),
+          Math.floor(relativeY),
           targetColor,
           tolerance
         )
       } else {
-        // Select all similar colors in the image
+        // Select all similar colors in the object
         this.selectSimilarColors(
           imageData,
           selectionMask,
@@ -117,18 +150,28 @@ export class MagicWandTool extends BaseTool {
         // Create cropped mask for the selection
         const croppedMask = this.cropImageData(selectionMask, bounds)
         
-        // Create pixel selection
-        const selection: Selection = {
-          type: 'pixel',
-          bounds,
-          mask: croppedMask
+        // Adjust bounds to be relative to canvas
+        const canvasBounds = {
+          x: bounds.x + clickedObject.x,
+          y: bounds.y + clickedObject.y,
+          width: bounds.width,
+          height: bounds.height
         }
         
-        // Set selection on canvas
-        canvas.setSelection(selection)
+        // Apply selection based on mode
+        const selectionManager = canvas.getSelectionManager()
+        const selectionMode = mode === 'new' ? 'replace' : mode
+        
+        // Apply the selection mask
+        selectionManager.applySelection(croppedMask, selectionMode)
         
         // Emit event if in ExecutionContext
         if (this.executionContext) {
+          const selection: Selection = {
+            type: 'pixel',
+            bounds: canvasBounds,
+            mask: croppedMask
+          }
           await this.executionContext.emit(new SelectionCreatedEvent(
             'canvas',
             selection,
@@ -137,12 +180,64 @@ export class MagicWandTool extends BaseTool {
         }
         
         // Show visual feedback
-        this.showSelectionFeedback(bounds)
+        this.showSelectionFeedback(canvasBounds)
       }
       
     } finally {
       this.isSelecting = false
     }
+  }
+  
+  /**
+   * Get object at a specific point
+   */
+  private async getObjectAtPoint(point: Point): Promise<CanvasObject | null> {
+    const canvas = this.getCanvas()
+    const objects = canvas.getAllObjects()
+    
+    // Check objects in reverse order (top to bottom)
+    for (let i = objects.length - 1; i >= 0; i--) {
+      const obj = objects[i]
+      if (!obj.visible || obj.locked) continue
+      
+      // Check if point is within object bounds
+      if (point.x >= obj.x && point.x <= obj.x + obj.width &&
+          point.y >= obj.y && point.y <= obj.y + obj.height) {
+        return obj
+      }
+    }
+    
+    return null
+  }
+  
+  /**
+   * Get image data from an object
+   */
+  private async getObjectImageData(object: CanvasObject): Promise<ImageData | null> {
+    if (object.type !== 'image') return null
+    
+    // Get the Konva node for this object
+    const canvas = this.getCanvas()
+    const stage = canvas.konvaStage
+    const mainLayer = stage.children[1] as Konva.Layer
+    
+    const node = mainLayer.findOne(`#${object.id}`) as Konva.Image
+    if (!node) return null
+    
+    // Create a temporary canvas to get the image data
+    const tempCanvas = document.createElement('canvas')
+    tempCanvas.width = object.width
+    tempCanvas.height = object.height
+    const ctx = tempCanvas.getContext('2d')!
+    
+    // Draw the image
+    const image = node.image() as HTMLImageElement
+    if (image) {
+      ctx.drawImage(image, 0, 0, object.width, object.height)
+      return ctx.getImageData(0, 0, object.width, object.height)
+    }
+    
+    return null
   }
   
   /**
@@ -383,7 +478,7 @@ export class MagicWandTool extends BaseTool {
     options?: {
       tolerance?: number
       contiguous?: boolean
-      sampleAllLayers?: boolean
+      mode?: 'new' | 'add' | 'subtract' | 'intersect'
     }
   ): Promise<void> {
     // Set options
@@ -393,8 +488,8 @@ export class MagicWandTool extends BaseTool {
     if (options?.contiguous !== undefined) {
       this.setOption('contiguous', options.contiguous)
     }
-    if (options?.sampleAllLayers !== undefined) {
-      this.setOption('sampleAllLayers', options.sampleAllLayers)
+    if (options?.mode !== undefined) {
+      this.setOption('mode', options.mode)
     }
     
     // Simulate mouse click at the point

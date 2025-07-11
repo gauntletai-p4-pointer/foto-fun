@@ -8,11 +8,9 @@ import { ToolPalette } from '@/components/editor/ToolPalette'
 import { Panels } from '@/components/editor/Panels'
 import { OptionsBar } from '@/components/editor/OptionsBar'
 import { StatusBar } from '@/components/editor/StatusBar'
-import { NewDocumentDialog } from '@/components/dialogs/NewDocumentDialog'
 import { ImageGenerationDialog } from '@/components/editor/dialogs/ImageGenerationDialog'
 import { useService } from '@/lib/core/AppInitializer'
 import { useStore } from '@/lib/store/base/BaseStore'
-import { EventDocumentStore } from '@/lib/store/document/EventDocumentStore'
 import { EventToolStore } from '@/lib/store/tools/EventToolStore'
 import { createClient } from '@/lib/db/supabase/client'
 import { eventHistoryKeyboardHandlers } from '@/lib/events/history/EventBasedHistoryStore'
@@ -35,21 +33,8 @@ const Canvas = dynamic(
 
 // Inner component that uses services
 function EditorContent() {
-  const documentStore = useService<EventDocumentStore>('DocumentStore')
-  const documentState = useStore(documentStore)
-  const currentDocument = documentState.currentDocument
-  
   const toolStore = useService<EventToolStore>('ToolStore')
   const toolState = useStore(toolStore)
-  
-  const [showNewDocumentDialog, setShowNewDocumentDialog] = useState(false)
-  
-  // Create default document on mount if none exists
-  useEffect(() => {
-    if (!currentDocument) {
-      documentStore.createNewDocument('default')
-    }
-  }, [currentDocument, documentStore])
   
   // Handle keyboard shortcuts
   useEffect(() => {
@@ -76,19 +61,11 @@ function EditorContent() {
         return
       }
       
-      // Save (Cmd/Ctrl + S)
+      // Save (Cmd/Ctrl + S) - now saves project/workspace
       if (isMeta && e.key === 's') {
         e.preventDefault()
-        if (currentDocument) {
-          documentStore.saveDocument()
-        }
-        return
-      }
-      
-      // New document (Cmd/Ctrl + N)
-      if (isMeta && e.key === 'n') {
-        e.preventDefault()
-        setShowNewDocumentDialog(true)
+        // TODO: Implement project save
+        console.log('Save project')
         return
       }
       
@@ -108,7 +85,7 @@ function EditorContent() {
     
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [currentDocument, documentStore, toolState.tools, toolStore])
+  }, [toolState.tools, toolStore])
   
   return (
     <div className="h-screen flex flex-col bg-[#1e1e1e] text-gray-200 overflow-hidden">
@@ -120,10 +97,6 @@ function EditorContent() {
         <Panels />
       </div>
       <StatusBar />
-      <NewDocumentDialog 
-        open={showNewDocumentDialog}
-        onOpenChange={setShowNewDocumentDialog}
-      />
       <ImageGenerationDialog />
     </div>
   )

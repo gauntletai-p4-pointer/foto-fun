@@ -1,8 +1,5 @@
 import { z } from 'zod'
-import { FilterToolAdapter } from '../base'
-import type { CanvasContext } from '@/lib/ai/tools/canvas-bridge'
-import type { ExecutionContext } from '@/lib/events/execution/ExecutionContext'
-import type { Filter } from '@/lib/editor/canvas/types'
+import { UnifiedToolAdapter, type ObjectCanvasContext } from '../base/UnifiedToolAdapter'
 import { brightnessTool } from '@/lib/editor/tools/adjustments/brightnessTool'
 
 // Define parameter schema
@@ -18,15 +15,15 @@ interface BrightnessOutput {
   success: boolean
   adjustment: number
   message: string
-  targetingMode: 'selection' | 'auto-single' | 'all' | 'none'
+  affectedObjects: string[]
 }
 
 /**
  * Adapter for the brightness adjustment tool
  * Provides AI-compatible interface for adjusting image brightness
  */
-export class BrightnessToolAdapter extends FilterToolAdapter<BrightnessInput, BrightnessOutput> {
-  tool = brightnessTool
+export class BrightnessToolAdapter extends UnifiedToolAdapter<BrightnessInput, BrightnessOutput> {
+  toolId = 'brightness'
   aiName = 'adjust_brightness'
   description = `Adjust the brightness of images. 
   
@@ -40,53 +37,59 @@ export class BrightnessToolAdapter extends FilterToolAdapter<BrightnessInput, Br
   
   NEVER ask for exact values - interpret the user's intent.`
   
-  metadata = {
-    category: 'canvas-editing' as const,
-    executionType: 'fast' as const,
-    worksOn: 'existing-image' as const
-  }
-  
   inputSchema = brightnessParameters
-  
-  protected getFilterType(): string {
-    return 'brightness'
-  }
-  
-  protected createFilter(params: BrightnessInput): Filter {
-    return {
-      type: 'brightness',
-      params: { value: params.adjustment }
-    }
-  }
-  
-  protected shouldApplyFilter(params: BrightnessInput): boolean {
-    return params.adjustment !== 0
-  }
-  
-  protected getActionVerb(): string {
-    return 'adjust brightness'
-  }
   
   async execute(
     params: BrightnessInput, 
-    context: CanvasContext,
-    executionContext?: ExecutionContext
+    context: ObjectCanvasContext
   ): Promise<BrightnessOutput> {
-    return this.executeWithCommonPatterns(
-      params,
-      context,
-      async (images, execContext) => {
-        console.log(`[BrightnessAdapter] Applying brightness adjustment: ${params.adjustment}%`)
-        
-        // Apply brightness filter to all target images
-        await this.applyFilterToImages(images, params, context.canvas, execContext)
-        
-        return {
-          adjustment: params.adjustment,
-          message: `Brightness adjusted by ${params.adjustment > 0 ? '+' : ''}${params.adjustment}%`
-        }
-      },
-      executionContext
-    )
+    const targets = this.getTargets(context)
+    const imageObjects = targets.filter(obj => obj.type === 'image')
+    
+    if (imageObjects.length === 0) {
+      return {
+        success: false,
+        adjustment: params.adjustment,
+        message: 'No image objects found to adjust',
+        affectedObjects: []
+      }
+    }
+    
+    console.log(`[BrightnessAdapter] Applying brightness adjustment: ${params.adjustment}% to ${imageObjects.length} objects`)
+    
+    // Apply brightness adjustment to each image object
+    const affectedObjects: string[] = []
+    
+    for (const obj of imageObjects) {
+      // Add brightness to the object's adjustments array
+      const adjustments = obj.adjustments || []
+      
+      // Remove any existing brightness adjustments
+      const filteredAdjustments = adjustments.filter(adj => adj.type !== 'brightness')
+      
+      // Add new brightness adjustment if not zero
+      if (params.adjustment !== 0) {
+        filteredAdjustments.push({
+          id: `brightness-${Date.now()}`,
+          type: 'brightness',
+          params: { value: params.adjustment },
+          enabled: true
+        })
+      }
+      
+      // Update the object
+      await context.canvas.updateObject(obj.id, {
+        adjustments: filteredAdjustments
+      })
+      
+      affectedObjects.push(obj.id)
+    }
+    
+    return {
+      success: true,
+      adjustment: params.adjustment,
+      message: `Brightness adjusted by ${params.adjustment > 0 ? '+' : ''}${params.adjustment}% on ${affectedObjects.length} object(s)`,
+      affectedObjects
+    }
   }
 } 

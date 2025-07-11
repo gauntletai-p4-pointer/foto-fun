@@ -1,16 +1,15 @@
 import { Move } from 'lucide-react'
 import Konva from 'konva'
 import { TOOL_IDS } from '@/constants'
-import { BaseTool } from '../base/BaseTool'
-import type { ToolEvent, Point, CanvasObject, Transform, Layer } from '@/lib/editor/canvas/types'
-import { ObjectsTransformedEvent } from '@/lib/events/canvas/ToolEvents'
-import { KonvaObjectAddedEvent } from '@/lib/events/canvas/CanvasEvents'
+import { ObjectTool } from '../base/ObjectTool'
+import type { ToolEvent, Point } from '@/lib/editor/canvas/types'
+import type { CanvasObject } from '@/lib/editor/objects/types'
 
 /**
- * Move Tool - Professional object manipulation with Photoshop parity
+ * Move Tool - Object manipulation with Smart Guides and Constraints
  * Features: Auto-select, Smart Guides, Constraints, Duplication, Nudging
  */
-export class MoveTool extends BaseTool {
+export class MoveTool extends ObjectTool {
   // Tool identification
   id = TOOL_IDS.MOVE
   name = 'Move Tool'
@@ -22,21 +21,20 @@ export class MoveTool extends BaseTool {
   private dragState: {
     target: CanvasObject | null
     startPos: Point
-    originalTransform: Transform
+    originalPosition: { x: number; y: number }
     isDragging: boolean
     isDuplicating: boolean
   } | null = null
   
   // Selection state
   private selectionTransformer: Konva.Transformer | null = null
-  private selectedObjects: CanvasObject[] = []
+  private overlayLayer: Konva.Layer | null = null
   
   // Smart guides
   private smartGuides: {
     vertical: Konva.Line[]
     horizontal: Konva.Line[]
   } = { vertical: [], horizontal: [] }
-  private guideLayer: Konva.Layer | null = null
   
   // Nudge state
   private nudgeAmount = 1 // pixels
@@ -44,6 +42,10 @@ export class MoveTool extends BaseTool {
   
   protected setupTool(): void {
     const canvas = this.getCanvas()
+    const stage = canvas.konvaStage
+    
+    // Get overlay layer
+    this.overlayLayer = stage.children[stage.children.length - 1] as Konva.Layer
     
     // Create transformer for showing selection handles
     this.selectionTransformer = new Konva.Transformer({
@@ -58,29 +60,17 @@ export class MoveTool extends BaseTool {
       }
     })
     
-    // Get the canvas manager's overlay layer instead of creating a new one
-    const stage = canvas.konvaStage
-    // The CanvasManager has an overlayLayer at index 2 (after background and selection layers)
-    const overlayLayer = stage.children[2] as Konva.Layer
-    
-    if (overlayLayer) {
-      overlayLayer.add(this.selectionTransformer)
+    if (this.overlayLayer) {
+      this.overlayLayer.add(this.selectionTransformer)
     }
-    
-    // Create guide group instead of layer (to add to overlay layer)
-    const guideGroup = new Konva.Group({ name: 'moveToolGuides' })
-    if (overlayLayer) {
-      overlayLayer.add(guideGroup)
-    }
-    
-    // Store reference to guide group instead of layer
-    this.guideLayer = overlayLayer
     
     // Set default options
     this.setOption('autoSelect', true)
-    this.setOption('autoSelectType', 'layer') // 'layer' or 'group'
     this.setOption('showTransform', true)
     this.setOption('showSmartGuides', true)
+    
+    // Update transformer based on current selection
+    this.updateTransformer()
   }
   
   protected cleanupTool(): void {
@@ -90,25 +80,14 @@ export class MoveTool extends BaseTool {
       this.selectionTransformer = null
     }
     
-    // Clean up guide group
-    if (this.guideLayer) {
-      const guideGroup = this.guideLayer.findOne('.moveToolGuides')
-      if (guideGroup) {
-        guideGroup.destroy()
-      }
-    }
-    
     // Clear smart guides
     this.clearSmartGuides()
-    
-    // Clear selection
-    this.selectedObjects = []
     
     // Reset drag state
     this.dragState = null
     
     // Clear reference
-    this.guideLayer = null
+    this.overlayLayer = null
   }
   
   async onMouseDown(event: ToolEvent): Promise<void> {
@@ -118,59 +97,38 @@ export class MoveTool extends BaseTool {
     // Check for Alt key (duplication)
     const isDuplicating = event.altKey
     
-    // Set pointer position from the event to avoid Konva warning
-    stage.setPointersPositions(event.nativeEvent)
-    
     // Get clicked object
-    const pos = stage.getPointerPosition()
-    if (!pos) return
+    const clickedObject = canvas.getObjectAtPoint(event.point)
     
-    const shape = stage.getIntersection(pos)
-    
-    if (shape) {
-      // Auto-select functionality
-      const autoSelect = this.getOption('autoSelect') as boolean
-      const autoSelectType = this.getOption('autoSelectType') as string
+    if (clickedObject && !clickedObject.locked) {
+      let targetObject: CanvasObject = clickedObject
       
-      let targetObject: CanvasObject | null = null
-      
-      if (autoSelect) {
-        // Find the appropriate object based on auto-select type
-        targetObject = autoSelectType === 'group' 
-          ? this.findParentGroup(shape) || this.findCanvasObject(shape)
-          : this.findCanvasObject(shape)
-      } else if (this.selectedObjects.length > 0) {
-        // If not auto-selecting, only move if clicking on selected object
-        targetObject = this.selectedObjects.find(obj => 
-          obj.node === shape || this.isChildOf(shape, obj.node)
-        ) || null
+      // Handle duplication
+      if (isDuplicating) {
+        const duplicated = await this.duplicateObject(targetObject)
+        if (!duplicated) return
+        targetObject = duplicated
       }
       
-      if (targetObject && !targetObject.locked) {
-        // Handle duplication
-        if (isDuplicating) {
-          targetObject = await this.duplicateObject(targetObject)
-          if (!targetObject) return
-        }
-        
-        // Start drag operation
-        this.dragState = {
-          target: targetObject,
-          startPos: event.point,
-          originalTransform: { ...targetObject.transform },
-          isDragging: false,
-          isDuplicating
-        }
-        
-        // Select the object
-        this.selectObject(targetObject)
-        
-        // Change cursor
-        stage.container().style.cursor = 'move'
+      // Start drag operation
+      this.dragState = {
+        target: targetObject,
+        startPos: event.point,
+        originalPosition: { x: targetObject.x, y: targetObject.y },
+        isDragging: false,
+        isDuplicating
       }
+      
+      // Select the object
+      canvas.selectObject(targetObject.id)
+      this.updateTransformer()
+      
+      // Change cursor
+      stage.container().style.cursor = 'move'
     } else {
       // Clicked on empty space - deselect
-      this.clearSelection()
+      canvas.deselectAll()
+      this.updateTransformer()
     }
   }
   
@@ -180,21 +138,12 @@ export class MoveTool extends BaseTool {
     
     // Update cursor based on hover
     if (!this.dragState) {
-      // Set pointer position from the event to avoid Konva warning
-      stage.setPointersPositions(event.nativeEvent)
-      
-      const pos = stage.getPointerPosition()
-      if (pos) {
-        const shape = stage.getIntersection(pos)
-        if (shape) {
-          const obj = this.findCanvasObject(shape)
-          if (obj && !obj.locked) {
-            stage.container().style.cursor = 'move'
-            return
-          }
-        }
+      const hoveredObject = canvas.getObjectAtPoint(event.point)
+      if (hoveredObject && !hoveredObject.locked) {
+        stage.container().style.cursor = 'move'
+      } else {
+        stage.container().style.cursor = 'default'
       }
-      stage.container().style.cursor = 'default'
       return
     }
     
@@ -220,30 +169,27 @@ export class MoveTool extends BaseTool {
     }
     
     // Update object position
-    const newTransform: Transform = {
-      ...this.dragState.originalTransform,
-      x: this.dragState.originalTransform.x + dx,
-      y: this.dragState.originalTransform.y + dy
-    }
+    const newX = this.dragState.originalPosition.x + dx
+    const newY = this.dragState.originalPosition.y + dy
     
-    // Apply transform to the Konva node
-    this.dragState.target.node.setAttrs({
-      x: newTransform.x,
-      y: newTransform.y
+    // Update object (this will update the Konva node internally)
+    canvas.updateObject(this.dragState.target.id, {
+      x: newX,
+      y: newY
     })
     
     // Update transformer if active
-    if (this.selectionTransformer && this.selectedObjects.includes(this.dragState.target)) {
+    if (this.selectionTransformer) {
       this.selectionTransformer.forceUpdate()
     }
     
     // Show smart guides
     if (this.getOption('showSmartGuides')) {
-      this.updateSmartGuides(this.dragState.target, newTransform)
+      this.updateSmartGuides(this.dragState.target, { x: newX, y: newY })
     }
     
     // Redraw
-    canvas.konvaStage.batchDraw()
+    stage.batchDraw()
   }
   
   async onMouseUp(event: ToolEvent): Promise<void> {
@@ -254,7 +200,7 @@ export class MoveTool extends BaseTool {
     
     const canvas = this.getCanvas()
     
-    // Calculate final transform
+    // Calculate final position
     let dx = event.point.x - this.dragState.startPos.x
     let dy = event.point.y - this.dragState.startPos.y
     
@@ -267,27 +213,14 @@ export class MoveTool extends BaseTool {
       dy = Math.sin(constrainedAngle) * distance
     }
     
-    const finalTransform: Transform = {
-      ...this.dragState.originalTransform,
-      x: this.dragState.originalTransform.x + dx,
-      y: this.dragState.originalTransform.y + dy
-    }
+    const finalX = this.dragState.originalPosition.x + dx
+    const finalY = this.dragState.originalPosition.y + dy
     
-    // Update the canvas object's transform
-    this.dragState.target.transform = finalTransform
-    
-    // Emit event if in ExecutionContext
-    if (this.executionContext) {
-      await this.executionContext.emit(new ObjectsTransformedEvent(
-        'canvas',
-        [{
-          objectId: this.dragState.target.id,
-          previousTransform: { ...this.dragState.originalTransform } as Record<string, unknown>,
-          newTransform: { ...finalTransform } as Record<string, unknown>
-        }],
-        this.executionContext.getMetadata()
-      ))
-    }
+    // Update the object's final position
+    await canvas.updateObject(this.dragState.target.id, {
+      x: finalX,
+      y: finalY
+    })
     
     // Clear smart guides
     this.clearSmartGuides()
@@ -309,7 +242,7 @@ export class MoveTool extends BaseTool {
     }
     
     // Delete selected objects
-    if ((event.key === 'Delete' || event.key === 'Backspace') && this.selectedObjects.length > 0) {
+    if ((event.key === 'Delete' || event.key === 'Backspace')) {
       event.preventDefault()
       this.deleteSelectedObjects()
       return
@@ -340,10 +273,44 @@ export class MoveTool extends BaseTool {
   }
   
   /**
+   * Update transformer based on current selection
+   */
+  private updateTransformer(): void {
+    if (!this.selectionTransformer) return
+    
+    const canvas = this.getCanvas()
+    const selectedObjects = this.getTargetObjects()
+    
+    if (selectedObjects.length === 0) {
+      this.selectionTransformer.nodes([])
+    } else {
+      // Get Konva nodes for selected objects
+      const nodes: Konva.Node[] = []
+      const stage = canvas.konvaStage
+      
+      // Find Konva nodes by searching the stage
+      selectedObjects.forEach(obj => {
+        const node = stage.findOne(`#${obj.id}`)
+        if (node) {
+          nodes.push(node)
+        }
+      })
+      
+      this.selectionTransformer.nodes(nodes)
+    }
+    
+    const showTransform = this.getOption('showTransform') as boolean
+    this.selectionTransformer.visible(showTransform && selectedObjects.length > 0)
+    
+    canvas.konvaStage.batchDraw()
+  }
+  
+  /**
    * Nudge selected objects with arrow keys
    */
   private async nudgeSelection(direction: string, amount: number): Promise<void> {
-    if (this.selectedObjects.length === 0) return
+    const selectedObjects = this.getTargetObjects()
+    if (selectedObjects.length === 0) return
     
     let dx = 0, dy = 0
     switch (direction) {
@@ -353,28 +320,13 @@ export class MoveTool extends BaseTool {
       case 'ArrowRight': dx = amount; break
     }
     
-    const transformedObjects: Array<{
-      objectId: string
-      previousTransform: Record<string, unknown>
-      newTransform: Record<string, unknown>
-    }> = []
+    const canvas = this.getCanvas()
     
     // Apply nudge to all selected objects
-    for (const obj of this.selectedObjects) {
-      const previousTransform = { ...obj.transform }
-      
-      obj.transform.x += dx
-      obj.transform.y += dy
-      
-      obj.node.setAttrs({
-        x: obj.transform.x,
-        y: obj.transform.y
-      })
-      
-      transformedObjects.push({
-        objectId: obj.id,
-        previousTransform: previousTransform as Record<string, unknown>,
-        newTransform: { ...obj.transform } as Record<string, unknown>
+    for (const obj of selectedObjects) {
+      await canvas.updateObject(obj.id, {
+        x: obj.x + dx,
+        y: obj.y + dy
       })
     }
     
@@ -383,52 +335,8 @@ export class MoveTool extends BaseTool {
       this.selectionTransformer.forceUpdate()
     }
     
-    // Emit event
-    if (this.executionContext && transformedObjects.length > 0) {
-      await this.executionContext.emit(new ObjectsTransformedEvent(
-        'canvas',
-        transformedObjects,
-        this.executionContext.getMetadata()
-      ))
-    }
-    
     // Redraw
-    const canvas = this.getCanvas()
     canvas.konvaStage.batchDraw()
-  }
-  
-  /**
-   * Find the parent group of a shape
-   */
-  private findParentGroup(node: Konva.Node): CanvasObject | null {
-    const canvas = this.getCanvas()
-    let parent = node.getParent()
-    
-    while (parent && parent !== canvas.konvaStage) {
-      // Check if this parent is a group object
-      for (const layer of canvas.state.layers) {
-        for (const obj of layer.objects) {
-          if (obj.node === parent && obj.type === 'group') {
-            return obj
-          }
-        }
-      }
-      parent = parent.getParent()
-    }
-    
-    return null
-  }
-  
-  /**
-   * Check if a node is a child of another node
-   */
-  private isChildOf(child: Konva.Node, parent: Konva.Node): boolean {
-    let current = child.getParent()
-    while (current) {
-      if (current === parent) return true
-      current = current.getParent()
-    }
-    return false
   }
   
   /**
@@ -437,94 +345,59 @@ export class MoveTool extends BaseTool {
   private async duplicateObject(original: CanvasObject): Promise<CanvasObject | null> {
     const canvas = this.getCanvas()
     
-    // Clone the Konva node
-    const clonedNode = original.node.clone()
-    
-    // Offset the position slightly
-    clonedNode.setAttrs({
-      x: original.transform.x + 20,
-      y: original.transform.y + 20
-    })
-    
-    // Find the layer containing the original
-    const layer = this.findLayerForObject(original)
-    if (!layer) return null
-    
-    // Create new canvas object
-    const newObject: CanvasObject = {
-      id: `${original.id}_copy_${Date.now()}`,
+    // Create new object with offset position
+    const objectId = await canvas.addObject({
       type: original.type,
       name: `${original.name} copy`,
-      visible: original.visible,
-      locked: false,
+      x: original.x + 20,
+      y: original.y + 20,
+      width: original.width,
+      height: original.height,
+      rotation: original.rotation,
+      scaleX: original.scaleX,
+      scaleY: original.scaleY,
       opacity: original.opacity,
       blendMode: original.blendMode,
-      transform: {
-        ...original.transform,
-        x: original.transform.x + 20,
-        y: original.transform.y + 20
-      },
-      node: clonedNode,
-      layerId: layer.id, // Include the layerId
-      data: original.data
-    }
+      visible: original.visible,
+      locked: false,
+      filters: [...original.filters],
+      adjustments: [...original.adjustments],
+      data: original.data,
+      metadata: { ...original.metadata }
+    })
     
-    // Add to the same layer
-    await canvas.addObject(newObject, layer.id)
-    
-    // Emit event
-    if (this.executionContext) {
-      await this.executionContext.emit(new KonvaObjectAddedEvent(
-        'canvas',
-        newObject.id,
-        newObject.type,
-        {
-          name: newObject.name,
-          visible: newObject.visible,
-          locked: newObject.locked,
-          opacity: newObject.opacity,
-          blendMode: newObject.blendMode,
-          transform: newObject.transform,
-          data: newObject.data
-        },
-        layer.id,
-        this.executionContext.getMetadata()
-      ))
-    }
-    
-    return newObject
+    return canvas.getObject(objectId)
   }
   
   /**
    * Duplicate selected objects
    */
   private async duplicateSelection(): Promise<void> {
-    if (this.selectedObjects.length === 0) return
+    const selectedObjects = this.getTargetObjects()
+    if (selectedObjects.length === 0) return
     
-    const duplicated: CanvasObject[] = []
+    const canvas = this.getCanvas()
+    const duplicatedIds: string[] = []
     
-    for (const obj of this.selectedObjects) {
+    for (const obj of selectedObjects) {
       const newObj = await this.duplicateObject(obj)
       if (newObj) {
-        duplicated.push(newObj)
+        duplicatedIds.push(newObj.id)
       }
     }
     
     // Select the duplicated objects
-    if (duplicated.length > 0) {
-      this.selectedObjects = duplicated
-      if (this.selectionTransformer) {
-        this.selectionTransformer.nodes(duplicated.map(obj => obj.node))
-        this.selectionTransformer.forceUpdate()
-      }
+    if (duplicatedIds.length > 0) {
+      canvas.selectMultiple(duplicatedIds)
+      this.updateTransformer()
     }
   }
   
   /**
    * Update smart guides based on object position
    */
-  private updateSmartGuides(object: CanvasObject, transform: Transform): void {
-    if (!this.guideLayer) return
+  private updateSmartGuides(object: CanvasObject, position: { x: number; y: number }): void {
+    if (!this.overlayLayer) return
     
     this.clearSmartGuides()
     
@@ -533,84 +406,81 @@ export class MoveTool extends BaseTool {
     
     // Get object bounds
     const objBounds = {
-      left: transform.x,
-      right: transform.x + (object.node.width() || 0) * (transform.scaleX || 1),
-      top: transform.y,
-      bottom: transform.y + (object.node.height() || 0) * (transform.scaleY || 1),
-      centerX: transform.x + ((object.node.width() || 0) * (transform.scaleX || 1)) / 2,
-      centerY: transform.y + ((object.node.height() || 0) * (transform.scaleY || 1)) / 2
+      left: position.x,
+      right: position.x + object.width * object.scaleX,
+      top: position.y,
+      bottom: position.y + object.height * object.scaleY,
+      centerX: position.x + (object.width * object.scaleX) / 2,
+      centerY: position.y + (object.height * object.scaleY) / 2
     }
     
     // Check alignment with other objects
-    for (const layer of canvas.state.layers) {
-      if (!layer.visible || layer.locked) continue
+    const allObjects = canvas.getAllObjects()
+    
+    for (const other of allObjects) {
+      if (other === object || !other.visible || other.locked) continue
       
-      for (const other of layer.objects) {
-        if (other === object || !other.visible || other.locked) continue
-        
-        const otherBounds = {
-          left: other.transform.x,
-          right: other.transform.x + (other.node.width() || 0) * (other.transform.scaleX || 1),
-          top: other.transform.y,
-          bottom: other.transform.y + (other.node.height() || 0) * (other.transform.scaleY || 1),
-          centerX: other.transform.x + ((other.node.width() || 0) * (other.transform.scaleX || 1)) / 2,
-          centerY: other.transform.y + ((other.node.height() || 0) * (other.transform.scaleY || 1)) / 2
+      const otherBounds = {
+        left: other.x,
+        right: other.x + other.width * other.scaleX,
+        top: other.y,
+        bottom: other.y + other.height * other.scaleY,
+        centerX: other.x + (other.width * other.scaleX) / 2,
+        centerY: other.y + (other.height * other.scaleY) / 2
+      }
+      
+      // Check vertical alignments
+      const vAlignments = [
+        { obj: objBounds.left, other: otherBounds.left },
+        { obj: objBounds.left, other: otherBounds.right },
+        { obj: objBounds.right, other: otherBounds.left },
+        { obj: objBounds.right, other: otherBounds.right },
+        { obj: objBounds.centerX, other: otherBounds.centerX }
+      ]
+      
+      for (const align of vAlignments) {
+        if (Math.abs(align.obj - align.other) < threshold) {
+          this.addVerticalGuide(align.other)
         }
-        
-        // Check vertical alignments
-        const vAlignments = [
-          { obj: objBounds.left, other: otherBounds.left },
-          { obj: objBounds.left, other: otherBounds.right },
-          { obj: objBounds.right, other: otherBounds.left },
-          { obj: objBounds.right, other: otherBounds.right },
-          { obj: objBounds.centerX, other: otherBounds.centerX }
-        ]
-        
-        for (const align of vAlignments) {
-          if (Math.abs(align.obj - align.other) < threshold) {
-            this.addVerticalGuide(align.other)
-          }
-        }
-        
-        // Check horizontal alignments
-        const hAlignments = [
-          { obj: objBounds.top, other: otherBounds.top },
-          { obj: objBounds.top, other: otherBounds.bottom },
-          { obj: objBounds.bottom, other: otherBounds.top },
-          { obj: objBounds.bottom, other: otherBounds.bottom },
-          { obj: objBounds.centerY, other: otherBounds.centerY }
-        ]
-        
-        for (const align of hAlignments) {
-          if (Math.abs(align.obj - align.other) < threshold) {
-            this.addHorizontalGuide(align.other)
-          }
+      }
+      
+      // Check horizontal alignments
+      const hAlignments = [
+        { obj: objBounds.top, other: otherBounds.top },
+        { obj: objBounds.top, other: otherBounds.bottom },
+        { obj: objBounds.bottom, other: otherBounds.top },
+        { obj: objBounds.bottom, other: otherBounds.bottom },
+        { obj: objBounds.centerY, other: otherBounds.centerY }
+      ]
+      
+      for (const align of hAlignments) {
+        if (Math.abs(align.obj - align.other) < threshold) {
+          this.addHorizontalGuide(align.other)
         }
       }
     }
     
-    this.guideLayer.batchDraw()
+    this.overlayLayer.batchDraw()
   }
   
   /**
    * Add a vertical guide line
    */
   private addVerticalGuide(x: number): void {
-    if (!this.guideLayer) return
-    
-    const guideGroup = this.guideLayer.findOne('.moveToolGuides') as Konva.Group
-    if (!guideGroup) return
+    if (!this.overlayLayer) return
     
     const canvas = this.getCanvas()
+    const stage = canvas.konvaStage
+    
     const guide = new Konva.Line({
-      points: [x, 0, x, canvas.state.height],
+      points: [x, 0, x, stage.height()],
       stroke: '#00ff00',
       strokeWidth: 1,
       dash: [4, 4],
       listening: false
     })
     
-    guideGroup.add(guide)
+    this.overlayLayer.add(guide)
     this.smartGuides.vertical.push(guide)
   }
   
@@ -618,21 +488,20 @@ export class MoveTool extends BaseTool {
    * Add a horizontal guide line
    */
   private addHorizontalGuide(y: number): void {
-    if (!this.guideLayer) return
-    
-    const guideGroup = this.guideLayer.findOne('.moveToolGuides') as Konva.Group
-    if (!guideGroup) return
+    if (!this.overlayLayer) return
     
     const canvas = this.getCanvas()
+    const stage = canvas.konvaStage
+    
     const guide = new Konva.Line({
-      points: [0, y, canvas.state.width, y],
+      points: [0, y, stage.width(), y],
       stroke: '#00ff00',
       strokeWidth: 1,
       dash: [4, 4],
       listening: false
     })
     
-    guideGroup.add(guide)
+    this.overlayLayer.add(guide)
     this.smartGuides.horizontal.push(guide)
   }
   
@@ -647,112 +516,27 @@ export class MoveTool extends BaseTool {
     this.smartGuides.vertical = []
     this.smartGuides.horizontal = []
     
-    if (this.guideLayer) {
-      this.guideLayer.batchDraw()
+    if (this.overlayLayer) {
+      this.overlayLayer.batchDraw()
     }
-  }
-  
-  /**
-   * Find the layer containing an object
-   */
-  private findLayerForObject(object: CanvasObject): Layer | null {
-    const canvas = this.getCanvas()
-    
-    for (const layer of canvas.state.layers) {
-      if (layer.objects.includes(object)) {
-        return layer
-      }
-    }
-    
-    return null
-  }
-  
-  /**
-   * Find the CanvasObject that owns a Konva node
-   */
-  private findCanvasObject(node: Konva.Node): CanvasObject | null {
-    const canvas = this.getCanvas()
-    
-    // Search through all layers
-    for (const layer of canvas.state.layers) {
-      for (const obj of layer.objects) {
-        if (obj.node === node) {
-          return obj
-        }
-        // Check if node is a child of a group
-        if (obj.node instanceof Konva.Group || obj.node instanceof Konva.Container) {
-          const found = obj.node.findOne((n: Konva.Node) => n === node)
-          if (found) {
-            return obj
-          }
-        }
-      }
-    }
-    
-    return null
-  }
-  
-  /**
-   * Select an object and show transform handles
-   */
-  private selectObject(object: CanvasObject): void {
-    if (!this.selectionTransformer) return
-    
-    this.selectedObjects = [object]
-    
-    // Attach transformer to the object's node
-    this.selectionTransformer.nodes([object.node])
-    
-    // Show transformer if enabled
-    const showTransform = this.getOption('showTransform') as boolean
-    this.selectionTransformer.visible(showTransform)
-    
-    const canvas = this.getCanvas()
-    canvas.konvaStage.batchDraw()
-  }
-  
-  /**
-   * Clear selection
-   */
-  private clearSelection(): void {
-    if (!this.selectionTransformer) return
-    
-    this.selectedObjects = []
-    this.selectionTransformer.nodes([])
-    
-    const canvas = this.getCanvas()
-    canvas.konvaStage.batchDraw()
   }
   
   /**
    * Select all objects
    */
   private selectAll(): void {
-    if (!this.selectionTransformer) return
-    
     const canvas = this.getCanvas()
-    const allObjects: CanvasObject[] = []
-    const allNodes: Konva.Node[] = []
+    const allObjects = canvas.getAllObjects()
     
-    // Collect all unlocked objects
-    for (const layer of canvas.state.layers) {
-      if (!layer.locked && layer.visible) {
-        for (const obj of layer.objects) {
-          if (!obj.locked && obj.visible) {
-            allObjects.push(obj)
-            allNodes.push(obj.node)
-          }
-        }
-      }
+    // Select all unlocked, visible objects
+    const selectableIds = allObjects
+      .filter(obj => !obj.locked && obj.visible)
+      .map(obj => obj.id)
+    
+    if (selectableIds.length > 0) {
+      canvas.selectMultiple(selectableIds)
+      this.updateTransformer()
     }
-    
-    this.selectedObjects = allObjects
-    this.selectionTransformer.nodes(allNodes)
-    
-    const showTransform = this.getOption('showTransform') as boolean
-    this.selectionTransformer.visible(showTransform)
-    
-    canvas.konvaStage.batchDraw()
   }
   
   /**
@@ -760,12 +544,13 @@ export class MoveTool extends BaseTool {
    */
   private async deleteSelectedObjects(): Promise<void> {
     const canvas = this.getCanvas()
+    const selectedObjects = this.getTargetObjects()
     
-    for (const obj of this.selectedObjects) {
+    for (const obj of selectedObjects) {
       await canvas.removeObject(obj.id)
     }
     
-    this.clearSelection()
+    this.updateTransformer()
   }
 }
 

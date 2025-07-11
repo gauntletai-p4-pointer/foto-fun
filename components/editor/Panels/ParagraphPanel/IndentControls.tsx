@@ -19,7 +19,7 @@ export function IndentControls() {
   
   // Get selected text objects
   const selectedTextObjects = Array.from(selectionState.selectedObjectIds)
-    .map(id => canvasManager.getObjectById(id))
+    .map(id => canvasManager.getObject(id))
     .filter(obj => obj && obj.type === 'text')
   
   // Get current indentation values from first selected text object

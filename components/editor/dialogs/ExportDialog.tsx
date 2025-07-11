@@ -20,7 +20,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Slider } from '@/components/ui/slider'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Download, Image, FileImage, Maximize2 } from 'lucide-react'
+import { Download, Image as ImageIcon, FileImage, Maximize2 } from 'lucide-react'
 import { getTypedEventBus } from '@/lib/events/core/TypedEventBus'
 
 interface ExportDialogProps {
@@ -53,9 +53,13 @@ export function ExportDialog({ open, onOpenChange }: ExportDialogProps) {
   const [regionHeight, setRegionHeight] = useState(100)
   
   // Get canvas dimensions with null check
-  const canvasWidth = canvasManager?.getWidth() || 800
-  const canvasHeight = canvasManager?.getHeight() || 600
+  const canvasWidth = canvasManager?.state.canvasWidth || 800
+  const canvasHeight = canvasManager?.state.canvasHeight || 600
   const aspectRatio = canvasWidth / canvasHeight
+  
+  // Get selected objects
+  const selectedObjects = canvasManager?.getSelectedObjects() || []
+  const hasSelection = selectedObjects.length > 0
   
   // Get presets
   const presets = exportManager?.getPresets() || []
@@ -78,11 +82,11 @@ export function ExportDialog({ open, onOpenChange }: ExportDialogProps) {
       
       switch (exportType) {
         case 'document':
-          blob = await exportManager.exportDocument(options)
+          blob = await exportManager.exportCanvas(options)
           break
           
         case 'selection':
-          blob = await exportManager.exportSelection(format)
+          blob = await exportManager.exportSelection(options)
           break
           
         case 'region':
@@ -160,8 +164,8 @@ export function ExportDialog({ open, onOpenChange }: ExportDialogProps) {
               <FileImage className="h-4 w-4 mr-2" />
               Document
             </TabsTrigger>
-            <TabsTrigger value="selection" disabled={!canvasManager?.getSelectionData()}>
-              <Image className="h-4 w-4 mr-2" alt="" />
+            <TabsTrigger value="selection" disabled={!hasSelection}>
+              <ImageIcon className="h-4 w-4 mr-2" />
               Selection
             </TabsTrigger>
             <TabsTrigger value="region">
@@ -255,7 +259,7 @@ export function ExportDialog({ open, onOpenChange }: ExportDialogProps) {
           
           <TabsContent value="selection" className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              Export only the selected area of your image.
+              Export only the selected objects.
             </p>
             <div className="space-y-2">
               <Label>Format</Label>

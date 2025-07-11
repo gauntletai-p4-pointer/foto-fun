@@ -1,11 +1,12 @@
 import { Hand } from 'lucide-react'
 import { TOOL_IDS } from '@/constants'
 import { BaseTool } from '../base/BaseTool'
-import type { ToolEvent } from '@/lib/editor/canvas/types'
+import { NAVIGATION_TOOL_REQUIREMENTS } from '../base/ToolRequirements'
 
 /**
  * Hand Tool - Allows panning the canvas
  * Uses Konva's built-in stage dragging for smooth panning
+ * Works without a document
  */
 export class HandTool extends BaseTool {
   // Tool identification
@@ -14,6 +15,9 @@ export class HandTool extends BaseTool {
   icon = Hand
   cursor = 'grab'
   shortcut = 'H'
+  
+  // Navigation tools don't need a document
+  protected requirements = NAVIGATION_TOOL_REQUIREMENTS
   
   protected setupTool(): void {
     // Enable stage dragging when hand tool is active

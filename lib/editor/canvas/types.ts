@@ -97,13 +97,19 @@ export type Selection =
   | { type: 'objects'; objectIds: string[] } // Add object-based selection
 
 export interface CanvasState {
-  width: number
-  height: number
+  // Canvas (viewport) properties
+  canvasWidth: number
+  canvasHeight: number
   zoom: number
   pan: Point
-  layers: Layer[]
-  selection: Selection | null
-  activeLayerId: string | null
+  
+  // Object properties (NO LAYERS!)
+  objects: Map<string, CanvasObject> // Object ID -> Object
+  objectOrder: string[] // IDs in z-order
+  selectedObjectIds: Set<string> // Selected object IDs
+  pixelSelection?: Selection // Selection within object
+  
+  // UI state
   backgroundColor: string
   isLoading: boolean
   canUndo: boolean
@@ -199,7 +205,7 @@ export interface FilterInstance {
 export interface AdjustmentLayerData {
   adjustmentType: 'brightness' | 'contrast' | 'curves' | 'levels' | 'hue-saturation' | 
                    'color-balance' | 'vibrance' | 'exposure' | 'custom'
-  settings: Record<string, any>
+  settings: Record<string, unknown>
   // Which layers this adjustment affects
   affectsLayers?: string[] // If not specified, affects all layers below
 }
@@ -214,22 +220,19 @@ export interface CanvasManager {
   // Initialization
   initialize?(): Promise<void>
   
-  // Layer operations
-  addLayer(layer: Partial<Layer>): Layer
-  removeLayer(layerId: string): void
-  setActiveLayer(layerId: string): void
-  getActiveLayer(): Layer | null
-  reorderLayers(fromIndex: number, toIndex: number): void
-  
-  // Object operations - now async for event emission
-  addObject(object: Partial<CanvasObject>, layerId?: string): Promise<CanvasObject>
+  // Object operations
+  addObject(object: Partial<import('@/lib/editor/objects/types').CanvasObject>): Promise<string>
   removeObject(objectId: string): Promise<void>
-  updateObject(objectId: string, updates: Partial<CanvasObject>): Promise<void>
+  updateObject(objectId: string, updates: Partial<import('@/lib/editor/objects/types').CanvasObject>): Promise<void>
+  getObject(objectId: string): import('@/lib/editor/objects/types').CanvasObject | null
+  getAllObjects(): import('@/lib/editor/objects/types').CanvasObject[]
   
   // Selection operations
   setSelection(selection: Selection | null): void
   selectAll(): void
   deselectAll(): void
+  selectObject(objectId: string): void
+  selectMultiple(objectIds: string[]): void
   getSelectionManager(): SelectionManager
   
   // Pixel operations
@@ -237,18 +240,16 @@ export interface CanvasManager {
   putImageData(imageData: ImageData, point: Point): void
   
   // Filter operations
-  applyFilterToLayer(filter: Filter, layerId: string): Promise<void>
-  createAdjustmentLayer(filter: Filter, adjustmentType: 'brightness' | 'contrast' | 'curves' | 'levels' | 'hue-saturation'): Promise<void>
-  removeFilterFromLayer(layerId: string, filterId: string): Promise<void>
-  updateLayerFilterStack(layerId: string, filterStack: FilterStack): Promise<void>
-  getFilterManager?(): any // Optional to maintain backward compatibility
+  applyFilter(filter: Filter, targetIds?: string[]): Promise<void>
+  removeFilter(filterId: string, targetIds?: string[]): Promise<void>
+  getFilterManager?(): unknown
   
   // Transform operations
   resize(width: number, height: number): Promise<void>
   updateViewport(): void
   crop(rect: Rect): Promise<void>
-  rotate(angle: number, target?: CanvasObject | CanvasObject[]): Promise<void>
-  flip(direction: 'horizontal' | 'vertical', target?: CanvasObject | CanvasObject[]): Promise<void>
+  rotate(angle: number, targetIds?: string[]): Promise<void>
+  flip(direction: 'horizontal' | 'vertical', targetIds?: string[]): Promise<void>
   
   // View operations
   setZoom(zoom: number): void
@@ -257,15 +258,25 @@ export interface CanvasManager {
   setDraggable(draggable: boolean): void
   
   // Object finding
-  getObjectAtPoint(point: Point): CanvasObject | null
+  getObjectAtPoint(point: Point): import('@/lib/editor/objects/types').CanvasObject | null
+  getObjectsInBounds(bounds: Rect): import('@/lib/editor/objects/types').CanvasObject[]
   
-  // Export/Import
-  exportImage(format: 'png' | 'jpeg' | 'webp'): Promise<Blob>
-  loadImage(src: string): Promise<CanvasObject>
+  // Rendering
+  render(): void
+  renderAll(): void
   
-  // Lifecycle
+  // Export
+  exportImage(format?: 'png' | 'jpeg' | 'webp'): Promise<Blob>
+  toDataURL(format?: string, quality?: number): string
+  
+  // Utility
+  loadImage(src: string): Promise<string>
   destroy(): void
-} 
+  
+  // Events
+  on?(event: string, handler: (...args: unknown[]) => void): void
+  off?(event: string, handler: (...args: unknown[]) => void): void
+}
 
 // Helper types for metadata access with proper typing
 export type MetadataValue = string | number | boolean | Record<string, unknown> | unknown[] | undefined
@@ -306,7 +317,7 @@ export type SerializedCanvasObject = Omit<CanvasObject, 'node'> & {
 }
 
 export function serializeCanvasObject(obj: CanvasObject): SerializedCanvasObject {
-  const { node, ...rest } = obj
+  const { node: _node, ...rest } = obj
   return rest as SerializedCanvasObject
 }
 

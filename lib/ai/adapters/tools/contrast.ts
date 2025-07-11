@@ -1,8 +1,5 @@
 import { z } from 'zod'
-import { FilterToolAdapter } from '../base'
-import type { CanvasContext } from '@/lib/ai/tools/canvas-bridge'
-import type { ExecutionContext } from '@/lib/events/execution/ExecutionContext'
-import type { Filter } from '@/lib/editor/canvas/types'
+import { UnifiedToolAdapter, type ObjectCanvasContext } from '../base/UnifiedToolAdapter'
 import { contrastTool } from '@/lib/editor/tools/adjustments/contrastTool'
 
 // Define parameter schema
@@ -18,15 +15,15 @@ interface ContrastOutput {
   success: boolean
   adjustment: number
   message: string
-  targetingMode: 'selection' | 'auto-single' | 'all' | 'none'
+  affectedObjects: string[]
 }
 
 /**
  * Adapter for the contrast adjustment tool
  * Provides AI-compatible interface for adjusting image contrast
  */
-export class ContrastToolAdapter extends FilterToolAdapter<ContrastInput, ContrastOutput> {
-  tool = contrastTool
+export class ContrastToolAdapter extends UnifiedToolAdapter<ContrastInput, ContrastOutput> {
+  toolId = 'contrast'
   aiName = 'adjust_contrast'
   description = `Adjust the contrast of images. 
   
@@ -40,53 +37,59 @@ export class ContrastToolAdapter extends FilterToolAdapter<ContrastInput, Contra
   
   NEVER ask for exact values - interpret the user's intent.`
   
-  metadata = {
-    category: 'canvas-editing' as const,
-    executionType: 'fast' as const,
-    worksOn: 'existing-image' as const
-  }
-  
   inputSchema = contrastParameters
-  
-  protected getFilterType(): string {
-    return 'contrast'
-  }
-  
-  protected createFilter(params: ContrastInput): Filter {
-    return {
-      type: 'contrast',
-      params: { value: params.adjustment }
-    }
-  }
-  
-  protected shouldApplyFilter(params: ContrastInput): boolean {
-    return params.adjustment !== 0
-  }
-  
-  protected getActionVerb(): string {
-    return 'adjust contrast'
-  }
   
   async execute(
     params: ContrastInput, 
-    context: CanvasContext,
-    executionContext?: ExecutionContext
+    context: ObjectCanvasContext
   ): Promise<ContrastOutput> {
-    return this.executeWithCommonPatterns(
-      params,
-      context,
-      async (images, execContext) => {
-        console.log(`[ContrastAdapter] Applying contrast adjustment: ${params.adjustment}%`)
-        
-        // Apply contrast filter to all target images
-        await this.applyFilterToImages(images, params, context.canvas, execContext)
-        
-        return {
-          adjustment: params.adjustment,
-          message: `Contrast adjusted by ${params.adjustment > 0 ? '+' : ''}${params.adjustment}%`
-        }
-      },
-      executionContext
-    )
+    const targets = this.getTargets(context)
+    const imageObjects = targets.filter(obj => obj.type === 'image')
+    
+    if (imageObjects.length === 0) {
+      return {
+        success: false,
+        adjustment: params.adjustment,
+        message: 'No image objects found to adjust',
+        affectedObjects: []
+      }
+    }
+    
+    console.log(`[ContrastAdapter] Applying contrast adjustment: ${params.adjustment}% to ${imageObjects.length} objects`)
+    
+    // Apply contrast adjustment to each image object
+    const affectedObjects: string[] = []
+    
+    for (const obj of imageObjects) {
+      // Add contrast to the object's adjustments array
+      const adjustments = obj.adjustments || []
+      
+      // Remove any existing contrast adjustments
+      const filteredAdjustments = adjustments.filter(adj => adj.type !== 'contrast')
+      
+      // Add new contrast adjustment if not zero
+      if (params.adjustment !== 0) {
+        filteredAdjustments.push({
+          id: `contrast-${Date.now()}`,
+          type: 'contrast',
+          params: { value: params.adjustment },
+          enabled: true
+        })
+      }
+      
+      // Update the object
+      await context.canvas.updateObject(obj.id, {
+        adjustments: filteredAdjustments
+      })
+      
+      affectedObjects.push(obj.id)
+    }
+    
+    return {
+      success: true,
+      adjustment: params.adjustment,
+      message: `Contrast adjusted by ${params.adjustment > 0 ? '+' : ''}${params.adjustment}% on ${affectedObjects.length} object(s)`,
+      affectedObjects
+    }
   }
 } 

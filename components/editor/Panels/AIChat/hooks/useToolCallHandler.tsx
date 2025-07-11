@@ -166,12 +166,13 @@ export function useToolCallHandler({
               
               const updatedCanvasContext = canvasManager ? {
                 dimensions: {
-                  width: canvasManager.state.width,
-                  height: canvasManager.state.height
+                  width: canvasManager.state.canvasWidth,
+                  height: canvasManager.state.canvasHeight
                 },
-                hasContent: canvasManager.state.layers.some(layer => layer.objects.length > 0),
-                objectCount: canvasManager.state.layers.reduce((count, layer) => count + layer.objects.length, 0),
-                canvasScreenshot
+                hasContent: canvasManager.getAllObjects().length > 0,
+                objectCount: canvasManager.getAllObjects().length,
+                canvasType: 'konva' as const,
+                isReady: true
               } : null
               
               // Track adjustments for iteration context
@@ -239,12 +240,13 @@ export function useToolCallHandler({
             
             const updatedCanvasContext = canvasManager ? {
               dimensions: {
-                width: canvasManager.state.width,
-                height: canvasManager.state.height
+                width: canvasManager.state.canvasWidth,
+                height: canvasManager.state.canvasHeight
               },
-              hasContent: canvasManager.state.layers.some(layer => layer.objects.length > 0),
-              objectCount: canvasManager.state.layers.reduce((count, layer) => count + layer.objects.length, 0),
-              canvasScreenshot
+              hasContent: canvasManager.getAllObjects().length > 0,
+              objectCount: canvasManager.getAllObjects().length,
+              canvasType: 'konva' as const,
+              isReady: true
             } : null
             
             // Track adjustments for iteration context
@@ -470,9 +472,9 @@ export function useToolCallHandler({
       if (requiresSelection) {
         // Check current selection state
         if (canvasManager) {
-          const objectCount = canvasManager.state.layers.reduce((count, layer) => count + layer.objects.length, 0)
-          const selection = canvasManager.state.selection
-          const selectionCount = selection?.type === 'objects' ? selection.objectIds.length : 0
+          const objectCount = canvasManager.getAllObjects().length
+          const selection = canvasManager.getSelectedObjects()
+          const selectionCount = selection?.length || 0
           
           // Check if we have multiple objects with no selection
           if (objectCount > 1 && selectionCount === 0) {

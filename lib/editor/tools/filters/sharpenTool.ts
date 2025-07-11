@@ -1,207 +1,84 @@
 import { Focus } from 'lucide-react'
-import Konva from 'konva'
 import { TOOL_IDS } from '@/constants'
-import { BaseTool } from '../base/BaseTool'
-import type { CanvasObject } from '@/lib/editor/canvas/types'
-import { FilterAppliedEvent } from '@/lib/events/canvas/ToolEvents'
+import { ObjectWebGLFilterTool } from '../base/ObjectWebGLFilterTool'
 
 /**
- * Sharpen Tool - Apply unsharp mask filter to images
- * Konva implementation with proper filter support
+ * Object-based Sharpen Tool
+ * Applies unsharp mask filter to selected objects using WebGL
  */
-export class SharpenTool extends BaseTool {
+export class SharpenTool extends ObjectWebGLFilterTool {
   // Tool identification
   id = TOOL_IDS.SHARPEN
   name = 'Sharpen'
   icon = Focus
   cursor = 'default'
-  shortcut = undefined // Access via filters menu
+  shortcut = undefined // Accessed via filters panel
   
-  // Track current sharpen value
-  private currentSharpen = 0
-  private isApplying = false
+  // Filter configuration
+  protected getFilterType(): string {
+    return 'sharpen'
+  }
   
-  protected setupTool(): void {
-    const canvas = this.getCanvas()
-    
-    // Check for existing sharpen on selected objects
-    const selection = canvas.state.selection
-    if (selection?.type === 'objects') {
-      const firstObject = this.findObject(selection.objectIds[0])
-      if (firstObject && firstObject.type === 'image') {
-        const imageNode = firstObject.node as Konva.Image
-        const filters = imageNode.filters() || []
-        if (filters.includes(Konva.Filters.Enhance)) {
-          // Konva uses Enhance filter for sharpening
-          const enhance = imageNode.enhance() || 0
-          this.currentSharpen = enhance * 100
-          this.setOption('sharpen', this.currentSharpen)
-        }
-      }
+  protected getDefaultParams(): Record<string, number> {
+    return {
+      amount: 0, // Range: 0 to 2 (0 = no effect, 1 = normal, 2 = strong)
+      radius: 1  // Radius of the unsharp mask
     }
-    
-    // Set default sharpen value
-    this.setOption('sharpen', this.currentSharpen)
   }
   
-  protected cleanupTool(): void {
-    // Reset state but keep filters applied
-    this.isApplying = false
-  }
+  // Tool options configuration
+  static options = [
+    {
+      id: 'amount',
+      type: 'slider' as const,
+      label: 'Amount',
+      min: 0,
+      max: 200,
+      default: 0,
+      step: 1,
+      suffix: '%'
+    },
+    {
+      id: 'radius',
+      type: 'slider' as const,
+      label: 'Radius',
+      min: 0.5,
+      max: 5,
+      default: 1,
+      step: 0.1,
+      suffix: 'px'
+    }
+  ]
   
-  protected onOptionChange(key: string, value: unknown): void {
-    if (key === 'sharpen' && typeof value === 'number') {
-      this.applySharpen(value)
+  /**
+   * Convert UI value to WebGL parameter
+   */
+  protected getAllOptions(): Record<string, number> {
+    const amount = (this.getOption('amount') as number) || 0
+    const radius = (this.getOption('radius') as number) || 1
+    return {
+      amount: amount / 100, // Convert percentage to 0-2 range
+      radius
     }
   }
   
   /**
-   * Apply sharpen filter
+   * Public method for programmatic sharpen application
    */
-  async applySharpen(sharpenValue: number): Promise<void> {
-    if (this.isApplying) return
-    
-    this.isApplying = true
-    
-    try {
-      const targets = this.getTargetObjects()
-      
-      if (targets.length === 0) {
-        console.warn('[SharpenTool] No images to sharpen')
-        return
-      }
-      
-      const targetIds: string[] = []
-      
-      for (const target of targets) {
-        if (target.type === 'image') {
-          await this.applySharpenToImage(target, sharpenValue)
-          targetIds.push(target.id)
-        }
-      }
-      
-      // Emit event if in ExecutionContext
-      if (this.executionContext && targetIds.length > 0) {
-        await this.executionContext.emit(new FilterAppliedEvent(
-          'canvas',
-          'sharpen',
-          { sharpen: sharpenValue },
-          targetIds,
-          this.executionContext.getMetadata()
-        ))
-      }
-      
-      this.currentSharpen = sharpenValue
-    } finally {
-      this.isApplying = false
-    }
+  async applySharpen(amount: number, radius: number = 1): Promise<void> {
+    this.setOption('amount', amount)
+    this.setOption('radius', radius)
+    await this.applyImmediate()
   }
   
   /**
-   * Apply sharpen to a specific image object
+   * Get sharpen range for UI
    */
-  private async applySharpenToImage(obj: CanvasObject, sharpenValue: number): Promise<void> {
-    const imageNode = obj.node as Konva.Image
-    
-    // Cache the image for filter application
-    imageNode.cache()
-    
-    // Set up enhance filter (similar to sharpen)
-    const filters = imageNode.filters() || []
-    
-    if (sharpenValue > 0) {
-      // Add or keep enhance filter
-      if (!filters.includes(Konva.Filters.Enhance)) {
-        filters.push(Konva.Filters.Enhance)
-        imageNode.filters(filters)
-      }
-      
-      // Apply enhance value (0 to 1 range)
-      imageNode.enhance(sharpenValue / 100)
-    } else {
-      // Remove enhance filter
-      const newFilters = filters.filter(f => f !== Konva.Filters.Enhance)
-      imageNode.filters(newFilters)
-      
-      // Clear cache if no filters remain
-      if (newFilters.length === 0) {
-        imageNode.clearCache()
-      }
-    }
-    
-    // Redraw
-    const layer = this.findLayerForObject(obj)
-    if (layer) {
-      layer.konvaLayer.batchDraw()
-    }
-  }
-  
-  /**
-   * Get target objects based on selection or all images
-   */
-  private getTargetObjects(): CanvasObject[] {
-    const canvas = this.getCanvas()
-    const selection = canvas.state.selection
-    
-    if (selection?.type === 'objects') {
-      // Apply to selected objects
-      return selection.objectIds
-        .map(id => this.findObject(id))
-        .filter((obj): obj is CanvasObject => obj !== null && obj.type === 'image')
-    } else if (selection?.type === 'rectangle' || selection?.type === 'ellipse' || selection?.type === 'pixel') {
-      // For pixel selections, we'd need different handling
-      console.warn('[SharpenTool] Pixel-based selections not yet implemented for sharpen')
-      return []
-    } else {
-      // Apply to all images
-      const allImages: CanvasObject[] = []
-      for (const layer of canvas.state.layers) {
-        for (const obj of layer.objects) {
-          if (obj.type === 'image' && !obj.locked && obj.visible) {
-            allImages.push(obj)
-          }
-        }
-      }
-      return allImages
-    }
-  }
-  
-  /**
-   * Find an object by ID
-   */
-  private findObject(objectId: string): CanvasObject | null {
-    const canvas = this.getCanvas()
-    for (const layer of canvas.state.layers) {
-      const obj = layer.objects.find(o => o.id === objectId)
-      if (obj) return obj
-    }
-    return null
-  }
-  
-  /**
-   * Find the layer containing an object
-   */
-  private findLayerForObject(obj: CanvasObject) {
-    const canvas = this.getCanvas()
-    return canvas.state.layers.find(layer => 
-      layer.objects.some(o => o.id === obj.id)
-    )
-  }
-  
-  /**
-   * Apply sharpen for AI operations with selection context
-   */
-  async applyWithContext(sharpenValue: number, targetObjects?: CanvasObject[]): Promise<void> {
-    if (targetObjects) {
-      // Apply to specific objects
-      for (const obj of targetObjects) {
-        if (obj.type === 'image') {
-          await this.applySharpenToImage(obj, sharpenValue)
-        }
-      }
-    } else {
-      // Use normal apply
-      await this.applySharpen(sharpenValue)
+  getSharpenRange(): { min: number; max: number; step: number } {
+    return {
+      min: 0,
+      max: 200,
+      step: 1
     }
   }
 }

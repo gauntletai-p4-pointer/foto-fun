@@ -1,15 +1,14 @@
 import { Palette } from 'lucide-react'
-import { BaseTool } from '../base/BaseTool'
+import { ObjectTool } from '../base/ObjectTool'
 import type { ToolEvent, Point } from '@/lib/editor/canvas/types'
+import type { CanvasObject } from '@/lib/editor/objects/types'
 import { TOOL_IDS } from '@/constants'
-import Konva from 'konva'
-import { GradientAppliedEvent } from '@/lib/events/canvas/GradientEvents'
 
 /**
- * Gradient Tool
- * Supports Linear, Radial, Angle, Reflected, and Diamond gradients
+ * Object-based Gradient Tool
+ * Applies gradients to selected objects
  */
-export class GradientTool extends BaseTool {
+export class GradientTool extends ObjectTool {
   id = TOOL_IDS.GRADIENT
   name = 'Gradient Tool'
   icon = Palette
@@ -31,130 +30,59 @@ export class GradientTool extends BaseTool {
   private isDrawing = false
   private startPoint: Point | null = null
   private endPoint: Point | null = null
-  private gradientShape: Konva.Rect | null = null
+  private previewCanvas: HTMLCanvasElement | null = null
   
   protected setupTool(): void {
-    // No need to create a preview layer - we'll use the overlay layer
+    // Load settings from options
+    this.gradientType = (this.getOption('gradientType') as typeof this.gradientType) || 'linear'
+    this.opacity = (this.getOption('opacity') as number) || 100
+    this.blendMode = (this.getOption('blendMode') as GlobalCompositeOperation) || 'source-over'
+    this.reverse = (this.getOption('reverse') as boolean) || false
+    this.dither = (this.getOption('dither') as boolean) || true
+    
+    // Load gradient stops if provided
+    const stops = this.getOption('gradientStops')
+    if (stops && Array.isArray(stops)) {
+      this.gradientStops = stops
+    }
   }
   
   protected cleanupTool(): void {
-    // Clean up gradient preview if any
-    if (this.gradientShape) {
-      this.gradientShape.destroy()
-      this.gradientShape = null
-    }
-    
-    // Redraw overlay layer
-    const canvas = this.getCanvas()
-    const stage = canvas.konvaStage
-    const overlayLayer = stage.children[2] as Konva.Layer
-    if (overlayLayer) {
-      overlayLayer.batchDraw()
-    }
-  }
-  
-  /**
-   * Get tool-specific options
-   */
-  getToolOptions(): Record<string, unknown> {
-    return {
-      gradientType: {
-        type: 'select',
-        label: 'Type',
-        value: this.gradientType,
-        options: [
-          { value: 'linear', label: 'Linear' },
-          { value: 'radial', label: 'Radial' },
-          { value: 'angle', label: 'Angle' },
-          { value: 'reflected', label: 'Reflected' },
-          { value: 'diamond', label: 'Diamond' }
-        ],
-        onChange: (value: string) => {
-          this.gradientType = value as typeof this.gradientType
-          this.updatePreview()
-        }
-      },
-      opacity: {
-        type: 'slider',
-        label: 'Opacity',
-        value: this.opacity,
-        min: 0,
-        max: 100,
-        onChange: (value: number) => {
-          this.opacity = value
-          this.updatePreview()
-        }
-      },
-      blendMode: {
-        type: 'select',
-        label: 'Mode',
-        value: this.blendMode,
-        options: [
-          { value: 'normal', label: 'Normal' },
-          { value: 'multiply', label: 'Multiply' },
-          { value: 'screen', label: 'Screen' },
-          { value: 'overlay', label: 'Overlay' },
-          { value: 'darken', label: 'Darken' },
-          { value: 'lighten', label: 'Lighten' }
-        ],
-        onChange: (value: string) => {
-          this.blendMode = value as GlobalCompositeOperation
-          this.updatePreview()
-        }
-      },
-      reverse: {
-        type: 'toggle',
-        label: 'Reverse',
-        value: this.reverse,
-        onChange: (value: boolean) => {
-          this.reverse = value
-          this.updatePreview()
-        }
-      },
-      dither: {
-        type: 'toggle',
-        label: 'Dither',
-        value: this.dither,
-        onChange: (value: boolean) => {
-          this.dither = value
-          this.updatePreview()
-        }
-      },
-      gradientEditor: {
-        type: 'custom',
-        label: 'Gradient',
-        component: 'GradientEditor',
-        value: this.gradientStops,
-        onChange: (stops: typeof this.gradientStops) => {
-          this.gradientStops = stops
-          this.updatePreview()
-        }
-      }
-    }
+    this.clearPreview()
+    this.startPoint = null
+    this.endPoint = null
   }
   
   onMouseDown(event: ToolEvent): void {
+    this.lastMousePosition = event.point
+    
+    // Check if we have target objects
+    const targets = this.getTargetObjects()
+    if (targets.length === 0) return
+    
     this.isDrawing = true
     this.startPoint = event.point
     this.endPoint = event.point
     
-    // Create gradient shape
-    this.createGradientPreview()
+    // Create preview
+    this.createPreview()
   }
   
   onMouseMove(event: ToolEvent): void {
+    this.lastMousePosition = event.point
+    
     if (!this.isDrawing || !this.startPoint) return
     
     this.endPoint = event.point
     this.updatePreview()
   }
   
-  onMouseUp(): void {
+  onMouseUp(_event: ToolEvent): void {
     if (!this.isDrawing || !this.startPoint || !this.endPoint) return
     
     this.isDrawing = false
     
-    // Apply gradient to canvas
+    // Apply gradient to target objects
     this.applyGradient()
     
     // Clear preview
@@ -166,267 +94,335 @@ export class GradientTool extends BaseTool {
   }
   
   /**
-   * Create gradient preview shape
+   * Create gradient preview
    */
-  private createGradientPreview(): void {
-    const canvas = this.getCanvas()
-    const stage = canvas.konvaStage
-    if (!stage) return
-    
-    const overlayLayer = stage.children[2] as Konva.Layer
-    if (!overlayLayer) return
-    
-    // Create rectangle covering entire canvas
-    this.gradientShape = new Konva.Rect({
-      x: 0,
-      y: 0,
-      width: stage.width(),
-      height: stage.height(),
-      opacity: this.opacity / 100
-    })
-    
-    overlayLayer.add(this.gradientShape)
-    this.updatePreview()
+  private createPreview(): void {
+    // For now, we'll apply directly without preview
+    // In a full implementation, we'd create an overlay
   }
   
   /**
    * Update gradient preview
    */
   private updatePreview(): void {
-    if (!this.gradientShape || !this.startPoint || !this.endPoint) return
-    
-    const gradient = this.createGradient()
-    if (gradient) {
-      this.applyGradientToShape(this.gradientShape, gradient)
-      
-      const canvas = this.getCanvas()
-      const stage = canvas.konvaStage
-      if (stage) {
-        const overlayLayer = stage.children[2] as Konva.Layer
-        if (overlayLayer) {
-          overlayLayer.batchDraw()
-        }
-      }
-    }
-  }
-  
-  /**
-   * Apply gradient configuration to shape
-   */
-  private applyGradientToShape(shape: Konva.Rect, gradientConfig: Record<string, unknown>): void {
-    const config = gradientConfig as {
-      start?: { x: number; y: number }
-      end?: { x: number; y: number }
-      startRadius?: number
-      endRadius?: number
-      colorStops: (number | string)[]
-    }
-    
-    if (this.gradientType === 'radial') {
-      shape.fillRadialGradientStartPoint(config.start || { x: 0, y: 0 })
-      shape.fillRadialGradientEndPoint(config.end || { x: 0, y: 0 })
-      shape.fillRadialGradientStartRadius(config.startRadius || 0)
-      shape.fillRadialGradientEndRadius(config.endRadius || 100)
-      shape.fillRadialGradientColorStops(config.colorStops)
-      shape.fillPriority('radial-gradient')
-    } else {
-      // Linear gradient for all other types
-      shape.fillLinearGradientStartPoint(config.start || { x: 0, y: 0 })
-      shape.fillLinearGradientEndPoint(config.end || { x: 100, y: 100 })
-      shape.fillLinearGradientColorStops(config.colorStops)
-      shape.fillPriority('linear-gradient')
-    }
-  }
-  
-  /**
-   * Create gradient configuration based on type
-   */
-  private createGradient(): Record<string, unknown> | null {
-    if (!this.startPoint || !this.endPoint) return null
-    
-    // Process gradient stops
-    const stops = this.reverse 
-      ? [...this.gradientStops].reverse()
-      : this.gradientStops
-    
-    // Convert stops to Konva format
-    const colorStops: (number | string)[] = []
-    stops.forEach(stop => {
-      colorStops.push(stop.offset)
-      const opacity = Math.floor(stop.opacity * 255).toString(16).padStart(2, '0')
-      colorStops.push(stop.color + opacity)
-    })
-    
-    switch (this.gradientType) {
-      case 'linear':
-        return {
-          start: { x: this.startPoint.x, y: this.startPoint.y },
-          end: { x: this.endPoint.x, y: this.endPoint.y },
-          colorStops
-        }
-        
-      case 'radial':
-        return {
-          start: { x: this.startPoint.x, y: this.startPoint.y },
-          end: { x: this.startPoint.x, y: this.startPoint.y },
-          startRadius: 0,
-          endRadius: this.calculateDistance(this.startPoint, this.endPoint),
-          colorStops
-        }
-        
-      case 'angle':
-        return this.createAngleGradient(colorStops)
-        
-      case 'reflected':
-        return this.createReflectedGradient(colorStops)
-        
-      case 'diamond':
-        return this.createDiamondGradient(colorStops)
-        
-      default:
-        return null
-    }
-  }
-  
-  /**
-   * Create angle gradient (conic)
-   */
-  private createAngleGradient(colorStops: (number | string)[]): Record<string, unknown> | null {
-    if (!this.startPoint || !this.endPoint) return null
-    
-    // Calculate angle
-    const angle = Math.atan2(
-      this.endPoint.y - this.startPoint.y,
-      this.endPoint.x - this.startPoint.x
-    )
-    
-    // For angle gradient, we need to create a custom fill
-    // This is a simplified version - real implementation would use canvas pattern
-    return {
-      start: { x: this.startPoint.x, y: this.startPoint.y },
-      end: { x: this.endPoint.x, y: this.endPoint.y },
-      colorStops,
-      rotation: angle * 180 / Math.PI
-    }
-  }
-  
-  /**
-   * Create reflected gradient
-   */
-  private createReflectedGradient(colorStops: (number | string)[]): Record<string, unknown> | null {
-    if (!this.startPoint || !this.endPoint) return null
-    
-    // Reflected gradient uses mirrored color stops
-    const reflectedStops: (number | string)[] = []
-    
-    // First half
-    for (let i = 0; i < colorStops.length; i += 2) {
-      const offset = colorStops[i] as number
-      reflectedStops.push(offset * 0.5)
-      reflectedStops.push(colorStops[i + 1])
-    }
-    
-    // Second half (reversed)
-    for (let i = colorStops.length - 2; i >= 0; i -= 2) {
-      const offset = colorStops[i] as number
-      reflectedStops.push(0.5 + (1 - offset) * 0.5)
-      reflectedStops.push(colorStops[i + 1])
-    }
-    
-    return {
-      start: { x: this.startPoint.x, y: this.startPoint.y },
-      end: { x: this.endPoint.x, y: this.endPoint.y },
-      colorStops: reflectedStops
-    }
-  }
-  
-  /**
-   * Create diamond gradient
-   */
-  private createDiamondGradient(colorStops: (number | string)[]): Record<string, unknown> | null {
-    if (!this.startPoint || !this.endPoint) return null
-    
-    // Diamond gradient is like radial but with square shape
-    // This is a simplified version
-    const distance = this.calculateDistance(this.startPoint, this.endPoint)
-    
-    return {
-      start: { x: this.startPoint.x, y: this.startPoint.y },
-      end: { x: this.startPoint.x, y: this.startPoint.y },
-      startRadius: 0,
-      endRadius: distance,
-      colorStops,
-      // Custom property to indicate diamond shape
-      shape: 'diamond'
-    }
-  }
-  
-  /**
-   * Apply gradient to canvas
-   */
-  private applyGradient(): void {
-    if (!this.startPoint || !this.endPoint || !this.gradientShape) return
-    
-    const canvas = this.getCanvas()
-    const activeLayer = canvas.getActiveLayer()
-    if (!activeLayer) return
-    
-    // Clone the gradient shape to the active layer
-    const gradient = this.gradientShape.clone() as Konva.Rect
-    gradient.opacity(this.opacity / 100)
-    gradient.globalCompositeOperation(this.blendMode)
-    
-    // Apply the gradient configuration
-    const gradientConfig = this.createGradient()
-    if (gradientConfig) {
-      this.applyGradientToShape(gradient, gradientConfig)
-    }
-    
-    // Add to active layer
-    activeLayer.konvaLayer.add(gradient)
-    activeLayer.konvaLayer.batchDraw()
-    
-    // Emit event for history
-    if (this.executionContext) {
-      this.executionContext.emit(new GradientAppliedEvent(
-        'canvas',
-        `gradient-${Date.now()}`,
-        this.gradientType,
-        this.startPoint,
-        this.endPoint,
-        this.gradientStops,
-        activeLayer.id,
-        this.executionContext.getMetadata()
-      ))
-    }
+    // Update preview if implemented
   }
   
   /**
    * Clear gradient preview
    */
   private clearPreview(): void {
-    if (this.gradientShape) {
-      this.gradientShape.destroy()
-      this.gradientShape = null
-    }
-    const canvas = this.getCanvas()
-    const stage = canvas.konvaStage
-    if (stage) {
-      const overlayLayer = stage.children[2] as Konva.Layer
-      if (overlayLayer) {
-        overlayLayer.batchDraw()
-      }
+    if (this.previewCanvas) {
+      this.previewCanvas = null
     }
   }
   
   /**
-   * Calculate distance between two points
+   * Apply gradient to target objects
    */
-  private calculateDistance(p1: Point, p2: Point): number {
-    const dx = p2.x - p1.x
-    const dy = p2.y - p1.y
-    return Math.sqrt(dx * dx + dy * dy)
+  private applyGradient(): void {
+    if (!this.startPoint || !this.endPoint) return
+    
+    const targets = this.getTargetObjects()
+    
+    for (const target of targets) {
+      this.applyGradientToObject(target)
+    }
+    
+    // Trigger canvas update
+    this.getCanvas().render()
   }
+  
+  /**
+   * Apply gradient to a specific object
+   */
+  private applyGradientToObject(object: CanvasObject): void {
+    if (!this.startPoint || !this.endPoint) return
+    
+    // Get object's canvas element
+    let canvas: HTMLCanvasElement | null = null
+    
+    if (object.type === 'image') {
+      const imageData = object.data as { element: HTMLCanvasElement | HTMLImageElement }
+      if (imageData.element instanceof HTMLCanvasElement) {
+        canvas = imageData.element
+      } else {
+        // Convert image to canvas
+        canvas = document.createElement('canvas')
+        canvas.width = object.width
+        canvas.height = object.height
+        const ctx = canvas.getContext('2d')!
+        ctx.drawImage(imageData.element, 0, 0)
+        // Update object data
+        imageData.element = canvas
+      }
+    } else if (object.type === 'shape' || object.type === 'text') {
+      // Create canvas for shape/text if needed
+      canvas = document.createElement('canvas')
+      canvas.width = object.width
+      canvas.height = object.height
+      
+      // Draw existing content if any
+      // This would depend on the specific shape/text implementation
+    }
+    
+    if (!canvas) return
+    
+    const ctx = canvas.getContext('2d')!
+    
+    // Save current state
+    ctx.save()
+    
+    // Convert gradient points from canvas space to object space
+    const localStart = {
+      x: this.startPoint.x - object.x,
+      y: this.startPoint.y - object.y
+    }
+    const localEnd = {
+      x: this.endPoint.x - object.x,
+      y: this.endPoint.y - object.y
+    }
+    
+    // Create gradient
+    const gradient = this.createCanvasGradient(ctx, localStart, localEnd)
+    if (!gradient) {
+      ctx.restore()
+      return
+    }
+    
+    // Set composite operation
+    ctx.globalCompositeOperation = this.blendMode
+    ctx.globalAlpha = this.opacity / 100
+    
+    // Fill with gradient
+    ctx.fillStyle = gradient
+    ctx.fillRect(0, 0, canvas.width, canvas.height)
+    
+    // Restore state
+    ctx.restore()
+  }
+  
+  /**
+   * Create canvas gradient
+   */
+  private createCanvasGradient(
+    ctx: CanvasRenderingContext2D,
+    start: Point,
+    end: Point
+  ): CanvasGradient | null {
+    let gradient: CanvasGradient | null = null
+    
+    // Process gradient stops
+    const stops = this.reverse 
+      ? [...this.gradientStops].reverse()
+      : this.gradientStops
+    
+    switch (this.gradientType) {
+      case 'linear':
+        gradient = ctx.createLinearGradient(start.x, start.y, end.x, end.y)
+        break
+        
+      case 'radial':
+        const radius = Math.sqrt(
+          Math.pow(end.x - start.x, 2) + 
+          Math.pow(end.y - start.y, 2)
+        )
+        gradient = ctx.createRadialGradient(
+          start.x, start.y, 0,
+          start.x, start.y, radius
+        )
+        break
+        
+      case 'angle':
+        // For angle gradient, we'll use linear as approximation
+        gradient = this.createAngleGradient(ctx, start, end)
+        break
+        
+      case 'reflected':
+        gradient = this.createReflectedGradient(ctx, start, end)
+        break
+        
+      case 'diamond':
+        // For diamond, we'll use radial as approximation
+        gradient = this.createDiamondGradient(ctx, start, end)
+        break
+    }
+    
+    if (!gradient) return null
+    
+    // Add color stops
+    for (const stop of stops) {
+      const color = this.addOpacityToColor(stop.color, stop.opacity)
+      gradient.addColorStop(stop.offset, color)
+    }
+    
+    return gradient
+  }
+  
+  /**
+   * Create angle gradient (using linear approximation)
+   */
+  private createAngleGradient(
+    ctx: CanvasRenderingContext2D,
+    start: Point,
+    end: Point
+  ): CanvasGradient {
+    // Calculate angle
+    const angle = Math.atan2(end.y - start.y, end.x - start.x)
+    
+    // Create linear gradient perpendicular to angle
+    const distance = Math.sqrt(
+      Math.pow(end.x - start.x, 2) + 
+      Math.pow(end.y - start.y, 2)
+    )
+    
+    const perpX = Math.cos(angle + Math.PI / 2) * distance
+    const perpY = Math.sin(angle + Math.PI / 2) * distance
+    
+    return ctx.createLinearGradient(
+      start.x - perpX, start.y - perpY,
+      start.x + perpX, start.y + perpY
+    )
+  }
+  
+  /**
+   * Create reflected gradient
+   */
+  private createReflectedGradient(
+    ctx: CanvasRenderingContext2D,
+    start: Point,
+    end: Point
+  ): CanvasGradient {
+    // Create linear gradient that goes from start to end and back
+    const midX = (start.x + end.x) / 2
+    const midY = (start.y + end.y) / 2
+    
+    // Extend the gradient to create reflection
+    const dx = end.x - start.x
+    const dy = end.y - start.y
+    
+    return ctx.createLinearGradient(
+      start.x - dx, start.y - dy,
+      end.x, end.y
+    )
+  }
+  
+  /**
+   * Create diamond gradient (using radial approximation)
+   */
+  private createDiamondGradient(
+    ctx: CanvasRenderingContext2D,
+    start: Point,
+    end: Point
+  ): CanvasGradient {
+    // Use radial gradient as approximation
+    const radius = Math.max(
+      Math.abs(end.x - start.x),
+      Math.abs(end.y - start.y)
+    )
+    
+    return ctx.createRadialGradient(
+      start.x, start.y, 0,
+      start.x, start.y, radius
+    )
+  }
+  
+  /**
+   * Add opacity to hex color
+   */
+  private addOpacityToColor(color: string, opacity: number): string {
+    // Convert hex to rgba
+    const hex = color.replace('#', '')
+    const r = parseInt(hex.substr(0, 2), 16)
+    const g = parseInt(hex.substr(2, 2), 16)
+    const b = parseInt(hex.substr(4, 2), 16)
+    
+    return `rgba(${r}, ${g}, ${b}, ${opacity})`
+  }
+  
+  /**
+   * Handle option changes
+   */
+  protected onOptionChange(key: string, value: unknown): void {
+    switch (key) {
+      case 'gradientType':
+        this.gradientType = value as typeof this.gradientType
+        break
+      case 'opacity':
+        this.opacity = value as number
+        break
+      case 'blendMode':
+        this.blendMode = value as GlobalCompositeOperation
+        break
+      case 'reverse':
+        this.reverse = value as boolean
+        break
+      case 'dither':
+        this.dither = value as boolean
+        break
+      case 'gradientStops':
+        if (Array.isArray(value)) {
+          this.gradientStops = value
+        }
+        break
+    }
+  }
+  
+  // Tool options configuration
+  static options = [
+    {
+      id: 'gradientType',
+      type: 'select' as const,
+      label: 'Type',
+      options: [
+        { value: 'linear', label: 'Linear' },
+        { value: 'radial', label: 'Radial' },
+        { value: 'angle', label: 'Angle' },
+        { value: 'reflected', label: 'Reflected' },
+        { value: 'diamond', label: 'Diamond' }
+      ],
+      default: 'linear'
+    },
+    {
+      id: 'opacity',
+      type: 'slider' as const,
+      label: 'Opacity',
+      min: 0,
+      max: 100,
+      default: 100,
+      step: 1
+    },
+    {
+      id: 'blendMode',
+      type: 'select' as const,
+      label: 'Mode',
+      options: [
+        { value: 'source-over', label: 'Normal' },
+        { value: 'multiply', label: 'Multiply' },
+        { value: 'screen', label: 'Screen' },
+        { value: 'overlay', label: 'Overlay' },
+        { value: 'darken', label: 'Darken' },
+        { value: 'lighten', label: 'Lighten' },
+        { value: 'color-dodge', label: 'Color Dodge' },
+        { value: 'color-burn', label: 'Color Burn' },
+        { value: 'hard-light', label: 'Hard Light' },
+        { value: 'soft-light', label: 'Soft Light' }
+      ],
+      default: 'source-over'
+    },
+    {
+      id: 'reverse',
+      type: 'checkbox' as const,
+      label: 'Reverse',
+      default: false
+    },
+    {
+      id: 'dither',
+      type: 'checkbox' as const,
+      label: 'Dither',
+      default: true
+    }
+  ]
   
   /**
    * Add gradient stop
@@ -434,7 +430,6 @@ export class GradientTool extends BaseTool {
   addGradientStop(offset: number, color: string, opacity: number = 1): void {
     this.gradientStops.push({ offset, color, opacity })
     this.gradientStops.sort((a, b) => a.offset - b.offset)
-    this.updatePreview()
   }
   
   /**
@@ -443,7 +438,6 @@ export class GradientTool extends BaseTool {
   removeGradientStop(index: number): void {
     if (this.gradientStops.length > 2) {
       this.gradientStops.splice(index, 1)
-      this.updatePreview()
     }
   }
   
@@ -454,7 +448,6 @@ export class GradientTool extends BaseTool {
     if (index >= 0 && index < this.gradientStops.length) {
       this.gradientStops[index] = { ...this.gradientStops[index], ...stop }
       this.gradientStops.sort((a, b) => a.offset - b.offset)
-      this.updatePreview()
     }
   }
   
@@ -463,6 +456,8 @@ export class GradientTool extends BaseTool {
    */
   loadPresetGradient(preset: typeof this.gradientStops): void {
     this.gradientStops = [...preset]
-    this.updatePreview()
   }
-} 
+}
+
+// Export singleton instance
+export const gradientTool = new GradientTool() 

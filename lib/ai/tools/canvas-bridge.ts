@@ -86,8 +86,8 @@ export class CanvasToolBridge {
       targetImages,
       targetingMode,
       dimensions: {
-        width: canvas.state.width,
-        height: canvas.state.height
+        width: (canvas.state.documentBounds?.width || 0),
+        height: (canvas.state.documentBounds?.height || 0)
       },
       selection
     }

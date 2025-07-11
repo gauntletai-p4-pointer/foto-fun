@@ -7,7 +7,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { useService } from '@/lib/core/AppInitializer'
 import { useAISettings } from '@/hooks/useAISettings'
 import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
-import type { CanvasObject } from '@/lib/editor/canvas/types'
+import type { CanvasObject } from '@/lib/editor/objects/types'
 
 // Import extracted components
 import { ChatInput } from './components/ChatInput'
@@ -66,10 +66,9 @@ export function AIChat() {
     }
   }
   
-  const hasContent = useCallback(() => {
-    if (!canvasManager) return false
-    return canvasManager.state.layers.some(layer => layer.objects.length > 0)
-  }, [canvasManager])
+  const hasContent = () => {
+    return canvasManager.getAllObjects().length > 0
+  }
   const { settings: aiSettings } = useAISettings()
   
   // Use the custom hook for tool call handling
@@ -149,67 +148,53 @@ export function AIChat() {
   const handleSubmit = useCallback((text: string) => {
     // Capture selection snapshot at request time
     let selectionSnapshot = null
-    const selectedObjects: CanvasObject[] = []
+    let selectedObjects: CanvasObject[] = []
     
     if (canvasManager) {
-      const selection = canvasManager.state.selection
+      // Capture current selection state
+      selectedObjects = canvasManager.getSelectedObjects()
       
-      if (selection?.type === 'objects') {
-        selection.objectIds.forEach(id => {
-          const obj = canvasManager.findObject(id)
-          if (obj) selectedObjects.push(obj)
+      if (selectedObjects.length > 0) {
+        selectedObjects.forEach(obj => {
+          console.log(`[AIChat] Selected object: ${obj.id} (${obj.type})`)
         })
-      }
-      
-      // Create a lightweight snapshot of the selection
-      selectionSnapshot = {
-        objectCount: selectedObjects.length,
-        objectIds: selectedObjects.map((obj: CanvasObject) => obj.id),
-        types: Array.from(new Set(selectedObjects.map((obj: CanvasObject) => obj.type))),
-        isEmpty: selectedObjects.length === 0,
-        hasImages: selectedObjects.some((obj: CanvasObject) => obj.type === 'image'),
-        // Store actual object references for this request
-        _objects: selectedObjects
+        
+        // Create a lightweight snapshot of the selection
+        selectionSnapshot = {
+          objectCount: selectedObjects.length,
+          objectIds: selectedObjects.map(obj => obj.id),
+          types: [...new Set(selectedObjects.map(obj => obj.type))],
+          isEmpty: selectedObjects.length === 0,
+          hasImages: selectedObjects.some(obj => obj.type === 'image'),
+          _objects: selectedObjects
+        }
       }
       
       console.log('[AIChat] Captured selection snapshot:', {
-        count: selectionSnapshot.objectCount,
-        types: selectionSnapshot.types,
-        isEmpty: selectionSnapshot.isEmpty
+        count: selectionSnapshot?.objectCount || 0,
+        types: selectionSnapshot?.types || [],
+        isEmpty: !selectionSnapshot || selectionSnapshot.isEmpty
       })
     }
     
-    // Build canvas context with fresh state
-    const canvasContext = canvasManager ? {
+    const canvasContext = {
       dimensions: {
-        width: canvasManager.state.width,
-        height: canvasManager.state.height
+        width: canvasManager?.state.canvasWidth || 0,
+        height: canvasManager?.state.canvasHeight || 0
       },
       hasContent: hasContent(),
-      objectCount: canvasManager.state.layers.reduce((count, layer) => count + layer.objects.length, 0),
+      objectCount: canvasManager?.getAllObjects().length || 0,
       // Selection state for AI awareness
       selection: {
         count: selectedObjects.length,
-        hasImages: selectedObjects.some((obj: CanvasObject) => obj.type === 'image'),
-        hasText: selectedObjects.some((obj: CanvasObject) => obj.type === 'text' || obj.type === 'verticalText'),
-        // For single-object scenarios
-        isSingleImage: selectedObjects.length === 1 && selectedObjects[0].type === 'image'
+        hasSelection: selectedObjects.length > 0,
+        types: [...new Set(selectedObjects.map((obj: CanvasObject) => obj.type))]
       },
-      // Canvas state hints for smart inference
-      singleImageCanvas: (() => {
-        const allObjects = canvasManager.state.layers.flatMap(layer => layer.objects)
-        return allObjects.length === 1 && allObjects[0].type === 'image'
-      })(),
-      // ADD: Selection snapshot data for request-time capture
-      selectionSnapshot: selectionSnapshot ? {
-        objectCount: selectionSnapshot.objectCount,
-        objectIds: selectionSnapshot.objectIds,
-        types: selectionSnapshot.types,
-        isEmpty: selectionSnapshot.isEmpty,
-        hasImages: selectionSnapshot.hasImages,
-        _objects: selectionSnapshot._objects
-      } : null
-    } : null
+      canvasType: 'konva',
+      isReady: true
+    }
+    
+    const allObjects = canvasManager?.getAllObjects() || []
     
     // Send message with context in body (matching what the server expects)
     sendMessage(

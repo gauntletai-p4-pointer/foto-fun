@@ -67,8 +67,8 @@ NEVER ask for exact styling - interpret the user's intent and choose appropriate
         const canvas = context.canvas
         
         // Calculate position based on position enum
-        const canvasWidth = canvas.state.width
-        const canvasHeight = canvas.state.height
+        const canvasWidth = (canvas.state.documentBounds?.width || 0)
+        const canvasHeight = (canvas.state.documentBounds?.height || 0)
         const margin = 50 // Default margin from edges
         
         // Start with center

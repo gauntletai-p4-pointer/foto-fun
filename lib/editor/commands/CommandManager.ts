@@ -1,6 +1,5 @@
 import type { Command } from './base/Command'
 import type { SelectionSnapshot } from '@/lib/ai/execution/SelectionSnapshot'
-import { ServiceContainer } from '@/lib/core/ServiceContainer'
 
 /**
  * Result of a single command execution

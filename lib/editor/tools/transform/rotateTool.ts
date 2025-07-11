@@ -1,15 +1,15 @@
 import { RotateCw } from 'lucide-react'
 import Konva from 'konva'
 import { TOOL_IDS } from '@/constants'
-import { BaseTool } from '../base/BaseTool'
-import type { ToolEvent, Point, CanvasObject, Transform } from '@/lib/editor/canvas/types'
-import { ObjectsTransformedEvent } from '@/lib/events/canvas/ToolEvents'
+import { ObjectTool } from '../base/ObjectTool'
+import type { ToolEvent, Point } from '@/lib/editor/canvas/types'
+import type { CanvasObject } from '@/lib/editor/objects/types'
 
 /**
- * Rotate Tool - Rotation with pixel interpolation
- * Konva implementation with visual rotation handles
+ * Rotate Tool - Object rotation with visual handles
+ * Supports snap angles and batch rotation
  */
-export class RotateTool extends BaseTool {
+export class RotateTool extends ObjectTool {
   // Tool identification
   id = TOOL_IDS.ROTATE
   name = 'Rotate'
@@ -23,11 +23,15 @@ export class RotateTool extends BaseTool {
   private startAngle = 0
   private currentRotation = 0
   private rotationTransformer: Konva.Transformer | null = null
-  private selectedObjects: CanvasObject[] = []
-  private originalTransforms: Map<string, Transform> = new Map()
+  private overlayLayer: Konva.Layer | null = null
+  private originalRotations: Map<string, number> = new Map()
   
   protected setupTool(): void {
     const canvas = this.getCanvas()
+    const stage = canvas.konvaStage
+    
+    // Get overlay layer
+    this.overlayLayer = stage.children[stage.children.length - 1] as Konva.Layer
     
     // Create transformer for rotation handles
     this.rotationTransformer = new Konva.Transformer({
@@ -40,13 +44,8 @@ export class RotateTool extends BaseTool {
       rotationSnapTolerance: 5
     })
     
-    // Use the existing overlay layer
-    const stage = canvas.konvaStage
-    // The CanvasManager has an overlayLayer at index 2 (after background and selection layers)
-    const overlayLayer = stage.children[2] as Konva.Layer
-    
-    if (overlayLayer) {
-      overlayLayer.add(this.rotationTransformer)
+    if (this.overlayLayer) {
+      this.overlayLayer.add(this.rotationTransformer)
     }
     
     // Set up transformer events
@@ -80,8 +79,8 @@ export class RotateTool extends BaseTool {
     // Reset state
     this.isRotating = false
     this.rotationCenter = null
-    this.selectedObjects = []
-    this.originalTransforms.clear()
+    this.originalRotations.clear()
+    this.overlayLayer = null
   }
   
   protected onOptionChange(key: string, value: unknown): void {
@@ -91,9 +90,13 @@ export class RotateTool extends BaseTool {
       this.setOption('quickRotate', null) // Reset button
     } else if (key === 'angle' && typeof value === 'number') {
       // Direct angle input
-      const delta = value - this.currentRotation
-      if (Math.abs(delta) > 0.01) {
-        this.applyRotation(delta, true)
+      const selectedObjects = this.getTargetObjects()
+      if (selectedObjects.length > 0) {
+        const currentAvgRotation = selectedObjects.reduce((sum, obj) => sum + obj.rotation, 0) / selectedObjects.length
+        const delta = value - currentAvgRotation
+        if (Math.abs(delta) > 0.01) {
+          this.applyRotation(delta, true)
+        }
       }
     }
   }
@@ -102,15 +105,11 @@ export class RotateTool extends BaseTool {
     if (this.isRotating) return
     
     const canvas = this.getCanvas()
-    const target = canvas.getObjectAtPoint(event.point)
+    const clickedObject = canvas.getObjectAtPoint(event.point)
     
-    if (target && !target.locked) {
+    if (clickedObject && !clickedObject.locked) {
       // Select the object
-      canvas.setSelection({
-        type: 'objects',
-        objectIds: [target.id]
-      })
-      
+      canvas.selectObject(clickedObject.id)
       this.updateSelection()
     }
   }
@@ -120,36 +119,45 @@ export class RotateTool extends BaseTool {
    */
   private updateSelection(): void {
     const canvas = this.getCanvas()
-    const selection = canvas.state.selection
+    const selectedObjects = this.getTargetObjects()
     
     if (!this.rotationTransformer) return
     
-    if (selection?.type === 'objects' && selection.objectIds.length > 0) {
-      // Get selected objects
-      this.selectedObjects = selection.objectIds
-        .map(id => this.findObject(id))
-        .filter((obj): obj is CanvasObject => obj !== null && !obj.locked)
+    if (selectedObjects.length > 0) {
+      // Get Konva nodes for selected objects
+      const nodes: Konva.Node[] = []
+      const stage = canvas.konvaStage
       
-      if (this.selectedObjects.length > 0) {
+      selectedObjects.forEach(obj => {
+        const node = stage.findOne(`#${obj.id}`)
+        if (node) {
+          nodes.push(node)
+        }
+      })
+      
+      if (nodes.length > 0) {
         // Attach transformer to selected nodes
-        const nodes = this.selectedObjects.map(obj => obj.node)
         this.rotationTransformer.nodes(nodes)
         
         // Calculate rotation center (center of all objects)
-        const bounds = this.getSelectionBounds()
+        const bounds = this.getSelectionBounds(selectedObjects)
         this.rotationCenter = {
           x: bounds.x + bounds.width / 2,
           y: bounds.y + bounds.height / 2
         }
         
-        const layer = this.rotationTransformer.getLayer()
-        if (layer) layer.batchDraw()
+        // Update current rotation display
+        this.currentRotation = selectedObjects[0]?.rotation || 0
+        this.setOption('angle', Math.round(this.currentRotation))
       } else {
         this.rotationTransformer.nodes([])
       }
     } else {
       this.rotationTransformer.nodes([])
-      this.selectedObjects = []
+    }
+    
+    if (this.overlayLayer) {
+      this.overlayLayer.batchDraw()
     }
   }
   
@@ -159,10 +167,11 @@ export class RotateTool extends BaseTool {
   private handleRotationStart(): void {
     this.isRotating = true
     
-    // Store original transforms
-    this.originalTransforms.clear()
-    for (const obj of this.selectedObjects) {
-      this.originalTransforms.set(obj.id, { ...obj.transform })
+    // Store original rotations
+    this.originalRotations.clear()
+    const selectedObjects = this.getTargetObjects()
+    for (const obj of selectedObjects) {
+      this.originalRotations.set(obj.id, obj.rotation)
     }
     
     // Calculate start angle
@@ -182,12 +191,23 @@ export class RotateTool extends BaseTool {
   private handleRotationUpdate(): void {
     if (!this.isRotating || !this.rotationCenter) return
     
+    const canvas = this.getCanvas()
+    const selectedObjects = this.getTargetObjects()
+    
     // Update current rotation for UI
-    if (this.selectedObjects.length > 0) {
-      const node = this.selectedObjects[0].node
-      const rotation = node.rotation()
-      this.currentRotation = rotation
-      this.setOption('angle', Math.round(rotation))
+    if (selectedObjects.length > 0) {
+      const stage = canvas.konvaStage
+      const node = stage.findOne(`#${selectedObjects[0].id}`)
+      if (node) {
+        const rotation = node.rotation()
+        this.currentRotation = rotation
+        this.setOption('angle', Math.round(rotation))
+        
+        // Update object rotation in real-time
+        canvas.updateObject(selectedObjects[0].id, {
+          rotation: rotation
+        })
+      }
     }
   }
   
@@ -199,81 +219,51 @@ export class RotateTool extends BaseTool {
     
     this.isRotating = false
     
-    // Collect transformation data
-    const transformedObjects: Array<{
-      objectId: string
-      before: Transform
-      after: Transform
-    }> = []
+    const canvas = this.getCanvas()
+    const selectedObjects = this.getTargetObjects()
     
-    for (const obj of this.selectedObjects) {
-      const before = this.originalTransforms.get(obj.id)
-      if (before) {
-        // Update object transform from Konva node
-        obj.transform.rotation = obj.node.rotation()
-        
-        transformedObjects.push({
-          objectId: obj.id,
-          before,
-          after: { ...obj.transform }
+    // Update all selected objects with their final rotations
+    for (const obj of selectedObjects) {
+      const node = canvas.konvaStage.findOne(`#${obj.id}`)
+      if (node) {
+        await canvas.updateObject(obj.id, {
+          rotation: node.rotation()
         })
       }
     }
     
-    // Emit event if in ExecutionContext
-    if (this.executionContext && transformedObjects.length > 0) {
-      await this.executionContext.emit(new ObjectsTransformedEvent(
-        'canvas',
-        transformedObjects.map(t => ({
-          objectId: t.objectId,
-          previousTransform: { ...t.before } as unknown as Record<string, unknown>,
-          newTransform: { ...t.after } as unknown as Record<string, unknown>
-        })),
-        this.executionContext.getMetadata()
-      ))
-    }
-    
-    // Clear stored transforms
-    this.originalTransforms.clear()
+    // Clear stored rotations
+    this.originalRotations.clear()
   }
   
   /**
    * Apply rotation programmatically
    */
   async applyRotation(degrees: number, relative: boolean = false): Promise<void> {
-    if (this.selectedObjects.length === 0) {
-      this.updateSelection()
-      if (this.selectedObjects.length === 0) {
-        console.warn('[RotateTool] No objects to rotate')
-        return
-      }
+    const canvas = this.getCanvas()
+    const selectedObjects = this.getTargetObjects()
+    
+    if (selectedObjects.length === 0) {
+      console.warn('[RotateTool] No objects to rotate')
+      return
     }
     
-    // Store original transforms
-    const transformedObjects: Array<{
-      objectId: string
-      before: Transform
-      after: Transform
-    }> = []
-    
-    for (const obj of this.selectedObjects) {
-      const before = { ...obj.transform }
+    for (const obj of selectedObjects) {
+      let newRotation: number
       
-      // Apply rotation
       if (relative) {
-        obj.transform.rotation = (obj.transform.rotation || 0) + degrees
+        newRotation = (obj.rotation || 0) + degrees
       } else {
-        obj.transform.rotation = degrees
+        newRotation = degrees
       }
       
       // Normalize rotation to 0-360
-      obj.transform.rotation = ((obj.transform.rotation % 360) + 360) % 360
+      newRotation = ((newRotation % 360) + 360) % 360
       
-      // Update Konva node
-      obj.node.rotation(obj.transform.rotation)
-      
-      const after = { ...obj.transform }
-      transformedObjects.push({ objectId: obj.id, before, after })
+      // Update object
+      await canvas.updateObject(obj.id, {
+        rotation: newRotation
+      })
     }
     
     // Update transformer if attached
@@ -281,58 +271,35 @@ export class RotateTool extends BaseTool {
       this.rotationTransformer.forceUpdate()
     }
     
-    // Redraw affected layers
-    const canvas = this.getCanvas()
-    const affectedLayers = new Set<string>()
-    for (const obj of this.selectedObjects) {
-      const layer = this.findLayerForObject(obj)
-      if (layer) {
-        affectedLayers.add(layer.id)
-      }
-    }
-    
-    for (const layerId of affectedLayers) {
-      const layer = canvas.state.layers.find(l => l.id === layerId)
-      if (layer) {
-        layer.konvaLayer.batchDraw()
-      }
-    }
-    
     // Update UI
-    this.currentRotation = this.selectedObjects[0]?.transform.rotation || 0
+    this.currentRotation = selectedObjects[0]?.rotation || 0
     this.setOption('angle', Math.round(this.currentRotation))
     
-    // Emit event if in ExecutionContext
-    if (this.executionContext && transformedObjects.length > 0) {
-      await this.executionContext.emit(new ObjectsTransformedEvent(
-        'canvas',
-        transformedObjects.map(t => ({
-          objectId: t.objectId,
-          previousTransform: { ...t.before } as unknown as Record<string, unknown>,
-          newTransform: { ...t.after } as unknown as Record<string, unknown>
-        })),
-        this.executionContext.getMetadata()
-      ))
-    }
+    // Redraw
+    canvas.konvaStage.batchDraw()
   }
   
   /**
    * Get bounds of selected objects
    */
-  private getSelectionBounds(): { x: number; y: number; width: number; height: number } {
-    if (this.selectedObjects.length === 0) {
+  private getSelectionBounds(objects: CanvasObject[]): { x: number; y: number; width: number; height: number } {
+    if (objects.length === 0) {
       return { x: 0, y: 0, width: 0, height: 0 }
     }
     
     let minX = Infinity, minY = Infinity
     let maxX = -Infinity, maxY = -Infinity
     
-    for (const obj of this.selectedObjects) {
-      const rect = obj.node.getClientRect()
-      minX = Math.min(minX, rect.x)
-      minY = Math.min(minY, rect.y)
-      maxX = Math.max(maxX, rect.x + rect.width)
-      maxY = Math.max(maxY, rect.y + rect.height)
+    for (const obj of objects) {
+      // Calculate rotated bounds
+      const corners = this.getRotatedCorners(obj)
+      
+      for (const corner of corners) {
+        minX = Math.min(minX, corner.x)
+        minY = Math.min(minY, corner.y)
+        maxX = Math.max(maxX, corner.x)
+        maxY = Math.max(maxY, corner.y)
+      }
     }
     
     return {
@@ -344,47 +311,53 @@ export class RotateTool extends BaseTool {
   }
   
   /**
-   * Find an object by ID
+   * Get rotated corners of an object
    */
-  private findObject(objectId: string): CanvasObject | null {
-    const canvas = this.getCanvas()
-    for (const layer of canvas.state.layers) {
-      const obj = layer.objects.find(o => o.id === objectId)
-      if (obj) return obj
-    }
-    return null
-  }
-  
-  /**
-   * Find the layer containing an object
-   */
-  private findLayerForObject(obj: CanvasObject) {
-    const canvas = this.getCanvas()
-    return canvas.state.layers.find(layer => 
-      layer.objects.some(o => o.id === obj.id)
-    )
+  private getRotatedCorners(obj: CanvasObject): Point[] {
+    const cx = obj.x + (obj.width * obj.scaleX) / 2
+    const cy = obj.y + (obj.height * obj.scaleY) / 2
+    const angle = (obj.rotation || 0) * Math.PI / 180
+    
+    const corners = [
+      { x: obj.x, y: obj.y },
+      { x: obj.x + obj.width * obj.scaleX, y: obj.y },
+      { x: obj.x + obj.width * obj.scaleX, y: obj.y + obj.height * obj.scaleY },
+      { x: obj.x, y: obj.y + obj.height * obj.scaleY }
+    ]
+    
+    // Rotate each corner around center
+    return corners.map(corner => {
+      const dx = corner.x - cx
+      const dy = corner.y - cy
+      return {
+        x: cx + dx * Math.cos(angle) - dy * Math.sin(angle),
+        y: cy + dx * Math.sin(angle) + dy * Math.cos(angle)
+      }
+    })
   }
   
   /**
    * Apply rotation for AI operations
    */
-  async applyWithContext(degrees: number, relative: boolean = true, targetObjects?: CanvasObject[]): Promise<void> {
-    if (targetObjects) {
+  async applyWithContext(degrees: number, relative: boolean = true, targetObjectIds?: string[]): Promise<void> {
+    const canvas = this.getCanvas()
+    
+    if (targetObjectIds) {
       // Store current selection
-      const canvas = this.getCanvas()
-      const originalSelection = canvas.state.selection
+      const originalSelection = Array.from(canvas.state.selectedObjectIds)
       
       // Temporarily set selection to target objects
-      canvas.state.selection = {
-        type: 'objects',
-        objectIds: targetObjects.map(obj => obj.id)
-      }
-      
+      canvas.selectMultiple(targetObjectIds)
       this.updateSelection()
+      
       await this.applyRotation(degrees, relative)
       
       // Restore original selection
-      canvas.state.selection = originalSelection
+      if (originalSelection.length > 0) {
+        canvas.selectMultiple(originalSelection)
+      } else {
+        canvas.deselectAll()
+      }
       this.updateSelection()
     } else {
       await this.applyRotation(degrees, relative)

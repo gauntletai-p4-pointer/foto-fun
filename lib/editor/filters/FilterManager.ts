@@ -229,7 +229,8 @@ export class FilterManager {
     })
     
     // Store adjustment data in layer metadata
-    ;(layer as any).adjustmentData = adjustmentData
+    // Note: Layer interface doesn't have adjustmentData property, using type assertion
+    ;(layer as Layer & { adjustmentData: AdjustmentLayerData }).adjustmentData = adjustmentData
     
     // Initialize with the filter
     layer.filterStack = {

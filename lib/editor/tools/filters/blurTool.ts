@@ -1,118 +1,71 @@
 import { Brush } from 'lucide-react'
 import { TOOL_IDS } from '@/constants'
-import { BaseTool } from '../base/BaseTool'
-import type { FilterTarget } from '@/lib/editor/filters/FilterManager'
-import type { Filter } from '@/lib/editor/canvas/types'
+import { ObjectWebGLFilterTool } from '../base/ObjectWebGLFilterTool'
 
 /**
- * Blur Tool - Apply gaussian blur to layers
- * Now uses layer-based filtering exclusively
+ * Object-based Blur Tool
+ * Applies gaussian blur to selected objects using WebGL
  */
-export class BlurTool extends BaseTool {
+export class BlurTool extends ObjectWebGLFilterTool {
   // Tool identification
   id = TOOL_IDS.BLUR
   name = 'Blur'
   icon = Brush
   cursor = 'default'
-  shortcut = undefined // Access via filters menu
+  shortcut = undefined // Accessed via filters panel
   
-  // Track current blur value
-  private currentBlur = 0
-  private isApplying = false
-  
-  protected setupTool(): void {
-    // Set default blur value
-    this.setOption('radius', 0)
+  // Filter configuration
+  protected getFilterType(): string {
+    return 'blur'
   }
   
-  protected cleanupTool(): void {
-    // Nothing to clean up
-  }
-  
-  /**
-   * Handle option changes from the UI
-   */
-  protected onOptionChange(key: string, value: unknown): void {
-    if (key === 'radius' && typeof value === 'number') {
-      // Apply blur immediately when slider changes
-      this.applyBlur(value)
-    }
-  }
-  
-  /**
-   * Apply blur filter
-   */
-  async applyBlur(blurValue: number): Promise<void> {
-    if (this.isApplying) return
-    
-    this.isApplying = true
-    
-    try {
-      const canvas = this.getCanvas()
-      const filterManager = canvas.getFilterManager?.()
-      
-      if (!filterManager) {
-        console.error('[BlurTool] FilterManager not available')
-        return
-      }
-      
-      // Create filter
-      const filter: Filter = {
-        type: 'blur',
-        params: { radius: blurValue }
-      }
-      
-      // Determine target
-      const target = this.determineFilterTarget()
-      
-      if (!target) {
-        console.warn('[BlurTool] No valid target for filter')
-        return
-      }
-      
-      // Apply filter through FilterManager
-      await filterManager.applyFilter(filter, target, this.executionContext)
-      
-      this.currentBlur = blurValue
-    } finally {
-      this.isApplying = false
-    }
-  }
-  
-  /**
-   * Determine the filter target based on current selection
-   */
-  private determineFilterTarget(): FilterTarget | null {
-    const canvas = this.getCanvas()
-    const selection = canvas.state.selection
-    const activeLayer = canvas.getActiveLayer()
-    
-    if (!activeLayer) {
-      console.warn('[BlurTool] No active layer')
-      return null
-    }
-    
-    // If there's a pixel selection, use it
-    if (selection && selection.type !== 'objects') {
-      return {
-        type: 'selection',
-        layerId: activeLayer.id,
-        selection
-      }
-    }
-    
-    // Otherwise apply to the entire active layer
+  protected getDefaultParams(): Record<string, number> {
     return {
-      type: 'layer',
-      layerId: activeLayer.id
+      radius: 0 // Range: 0 to 50 pixels
+    }
+  }
+  
+  // Tool options configuration
+  static options = [
+    {
+      id: 'radius',
+      type: 'slider' as const,
+      label: 'Blur Radius',
+      min: 0,
+      max: 50,
+      default: 0,
+      step: 1,
+      suffix: 'px'
+    }
+  ]
+  
+  /**
+   * Convert UI value to WebGL parameter
+   */
+  protected getAllOptions(): Record<string, number> {
+    const radius = (this.getOption('radius') as number) || 0
+    return {
+      radius // Pass directly, WebGL shader expects pixel radius
     }
   }
   
   /**
-   * Apply blur for AI operations
+   * Public method for programmatic blur application
    */
-  async applyWithContext(blurRadius: number): Promise<void> {
-    await this.applyBlur(blurRadius)
+  async applyBlur(blurRadius: number): Promise<void> {
+    this.setOption('radius', blurRadius)
+    await this.applyImmediate()
+  }
+  
+  /**
+   * Get blur range for UI
+   */
+  getBlurRange(): { min: number; max: number; step: number } {
+    return {
+      min: 0,
+      max: 50,
+      step: 1
+    }
   }
 }
 

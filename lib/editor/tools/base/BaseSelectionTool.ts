@@ -93,17 +93,13 @@ export abstract class BaseSelectionTool extends BaseTool {
   protected showModifierHints(): void {
     if (!this.canvas) return
     
-    const eventBus = (this.canvas as any).getEventBus()
-    eventBus.emit({
-      type: 'statusbar.hints.show',
-      payload: {
-        hints: [
-          { key: 'Shift', action: 'Add to selection / Constrain' },
-          { key: 'Alt', action: 'Subtract / From center' },
-          { key: 'Shift+Alt', action: 'Intersect / Constrained center' }
-        ]
-      }
-    })
+    // TODO: Implement status bar hints through proper event system
+    // For now, just log the hints
+    console.log('Selection tool hints:', [
+      { key: 'Shift', action: 'Add to selection / Constrain' },
+      { key: 'Alt', action: 'Subtract / From center' },
+      { key: 'Shift+Alt', action: 'Intersect / Constrained center' }
+    ])
   }
   
   /**

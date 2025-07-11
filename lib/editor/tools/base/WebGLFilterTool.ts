@@ -26,13 +26,13 @@ export abstract class WebGLFilterTool extends BaseTool {
       const filterManager = canvas.getFilterManager?.()
       
       if (!filterManager) {
-        console.error('[WebGLFilterTool] FilterManager not available')
+        console.error('Filter manager not available')
         return
       }
       
-      // Create filter
+      // Create the filter
       const filter: Filter = {
-        type: this.filterType as any,
+        type: this.filterType as Filter['type'],
         params
       }
       
@@ -45,7 +45,7 @@ export abstract class WebGLFilterTool extends BaseTool {
       }
       
       // Apply filter through FilterManager
-      await filterManager.applyFilter(filter, target, this.executionContext)
+      await (filterManager as unknown as { applyFilter: (filter: Filter, target: FilterTarget, context: unknown) => Promise<void> }).applyFilter(filter, target, this.executionContext)
       
     } finally {
       this.isApplying = false

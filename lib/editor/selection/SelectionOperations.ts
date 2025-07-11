@@ -157,7 +157,7 @@ export class SelectionOperations {
    */
   contract(selection: PixelSelection, pixels: number): PixelSelection {
     const radius = Math.round(pixels)
-    const { mask, bounds } = selection
+    const { mask } = selection
     
     // Create contracted mask (same size for now)
     const newMask = new ImageData(mask.width, mask.height)

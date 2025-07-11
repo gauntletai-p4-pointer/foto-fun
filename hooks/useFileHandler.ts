@@ -1,77 +1,53 @@
 import { useCallback, useRef } from 'react'
-import { useService } from '@/lib/core/AppInitializer'
-import { EventDocumentStore } from '@/lib/store/document/EventDocumentStore'
-import { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
-import { ServiceContainer } from '@/lib/core/ServiceContainer'
+import { useServiceContainer } from '@/lib/core/AppInitializer'
 import { MAX_FILE_SIZE } from '@/constants'
+import { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
+import type { CanvasObject } from '@/lib/editor/objects/types'
 
-export function useFileHandler(mode: 'open' | 'insert' = 'open') {
-  const documentStore = useService<EventDocumentStore>('DocumentStore')
+export function useFileHandler() {
+  const container = useServiceContainer()
   
-  const openDocument = (file: File) => documentStore.openDocument(file)
-  
-  const insertImage = async (file: File) => {
-    // Get the canvas manager from the container
+  const loadImage = async (file: File) => {
     try {
-      const container = ServiceContainer.getInstance()
-      const canvasManager = container.getSync<CanvasManager>('CanvasManager')
-      
-      if (!canvasManager) {
-        console.error('CanvasManager not available')
-        alert('Canvas not ready. Please wait a moment and try again.')
-        return
-      }
-      
-      // Read the file as data URL
-      const reader = new FileReader()
-      
-      return new Promise<void>((resolve, reject) => {
-        reader.onload = async (e) => {
-          const img = new Image()
-          
-          img.onload = async () => {
-            try {
-              // Add the image to the canvas
-              await canvasManager.addObject({
-                type: 'image',
-                data: img,
-                name: file.name,
-                transform: {
-                  x: 50, // Offset from top-left
-                  y: 50,
-                  scaleX: 1,
-                  scaleY: 1,
-                  rotation: 0,
-                  skewX: 0,
-                  skewY: 0
-                }
-              })
-              
-              console.log('[FileHandler] Image inserted successfully')
-              resolve()
-            } catch (error) {
-              console.error('[FileHandler] Failed to insert image:', error)
-              reject(error)
-            }
-          }
-          
-          img.onerror = () => {
-            reject(new Error('Failed to load image'))
-          }
-          
-          img.src = e.target?.result as string
-        }
-        
-        reader.onerror = () => {
-          reject(new Error('Failed to read file'))
-        }
-        
-        reader.readAsDataURL(file)
-      })
+      await performLoadImage(file)
     } catch (error) {
-      console.error('[FileHandler] Failed to get CanvasManager:', error)
+      console.error('[FileHandler] Failed to load image:', error)
       throw error
     }
+  }
+  
+  const performLoadImage = async (file: File) => {
+    // Get canvas manager
+    const canvasManager = await container.get<CanvasManager>('CanvasManager')
+    
+    // Load the image
+    const img = new Image()
+    img.onload = async () => {
+      // Add image to canvas
+      const objectData: Partial<CanvasObject> = {
+        type: 'image',
+        name: file.name,
+        width: img.naturalWidth,
+        height: img.naturalHeight,
+        data: {
+          element: img,
+          naturalWidth: img.naturalWidth,
+          naturalHeight: img.naturalHeight
+        }
+      }
+      
+      await canvasManager.addObject(objectData as any)
+      
+      console.log('[FileHandler] Image loaded successfully')
+    }
+    
+    img.onerror = () => {
+      console.error('[FileHandler] Failed to load image')
+      throw new Error('Failed to load image')
+    }
+    
+    // Create object URL for the file
+    img.src = URL.createObjectURL(file)
   }
   
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -92,7 +68,7 @@ export function useFileHandler(mode: 'open' | 'insert' = 'open') {
   
   const handleFile = useCallback(async (file: File) => {
     console.log('[FileHandler] ========== HANDLE FILE START ==========')
-    console.log('[FileHandler] File:', file.name, 'Mode:', mode)
+    console.log('[FileHandler] File:', file.name)
     console.log('[FileHandler] File type:', file.type)
     console.log('[FileHandler] File size:', file.size)
     
@@ -104,21 +80,15 @@ export function useFileHandler(mode: 'open' | 'insert' = 'open') {
     }
     
     try {
-      if (mode === 'insert') {
-        console.log('[FileHandler] Calling insertImage...')
-        await insertImage(file)
-        console.log('[FileHandler] insertImage completed successfully')
-      } else {
-        console.log('[FileHandler] Calling openDocument...')
-        await openDocument(file)
-        console.log('[FileHandler] openDocument completed successfully')
-      }
+      console.log('[FileHandler] Loading image...')
+      await loadImage(file)
+      console.log('[FileHandler] Image loaded successfully')
       console.log('[FileHandler] ========== HANDLE FILE END ==========')
     } catch (error) {
       console.error('[FileHandler] Failed to handle file:', error)
       alert('Failed to handle file. Please try again.')
     }
-  }, [openDocument, mode])
+  }, [])
   
   const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -142,7 +112,7 @@ export function useFileHandler(mode: 'open' | 'insert' = 'open') {
     
     // Process each file
     imageFiles.forEach(async (file, index) => {
-      // Add a small delay between files to ensure proper layer creation
+      // Add a small delay between files to ensure proper object creation
       setTimeout(() => {
         handleFile(file)
       }, index * 100)
@@ -152,19 +122,21 @@ export function useFileHandler(mode: 'open' | 'insert' = 'open') {
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault()
     e.stopPropagation()
-    // Set drop effect to indicate this is a valid drop target
     e.dataTransfer.dropEffect = 'copy'
   }, [])
   
-  const triggerFileInput = useCallback(() => {
+  const openFile = useCallback(() => {
     fileInputRef.current?.click()
   }, [])
   
   return {
-    fileInputRef,
+    handleFile,
     handleFileSelect,
     handleDrop,
     handleDragOver,
-    triggerFileInput
+    openFile,
+    fileInputRef,
+    // Legacy method for backward compatibility
+    triggerFileInput: openFile
   }
 } 

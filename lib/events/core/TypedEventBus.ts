@@ -57,7 +57,7 @@ export interface EventRegistry {
   // Filter events
   'layer.filter.added': {
     layerId: string
-    filter: any // Using any to avoid circular dependency
+    filter: unknown // Using unknown to avoid circular dependency
     position?: number
   }
   'layer.filter.removed': {
@@ -66,7 +66,7 @@ export interface EventRegistry {
   }
   'layer.filter.stack.updated': {
     layerId: string
-    filterStack: any // Using any to avoid circular dependency
+    filterStack: unknown // Using unknown to avoid circular dependency
   }
   'layer.filters.reordered': {
     layerId: string
@@ -120,6 +120,23 @@ export interface EventRegistry {
   'document.created': {
     documentId: string
     name: string
+    bounds: {
+      width: number
+      height: number
+      x: number
+      y: number
+    }
+    metadata: {
+      id: string
+      name: string
+      created: Date
+      modified: Date
+      author?: string
+      colorSpace: 'RGB' | 'CMYK' | 'LAB'
+      resolution: number
+      bitDepth: 8 | 16 | 32
+      backgroundColor?: string
+    }
   }
   'document.image.ready': {
     documentId: string
@@ -145,6 +162,28 @@ export interface EventRegistry {
   'document.closed': { 
     documentId?: string 
   }
+  'document.resized': {
+    documentId: string
+    previousBounds: {
+      width: number
+      height: number
+      x: number
+      y: number
+    }
+    newBounds: {
+      width: number
+      height: number
+      x: number
+      y: number
+    }
+  }
+  'document.metadata.updated': {
+    documentId: string
+    updates: Record<string, unknown>
+  }
+  'document.ready': {
+    documentId: string
+  }
   
   // Recent files events
   'recentFiles.updated': { 
@@ -157,7 +196,7 @@ export interface EventRegistry {
       size?: number 
     }> 
   }
-  'recentFiles.cleared': {}
+  'recentFiles.cleared': Record<string, never>
   
   // Export events
   'export.started': {

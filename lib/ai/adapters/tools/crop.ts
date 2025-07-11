@@ -70,12 +70,12 @@ NEVER ask for exact coordinates - calculate them based on the current canvas siz
         
         const canvas = context.canvas
         
-        console.log('[CropToolAdapter] Canvas dimensions:', canvas.state.width, 'x', canvas.state.height)
+        console.log('[CropToolAdapter] Canvas dimensions:', (canvas.state.documentBounds?.width || 0), 'x', (canvas.state.documentBounds?.height || 0))
         console.log('[CropToolAdapter] Target images:', images.length)
         
         // Validate crop bounds
-        const canvasWidth = canvas.state.width
-        const canvasHeight = canvas.state.height
+        const canvasWidth = (canvas.state.documentBounds?.width || 0)
+        const canvasHeight = (canvas.state.documentBounds?.height || 0)
         
         if (params.x < 0 || params.y < 0 || 
             params.x + params.width > canvasWidth || 
@@ -106,8 +106,8 @@ NEVER ask for exact coordinates - calculate them based on the current canvas siz
         
         return {
           newDimensions: {
-            width: canvas.state.width,
-            height: canvas.state.height
+            width: (canvas.state.documentBounds?.width || 0),
+            height: (canvas.state.documentBounds?.height || 0)
           },
           scale: scale,
           message

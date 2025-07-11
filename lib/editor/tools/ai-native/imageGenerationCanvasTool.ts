@@ -91,8 +91,8 @@ export class ImageGenerationTool extends BaseTool {
     
     // Default position to center if not provided
     const pos = position || {
-      x: (canvas.state.width - width) / 2,
-      y: (canvas.state.height - height) / 2
+      x: ((canvas.state.documentBounds?.width || 0) - width) / 2,
+      y: ((canvas.state.documentBounds?.height || 0) - height) / 2
     }
     
     try {

@@ -63,8 +63,7 @@ export class ModifyCommand extends Command {
     this.oldProperties = {}
     for (const key in properties) {
       // Use bracket notation with proper type assertion
-      const objectAsAny = object as any
-      const value = objectAsAny[key]
+      const value = object[key as keyof CanvasObject]
       this.oldProperties[key] = deepClone(value)
     }
   }

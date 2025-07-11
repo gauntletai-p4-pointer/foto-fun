@@ -1,6 +1,7 @@
 import { CanvasManager } from '../canvas/CanvasManager'
 import { TypedEventBus } from '@/lib/events/core/TypedEventBus'
 import type { ExportFormat, ExportOptions } from '@/types'
+import type { CanvasObject } from '@/lib/editor/objects/types'
 import { nanoid } from 'nanoid'
 
 export interface ExportPreset {
@@ -18,6 +19,13 @@ export interface ExportProgress {
   progress: number
   status: 'preparing' | 'exporting' | 'completed' | 'failed'
   message?: string
+}
+
+export interface ObjectBounds {
+  x: number
+  y: number
+  width: number
+  height: number
 }
 
 /**
@@ -60,7 +68,7 @@ export const DEFAULT_EXPORT_PRESETS: ExportPreset[] = [
 ]
 
 /**
- * Manages document export functionality
+ * Manages object export functionality
  */
 export class ExportManager {
   private presets: Map<string, ExportPreset> = new Map()
@@ -79,12 +87,21 @@ export class ExportManager {
   }
 
   /**
-   * Export the entire document
+   * Export all objects on canvas
    */
-  async exportDocument(options: ExportOptions): Promise<Blob> {
+  async exportCanvas(options: ExportOptions): Promise<Blob> {
     const exportId = nanoid()
     
     try {
+      // Get all objects
+      const objects = this.canvasManager.getAllObjects()
+      if (objects.length === 0) {
+        throw new Error('No objects to export')
+      }
+      
+      // Calculate bounds of all objects
+      const bounds = this.calculateObjectsBounds(objects)
+      
       // Emit export started event
       this.typedEventBus.emit('export.started', {
         exportId,
@@ -92,20 +109,17 @@ export class ExportManager {
         options: { ...options }
       })
       
-      // Export the image
-      const blob = await this.canvasManager.exportImage(options.format)
-      
-      // Apply additional processing if needed
-      const processedBlob = await this.processExport(blob, options)
+      // Export the calculated area
+      const blob = await this.exportBounds(bounds, options)
       
       // Emit export completed event
       this.typedEventBus.emit('export.completed', {
         exportId,
-        blob: processedBlob,
-        size: processedBlob.size
+        blob,
+        size: blob.size
       })
       
-      return processedBlob
+      return blob
     } catch (error) {
       // Emit export failed event
       this.typedEventBus.emit('export.failed', {
@@ -117,66 +131,28 @@ export class ExportManager {
   }
 
   /**
-   * Export only the current selection
+   * Export only selected objects
    */
-  async exportSelection(format: ExportFormat = 'png'): Promise<Blob> {
-    const selection = this.canvasManager.getSelectionManager()?.getSelection()
+  async exportSelection(options: ExportOptions): Promise<Blob> {
+    const selectedObjects = this.canvasManager.getSelectedObjects()
     
-    if (!selection) {
-      throw new Error('No selection to export')
+    if (selectedObjects.length === 0) {
+      throw new Error('No objects selected')
     }
     
-    // Get selection bounds from the selection data
-    const selectionData = this.canvasManager.getSelectionData()
-    if (!selectionData || !selectionData.bounds) {
-      throw new Error('Unable to determine selection bounds')
-    }
+    // Calculate bounds of selected objects
+    const bounds = this.calculateObjectsBounds(selectedObjects)
     
-    const bounds = selectionData.bounds
-    
-    // Create a temporary canvas for the selection
-    const tempCanvas = document.createElement('canvas')
-    tempCanvas.width = bounds.width
-    tempCanvas.height = bounds.height
-    const ctx = tempCanvas.getContext('2d')!
-    
-    // Get image data for the selection area
-    const imageData = this.canvasManager.getImageData({
-      x: bounds.x,
-      y: bounds.y,
-      width: bounds.width,
-      height: bounds.height
-    })
-    
-    // Apply selection mask if it's a pixel selection
-    if (selection.type === 'pixel' && selection.mask) {
-      const maskData = selection.mask
-      const data = imageData.data
-      
-      // Apply mask to alpha channel
-      for (let i = 0; i < maskData.data.length; i += 4) {
-        const alpha = maskData.data[i + 3]
-        data[i + 3] = (data[i + 3] * alpha) / 255
-      }
-    }
-    
-    // Put the masked image data
-    ctx.putImageData(imageData, 0, 0)
-    
-    // Convert to blob
-    return new Promise((resolve, reject) => {
-      tempCanvas.toBlob(
-        (blob) => {
-          if (blob) {
-            resolve(blob)
-          } else {
-            reject(new Error('Failed to create blob'))
-          }
-        },
-        `image/${format}`,
-        format === 'jpeg' ? 0.9 : undefined
-      )
-    })
+    // Export the selection area
+    return this.exportBounds(bounds, options)
+  }
+
+  /**
+   * Export visible viewport
+   */
+  async exportViewport(options: ExportOptions): Promise<Blob> {
+    const viewport = this.canvasManager.getViewportBounds()
+    return this.exportBounds(viewport, options)
   }
 
   /**
@@ -189,30 +165,8 @@ export class ExportManager {
     height: number,
     format: ExportFormat = 'png'
   ): Promise<Blob> {
-    // Create a temporary canvas for the region
-    const tempCanvas = document.createElement('canvas')
-    tempCanvas.width = width
-    tempCanvas.height = height
-    const ctx = tempCanvas.getContext('2d')!
-    
-    // Get image data for the region
-    const imageData = this.canvasManager.getImageData({ x, y, width, height })
-    ctx.putImageData(imageData, 0, 0)
-    
-    // Convert to blob
-    return new Promise((resolve, reject) => {
-      tempCanvas.toBlob(
-        (blob) => {
-          if (blob) {
-            resolve(blob)
-          } else {
-            reject(new Error('Failed to create blob'))
-          }
-        },
-        `image/${format}`,
-        format === 'jpeg' ? 0.9 : undefined
-      )
-    })
+    const bounds: ObjectBounds = { x, y, width, height }
+    return this.exportBounds(bounds, { format })
   }
 
   /**
@@ -231,10 +185,81 @@ export class ExportManager {
       height: preset.height
     }
     
-    const blob = await this.exportDocument(options)
+    const blob = await this.exportCanvas(options)
     
     // Trigger download
     this.downloadBlob(blob, `export.${preset.format}`)
+  }
+
+  /**
+   * Calculate bounds of multiple objects
+   */
+  private calculateObjectsBounds(objects: CanvasObject[]): ObjectBounds {
+    if (objects.length === 0) {
+      return { x: 0, y: 0, width: 0, height: 0 }
+    }
+    
+    let minX = Infinity
+    let minY = Infinity
+    let maxX = -Infinity
+    let maxY = -Infinity
+    
+    for (const obj of objects) {
+      // Calculate object bounds including rotation
+      const bounds = this.getObjectBounds(obj)
+      minX = Math.min(minX, bounds.x)
+      minY = Math.min(minY, bounds.y)
+      maxX = Math.max(maxX, bounds.x + bounds.width)
+      maxY = Math.max(maxY, bounds.y + bounds.height)
+    }
+    
+    return {
+      x: minX,
+      y: minY,
+      width: maxX - minX,
+      height: maxY - minY
+    }
+  }
+
+  /**
+   * Get bounds of a single object including transformations
+   */
+  private getObjectBounds(obj: CanvasObject): ObjectBounds {
+    // Simple bounds for now - can be enhanced to handle rotation
+    return {
+      x: obj.x,
+      y: obj.y,
+      width: obj.width * obj.scaleX,
+      height: obj.height * obj.scaleY
+    }
+  }
+
+  /**
+   * Export a specific bounds area
+   */
+  private async exportBounds(bounds: ObjectBounds, options: ExportOptions): Promise<Blob> {
+    const konvaStage = this.canvasManager.konvaStage
+    if (!konvaStage) {
+      throw new Error('Canvas stage not initialized')
+    }
+    
+    // Create export config for the bounds area
+    const exportConfig = {
+      x: bounds.x,
+      y: bounds.y,
+      width: bounds.width,
+      height: bounds.height,
+      pixelRatio: 1
+    }
+    
+    // Export as data URL first
+    const dataUrl = konvaStage.toDataURL(exportConfig)
+    
+    // Convert to blob
+    const blob = await this.dataUrlToBlob(dataUrl, options.format || 'png')
+    
+    // Apply additional processing if needed
+    return this.processExport(blob, options)
   }
 
   /**
@@ -372,5 +397,22 @@ export class ExportManager {
     } catch (error) {
       console.error('Failed to save export presets:', error)
     }
+  }
+
+  /**
+   * Convert data URL to blob
+   */
+  private async dataUrlToBlob(dataUrl: string, format: ExportFormat): Promise<Blob> {
+    const response = await fetch(dataUrl)
+    const blob = await response.blob()
+    
+    // Ensure correct mime type
+    const mimeType = `image/${format}`
+    if (blob.type !== mimeType) {
+      // Re-create blob with correct mime type
+      return new Blob([blob], { type: mimeType })
+    }
+    
+    return blob
   }
 } 

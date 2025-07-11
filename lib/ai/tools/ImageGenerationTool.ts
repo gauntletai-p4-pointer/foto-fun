@@ -1,123 +1,109 @@
-import { BaseAITool, GenerationInput, ImageOutput, AIServiceError } from './base'
+import { Sparkles } from 'lucide-react'
+import { ObjectTool } from '@/lib/editor/tools/base/ObjectTool'
+import { ReplicateService } from '@/lib/ai/services/replicate'
+import type { ToolEvent } from '@/lib/editor/canvas/types'
 
 /**
- * Image Generation Tool - AI-Native Tool
- * Generates images from text descriptions using Replicate's SDXL model
- * 
- * This tool works differently on server vs client:
- * - Server: Uses serverReplicateClient directly or calls internal API
- * - Client: Never instantiated (adapter handles API calls)
+ * AI-Native Image Generation Tool
+ * Creates images from text prompts using Stable Diffusion XL
  */
-export class ImageGenerationTool implements BaseAITool<GenerationInput, ImageOutput> {
-  name = 'Image Generation'
-  description = 'Generate images from text descriptions using Stable Diffusion XL'
+export class ImageGenerationTool extends ObjectTool {
+  id = 'image-generation'
+  name = 'AI Image Generation'
+  icon = Sparkles
+  cursor = 'crosshair'
+  shortcut = 'G'
   
-  // UI Support
-  supportsUIActivation = true
-  uiActivationType: 'dialog' | 'panel' | 'immediate' = 'dialog'
+  private replicateService: ReplicateService | null = null
+  private isGenerating = false
   
-  // Using Stability AI's SDXL model - stable and reliable
-  private readonly modelId = 'stability-ai/sdxl:39ed52f2a78e934b3ba6e2a89f5b1c712de7dfea535525255b1aa35c5565e08b'
-  
-  // Server-side only: Get the server Replicate client
-  private async getServerReplicateClient() {
-    if (typeof window !== 'undefined') {
-      throw new Error('Server Replicate client should not be used on client side')
+  protected setupTool(): void {
+    // Initialize with default options
+    this.setOption('prompt', '')
+    this.setOption('width', 1024)
+    this.setOption('height', 1024)
+    this.setOption('guidance_scale', 7.5)
+    this.setOption('negative_prompt', '')
+    
+    // Initialize Replicate service
+    const apiKey = process.env.NEXT_PUBLIC_REPLICATE_API_KEY
+    if (apiKey) {
+      this.replicateService = new ReplicateService(apiKey)
+    } else {
+      console.warn('Replicate API key not found')
     }
-    const { serverReplicateClient } = await import('../server/replicateClient')
-    return serverReplicateClient
   }
   
-  async execute(params: GenerationInput): Promise<ImageOutput> {
+  protected cleanupTool(): void {
+    this.replicateService = null
+  }
+  
+  /**
+   * Generate image from current prompt
+   */
+  async generateImage(): Promise<void> {
+    if (!this.replicateService || this.isGenerating) return
+    
+    const prompt = this.getOption('prompt') as string
+    if (!prompt) {
+      console.warn('No prompt provided')
+      return
+    }
+    
+    this.isGenerating = true
+    
     try {
-      console.log('[ImageGenerationTool] Generating image with params:', params)
+      // Generate the image
+      const imageData = await this.replicateService.generateImage(prompt, {
+        width: this.getOption('width') as number,
+        height: this.getOption('height') as number,
+        guidance_scale: this.getOption('guidance_scale') as number,
+        negative_prompt: this.getOption('negative_prompt') as string
+      })
       
-      // Prepare input for Replicate API
-      const input = {
-        prompt: params.prompt,
-        negative_prompt: params.negativePrompt || 'blurry, low quality, distorted, deformed',
-        width: params.width || 1024,
-        height: params.height || 1024,
-        num_inference_steps: params.steps || 50,
-        guidance_scale: 7.5,
-        scheduler: 'DPMSolverMultistep',
-        ...(params.seed && { seed: params.seed })
-      }
+      // Create object at last mouse position or center
+      const x = this.lastMousePosition?.x ?? this.getCanvas().state.canvasWidth / 2
+      const y = this.lastMousePosition?.y ?? this.getCanvas().state.canvasHeight / 2
       
-      // Call Replicate API (server-side only)
-      const startTime = Date.now()
-      const client = await this.getServerReplicateClient()
-      const output = await client.run(this.modelId, { input })
-      const processingTime = Date.now() - startTime
-      
-      console.log('[ImageGenerationTool] Generation completed in', processingTime, 'ms')
-      
-      // Handle different output formats from Replicate
-      let imageUrl: string
-      if (Array.isArray(output) && output.length > 0) {
-        imageUrl = output[0]
-      } else if (typeof output === 'string') {
-        imageUrl = output
-      } else {
-        throw new AIServiceError(
-          'Unexpected output format from image generation',
-          'replicate',
-          'INVALID_OUTPUT'
-        )
-      }
-      
-      return {
-        image: imageUrl,
-        format: 'url',
+      // Add to canvas
+      const objectId = await this.createNewObject('image', {
+        x: x - imageData.naturalWidth / 2,
+        y: y - imageData.naturalHeight / 2,
+        width: imageData.naturalWidth,
+        height: imageData.naturalHeight,
+        data: imageData,
         metadata: {
-          width: input.width,
-          height: input.height,
-          model: this.modelId,
-          processingTime
+          aiGenerated: true,
+          prompt,
+          model: 'stable-diffusion-xl'
         }
-      }
+      })
+      
+      // Select the new object
+      this.getCanvas().selectObject(objectId)
       
     } catch (error) {
-      console.error('[ImageGenerationTool] Error:', error)
-      
-      if (error instanceof AIServiceError) {
-        throw error
-      }
-      
-      throw new AIServiceError(
-        `Image generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        'replicate',
-        'GENERATION_FAILED',
-        error
-      )
+      console.error('Failed to generate image:', error)
+    } finally {
+      this.isGenerating = false
     }
   }
   
-  async isAvailable(): Promise<boolean> {
-    try {
-      // Only available on server-side
-      if (typeof window !== 'undefined') {
-        return false // Not available on client
-      }
-      const client = await this.getServerReplicateClient()
-      return await client.isConfigured()
-    } catch (error) {
-      console.error('[ImageGenerationTool] Availability check failed:', error)
-      return false
+  onMouseDown(event: ToolEvent): void {
+    // Update position for generation
+    this.lastMousePosition = event.point
+    
+    // Trigger generation if we have a prompt
+    if (this.getOption('prompt')) {
+      this.generateImage()
     }
   }
   
-  async estimateCost(params: GenerationInput): Promise<{ dollars: number }> {
-    // SDXL typically costs about $0.002 per image
-    // This is a rough estimate - actual costs may vary
-    const baseCost = 0.002
-    const steps = params.steps || 50
-    
-    // More steps = slightly higher cost
-    const stepMultiplier = Math.max(1, steps / 50)
-    
-    return {
-      dollars: baseCost * stepMultiplier
-    }
+  /**
+   * Update prompt and regenerate
+   */
+  async setPrompt(prompt: string): Promise<void> {
+    this.setOption('prompt', prompt)
+    await this.generateImage()
   }
 } 
