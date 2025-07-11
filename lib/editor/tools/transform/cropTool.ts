@@ -43,10 +43,10 @@ export class CropTool extends BaseTool {
   protected setupTool(): void {
     const canvas = this.getCanvas()
     
-    // Create overlay layer for crop visualization
-    this.overlayLayer = new Konva.Layer()
-    canvas.konvaStage.add(this.overlayLayer)
-    this.overlayLayer.moveToTop()
+    // Use the existing overlay layer instead of creating a new one
+    const stage = canvas.konvaStage
+    // The CanvasManager has an overlayLayer at index 2 (after background and selection layers)
+    this.overlayLayer = stage.children[2] as Konva.Layer
     
     // Set default options
     this.setOption('aspectRatio', 'free')
@@ -78,10 +78,8 @@ export class CropTool extends BaseTool {
       this.gridOverlay = null
     }
     
-    if (this.overlayLayer) {
-      this.overlayLayer.destroy()
-      this.overlayLayer = null
-    }
+    // Don't destroy the overlay layer as it's shared
+    this.overlayLayer = null
     
     // Clean up handles
     this.handles.forEach(handle => handle.destroy())
@@ -277,7 +275,7 @@ export class CropTool extends BaseTool {
     this.overlayLayer?.batchDraw()
   }
   
-  async onMouseUp(_event: ToolEvent): Promise<void> {
+  async onMouseUp(): Promise<void> {
     // Handle rotation end
     if (this.isRotating) {
       this.isRotating = false
@@ -755,7 +753,7 @@ export class CropTool extends BaseTool {
     this.disabled = false
   }
   
-  protected onOptionChange(key: string, _value: unknown): void {
+  protected onOptionChange(key: string): void {
     // Handle aspect ratio changes during crop
     if (key === 'aspectRatio' && this.cropRect && this.isDrawing) {
       // Could update the crop rectangle to match new aspect ratio

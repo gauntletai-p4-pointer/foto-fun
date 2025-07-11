@@ -1,9 +1,6 @@
 'use client'
 
 import React from 'react'
-import { Button } from '@/components/ui/button'
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
-import { AlignJustify, FileText } from 'lucide-react'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -27,7 +24,6 @@ export function JustificationOptions() {
   const selectionStore = useService<EventSelectionStore>('SelectionStore')
   const canvasManager = useService<CanvasManager>('CanvasManager')
   
-  const textState = useStore(textStore)
   const selectionState = useStore(selectionStore)
   
   // Get selected text objects

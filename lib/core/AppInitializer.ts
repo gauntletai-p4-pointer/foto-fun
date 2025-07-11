@@ -1,6 +1,11 @@
 import { ServiceContainer } from './ServiceContainer'
 import { ResourceManager } from './ResourceManager'
 
+// Type imports for services
+import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
+import type { DocumentSerializer } from '@/lib/editor/persistence/DocumentSerializer'
+import type { ExportManager } from '@/lib/editor/export/ExportManager'
+
 // Event System
 import { EventStore } from '@/lib/events/core/EventStore'
 import { getTypedEventBus } from '@/lib/events/core/TypedEventBus'
@@ -156,7 +161,7 @@ export class AppInitializer {
     // Export services
     container.registerSingleton('ExportManager', async () => {
       const { ExportManager } = await import('@/lib/editor/export/ExportManager')
-      const canvasManager = container.getSync<any>('CanvasManager') // Using any since CanvasManager can be null
+      const canvasManager = container.getSync<CanvasManager | null>('CanvasManager')
       if (!canvasManager) {
         throw new Error('CanvasManager not initialized')
       }
@@ -178,7 +183,7 @@ export class AppInitializer {
     
     container.registerSingleton('AutoSaveManager', async () => {
       const { AutoSaveManager } = await import('@/lib/editor/autosave/AutoSaveManager')
-      const documentSerializer = await container.get<any>('DocumentSerializer')
+      const documentSerializer = await container.get<DocumentSerializer>('DocumentSerializer')
       return new AutoSaveManager(
         documentSerializer,
         container.getSync('DocumentStore'),
@@ -193,8 +198,8 @@ export class AppInitializer {
     
     container.registerSingleton('ShortcutManager', async () => {
       const { ShortcutManager } = await import('@/lib/editor/shortcuts/ShortcutManager')
-      const exportManager = await container.get<any>('ExportManager')
-      const documentSerializer = await container.get<any>('DocumentSerializer')
+      const exportManager = await container.get<ExportManager>('ExportManager')
+      const documentSerializer = await container.get<DocumentSerializer>('DocumentSerializer')
       return new ShortcutManager(
         container.getSync('DocumentStore'),
         container.getSync('ToolStore'),

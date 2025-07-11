@@ -30,18 +30,12 @@ export class SelectionRenderer {
   private initializeOverlayLayer(): void {
     const stage = this.canvasManager.konvaStage
     
-    // Find or create overlay layer
-    let overlayLayer = stage.findOne('.selection-overlay') as Konva.Layer
+    // Use the existing selection layer (index 1 after background layer)
+    this.overlayLayer = stage.children[1] as Konva.Layer
     
-    if (!overlayLayer) {
-      overlayLayer = new Konva.Layer({
-        name: 'selection-overlay',
-        listening: false
-      })
-      stage.add(overlayLayer)
+    if (!this.overlayLayer) {
+      console.error('Selection layer not found in stage')
     }
-    
-    this.overlayLayer = overlayLayer
   }
   
   /**

@@ -67,7 +67,8 @@ export function Canvas() {
       // Clear the CanvasManager from the container
       container.updateInstance('CanvasManager', null)
     }
-  }, [canvasFactory, loading, canvasStore, toolStore, eventBus, container, canvasManager])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canvasFactory, loading, canvasStore, toolStore, eventBus, container])
   
   // Handle document image loading
   useEffect(() => {

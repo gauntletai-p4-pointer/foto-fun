@@ -17,7 +17,6 @@ export function IndentControls() {
   const selectionStore = useService<EventSelectionStore>('SelectionStore')
   const canvasManager = useService<CanvasManager>('CanvasManager')
   
-  const textState = useStore(textStore)
   const selectionState = useStore(selectionStore)
   
   // Get selected text objects

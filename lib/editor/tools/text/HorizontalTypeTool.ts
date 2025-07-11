@@ -18,47 +18,57 @@ export class HorizontalTypeTool extends BaseTool {
   shortcut = 'T'
   
   // Text state
-  private activeText: Konva.Text | null = null
-  private editingText: Konva.Text | null = null
-  private textLayer: Konva.Layer | null = null
+  private isTyping = false
+  private currentTextNode: Konva.Text | null = null
+  private textGroup: Konva.Group | null = null
+  private cursorLine: Konva.Line | null = null
+  private cursorAnimation: Konva.Animation | null = null
   private textarea: HTMLTextAreaElement | null = null
   
   protected setupTool(): void {
-    const canvas = this.getCanvas()
-    
-    // Create a dedicated layer for text editing
-    this.textLayer = new Konva.Layer()
-    canvas.konvaStage.add(this.textLayer)
-    this.textLayer.moveToTop()
-    
     // Set default text options
+    this.setOption('fontSize', 16)
     this.setOption('fontFamily', 'Arial')
-    this.setOption('fontSize', 60)
-    this.setOption('color', '#000000')
-    this.setOption('alignment', 'left')
-    this.setOption('bold', false)
-    this.setOption('italic', false)
-    this.setOption('underline', false)
-    this.setOption('letterSpacing', 0)
-    this.setOption('lineHeight', 1.2)
+    this.setOption('fontStyle', 'normal') // normal, bold, italic, bold italic
+    this.setOption('textAlign', 'left') // left, center, right
+    this.setOption('fill', '#000000')
   }
   
   protected cleanupTool(): void {
-    // Finish any active editing
-    if (this.editingText) {
+    // Clean up any active text editing
+    if (this.isTyping) {
       this.finishEditing()
     }
     
-    // Clean up text layer
-    if (this.textLayer) {
-      this.textLayer.destroy()
-      this.textLayer = null
+    // Clean up text group
+    if (this.textGroup) {
+      this.textGroup.destroy()
+      this.textGroup = null
+    }
+    
+    // Stop cursor animation
+    if (this.cursorAnimation) {
+      this.cursorAnimation.stop()
+      this.cursorAnimation = null
+    }
+    
+    // Clean up cursor
+    if (this.cursorLine) {
+      this.cursorLine.destroy()
+      this.cursorLine = null
+    }
+    
+    // Redraw overlay layer
+    const canvas = this.getCanvas()
+    const stage = canvas.konvaStage
+    const overlayLayer = stage.children[2] as Konva.Layer
+    if (overlayLayer) {
+      overlayLayer.batchDraw()
     }
     
     // Reset state
-    this.activeText = null
-    this.editingText = null
-    this.textarea = null
+    this.isTyping = false
+    this.currentTextNode = null
   }
   
   async onMouseDown(event: ToolEvent): Promise<void> {
@@ -74,7 +84,7 @@ export class HorizontalTypeTool extends BaseTool {
       this.startEditing(textNode, clickedObject)
     } else {
       // Finish any current editing
-      if (this.editingText) {
+      if (this.isTyping) {
         await this.finishEditing()
       }
       
@@ -85,51 +95,51 @@ export class HorizontalTypeTool extends BaseTool {
   
   onKeyDown(event: KeyboardEvent): void {
     // Handle escape to cancel editing
-    if (event.key === 'Escape' && this.editingText) {
+    if (event.key === 'Escape' && this.isTyping) {
       this.cancelEditing()
     }
   }
   
   protected onOptionChange(key: string, value: unknown): void {
     // Apply text style changes to active text
-    if (this.activeText) {
+    if (this.currentTextNode) {
       switch (key) {
         case 'fontFamily':
-          this.activeText.fontFamily(value as string)
+          this.currentTextNode.fontFamily(value as string)
           break
         case 'fontSize':
-          this.activeText.fontSize(value as number)
+          this.currentTextNode.fontSize(value as number)
           break
         case 'color':
-          this.activeText.fill(value as string)
+          this.currentTextNode.fill(value as string)
           break
         case 'alignment':
-          this.activeText.align(value as string)
+          this.currentTextNode.align(value as string)
           break
         case 'bold':
-          this.activeText.fontStyle(this.getFontStyle())
+          this.currentTextNode.fontStyle(this.getFontStyle())
           break
         case 'italic':
-          this.activeText.fontStyle(this.getFontStyle())
+          this.currentTextNode.fontStyle(this.getFontStyle())
           break
         case 'underline':
-          this.activeText.textDecoration(value ? 'underline' : '')
+          this.currentTextNode.textDecoration(value ? 'underline' : '')
           break
         case 'letterSpacing':
-          this.activeText.letterSpacing(value as number)
+          this.currentTextNode.letterSpacing(value as number)
           break
         case 'lineHeight':
-          this.activeText.lineHeight(value as number)
+          this.currentTextNode.lineHeight(value as number)
           break
       }
       
       // Update textarea if editing
-      if (this.textarea && this.editingText === this.activeText) {
+      if (this.textarea && this.currentTextNode === this.currentTextNode) {
         this.updateTextareaStyle()
       }
       
       // Redraw
-      const layer = this.activeText.getLayer()
+      const layer = this.currentTextNode.getLayer()
       if (layer) layer.batchDraw()
     }
   }
@@ -217,8 +227,8 @@ export class HorizontalTypeTool extends BaseTool {
    * Start editing text
    */
   private startEditing(textNode: Konva.Text, _canvasObject: CanvasObject): void {
-    this.editingText = textNode
-    this.activeText = textNode
+    this.currentTextNode = textNode
+    this.isTyping = true
     
     // Hide the text node while editing
     textNode.hide()
@@ -308,27 +318,27 @@ export class HorizontalTypeTool extends BaseTool {
    * Update textarea style to match text node
    */
   private updateTextareaStyle(): void {
-    if (!this.textarea || !this.editingText) return
+    if (!this.textarea || !this.currentTextNode) return
     
-    this.textarea.style.fontFamily = this.editingText.fontFamily()
-    this.textarea.style.fontSize = `${this.editingText.fontSize()}px`
-    this.textarea.style.color = this.editingText.fill() as string
+    this.textarea.style.fontFamily = this.currentTextNode.fontFamily()
+    this.textarea.style.fontSize = `${this.currentTextNode.fontSize()}px`
+    this.textarea.style.color = this.currentTextNode.fill() as string
     this.textarea.style.fontWeight = this.getOption('bold') ? 'bold' : 'normal'
     this.textarea.style.fontStyle = this.getOption('italic') ? 'italic' : 'normal'
     this.textarea.style.textDecoration = this.getOption('underline') ? 'underline' : 'none'
-    this.textarea.style.letterSpacing = `${this.editingText.letterSpacing()}px`
-    this.textarea.style.lineHeight = `${this.editingText.lineHeight()}`
-    this.textarea.style.textAlign = this.editingText.align()
+    this.textarea.style.letterSpacing = `${this.currentTextNode.letterSpacing()}px`
+    this.textarea.style.lineHeight = `${this.currentTextNode.lineHeight()}`
+    this.textarea.style.textAlign = this.currentTextNode.align()
   }
   
   /**
    * Handle text input
    */
   private handleTextInput(): void {
-    if (!this.textarea || !this.editingText) return
+    if (!this.textarea || !this.currentTextNode) return
     
     // Update text node with textarea value
-    this.editingText.text(this.textarea.value)
+    this.currentTextNode.text(this.textarea.value)
     
     // Adjust textarea size
     this.textarea.style.height = 'auto'
@@ -339,19 +349,19 @@ export class HorizontalTypeTool extends BaseTool {
    * Finish editing and apply changes
    */
   private async finishEditing(): Promise<void> {
-    if (!this.editingText || !this.textarea) return
+    if (!this.currentTextNode || !this.textarea) return
     
     const canvas = this.getCanvas()
     const finalText = this.textarea.value
     
     // Update text node
-    this.editingText.text(finalText)
-    this.editingText.show()
+    this.currentTextNode.text(finalText)
+    this.currentTextNode.show()
     
     // Find canvas object
     let canvasObject: CanvasObject | null = null
     for (const layer of canvas.state.layers) {
-      const obj = layer.objects.find(o => o.node === this.editingText)
+      const obj = layer.objects.find(o => o.node === this.currentTextNode)
       if (obj) {
         canvasObject = obj
         break
@@ -381,21 +391,22 @@ export class HorizontalTypeTool extends BaseTool {
     }
     
     // Redraw
-    const layer = this.editingText.getLayer()
+    const layer = this.currentTextNode.getLayer()
     if (layer) layer.batchDraw()
     
     // Clear editing state
-    this.editingText = null
+    this.currentTextNode = null
+    this.isTyping = false
   }
   
   /**
    * Cancel editing without saving
    */
   private cancelEditing(): void {
-    if (!this.editingText) return
+    if (!this.currentTextNode) return
     
     // Show text node without changes
-    this.editingText.show()
+    this.currentTextNode.show()
     
     // Clean up textarea
     if (this.textarea) {
@@ -404,11 +415,12 @@ export class HorizontalTypeTool extends BaseTool {
     }
     
     // Redraw
-    const layer = this.editingText.getLayer()
+    const layer = this.currentTextNode.getLayer()
     if (layer) layer.batchDraw()
     
     // Clear editing state
-    this.editingText = null
+    this.currentTextNode = null
+    this.isTyping = false
   }
   
   /**
@@ -453,8 +465,8 @@ export class HorizontalTypeTool extends BaseTool {
     await this.createNewText(position)
     
     // Set the text content
-    if (this.editingText) {
-      this.editingText.text(text)
+    if (this.currentTextNode) {
+      this.currentTextNode.text(text)
       await this.finishEditing()
     }
   }

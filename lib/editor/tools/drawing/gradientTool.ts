@@ -31,25 +31,25 @@ export class GradientTool extends BaseTool {
   private isDrawing = false
   private startPoint: Point | null = null
   private endPoint: Point | null = null
-  private previewLayer: Konva.Layer | null = null
   private gradientShape: Konva.Rect | null = null
   
   protected setupTool(): void {
-    // Create preview layer
-    const canvas = this.getCanvas()
-    this.previewLayer = new Konva.Layer()
-    // Get stage from canvas internals
-    const stage = (canvas as unknown as { stage: Konva.Stage }).stage
-    if (stage) {
-      stage.add(this.previewLayer)
-    }
+    // No need to create a preview layer - we'll use the overlay layer
   }
   
   protected cleanupTool(): void {
-    // Remove preview layer
-    if (this.previewLayer) {
-      this.previewLayer.destroy()
-      this.previewLayer = null
+    // Clean up gradient preview if any
+    if (this.gradientShape) {
+      this.gradientShape.destroy()
+      this.gradientShape = null
+    }
+    
+    // Redraw overlay layer
+    const canvas = this.getCanvas()
+    const stage = canvas.konvaStage
+    const overlayLayer = stage.children[2] as Konva.Layer
+    if (overlayLayer) {
+      overlayLayer.batchDraw()
     }
   }
   
@@ -169,12 +169,12 @@ export class GradientTool extends BaseTool {
    * Create gradient preview shape
    */
   private createGradientPreview(): void {
-    if (!this.previewLayer) return
-    
     const canvas = this.getCanvas()
-    // Get stage from canvas internals
-    const stage = (canvas as unknown as { stage: Konva.Stage }).stage
+    const stage = canvas.konvaStage
     if (!stage) return
+    
+    const overlayLayer = stage.children[2] as Konva.Layer
+    if (!overlayLayer) return
     
     // Create rectangle covering entire canvas
     this.gradientShape = new Konva.Rect({
@@ -185,7 +185,7 @@ export class GradientTool extends BaseTool {
       opacity: this.opacity / 100
     })
     
-    this.previewLayer.add(this.gradientShape)
+    overlayLayer.add(this.gradientShape)
     this.updatePreview()
   }
   
@@ -198,7 +198,15 @@ export class GradientTool extends BaseTool {
     const gradient = this.createGradient()
     if (gradient) {
       this.applyGradientToShape(this.gradientShape, gradient)
-      this.previewLayer?.batchDraw()
+      
+      const canvas = this.getCanvas()
+      const stage = canvas.konvaStage
+      if (stage) {
+        const overlayLayer = stage.children[2] as Konva.Layer
+        if (overlayLayer) {
+          overlayLayer.batchDraw()
+        }
+      }
     }
   }
   
@@ -364,9 +372,15 @@ export class GradientTool extends BaseTool {
     if (!activeLayer) return
     
     // Clone the gradient shape to the active layer
-    const gradient = this.gradientShape.clone()
+    const gradient = this.gradientShape.clone() as Konva.Rect
     gradient.opacity(this.opacity / 100)
     gradient.globalCompositeOperation(this.blendMode)
+    
+    // Apply the gradient configuration
+    const gradientConfig = this.createGradient()
+    if (gradientConfig) {
+      this.applyGradientToShape(gradient, gradientConfig)
+    }
     
     // Add to active layer
     activeLayer.konvaLayer.add(gradient)
@@ -395,8 +409,14 @@ export class GradientTool extends BaseTool {
       this.gradientShape.destroy()
       this.gradientShape = null
     }
-    this.previewLayer?.clear()
-    this.previewLayer?.batchDraw()
+    const canvas = this.getCanvas()
+    const stage = canvas.konvaStage
+    if (stage) {
+      const overlayLayer = stage.children[2] as Konva.Layer
+      if (overlayLayer) {
+        overlayLayer.batchDraw()
+      }
+    }
   }
   
   /**

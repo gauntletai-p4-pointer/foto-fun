@@ -20,38 +20,37 @@ export class LassoTool extends BaseTool {
   private isSelecting = false
   private points: Point[] = []
   private selectionPath: Konva.Line | null = null
-  private selectionLayer: Konva.Layer | null = null
+  private selectionGroup: Konva.Group | null = null
   private minDistance = 3 // Minimum distance between points for smoothing
   
   protected setupTool(): void {
-    const canvas = this.getCanvas()
-    
-    // Create a dedicated layer for selection visualization
-    this.selectionLayer = new Konva.Layer()
-    canvas.konvaStage.add(this.selectionLayer)
-    
-    // Move selection layer to top
-    this.selectionLayer.moveToTop()
+    // No need to create a layer - we'll use the overlay layer when needed
   }
   
   protected cleanupTool(): void {
-    // Clean up selection layer
-    if (this.selectionLayer) {
-      this.selectionLayer.destroy()
-      this.selectionLayer = null
-    }
+    // Clean up selection visualization
+    this.cleanupSelection()
     
     // Reset state
     this.isSelecting = false
     this.points = []
     this.selectionPath = null
+    this.selectionGroup = null
   }
   
   onMouseDown(event: ToolEvent): void {
-    if (!this.selectionLayer) return
+    const canvas = this.getCanvas()
+    const stage = canvas.konvaStage
+    // Use the existing overlay layer
+    const overlayLayer = stage.children[2] as Konva.Layer
+    if (!overlayLayer) return
     
     this.isSelecting = true
     this.points = [{ x: event.point.x, y: event.point.y }]
+    
+    // Create a group for this selection
+    this.selectionGroup = new Konva.Group({ name: 'lassoSelection' })
+    overlayLayer.add(this.selectionGroup)
     
     // Create initial path
     this.selectionPath = new Konva.Line({
@@ -76,12 +75,17 @@ export class LassoTool extends BaseTool {
       lineJoin: 'round'
     })
     
-    this.selectionLayer.add(bgPath)
-    this.selectionLayer.add(this.selectionPath)
+    this.selectionGroup.add(bgPath)
+    this.selectionGroup.add(this.selectionPath)
   }
   
   onMouseMove(event: ToolEvent): void {
-    if (!this.isSelecting || !this.selectionPath || !this.selectionLayer) return
+    if (!this.isSelecting || !this.selectionPath || !this.selectionGroup) return
+    
+    const canvas = this.getCanvas()
+    const stage = canvas.konvaStage
+    const overlayLayer = stage.children[2] as Konva.Layer
+    if (!overlayLayer) return
     
     const lastPoint = this.points[this.points.length - 1]
     const currentPoint = { x: event.point.x, y: event.point.y }
@@ -100,34 +104,38 @@ export class LassoTool extends BaseTool {
       this.selectionPath.points(flatPoints)
       
       // Update background path
-      const bgPath = this.selectionLayer.children[0] as Konva.Line
+      const bgPath = this.selectionGroup.children[0] as Konva.Line
       if (bgPath) {
         bgPath.points(flatPoints)
       }
       
-      this.selectionLayer.batchDraw()
+      overlayLayer.batchDraw()
     }
   }
   
   async onMouseUp(_event: ToolEvent): Promise<void> {
-    if (!this.isSelecting || !this.selectionPath || !this.selectionLayer || this.points.length < 3) {
+    if (!this.isSelecting || !this.selectionPath || !this.selectionGroup || this.points.length < 3) {
       // Need at least 3 points for a valid selection
       this.cleanupSelection()
       return
     }
     
+    const canvas = this.getCanvas()
+    const stage = canvas.konvaStage
+    const overlayLayer = stage.children[2] as Konva.Layer
+    if (!overlayLayer) return
+    
     this.isSelecting = false
     
     // Close the path
     this.selectionPath.closed(true)
-    const bgPath = this.selectionLayer.children[0] as Konva.Line
+    const bgPath = this.selectionGroup.children[0] as Konva.Line
     if (bgPath) {
       bgPath.closed(true)
     }
-    this.selectionLayer.batchDraw()
+    overlayLayer.batchDraw()
     
     // Create selection from path
-    const canvas = this.getCanvas()
     const selectionManager = canvas.getSelectionManager()
     
     // Get the current selection mode
@@ -170,9 +178,17 @@ export class LassoTool extends BaseTool {
    * Clean up selection visualization
    */
   private cleanupSelection(): void {
-    if (this.selectionLayer) {
-      this.selectionLayer.destroyChildren()
-      this.selectionLayer.batchDraw()
+    if (this.selectionGroup) {
+      this.selectionGroup.destroy()
+      this.selectionGroup = null
+      
+      // Redraw the overlay layer
+      const canvas = this.getCanvas()
+      const stage = canvas.konvaStage
+      const overlayLayer = stage.children[2] as Konva.Layer
+      if (overlayLayer) {
+        overlayLayer.batchDraw()
+      }
     }
     
     this.points = []

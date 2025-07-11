@@ -81,7 +81,7 @@ The gradient is applied as a new layer or fill.`
         console.log('[GradientAdapter] Creating gradient:', params.type)
         
         // Create and apply the gradient
-        await this.createGradient(params, context)
+        await this.createGradient(params)
         
         return {
           type: params.type,
@@ -94,8 +94,7 @@ The gradient is applied as a new layer or fill.`
   }
   
   private async createGradient(
-    params: GradientInput,
-    _context: CanvasContext
+    params: GradientInput
   ): Promise<void> {
     // TODO: Implement gradient creation
     // This would involve:

@@ -4,6 +4,7 @@ import { moveTool } from '@/lib/editor/tools/transform/moveTool'
 import type { CanvasContext } from '@/lib/ai/tools/canvas-bridge'
 import type { ExecutionContext } from '@/lib/events/execution/ExecutionContext'
 import type { CanvasObject } from '@/lib/editor/canvas/types'
+import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
 
 // Input schema for move operations
 const moveParameters = z.object({
@@ -109,7 +110,7 @@ The tool works on selected objects or all objects if none selected.`
   private async moveObjects(
     objects: CanvasObject[], 
     params: MoveInput, 
-    canvas: any,
+    canvas: CanvasManager,
     positions: MoveOutput['positions']
   ): Promise<void> {
     for (const obj of objects) {
@@ -141,7 +142,7 @@ The tool works on selected objects or all objects if none selected.`
   private async alignObjects(
     objects: CanvasObject[],
     alignment: string,
-    canvas: any,
+    canvas: CanvasManager,
     positions: MoveOutput['positions']
   ): Promise<void> {
     const canvasWidth = canvas.state.width
@@ -185,7 +186,7 @@ The tool works on selected objects or all objects if none selected.`
   private async distributeObjects(
     objects: CanvasObject[],
     params: MoveInput,
-    canvas: any,
+    canvas: CanvasManager,
     positions: MoveOutput['positions']
   ): Promise<void> {
     if (objects.length < 2) return

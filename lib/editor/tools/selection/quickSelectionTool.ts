@@ -19,68 +19,86 @@ export class QuickSelectionTool extends BaseTool {
   
   // Selection state
   private isSelecting = false
+  private brushSize = 20
+  private selectionGroup: Konva.Group | null = null
+  private brushCursor: Konva.Circle | null = null
+  private lastPoint: Point | null = null
   private currentSelection: ImageData | null = null
   private selectionBounds: { x: number; y: number; width: number; height: number } | null = null
   private brushPath: Point[] = []
-  private selectionLayer: Konva.Layer | null = null
-  private brushIndicator: Konva.Circle | null = null
   private mode: 'add' | 'subtract' = 'add'
   
   protected setupTool(): void {
-    const canvas = this.getCanvas()
-    
-    // Create a dedicated layer for selection visualization
-    this.selectionLayer = new Konva.Layer()
-    canvas.konvaStage.add(this.selectionLayer)
-    
-    // Move selection layer to top
-    this.selectionLayer.moveToTop()
-    
-    // Create brush indicator
-    this.brushIndicator = new Konva.Circle({
-      radius: 15,
-      stroke: '#000000',
-      strokeWidth: 1,
-      fill: 'transparent',
-      visible: false
-    })
-    this.selectionLayer.add(this.brushIndicator)
-    
     // Set default options
-    this.setOption('brushSize', 30)
-    this.setOption('hardness', 0.8)
-    this.setOption('autoEnhance', true)
+    this.setOption('brushSize', 20)
+    this.setOption('hardness', 0.8) // Edge hardness
+    this.setOption('autoEnhance', true) // Auto-detect edges
   }
   
   protected cleanupTool(): void {
-    // Clean up selection layer
-    if (this.selectionLayer) {
-      this.selectionLayer.destroy()
-      this.selectionLayer = null
+    // Clean up selection visualization
+    if (this.selectionGroup) {
+      this.selectionGroup.destroy()
+      this.selectionGroup = null
+    }
+    
+    // Clean up brush cursor
+    if (this.brushCursor) {
+      this.brushCursor.destroy()
+      this.brushCursor = null
+    }
+    
+    // Redraw the overlay layer if exists
+    const canvas = this.getCanvas()
+    const stage = canvas.konvaStage
+    const overlayLayer = stage.children[2] as Konva.Layer
+    if (overlayLayer) {
+      overlayLayer.batchDraw()
     }
     
     // Reset state
     this.isSelecting = false
+    this.lastPoint = null
     this.currentSelection = null
     this.selectionBounds = null
     this.brushPath = []
-    this.brushIndicator = null
   }
   
   onMouseDown(event: ToolEvent): void {
-    if (!this.selectionLayer) return
+    const canvas = this.getCanvas()
+    const stage = canvas.konvaStage
+    const overlayLayer = stage.children[2] as Konva.Layer
+    if (!overlayLayer) return
+    
+    // Create selection group if needed
+    if (!this.selectionGroup) {
+      this.selectionGroup = new Konva.Group({ name: 'quickSelection' })
+      overlayLayer.add(this.selectionGroup)
+      
+      // Create brush cursor
+      this.brushCursor = new Konva.Circle({
+        radius: this.brushSize / 2,
+        stroke: '#000000',
+        strokeWidth: 1,
+        fill: 'transparent',
+        visible: false
+      })
+      this.selectionGroup.add(this.brushCursor)
+    }
     
     this.isSelecting = true
+    this.lastPoint = { x: event.point.x, y: event.point.y }
     this.brushPath = [{ x: event.point.x, y: event.point.y }]
     
     // Determine mode based on modifier keys
     this.mode = event.altKey ? 'subtract' : 'add'
     
     // Update brush indicator
-    if (this.brushIndicator) {
-      this.brushIndicator.visible(true)
-      this.brushIndicator.position(event.point)
-      this.selectionLayer.batchDraw()
+    if (this.brushCursor) {
+      this.brushCursor.visible(true)
+      this.brushCursor.position(event.point)
+      this.brushCursor.radius(this.brushSize / 2)
+      overlayLayer.batchDraw()
     }
     
     // Start selection
@@ -88,35 +106,45 @@ export class QuickSelectionTool extends BaseTool {
   }
   
   onMouseMove(event: ToolEvent): void {
-    if (!this.selectionLayer || !this.brushIndicator) return
+    if (!this.selectionGroup || !this.brushCursor) return
+    
+    const canvas = this.getCanvas()
+    const stage = canvas.konvaStage
+    const overlayLayer = stage.children[2] as Konva.Layer
+    if (!overlayLayer) return
     
     // Update brush indicator position
-    this.brushIndicator.position(event.point)
+    this.brushCursor.position(event.point)
     
     if (this.isSelecting) {
       // Add point to brush path
-      this.brushPath.push({ x: event.point.x, y: event.point.y })
+      this.lastPoint = { x: event.point.x, y: event.point.y }
+      this.brushPath.push(this.lastPoint)
       
       // Update selection
       this.updateSelection(event.point)
     }
     
-    this.selectionLayer.batchDraw()
+    overlayLayer.batchDraw()
   }
   
   async onMouseUp(_event: ToolEvent): Promise<void> {
-    if (!this.isSelecting || !this.selectionLayer) return
+    if (!this.isSelecting || !this.selectionGroup) return
+    
+    const canvas = this.getCanvas()
+    const stage = canvas.konvaStage
+    const overlayLayer = stage.children[2] as Konva.Layer
+    if (!overlayLayer) return
     
     this.isSelecting = false
     
     // Hide brush indicator
-    if (this.brushIndicator) {
-      this.brushIndicator.visible(false)
+    if (this.brushCursor) {
+      this.brushCursor.visible(false)
     }
     
     // Finalize selection
     if (this.currentSelection && this.selectionBounds) {
-      const canvas = this.getCanvas()
       
       // Apply auto-enhance if enabled
       if (this.getOption('autoEnhance')) {
@@ -156,7 +184,7 @@ export class QuickSelectionTool extends BaseTool {
     
     // Reset brush path
     this.brushPath = []
-    this.selectionLayer.batchDraw()
+    overlayLayer.batchDraw()
   }
   
   onKeyDown(event: KeyboardEvent): void {
@@ -371,11 +399,16 @@ export class QuickSelectionTool extends BaseTool {
    * Show visual feedback for the selection
    */
   private showSelectionFeedback(): void {
-    if (!this.selectionLayer || !this.currentSelection || !this.selectionBounds) return
+    if (!this.selectionGroup || !this.currentSelection || !this.selectionBounds) return
+    
+    const canvas = this.getCanvas()
+    const stage = canvas.konvaStage
+    const overlayLayer = stage.children[2] as Konva.Layer
+    if (!overlayLayer) return
     
     // Clear previous feedback (except brush indicator)
-    this.selectionLayer.children.forEach(child => {
-      if (child !== this.brushIndicator) {
+    this.selectionGroup.children.forEach(child => {
+      if (child !== this.brushCursor) {
         child.destroy()
       }
     })
@@ -392,9 +425,9 @@ export class QuickSelectionTool extends BaseTool {
       dash: [4, 4]
     })
     
-    this.selectionLayer.add(overlay)
+    this.selectionGroup.add(overlay)
     overlay.moveToBottom() // Keep brush indicator on top
-    this.selectionLayer.batchDraw()
+    overlayLayer.batchDraw()
   }
   
   /**
@@ -406,17 +439,24 @@ export class QuickSelectionTool extends BaseTool {
     this.selectionBounds = null
     this.brushPath = []
     
-    if (this.brushIndicator) {
-      this.brushIndicator.visible(false)
+    if (this.brushCursor) {
+      this.brushCursor.visible(false)
     }
     
-    if (this.selectionLayer) {
-      this.selectionLayer.children.forEach(child => {
-        if (child !== this.brushIndicator) {
+    if (this.selectionGroup) {
+      const canvas = this.getCanvas()
+      const stage = canvas.konvaStage
+      const overlayLayer = stage.children[2] as Konva.Layer
+      
+      this.selectionGroup.children.forEach(child => {
+        if (child !== this.brushCursor) {
           child.destroy()
         }
       })
-      this.selectionLayer.batchDraw()
+      
+      if (overlayLayer) {
+        overlayLayer.batchDraw()
+      }
     }
   }
   

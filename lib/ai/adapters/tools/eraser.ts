@@ -80,7 +80,7 @@ The eraser works on the current layer or selection.`
         
         // Apply each eraser stroke
         for (const stroke of params.strokes) {
-          await this.eraseStroke(stroke, context)
+          await this.eraseStroke(stroke)
         }
         
         return {
@@ -99,8 +99,7 @@ The eraser works on the current layer or selection.`
   }
   
   private async eraseStroke(
-    stroke: EraserInput['strokes'][0],
-    _context: CanvasContext
+    stroke: EraserInput['strokes'][0]
   ): Promise<void> {
     // TODO: Implement actual eraser stroke
     // This would involve:

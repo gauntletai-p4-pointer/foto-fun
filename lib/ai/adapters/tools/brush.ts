@@ -81,7 +81,7 @@ The tool creates new paint layers that can be blended with existing content.`
         
         // Paint each stroke
         for (const stroke of params.strokes) {
-          await this.paintStroke(stroke, context)
+          await this.paintStroke(stroke)
         }
         
         return {
@@ -111,8 +111,7 @@ The tool creates new paint layers that can be blended with existing content.`
   }
   
   private async paintStroke(
-    stroke: BrushInput['strokes'][0],
-    _context: CanvasContext
+    stroke: BrushInput['strokes'][0]
   ): Promise<void> {
     // TODO: Implement actual brush stroke painting
     // This would involve:

@@ -12,7 +12,6 @@ import {
   Contrast, 
   Palette, 
   Droplets,
-  Thermometer,
   Camera,
   Brush,
   Focus,
@@ -122,7 +121,7 @@ export function AdjustmentsPanel() {
   if (!isAdjustmentTool || !activeToolId) {
     return (
       <div className="p-4 text-center text-foreground/60">
-        <Image className="w-8 h-8 mx-auto mb-3 opacity-50" />
+        <Image className="w-8 h-8 mx-auto mb-3 opacity-50" aria-hidden="true" />
         <p className="text-sm">Select an adjustment or filter tool</p>
       </div>
     )
@@ -135,21 +134,13 @@ export function AdjustmentsPanel() {
   const handleSliderChange = (controlId: string, value: number[]) => {
     toolStore.updateOption(activeToolId, controlId, value[0])
     
-    // Apply the adjustment in real-time
-    const tool = activeTool as any
-    if (tool && typeof tool[`apply${config.label.replace(/\s+/g, '')}`] === 'function') {
-      tool[`apply${config.label.replace(/\s+/g, '')}`](value[0])
-    }
+    // The tool will automatically apply changes through onOptionChange
   }
   
   const handleToggleChange = (controlId: string, checked: boolean) => {
     toolStore.updateOption(activeToolId, controlId, checked)
     
-    // Apply the toggle
-    const tool = activeTool as any
-    if (tool && checked && typeof tool[`apply${config.label.replace(/\s+/g, '')}`] === 'function') {
-      tool[`apply${config.label.replace(/\s+/g, '')}`]()
-    }
+    // The tool will automatically apply changes through onOptionChange
   }
   
   const handleReset = () => {
@@ -160,11 +151,7 @@ export function AdjustmentsPanel() {
       }
     })
     
-    // Apply reset
-    const tool = activeTool as any
-    if (tool && typeof tool.reset === 'function') {
-      tool.reset()
-    }
+    // The tool will automatically reset through option changes
   }
   
   const handleApply = () => {

@@ -1,7 +1,6 @@
 import { z } from 'zod'
 import { tool } from 'ai'
 import { BaseToolAdapter } from '../base'
-import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
 import type { CanvasObject } from '@/lib/editor/canvas/types'
 import type { Tool } from '@/types'
 import type { CanvasContext } from '@/lib/ai/tools/canvas-bridge'
@@ -61,7 +60,6 @@ Use this when you need to understand what's currently on the canvas.`
   async execute(
     params: AnalyzeCanvasInput,
     context: CanvasContext,
-    executionContext?: ExecutionContext
   ): Promise<AnalyzeCanvasOutput> {
     const { canvas } = context
     

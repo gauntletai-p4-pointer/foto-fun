@@ -5,7 +5,6 @@ import { BaseTool } from '../base/BaseTool'
 import type { Point, CanvasObject, ToolEvent } from '@/lib/editor/canvas/types'
 import { ImageGeneratedEvent, GenerationFailedEvent } from '@/lib/events/canvas/ToolEvents'
 import { ObjectAddedEvent } from '@/lib/events/canvas/CanvasEvents'
-import { serializeCanvasObject } from '@/lib/editor/canvas/types'
 
 /**
  * Image Generation Tool - AI-powered image generation
@@ -23,16 +22,9 @@ export class ImageGenerationTool extends BaseTool {
   private isGenerating = false
   private placeholderRect: Konva.Rect | null = null
   private loadingText: Konva.Text | null = null
-  private generationLayer: Konva.Layer | null = null
+  private generationGroup: Konva.Group | null = null
   
   protected setupTool(): void {
-    const canvas = this.getCanvas()
-    
-    // Create dedicated layer for generation UI
-    this.generationLayer = new Konva.Layer()
-    canvas.konvaStage.add(this.generationLayer)
-    this.generationLayer.moveToTop()
-    
     // Set default generation options
     this.setOption('model', 'stable-diffusion')
     this.setOption('width', 512)
@@ -47,10 +39,18 @@ export class ImageGenerationTool extends BaseTool {
       this.cancelGeneration()
     }
     
-    // Clean up generation layer
-    if (this.generationLayer) {
-      this.generationLayer.destroy()
-      this.generationLayer = null
+    // Clean up generation group
+    if (this.generationGroup) {
+      this.generationGroup.destroy()
+      this.generationGroup = null
+    }
+    
+    // Redraw overlay layer
+    const canvas = this.getCanvas()
+    const stage = canvas.konvaStage
+    const overlayLayer = stage.children[2] as Konva.Layer
+    if (overlayLayer) {
+      overlayLayer.batchDraw()
     }
     
     // Reset state
@@ -248,7 +248,16 @@ export class ImageGenerationTool extends BaseTool {
    * Create loading placeholder
    */
   private createPlaceholder(pos: Point, width: number, height: number, prompt: string): void {
-    if (!this.generationLayer) return
+    const canvas = this.getCanvas()
+    const stage = canvas.konvaStage
+    const overlayLayer = stage.children[2] as Konva.Layer
+    if (!overlayLayer) return
+    
+    // Create generation group if needed
+    if (!this.generationGroup) {
+      this.generationGroup = new Konva.Group({ name: 'imageGeneration' })
+      overlayLayer.add(this.generationGroup)
+    }
     
     // Create placeholder rectangle
     this.placeholderRect = new Konva.Rect({
@@ -277,9 +286,9 @@ export class ImageGenerationTool extends BaseTool {
       padding: 20
     })
     
-    // Add to generation layer
-    this.generationLayer.add(this.placeholderRect)
-    this.generationLayer.add(this.loadingText)
+    // Add to generation group
+    this.generationGroup.add(this.placeholderRect)
+    this.generationGroup.add(this.loadingText)
     
     // Add loading animation
     const anim = new Konva.Animation((frame) => {
@@ -287,14 +296,14 @@ export class ImageGenerationTool extends BaseTool {
       
       const opacity = (Math.sin(frame.time * 0.002) + 1) / 2
       this.placeholderRect.opacity(0.5 + opacity * 0.5)
-    }, this.generationLayer)
+    }, overlayLayer)
     
     anim.start()
     
     // Store animation for cleanup
     this.placeholderRect.setAttr('loadingAnimation', anim)
     
-    this.generationLayer.batchDraw()
+    overlayLayer.batchDraw()
   }
   
   /**
@@ -317,8 +326,13 @@ export class ImageGenerationTool extends BaseTool {
       this.loadingText = null
     }
     
-    if (this.generationLayer) {
-      this.generationLayer.batchDraw()
+    if (this.generationGroup) {
+      const canvas = this.getCanvas()
+      const stage = canvas.konvaStage
+      const overlayLayer = stage.children[2] as Konva.Layer
+      if (overlayLayer) {
+        overlayLayer.batchDraw()
+      }
     }
   }
   

@@ -17,31 +17,33 @@ export class MagicWandTool extends BaseTool {
   cursor = 'crosshair'
   shortcut = 'W'
   
-  // Tool state
+  // Selection state
+  private selectionGroup: Konva.Group | null = null
+  private tolerance = 32 // Default tolerance for color matching
   private isSelecting = false
-  private selectionLayer: Konva.Layer | null = null
   
   protected setupTool(): void {
-    const canvas = this.getCanvas()
-    
-    // Create a dedicated layer for selection visualization
-    this.selectionLayer = new Konva.Layer()
-    canvas.konvaStage.add(this.selectionLayer)
-    
-    // Move selection layer to top
-    this.selectionLayer.moveToTop()
+    // No need to create a layer - we'll use the overlay layer when needed
     
     // Set default options
-    this.setOption('tolerance', 32)
-    this.setOption('contiguous', true)
-    this.setOption('sampleAllLayers', false)
+    this.setOption('tolerance', 32) // 0-255 range
+    this.setOption('contiguous', true) // Select only connected pixels
+    this.setOption('sampleAllLayers', false) // Sample from all layers or just active
   }
   
   protected cleanupTool(): void {
-    // Clean up selection layer
-    if (this.selectionLayer) {
-      this.selectionLayer.destroy()
-      this.selectionLayer = null
+    // Clean up selection visualization
+    if (this.selectionGroup) {
+      this.selectionGroup.destroy()
+      this.selectionGroup = null
+      
+      // Redraw the overlay layer
+      const canvas = this.getCanvas()
+      const stage = canvas.konvaStage
+      const overlayLayer = stage.children[2] as Konva.Layer
+      if (overlayLayer) {
+        overlayLayer.batchDraw()
+      }
     }
     
     // Reset state
@@ -53,8 +55,19 @@ export class MagicWandTool extends BaseTool {
     
     this.isSelecting = true
     
+    // Create selection group in overlay layer
+    const canvas = this.getCanvas()
+    const stage = canvas.konvaStage
+    const overlayLayer = stage.children[2] as Konva.Layer
+    if (!overlayLayer) {
+      this.isSelecting = false
+      return
+    }
+    
+    this.selectionGroup = new Konva.Group({ name: 'magicWandSelection' })
+    overlayLayer.add(this.selectionGroup)
+    
     try {
-      const canvas = this.getCanvas()
       const point = event.point
       
       // Get tool options
@@ -301,10 +314,10 @@ export class MagicWandTool extends BaseTool {
    * Show visual feedback for the selection
    */
   private showSelectionFeedback(bounds: { x: number; y: number; width: number; height: number }): void {
-    if (!this.selectionLayer) return
+    if (!this.selectionGroup) return
     
     // Clear previous feedback
-    this.selectionLayer.destroyChildren()
+    this.selectionGroup.destroyChildren()
     
     // Create marching ants effect
     const rect = new Konva.Rect({
@@ -330,8 +343,8 @@ export class MagicWandTool extends BaseTool {
       fill: 'transparent'
     })
     
-    this.selectionLayer.add(bgRect)
-    this.selectionLayer.add(rect)
+    this.selectionGroup.add(bgRect)
+    this.selectionGroup.add(rect)
     
     // Animate marching ants
     const anim = new Konva.Animation((frame) => {
@@ -340,15 +353,25 @@ export class MagicWandTool extends BaseTool {
         rect.dashOffset(-dashOffset)
         bgRect.dashOffset(4 - dashOffset)
       }
-    }, this.selectionLayer)
+    }, this.selectionGroup)
     
     anim.start()
     
     // Stop animation after a short time
     setTimeout(() => {
       anim.stop()
-      this.selectionLayer?.destroyChildren()
-      this.selectionLayer?.batchDraw()
+      if (this.selectionGroup) {
+        this.selectionGroup.destroy()
+        this.selectionGroup = null
+        
+        // Redraw the overlay layer
+        const canvas = this.getCanvas()
+        const stage = canvas.konvaStage
+        const overlayLayer = stage.children[2] as Konva.Layer
+        if (overlayLayer) {
+          overlayLayer.batchDraw()
+        }
+      }
     }, 500)
   }
   

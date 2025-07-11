@@ -33,13 +33,13 @@ export class HandTool extends BaseTool {
     canvas.konvaStage.container().style.cursor = 'default'
   }
   
-  onMouseDown(_event: ToolEvent): void {
+  onMouseDown(): void {
     // Change cursor to grabbing
     const canvas = this.getCanvas()
     canvas.konvaStage.container().style.cursor = 'grabbing'
   }
   
-  onMouseUp(_event: ToolEvent): void {
+  onMouseUp(): void {
     // Change cursor back to grab
     const canvas = this.getCanvas()
     canvas.konvaStage.container().style.cursor = 'grab'

@@ -40,16 +40,14 @@ export class RotateTool extends BaseTool {
       rotationSnapTolerance: 5
     })
     
-    // Add transformer to overlay layer
+    // Use the existing overlay layer
     const stage = canvas.konvaStage
-    let overlayLayer = stage.findOne('.overlayLayer') as Konva.Layer | undefined
+    // The CanvasManager has an overlayLayer at index 2 (after background and selection layers)
+    const overlayLayer = stage.children[2] as Konva.Layer
     
-    if (!overlayLayer) {
-      overlayLayer = new Konva.Layer({ name: 'overlayLayer' })
-      stage.add(overlayLayer)
+    if (overlayLayer) {
+      overlayLayer.add(this.rotationTransformer)
     }
-    
-    overlayLayer.add(this.rotationTransformer)
     
     // Set up transformer events
     this.rotationTransformer.on('transformstart', () => {

@@ -58,21 +58,23 @@ export class MoveTool extends BaseTool {
       }
     })
     
-    // Add transformer to overlay layer
+    // Get the canvas manager's overlay layer instead of creating a new one
     const stage = canvas.konvaStage
-    let overlayLayer = stage.findOne('.overlayLayer') as Konva.Layer | undefined
+    // The CanvasManager has an overlayLayer at index 2 (after background and selection layers)
+    const overlayLayer = stage.children[2] as Konva.Layer
     
-    if (!overlayLayer) {
-      overlayLayer = new Konva.Layer({ name: 'overlayLayer' })
-      stage.add(overlayLayer)
+    if (overlayLayer) {
+      overlayLayer.add(this.selectionTransformer)
     }
     
-    overlayLayer.add(this.selectionTransformer)
+    // Create guide group instead of layer (to add to overlay layer)
+    const guideGroup = new Konva.Group({ name: 'moveToolGuides' })
+    if (overlayLayer) {
+      overlayLayer.add(guideGroup)
+    }
     
-    // Create guide layer for smart guides
-    this.guideLayer = new Konva.Layer({ name: 'guideLayer' })
-    stage.add(this.guideLayer)
-    this.guideLayer.moveToTop()
+    // Store reference to guide group instead of layer
+    this.guideLayer = overlayLayer
     
     // Set default options
     this.setOption('autoSelect', true)
@@ -88,10 +90,12 @@ export class MoveTool extends BaseTool {
       this.selectionTransformer = null
     }
     
-    // Clean up guide layer
+    // Clean up guide group
     if (this.guideLayer) {
-      this.guideLayer.destroy()
-      this.guideLayer = null
+      const guideGroup = this.guideLayer.findOne('.moveToolGuides')
+      if (guideGroup) {
+        guideGroup.destroy()
+      }
     }
     
     // Clear smart guides
@@ -102,6 +106,9 @@ export class MoveTool extends BaseTool {
     
     // Reset drag state
     this.dragState = null
+    
+    // Clear reference
+    this.guideLayer = null
   }
   
   async onMouseDown(event: ToolEvent): Promise<void> {
@@ -591,6 +598,9 @@ export class MoveTool extends BaseTool {
   private addVerticalGuide(x: number): void {
     if (!this.guideLayer) return
     
+    const guideGroup = this.guideLayer.findOne('.moveToolGuides') as Konva.Group
+    if (!guideGroup) return
+    
     const canvas = this.getCanvas()
     const guide = new Konva.Line({
       points: [x, 0, x, canvas.state.height],
@@ -600,7 +610,7 @@ export class MoveTool extends BaseTool {
       listening: false
     })
     
-    this.guideLayer.add(guide)
+    guideGroup.add(guide)
     this.smartGuides.vertical.push(guide)
   }
   
@@ -609,6 +619,9 @@ export class MoveTool extends BaseTool {
    */
   private addHorizontalGuide(y: number): void {
     if (!this.guideLayer) return
+    
+    const guideGroup = this.guideLayer.findOne('.moveToolGuides') as Konva.Group
+    if (!guideGroup) return
     
     const canvas = this.getCanvas()
     const guide = new Konva.Line({
@@ -619,7 +632,7 @@ export class MoveTool extends BaseTool {
       listening: false
     })
     
-    this.guideLayer.add(guide)
+    guideGroup.add(guide)
     this.smartGuides.horizontal.push(guide)
   }
   
