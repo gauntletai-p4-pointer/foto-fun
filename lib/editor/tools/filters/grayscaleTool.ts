@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars */
-import { Palette } from 'lucide-react'
+import { Monitor } from 'lucide-react'
 import { TOOL_IDS } from '@/constants'
 import type { Canvas, FabricImage } from 'fabric'
 import { BaseFilterTool } from './BaseFilterTool'
@@ -15,7 +15,7 @@ class GrayscaleTool extends BaseFilterTool {
   // Required properties
   id = TOOL_IDS.GRAYSCALE
   name = 'Grayscale'
-  icon = Palette
+  icon = Monitor
   cursor = 'default'
   shortcut = 'G'
   

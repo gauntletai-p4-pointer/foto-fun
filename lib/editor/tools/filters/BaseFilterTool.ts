@@ -74,7 +74,7 @@ export abstract class BaseFilterTool extends BaseTool {
       }
       
       // Check for color temperature filter (ColorMatrix with specific properties)
-      if (filterName === 'colorMatrix') {
+      if (filterName === 'colortemperature') {
         if (filterType === 'ColorMatrix' && (filter as any).matrix) {
           // Extract temperature from the matrix
           // The red channel adjustment is at index 0: 1 + tempAdjust * 0.2
@@ -187,8 +187,8 @@ export abstract class BaseFilterTool extends BaseTool {
             'sharpen': 'Convolute'
           }
           
-          // For color temperature (colorMatrix), check for ColorMatrix type
-          if (filterName === 'colorMatrix') {
+          // For color temperature, check for ColorMatrix type
+          if (filterName === 'colortemperature') {
             // Remove ColorMatrix filters that are used for color temperature
             // We identify them by checking if they have the specific matrix pattern
             if (filterType === 'ColorMatrix' && (filter as any).matrix) {

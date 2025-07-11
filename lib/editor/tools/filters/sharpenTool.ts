@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars */
-import { Focus } from 'lucide-react'
+import { Zap } from 'lucide-react'
 import { TOOL_IDS } from '@/constants'
 import type { Canvas } from 'fabric'
 import { BaseFilterTool } from './BaseFilterTool'
@@ -15,7 +15,7 @@ class SharpenTool extends BaseFilterTool {
   // Tool identification
   id = TOOL_IDS.SHARPEN
   name = 'Sharpen'
-  icon = Focus
+  icon = Zap
   cursor = 'default'
   shortcut = undefined // Access via filters menu
   

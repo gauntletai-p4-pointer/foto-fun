@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars */
-import { Focus } from 'lucide-react'
+import { Target } from 'lucide-react'
 import { TOOL_IDS } from '@/constants'
 import type { Canvas } from 'fabric'
 import { BaseFilterTool } from './BaseFilterTool'
@@ -15,7 +15,7 @@ class BlurTool extends BaseFilterTool {
   // Tool identification
   id = TOOL_IDS.BLUR
   name = 'Blur'
-  icon = Focus
+  icon = Target
   cursor = 'default'
   shortcut = undefined // Access via filters menu
   

@@ -36,7 +36,7 @@ class ColorTemperatureTool extends BaseFilterTool {
   
   // Required: Get filter name
   protected getFilterName(): string {
-    return 'colorMatrix' // Color temperature uses color matrix filter
+    return 'colortemperature' // Color temperature uses custom filter with selection support
   }
   
   // Required: Get default params

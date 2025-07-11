@@ -1,19 +1,13 @@
-- objects are moved when holding and dragging regardless of what tool is selected (which tool should this be the case for?)
 - no failure handling when agent errors out
 
 - adjustable ui, especially right panel - agent chat is getting cut off on the right side because currently not wide enough
-- "horizontal type tool", "vertical type tool", and some others have the exact same icon
 - the three checkboxes near the top "auto-select", "show transform controls", "show alignment guides" don't do anything 
 - selection tools don't do anything (probably need to be implemented as pixel editing)
-- using the rectangular marquee and elliptical marquee tools creates a flashing dot where the tool was first clicked
-- the elliptical marquee tool's selection behaves strangely: the center follows the cursor. the cursor should dictate the opposite end of the ellipse, while the starting position stays constant
-- magic wand tool should just be a one-click tool, not an area select
+
+- magic wand tool doesn't work
 - spacebar+drag panning is choppy
+- spacebar drag panning doesn't work above an object with the move tool selected, moves the object instead
 - hand tool panning is also choppy, but also creates maximum update depth console errors
-- some tools have the same hotkeys (e.g. magic wand and quick selection tools both use "w")
 - quick selection tool purpose unclear, causes lag and many browser warnings
 - crop tool doesn't work
 - type on a path tool doesn't seem to work
-
-features:
- we should create separate sections on the toolbar for each type of tool (selection, effects, etc.)

@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars */
-import { Palette } from 'lucide-react'
+import { Droplets } from 'lucide-react'
 import { TOOL_IDS } from '@/constants'
 import { BaseFilterTool } from '../filters/BaseFilterTool'
 import { createToolState } from '../utils/toolState'
@@ -23,7 +23,7 @@ class SaturationTool extends BaseFilterTool {
   // Tool identification
   id = TOOL_IDS.SATURATION
   name = 'Saturation'
-  icon = Palette
+  icon = Droplets
   cursor = 'default'
   shortcut = undefined // No default shortcut
   

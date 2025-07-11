@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars */
-import { Sun } from 'lucide-react'
+import { Camera } from 'lucide-react'
 import { TOOL_IDS } from '@/constants'
 import type { Canvas, FabricImage } from 'fabric'
 import { BaseFilterTool } from './BaseFilterTool'
@@ -15,7 +15,7 @@ class SepiaTool extends BaseFilterTool {
   // Tool identification
   id = TOOL_IDS.SEPIA
   name = 'Sepia'
-  icon = Sun
+  icon = Camera
   cursor = 'default'
   shortcut = undefined // Access via filters menu
   

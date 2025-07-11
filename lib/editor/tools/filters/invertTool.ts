@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars */
-import { RotateCcw } from 'lucide-react'
+import { RefreshCw } from 'lucide-react'
 import { TOOL_IDS } from '@/constants'
 import type { Canvas, FabricImage } from 'fabric'
 import { BaseFilterTool } from './BaseFilterTool'
@@ -15,7 +15,7 @@ class InvertTool extends BaseFilterTool {
   // Tool identification
   id = TOOL_IDS.INVERT
   name = 'Invert'
-  icon = RotateCcw
+  icon = RefreshCw
   cursor = 'default'
   shortcut = undefined // Access via filters menu
   
