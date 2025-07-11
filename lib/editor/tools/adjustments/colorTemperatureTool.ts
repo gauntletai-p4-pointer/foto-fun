@@ -91,7 +91,7 @@ class ColorTemperatureTool extends BaseFilterTool {
       const totalTemperature = baseTemperature + temperature
       
       // Use the base class preview method
-      await this.applyFilterPreview({ temperature: totalTemperature })
+      await this.previewFilter({ temperature: totalTemperature })
     } catch (error) {
       console.error('[ColorTemperatureTool] Preview failed:', error)
     } finally {
@@ -132,7 +132,7 @@ class ColorTemperatureTool extends BaseFilterTool {
     const baseTemperature = this.state.get('temperature')
     
     // Reset to the base temperature (not 0)
-    this.applyFilterPreview({ temperature: baseTemperature }).catch(error => {
+    this.previewFilter({ temperature: baseTemperature }).catch((error: any) => {
       console.error('[ColorTemperatureTool] Reset failed:', error)
     })
   }

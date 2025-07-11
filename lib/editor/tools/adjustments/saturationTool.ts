@@ -91,7 +91,7 @@ class SaturationTool extends BaseFilterTool {
       const totalAdjustment = baseAdjustment + adjustment
       
       // Use the base class preview method
-      await this.applyFilterPreview({ adjustment: totalAdjustment })
+      await this.previewFilter({ adjustment: totalAdjustment })
     } catch (error) {
       console.error('[SaturationTool] Preview failed:', error)
     } finally {
@@ -132,7 +132,7 @@ class SaturationTool extends BaseFilterTool {
     const baseAdjustment = this.state.get('adjustment')
     
     // Reset to the base adjustment (not 0)
-    this.applyFilterPreview({ adjustment: baseAdjustment }).catch(error => {
+    this.previewFilter({ adjustment: baseAdjustment }).catch((error: any) => {
       console.error('[SaturationTool] Reset failed:', error)
     })
   }

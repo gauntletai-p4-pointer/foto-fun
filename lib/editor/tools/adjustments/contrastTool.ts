@@ -109,7 +109,7 @@ class ContrastTool extends BaseFilterTool {
       }
       
       // Use the base class preview method
-      await this.applyFilterPreview({ adjustment: totalAdjustment })
+      await this.previewFilter({ adjustment: totalAdjustment })
       console.log('[ContrastTool] Preview applied successfully')
     } catch (error) {
       console.error('[ContrastTool] Preview failed:', error)
@@ -167,7 +167,7 @@ class ContrastTool extends BaseFilterTool {
     console.log('[ContrastTool] Resetting to base adjustment:', baseAdjustment)
     
     // Reset to the base adjustment (not 0)
-    this.applyFilterPreview({ adjustment: baseAdjustment }).catch(error => {
+    this.previewFilter({ adjustment: baseAdjustment }).catch((error: any) => {
       console.error('[ContrastTool] Reset failed:', error)
     })
   }

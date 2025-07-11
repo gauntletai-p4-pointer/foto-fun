@@ -171,7 +171,7 @@ class ExposureTool extends BaseFilterTool {
       console.log('[ExposureTool] Brightness adjustment to apply:', brightnessValue)
       
       // Use the base class preview method with brightness adjustment
-      await this.applyFilterPreview({ adjustment: brightnessValue })
+      await this.previewFilter({ adjustment: brightnessValue })
       console.log('[ExposureTool] Preview applied successfully')
     } catch (error) {
       console.error('[ExposureTool] Preview failed:', error)
@@ -238,7 +238,7 @@ class ExposureTool extends BaseFilterTool {
     console.log('[ExposureTool] Brightness value for reset:', brightnessValue)
     
     // Reset to the base exposure
-    this.applyFilterPreview({ adjustment: brightnessValue }).catch(error => {
+    this.previewFilter({ adjustment: brightnessValue }).catch((error: any) => {
       console.error('[ExposureTool] Reset failed:', error)
     })
   }

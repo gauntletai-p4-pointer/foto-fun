@@ -91,7 +91,7 @@ class HueTool extends BaseFilterTool {
       const totalRotation = baseRotation + rotation
       
       // Use the base class preview method
-      await this.applyFilterPreview({ rotation: totalRotation })
+      await this.previewFilter({ rotation: totalRotation })
     } catch (error) {
       console.error('[HueTool] Preview failed:', error)
     } finally {
@@ -132,7 +132,7 @@ class HueTool extends BaseFilterTool {
     const baseRotation = this.state.get('rotation')
     
     // Reset to the base rotation (not 0)
-    this.applyFilterPreview({ rotation: baseRotation }).catch(error => {
+    this.previewFilter({ rotation: baseRotation }).catch((error: any) => {
       console.error('[HueTool] Reset failed:', error)
     })
   }
