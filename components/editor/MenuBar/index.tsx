@@ -1,17 +1,18 @@
 'use client'
 
-import React, { useState, useEffect, useCallback } from 'react'
-import { Button } from '@/components/ui/button'
+import React, { useState } from 'react'
 import { useService } from '@/lib/core/AppInitializer'
 import { useStore } from '@/lib/store/base/BaseStore'
 import { EventDocumentStore } from '@/lib/store/document/EventDocumentStore'
 import { EventSelectionStore } from '@/lib/store/selection/EventSelectionStore'
+import { EventToolStore } from '@/lib/store/tools/EventToolStore'
 import { useEventHistoryStore } from '@/lib/events/history/EventBasedHistoryStore'
 import { useFileHandler } from '@/hooks/useFileHandler'
 import { useTheme } from '@/hooks/useTheme'
 import { useAuth } from '@/hooks/useAuth'
 import { signOut } from '@/lib/auth/actions'
 import { NewDocumentDialog } from '@/components/dialogs/NewDocumentDialog'
+import { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -22,9 +23,12 @@ import {
   DropdownMenuSub,
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
+  DropdownMenuGroup,
+  DropdownMenuLabel,
 } from '@/components/ui/dropdown-menu'
 import { FileDown, FileImage, FilePlus, Save, Sun, Moon, LogOut, Undo, Redo, Copy, Scissors, Clipboard, Settings } from 'lucide-react'
 import { SettingsDialog } from './SettingsDialog'
+import { TOOL_IDS } from '@/constants'
 
 export function MenuBar() {
   const [newDocumentOpen, setNewDocumentOpen] = useState(false)
@@ -40,9 +44,15 @@ export function MenuBar() {
   const selectionState = useStore(selectionStore)
   const hasSelection = selectionState.selectedObjectIds.size > 0
   
+  const toolStore = useService<EventToolStore>('ToolStore')
+  const canvasManager = useService<CanvasManager>('CanvasManager')
+  
   const { theme, setTheme } = useTheme()
   const { user } = useAuth()
   const { undo, redo, canUndo, canRedo } = useEventHistoryStore()
+  
+  // Check if we have a pixel selection
+  const hasPixelSelection = canvasManager?.getSelectionManager()?.hasSelection() || false
   
   const handleSave = () => {
     if (currentDocument) {
@@ -78,33 +88,58 @@ export function MenuBar() {
   }
   
   const handleSelectAll = () => {
-    // TODO: Implement select all functionality with new architecture
-    console.log('Select All functionality needs implementation with new architecture')
+    if (!canvasManager) return
+    const selectionManager = canvasManager.getSelectionManager()
+    selectionManager.selectAll()
   }
   
   const handleDeselect = () => {
-    // TODO: Update selection functionality after canvas migration  
-    console.log('Deselect functionality needs migration to Konva')
+    if (!canvasManager) return
+    const selectionManager = canvasManager.getSelectionManager()
+    selectionManager.clear()
   }
   
   const handleInvertSelection = () => {
-    // TODO: Update selection functionality after canvas migration
-    console.log('Invert Selection functionality needs migration to Konva')
+    if (!canvasManager) return
+    const selectionManager = canvasManager.getSelectionManager()
+    selectionManager.invert()
   }
   
-  const handleExpandSelection = () => {
-    // TODO: Update selection functionality after canvas migration
-    console.log('Expand Selection functionality needs migration to Konva')
+  const handleExpandSelection = (pixels: number = 5) => {
+    if (!canvasManager) return
+    const selectionManager = canvasManager.getSelectionManager()
+    const operations = selectionManager.getOperations()
+    const currentSelection = selectionManager.getSelection()
+    if (currentSelection) {
+      const expanded = operations.expand(currentSelection, pixels)
+      selectionManager.applySelection(expanded.mask, 'replace')
+    }
   }
   
-  const handleContractSelection = () => {
-    // TODO: Update selection functionality after canvas migration
-    console.log('Contract Selection functionality needs migration to Konva')
+  const handleContractSelection = (pixels: number = 5) => {
+    if (!canvasManager) return
+    const selectionManager = canvasManager.getSelectionManager()
+    const operations = selectionManager.getOperations()
+    const currentSelection = selectionManager.getSelection()
+    if (currentSelection) {
+      const contracted = operations.contract(currentSelection, pixels)
+      selectionManager.applySelection(contracted.mask, 'replace')
+    }
   }
   
   const handleFeatherSelection = (pixels: number) => {
-    // TODO: Implement feather selection with new architecture
-    console.log(`Feather Selection (${pixels}px) functionality needs implementation with new architecture`)
+    if (!canvasManager) return
+    const selectionManager = canvasManager.getSelectionManager()
+    const operations = selectionManager.getOperations()
+    const currentSelection = selectionManager.getSelection()
+    if (currentSelection) {
+      const feathered = operations.feather(currentSelection, pixels)
+      selectionManager.applySelection(feathered.mask, 'replace')
+    }
+  }
+  
+  const activateFilterTool = (toolId: string) => {
+    toolStore.activateTool(toolId)
   }
   
   return (
@@ -222,7 +257,7 @@ export function MenuBar() {
               </DropdownMenuItem>
               <DropdownMenuItem 
                 onClick={handleDeselect}
-                disabled={!hasSelection}
+                disabled={!hasSelection && !hasPixelSelection}
               >
                 Deselect
                 <DropdownMenuShortcut>⌘D</DropdownMenuShortcut>
@@ -254,35 +289,35 @@ export function MenuBar() {
               </DropdownMenuItem>
               <DropdownMenuItem 
                 onClick={handleInvertSelection}
-                disabled={false} // Selection through event system
+                disabled={false}
               >
                 Inverse
                 <DropdownMenuShortcut>⌘⇧I</DropdownMenuShortcut>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuSub>
-                <DropdownMenuSubTrigger disabled={!hasSelection}>
+                <DropdownMenuSubTrigger disabled={!hasPixelSelection}>
                   Modify
                 </DropdownMenuSubTrigger>
                 <DropdownMenuSubContent className="w-48">
-                  <DropdownMenuItem onClick={() => handleExpandSelection()}>
-                    Expand...
+                  <DropdownMenuItem onClick={() => handleExpandSelection(1)}>
+                    Expand... (1px)
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleExpandSelection()}>
-                    Expand...
+                  <DropdownMenuItem onClick={() => handleExpandSelection(3)}>
+                    Expand... (3px)
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleExpandSelection()}>
-                    Expand...
+                  <DropdownMenuItem onClick={() => handleExpandSelection(5)}>
+                    Expand... (5px)
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => handleContractSelection()}>
-                    Contract...
+                  <DropdownMenuItem onClick={() => handleContractSelection(1)}>
+                    Contract... (1px)
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleContractSelection()}>
-                    Contract...
+                  <DropdownMenuItem onClick={() => handleContractSelection(3)}>
+                    Contract... (3px)
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => handleContractSelection()}>
-                    Contract...
+                  <DropdownMenuItem onClick={() => handleContractSelection(5)}>
+                    Contract... (5px)
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={() => handleFeatherSelection(1)}>
@@ -312,7 +347,59 @@ export function MenuBar() {
             </DropdownMenuContent>
           </DropdownMenu>
           
-          <button className="hover:text-foreground/80" disabled>Filter</button>
+          {/* New Filter menu */}
+          <DropdownMenu>
+            <DropdownMenuTrigger className="hover:text-foreground/80 outline-none">
+              Filter
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-56">
+              <DropdownMenuGroup>
+                <DropdownMenuLabel>Adjustments</DropdownMenuLabel>
+                <DropdownMenuItem onClick={() => activateFilterTool(TOOL_IDS.BRIGHTNESS)}>
+                  Brightness/Contrast...
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => activateFilterTool(TOOL_IDS.HUE)}>
+                  Hue/Saturation...
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => activateFilterTool(TOOL_IDS.EXPOSURE)}>
+                  Exposure
+                </DropdownMenuItem>
+              </DropdownMenuGroup>
+              
+              <DropdownMenuSeparator />
+              
+              <DropdownMenuGroup>
+                <DropdownMenuLabel>Blur & Sharpen</DropdownMenuLabel>
+                <DropdownMenuItem onClick={() => activateFilterTool(TOOL_IDS.BLUR)}>
+                  Blur...
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => activateFilterTool(TOOL_IDS.SHARPEN)}>
+                  Sharpen...
+                </DropdownMenuItem>
+              </DropdownMenuGroup>
+              
+              <DropdownMenuSeparator />
+              
+              <DropdownMenuGroup>
+                <DropdownMenuLabel>Artistic</DropdownMenuLabel>
+                <DropdownMenuItem onClick={() => activateFilterTool(TOOL_IDS.VINTAGE_EFFECTS)}>
+                  Vintage Effects...
+                </DropdownMenuItem>
+              </DropdownMenuGroup>
+              
+              <DropdownMenuSeparator />
+              
+              <DropdownMenuGroup>
+                <DropdownMenuLabel>Other</DropdownMenuLabel>
+                <DropdownMenuItem onClick={() => activateFilterTool(TOOL_IDS.GRAYSCALE)}>
+                  Grayscale
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => activateFilterTool(TOOL_IDS.INVERT)}>
+                  Invert
+                </DropdownMenuItem>
+              </DropdownMenuGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
           
           <DropdownMenu>
             <DropdownMenuTrigger className="hover:text-foreground/80 outline-none">

@@ -1,0 +1,4 @@
+-full ps parity
+-full illustrator parity (for vector canvases)
+-workspace customization (organize what tools you want to show; and what groups)
+-plugins/extensibility

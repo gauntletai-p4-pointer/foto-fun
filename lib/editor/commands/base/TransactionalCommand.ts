@@ -198,10 +198,10 @@ export abstract class TransactionalCommand extends Command {
     
     // Restore selection
     if (snapshot.selection) {
-      if (snapshot.selection.type === 'objects' && snapshot.selection.data.objectIds) {
+      if (snapshot.selection.type === 'objects' && snapshot.selection.data && typeof snapshot.selection.data === 'object' && 'objectIds' in snapshot.selection.data) {
         canvas.setSelection({
           type: 'objects',
-          objectIds: snapshot.selection.data.objectIds
+          objectIds: (snapshot.selection.data as { objectIds: string[] }).objectIds
         })
       } else {
         canvas.setSelection(snapshot.selection.data as Parameters<typeof canvas.setSelection>[0])

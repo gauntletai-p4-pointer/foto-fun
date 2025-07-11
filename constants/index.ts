@@ -57,7 +57,6 @@ export const TOOL_IDS = {
   SATURATION: 'saturation',
   HUE: 'hue',
   EXPOSURE: 'exposure',
-  COLOR_TEMPERATURE: 'color-temperature',
   // Transform tools
   ROTATE: 'rotate',
   FLIP: 'flip',
@@ -66,16 +65,77 @@ export const TOOL_IDS = {
   BLUR: 'blur',
   SHARPEN: 'sharpen',
   GRAYSCALE: 'grayscale',
-  SEPIA: 'sepia',
   INVERT: 'invert',
+  VINTAGE_EFFECTS: 'vintage-effects',
   // AI-Native tools
   AI_IMAGE_GENERATION: 'ai-image-generation',
 } as const
 
 // Tool Groups
 export const TOOL_GROUPS = {
-  SELECT: [TOOL_IDS.MARQUEE_RECT, TOOL_IDS.MARQUEE_ELLIPSE],
+  // Selection tools
+  MARQUEE: [
+    TOOL_IDS.MARQUEE_RECT, 
+    TOOL_IDS.MARQUEE_ELLIPSE,
+  ],
+  LASSO: [
+    TOOL_IDS.LASSO,
+    // TODO: Polygonal Lasso, Magnetic Lasso
+  ],
+  QUICK_SELECTION: [
+    TOOL_IDS.QUICK_SELECTION,
+    TOOL_IDS.MAGIC_WAND,
+  ],
+  
+  // Transform tools
   MOVE: [TOOL_IDS.MOVE],
-  CROP: [TOOL_IDS.CROP],
+  CROP: [
+    TOOL_IDS.CROP,
+    // TODO: Slice, Perspective Crop
+  ],
+  
+  // Drawing tools
+  BRUSH: [
+    TOOL_IDS.BRUSH,
+    // TODO: Pencil, Color Replacement, Mixer Brush
+  ],
+  ERASER: [
+    TOOL_IDS.ERASER,
+    // TODO: Background Eraser, Magic Eraser
+  ],
+  
+  // Type tools
+  TYPE: [
+    TOOL_IDS.TYPE_HORIZONTAL,
+    TOOL_IDS.TYPE_VERTICAL,
+    TOOL_IDS.TYPE_MASK,
+    TOOL_IDS.TYPE_ON_PATH,
+  ],
+  
+  // Navigation tools
   NAV: [TOOL_IDS.HAND, TOOL_IDS.ZOOM],
+  
+  // Sampling tools
+  EYEDROPPER: [
+    TOOL_IDS.EYEDROPPER,
+    // TODO: Color Sampler, Ruler, Note, Count
+  ],
+  
+  // Adjustment tools (new group)
+  ADJUSTMENTS: [
+    TOOL_IDS.BRIGHTNESS,
+    TOOL_IDS.CONTRAST,
+    TOOL_IDS.HUE,
+    TOOL_IDS.SATURATION,
+    TOOL_IDS.EXPOSURE,
+  ],
+  
+  // Filter tools (new group)
+  FILTERS: [
+    TOOL_IDS.BLUR,
+    TOOL_IDS.SHARPEN,
+    TOOL_IDS.GRAYSCALE,
+    TOOL_IDS.INVERT,
+    TOOL_IDS.VINTAGE_EFFECTS,
+  ],
 } as const 

@@ -44,6 +44,34 @@ export interface EventRegistry {
     layerIds: string[]
     previousOrder: string[]
   }
+  'layer.parent.changed': {
+    layerId: string
+    parentId: string | undefined
+    previousParentId: string | undefined
+  }
+  'layer.group.expansion.changed': {
+    groupId: string
+    expanded: boolean
+  }
+  
+  // Filter events
+  'layer.filter.added': {
+    layerId: string
+    filter: any // Using any to avoid circular dependency
+    position?: number
+  }
+  'layer.filter.removed': {
+    layerId: string
+    filterId: string
+  }
+  'layer.filter.stack.updated': {
+    layerId: string
+    filterStack: any // Using any to avoid circular dependency
+  }
+  'layer.filters.reordered': {
+    layerId: string
+    filterIds: string[]
+  }
   
   // Selection events
   'selection.changed': { 

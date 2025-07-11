@@ -4,7 +4,7 @@ import { WebGLFilterTool } from '../base/WebGLFilterTool'
 
 /**
  * Brightness Tool - Adjust image brightness
- * WebGL implementation for high-performance brightness adjustment
+ * Now uses layer-based filtering exclusively
  */
 export class BrightnessTool extends WebGLFilterTool {
   // Tool identification
@@ -16,53 +16,26 @@ export class BrightnessTool extends WebGLFilterTool {
   isImplemented = true
   group = 'adjustment'
   
-  protected getFilterType(): string {
-    return 'brightness'
+  // Filter type for the filter system
+  protected filterType = 'brightness'
+  
+  protected setupTool(): void {
+    // Set default brightness value
+    this.setOption('adjustment', 0)
   }
   
-  protected getDefaultParams(): Record<string, number> {
-    return {
-      adjustment: 0 // -100 to 100 percentage
-    }
-  }
-  
-  /**
-   * Convert UI percentage to WebGL range
-   * UI uses -100 to 100, WebGL uses -1 to 1
-   */
-  protected convertOptionsToWebGLParams(options: Record<string, unknown>): Record<string, number> {
-    const adjustment = (options.adjustment as number) || 0
-    return {
-      amount: adjustment / 100
-    }
+  protected cleanupTool(): void {
+    // Nothing to clean up
   }
   
   /**
    * Public method for programmatic brightness adjustment
    */
   async applyBrightness(adjustment: number): Promise<void> {
-    this.setOption('adjustment', adjustment)
-    await this.applyFilter()
-  }
-  
-  /**
-   * Toggle between original and brightened
-   */
-  async toggleBrightness(): Promise<void> {
-    const currentAdjustment = this.getOption('adjustment') as number
-    
-    if (currentAdjustment !== 0) {
-      // Reset to original
-      this.setOption('adjustment', 0)
-      await this.removeFilter()
-    } else {
-      // Apply last used value or default
-      const lastValue = this.lastAppliedParams && typeof this.lastAppliedParams.amount === 'number'
-        ? this.lastAppliedParams.amount * 100
-        : 20
-      this.setOption('adjustment', lastValue)
-      await this.applyFilter()
+    const params = {
+      amount: adjustment / 100 // Convert UI percentage to WebGL range (-1 to 1)
     }
+    await this.applyFilter(params)
   }
   
   /**

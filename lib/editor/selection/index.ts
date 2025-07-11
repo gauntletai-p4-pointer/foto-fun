@@ -1,2 +1,5 @@
-export * from './SelectionManager'
-export * from './SelectionRenderer' 
+export { SelectionManager } from './SelectionManager'
+export type { SelectionBounds, SelectionModification } from './SelectionManager'
+export { SelectionRenderer } from './SelectionRenderer'
+export { SelectionOperations } from './SelectionOperations'
+export type { PixelSelection, SelectionMode } from '@/types' 

@@ -19,6 +19,7 @@ export class CreateSelectionCommand extends Command {
     super(`Create ${mode} selection`)
     this.selectionManager = selectionManager
     this.newSelection = {
+      type: 'pixel',
       mask: selection.mask,
       bounds: { ...selection.bounds }
     }
@@ -38,6 +39,7 @@ export class CreateSelectionCommand extends Command {
       clonedMask.data.set(current.mask.data)
       
       this.previousSelection = {
+        type: 'pixel',
         mask: clonedMask,
         bounds: { ...current.bounds }
       }
@@ -116,7 +118,11 @@ export class CreateSelectionCommand extends Command {
           break
       }
       
-      this.finalSelection = { mask: resultMask, bounds }
+      this.finalSelection = { 
+        type: 'pixel',
+        mask: resultMask, 
+        bounds 
+      }
       this.selectionManager.restoreSelection(resultMask, bounds)
     }
   }

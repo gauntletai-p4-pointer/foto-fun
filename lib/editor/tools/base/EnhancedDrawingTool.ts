@@ -54,7 +54,7 @@ export abstract class EnhancedDrawingTool extends BaseTool {
     pressureSensitivity: true,
     hardness: 80,
     spacing: 10,
-    blendMode: 'normal'
+    blendMode: 'source-over' as GlobalCompositeOperation
   }
   
   protected typedEventBus = getTypedEventBus()
@@ -86,7 +86,7 @@ export abstract class EnhancedDrawingTool extends BaseTool {
    * Start drawing
    */
   protected startDrawing(event: ToolEvent, context: ToolContext): void {
-    const point = this.getEventPoint(event, context.canvas)
+    const point = this.getEventPoint(event, context.canvas as any)
     if (!point) return
     
     // Initialize drawing context
@@ -118,8 +118,8 @@ export abstract class EnhancedDrawingTool extends BaseTool {
     // Emit drawing started event
     this.typedEventBus.emit('drawing.started', {
       toolId: this.id,
-      point,
-      options: this.drawingOptions
+      point: point,
+      options: this.drawingOptions as unknown as Record<string, unknown>
     })
   }
   
@@ -129,7 +129,7 @@ export abstract class EnhancedDrawingTool extends BaseTool {
   protected continueDrawing(event: ToolEvent, context: ToolContext): void {
     if (!this.drawingContext.isDrawing) return
     
-    const point = this.getEventPoint(event, context.canvas)
+    const point = this.getEventPoint(event, context.canvas as any)
     if (!point) return
     
     // Add point with smoothing
@@ -352,24 +352,14 @@ export abstract class EnhancedDrawingTool extends BaseTool {
   }
   
   /**
-   * Get point from event
+   * Get point from tool event
    */
-  protected getEventPoint(event: ToolEvent, canvas: CanvasManager): DrawingPoint | null {
-    const stage = canvas.konvaStage
-    if (!stage) return null
-    
-    const pointerPosition = stage.getPointerPosition()
-    if (!pointerPosition) return null
-    
-    // Get pressure if available
-    let pressure = 1
-    if ('pressure' in event && typeof event.pressure === 'number') {
-      pressure = event.pressure
-    }
+  protected getEventPoint(event: ToolEvent, canvas: any): DrawingPoint {
+    const pressure = 0.5 // Default pressure since ToolEvent doesn't have pressure info
     
     return {
-      x: pointerPosition.x,
-      y: pointerPosition.y,
+      x: event.point.x,
+      y: event.point.y,
       pressure,
       timestamp: Date.now()
     }
@@ -401,7 +391,7 @@ export abstract class EnhancedDrawingTool extends BaseTool {
     // Emit options changed event
     this.typedEventBus.emit('drawing.options.changed', {
       toolId: this.id,
-      options: this.drawingOptions
+      options: this.drawingOptions as unknown as Record<string, unknown>
     })
   }
   

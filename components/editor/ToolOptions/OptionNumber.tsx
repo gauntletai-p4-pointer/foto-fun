@@ -28,10 +28,10 @@ export function OptionNumber({ option, onChange }: OptionNumberProps) {
           min={min}
           max={max}
           step={step}
-          className="w-20 h-8 text-foreground"
+          className="w-20 h-8 text-foreground bg-content-background border-border"
         />
         {unit && (
-          <span className="text-sm text-foreground/60">{unit}</span>
+          <span className="text-sm text-foreground font-medium">{unit}</span>
         )}
       </div>
     </div>

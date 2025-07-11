@@ -60,33 +60,33 @@ export function AgentThinkingDisplay({
   
   return (
     <div className={cn(
-      "border rounded-lg bg-muted/30 overflow-hidden transition-all duration-200",
+      "border rounded-lg bg-foreground/5 overflow-hidden transition-all duration-200",
       className
     )}>
       {/* Header */}
       <button
         onClick={() => setIsExpanded(!isExpanded)}
-        className="w-full px-4 py-3 flex items-center justify-between hover:bg-muted/50 transition-colors"
+        className="w-full px-4 py-3 flex items-center justify-between hover:bg-foreground/10 transition-colors"
       >
         <div className="flex items-center gap-2">
           <Brain className={cn(
             "w-4 h-4",
-            isThinking ? "text-primary animate-pulse" : "text-muted-foreground"
+            isThinking ? "text-primary animate-pulse" : "text-foreground/60"
           )} />
           <span className="font-medium text-sm">
             {isThinking ? 'Agent Thinking...' : 'Agent Analysis Complete'}
           </span>
           {activeStep && (
-            <span className="text-xs text-muted-foreground">
+            <span className="text-xs text-foreground/60">
               - {activeStep.message}
             </span>
           )}
         </div>
         
         {isExpanded ? (
-          <ChevronUp className="w-4 h-4 text-muted-foreground" />
+          <ChevronUp className="w-4 h-4 text-foreground/60" />
         ) : (
-          <ChevronDown className="w-4 h-4 text-muted-foreground" />
+          <ChevronDown className="w-4 h-4 text-foreground/60" />
         )}
       </button>
       
@@ -106,17 +106,17 @@ export function AgentThinkingDisplay({
               >
                 <Icon className={cn(
                   "w-4 h-4 mt-0.5 flex-shrink-0",
-                  step.isActive ? "text-primary animate-pulse" : "text-muted-foreground"
+                  step.isActive ? "text-primary animate-pulse" : "text-foreground/60"
                 )} />
                 
                 <div className="flex-1 min-w-0">
                   <p className={cn(
                     "text-sm",
-                    step.isActive ? "text-foreground font-medium" : "text-muted-foreground"
+                    step.isActive ? "text-foreground font-medium" : "text-foreground/60"
                   )}>
                     {step.message}
                   </p>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-xs text-foreground/60">
                     {new Date(step.timestamp).toLocaleTimeString()}
                   </p>
                 </div>

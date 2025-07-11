@@ -1,5 +1,8 @@
 import { Camera } from 'lucide-react'
+import { TOOL_IDS } from '@/constants'
 import { WebGLFilterTool } from '../base/WebGLFilterTool'
+import type { FilterTarget } from '@/lib/editor/filters/FilterManager'
+import type { Filter } from '@/lib/editor/canvas/types'
 
 export interface VintageEffect {
   id: string
@@ -12,16 +15,19 @@ export interface VintageEffect {
 
 /**
  * Vintage Effects Tool - Apply vintage film effects
- * WebGL-only tool showcasing effects not possible with Konva
+ * Now uses layer-based filtering exclusively
  */
 export class VintageEffectsTool extends WebGLFilterTool {
-  id = 'vintage-effects'
+  id = TOOL_IDS.VINTAGE_EFFECTS
   name = 'Vintage Effects'
   icon = Camera
   cursor = 'default'
   shortcut = 'V'
   isImplemented = true
   group = 'filter'
+  
+  // Filter type - will be set dynamically based on selected effect
+  protected filterType = 'vintage'
   
   // Available vintage effects
   private effects: VintageEffect[] = [
@@ -62,24 +68,28 @@ export class VintageEffectsTool extends WebGLFilterTool {
     }
   ]
   
-  protected getFilterType(): string {
-    const effectId = this.getOption('effect') as string
-    const effect = this.effects.find(e => e.id === effectId)
-    return effect?.webglFilter || 'brownie'
+  protected setupTool(): void {
+    // Set default effect
+    this.setOption('effect', 'brownie')
+    this.setOption('intensity', 100)
   }
   
-  protected getDefaultParams(): Record<string, unknown> {
-    return {
-      effect: 'brownie',
-      intensity: 100 // For future effects that support intensity
-    }
+  protected cleanupTool(): void {
+    // Nothing to clean up
   }
   
-  protected convertOptionsToWebGLParams(options: Record<string, unknown>): Record<string, number | string | boolean> {
-    // Most vintage effects don't have parameters
-    // But we store effect type for metadata
-    return {
-      effect: options.effect as string
+  /**
+   * Handle option changes from the UI
+   */
+  protected onOptionChange(key: string, value: unknown): void {
+    if (key === 'effect' && typeof value === 'string') {
+      const effect = this.effects.find(e => e.id === value)
+      if (effect) {
+        // Update the filter type based on selected effect
+        this.filterType = effect.webglFilter
+        // Apply the effect
+        this.applyVintageEffect(value)
+      }
     }
   }
   
@@ -93,8 +103,15 @@ export class VintageEffectsTool extends WebGLFilterTool {
       return
     }
     
-    this.setOption('effect', effectId)
-    await this.applyFilter()
+    // Update filter type
+    this.filterType = effect.webglFilter
+    
+    // Apply filter with effect parameters
+    const params = {
+      effect: effectId
+    }
+    
+    await this.applyFilter(params)
   }
   
   /**
@@ -108,19 +125,22 @@ export class VintageEffectsTool extends WebGLFilterTool {
    * Generate preview for an effect
    */
   async generatePreview(effectId: string, sourceImage: HTMLImageElement): Promise<string> {
-    if (!this.filterManager) return ''
+    const canvas = this.getCanvas()
+    const filterManager = canvas.getFilterManager?.()
+    
+    if (!filterManager) return ''
     
     const effect = this.effects.find(e => e.id === effectId)
     if (!effect) return ''
     
     try {
       // Create small preview (200x200)
-      const canvas = document.createElement('canvas')
+      const previewCanvas = document.createElement('canvas')
       const size = 200
-      canvas.width = size
-      canvas.height = size
+      previewCanvas.width = size
+      previewCanvas.height = size
       
-      const ctx = canvas.getContext('2d')
+      const ctx = previewCanvas.getContext('2d')
       if (!ctx) return ''
       
       // Draw scaled image
@@ -132,22 +152,19 @@ export class VintageEffectsTool extends WebGLFilterTool {
       
       ctx.drawImage(sourceImage, x, y, width, height)
       
-      // Apply effect to preview
-      const previewImage = new Image()
-      previewImage.src = canvas.toDataURL()
+      // Apply effect to preview using WebGL filter manager directly
+      const webglFilterManager = (filterManager as any).webglFilterManager
+      if (webglFilterManager) {
+        const filtered = await webglFilterManager.processWithWebGL(
+          previewCanvas,
+          effect.webglFilter,
+          {}
+        )
+        
+        return filtered.toDataURL('image/jpeg', 0.8)
+      }
       
-      await new Promise(resolve => {
-        previewImage.onload = resolve
-      })
-      
-      // Apply filter via manager
-      const filtered = await this.filterManager.processWithWebGL(
-        previewImage,
-        effect.webglFilter,
-        {}
-      )
-      
-      return filtered.toDataURL('image/jpeg', 0.8)
+      return previewCanvas.toDataURL('image/jpeg', 0.8)
       
     } catch (error) {
       console.error('[VintageEffectsTool] Preview generation failed:', error)
@@ -178,7 +195,28 @@ export class VintageEffectsTool extends WebGLFilterTool {
    * Remove vintage effect (restore original)
    */
   async removeVintageEffect(): Promise<void> {
-    await this.removeFilter()
+    const canvas = this.getCanvas()
+    const filterManager = canvas.getFilterManager?.()
+    const activeLayer = canvas.getActiveLayer()
+    
+    if (!filterManager || !activeLayer) {
+      return
+    }
+    
+    // Find and remove any vintage filter from layer
+    if (activeLayer.filterStack) {
+      const vintageFilters = activeLayer.filterStack.filters.filter(
+        f => this.effects.some(e => e.webglFilter === f.filter.type)
+      )
+      
+      for (const filter of vintageFilters) {
+        await filterManager.removeFilterFromLayer(
+          activeLayer.id,
+          filter.id,
+          this.executionContext
+        )
+      }
+    }
   }
 }
 

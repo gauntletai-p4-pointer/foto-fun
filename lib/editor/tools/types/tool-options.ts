@@ -37,10 +37,6 @@ export interface ExposureOptions {
   adjustment: BaseOption<number> & { min: -100; max: 100 }
 }
 
-export interface ColorTemperatureOptions {
-  adjustment: BaseOption<number> & { min: -100; max: 100 }
-}
-
 export interface CropOptions {
   aspectRatio: BaseOption<string>
   showGuides: BaseOption<boolean>
@@ -106,10 +102,6 @@ export interface GrayscaleOptions {
   action: BaseOption<'toggle' | null>
 }
 
-export interface SepiaOptions {
-  intensity: BaseOption<number> & { min: 0; max: 100 }
-}
-
 export interface InvertOptions {
   action: BaseOption<'toggle' | null>
 }
@@ -135,6 +127,31 @@ export interface QuickSelectionOptions {
   edgeDetection: BaseOption<boolean>
 }
 
+export interface VintageEffectsOptions {
+  effect: BaseOption<'brownie' | 'vintage-pinhole' | 'kodachrome' | 'technicolor' | 'polaroid'>
+  intensity?: BaseOption<number> & { min: 0; max: 100 }
+}
+
+export interface ImageGenerationOptions {
+  prompt: BaseOption<string>
+  style?: BaseOption<string>
+}
+
+export interface LassoOptions {
+  selectionMode: BaseOption<'new' | 'add' | 'subtract' | 'intersect'>
+  feather: BaseOption<number> & { min: 0; max: 250 }
+  antiAlias: BaseOption<boolean>
+}
+
+export interface HandOptions {
+  // No options for hand tool
+}
+
+export interface EraserOptions {
+  size: BaseOption<number> & { min: 1; max: 100 }
+  opacity: BaseOption<number> & { min: 0; max: 100 }
+}
+
 // Complete tool options map
 export interface ToolOptionsMap {
   [TOOL_IDS.BRIGHTNESS]: BrightnessOptions
@@ -142,7 +159,6 @@ export interface ToolOptionsMap {
   [TOOL_IDS.SATURATION]: SaturationOptions
   [TOOL_IDS.HUE]: HueOptions
   [TOOL_IDS.EXPOSURE]: ExposureOptions
-  [TOOL_IDS.COLOR_TEMPERATURE]: ColorTemperatureOptions
   [TOOL_IDS.CROP]: CropOptions
   [TOOL_IDS.BRUSH]: BrushOptions
   [TOOL_IDS.MOVE]: MoveOptions
@@ -156,17 +172,18 @@ export interface ToolOptionsMap {
   [TOOL_IDS.BLUR]: BlurOptions
   [TOOL_IDS.SHARPEN]: SharpenOptions
   [TOOL_IDS.GRAYSCALE]: GrayscaleOptions
-  [TOOL_IDS.SEPIA]: SepiaOptions
   [TOOL_IDS.INVERT]: InvertOptions
+  [TOOL_IDS.VINTAGE_EFFECTS]: VintageEffectsOptions
   [TOOL_IDS.TYPE_HORIZONTAL]: TextOptions
   [TOOL_IDS.TYPE_VERTICAL]: TextOptions
   [TOOL_IDS.TYPE_MASK]: TextOptions
   [TOOL_IDS.TYPE_ON_PATH]: TextOptions
   [TOOL_IDS.EYEDROPPER]: EyedropperOptions
   [TOOL_IDS.QUICK_SELECTION]: QuickSelectionOptions
-  [TOOL_IDS.LASSO]: MarqueeOptions
-  [TOOL_IDS.HAND]: Record<string, never> // No options
-  [TOOL_IDS.ERASER]: Record<string, never> // No options
+  [TOOL_IDS.LASSO]: LassoOptions
+  [TOOL_IDS.HAND]: HandOptions
+  [TOOL_IDS.ERASER]: EraserOptions
+  [TOOL_IDS.AI_IMAGE_GENERATION]: ImageGenerationOptions
 }
 
 // Type guards

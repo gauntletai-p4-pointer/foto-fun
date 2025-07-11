@@ -32,14 +32,14 @@ export function MessageRenderer({
       )}>
         {message.role === 'assistant' ? (
           <>
-            <div className="w-4 h-4 rounded-full bg-primary/10 flex items-center justify-center">
+            <div className="w-4 h-4 rounded-full bg-primary/20 flex items-center justify-center">
               <Bot className="w-2.5 h-2.5 text-primary" />
             </div>
-            <span className="text-xs text-muted-foreground font-medium">AI Assistant</span>
+            <span className="text-xs text-foreground/60 font-medium">AI Assistant</span>
           </>
         ) : (
           <>
-            <span className="text-xs text-muted-foreground font-medium">You</span>
+            <span className="text-xs text-foreground/60 font-medium">You</span>
             <div className="w-4 h-4 rounded-full bg-foreground/10 flex items-center justify-center">
               <User className="w-2.5 h-2.5 text-foreground" />
             </div>

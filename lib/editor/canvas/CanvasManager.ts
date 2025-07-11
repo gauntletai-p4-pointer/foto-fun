@@ -1,28 +1,28 @@
 import Konva from 'konva'
 import { nanoid } from 'nanoid'
 import type { 
-  CanvasManager as ICanvasManager, 
   CanvasState, 
   Layer, 
   CanvasObject, 
-  Selection,
-  Point,
-  Rect,
-  Filter,
-  BlendMode
-} from './types'
-import {
-  serializeCanvasObject,
-  serializeCanvasObjects
+  Selection, 
+  Point, 
+  Rect, 
+  Filter, 
+  BlendMode,
+  Transform,
+  CanvasManager as ICanvasManager, 
+  FilterStack
 } from './types'
 import { EventStore } from '@/lib/events/core/EventStore'
-import { ExecutionContext } from '@/lib/events/execution/ExecutionContext'
-import { ObjectAddedEvent, ObjectModifiedEvent, ObjectRemovedEvent } from '@/lib/events/canvas/CanvasEvents'
 import { TypedEventBus } from '@/lib/events/core/TypedEventBus'
 import { ResourceManager } from '@/lib/core/ResourceManager'
-import { CanvasResizedEvent } from '@/lib/events/canvas/DocumentEvents'
 import { SelectionManager } from '@/lib/editor/selection/SelectionManager'
 import { SelectionRenderer } from '@/lib/editor/selection/SelectionRenderer'
+import { ExecutionContext } from '@/lib/events/execution/ExecutionContext'
+import { ObjectAddedEvent, ObjectRemovedEvent, ObjectModifiedEvent } from '@/lib/events/canvas/CanvasEvents'
+import { CanvasResizedEvent } from '@/lib/events/canvas/DocumentEvents'
+import { serializeCanvasObjects } from './types'
+import { FilterManager, type FilterTarget } from '@/lib/editor/filters/FilterManager'
 
 /**
  * Main canvas manager implementation
@@ -39,6 +39,9 @@ export class CanvasManager implements ICanvasManager {
   // Selection system
   private selectionManager: SelectionManager
   private selectionRenderer: SelectionRenderer
+  
+  // Filter system
+  private filterManager: FilterManager
   
   // Canvas ID
   public readonly id: string = nanoid()
@@ -62,21 +65,12 @@ export class CanvasManager implements ICanvasManager {
     this.typedEventBus = new TypedEventBus()
     this.resourceManager = resourceManager
     
-    // Create a wrapper div for the Konva stage
-    const stageContainer = document.createElement('div')
-    stageContainer.style.width = '100%'
-    stageContainer.style.height = '100%'
-    stageContainer.style.position = 'relative'
-    container.appendChild(stageContainer)
-    
-    // Initialize stage with proper dimensions
-    const defaultWidth = 800
-    const defaultHeight = 600
-    
+    // Initialize stage with container as viewport
     this.stage = new Konva.Stage({
-      container: stageContainer,
-      width: defaultWidth,
-      height: defaultHeight
+      container: container,
+      width: container.offsetWidth,
+      height: container.offsetHeight,
+      draggable: false // We'll handle dragging manually
     })
     
     // Create layers
@@ -89,30 +83,41 @@ export class CanvasManager implements ICanvasManager {
     this.stage.add(this.selectionLayer)
     this.stage.add(this.overlayLayer)
     
-    // Draw background
-    this.drawBackground()
-    
     // Initialize state
     this._state = {
-      width: defaultWidth,
-      height: defaultHeight,
+      width: container.offsetWidth,
+      height: container.offsetHeight,
       zoom: 1,
       pan: { x: 0, y: 0 },
       layers: [],
       selection: null,
       activeLayerId: null,
-      backgroundColor: '#ffffff',
+      backgroundColor: 'transparent',
       isLoading: false,
       canUndo: false,
       canRedo: false
     }
     
+    // Add a background rect to define canvas bounds (after state is initialized)
+    this.updateCanvasBackground()
+    
     // Initialize selection system
     this.selectionManager = new SelectionManager(this, this.typedEventBus)
     this.selectionRenderer = new SelectionRenderer(this, this.selectionManager)
     
+    // Initialize filter system
+    this.filterManager = new FilterManager(this.eventStore, this.typedEventBus, this.resourceManager, this)
+    
     // Subscribe to events
     this.subscribeToEvents()
+  }
+  
+  /**
+   * Initialize the canvas manager
+   */
+  async initialize(): Promise<void> {
+    // Initialize filter manager
+    await this.filterManager.initialize()
   }
   
   get state(): CanvasState {
@@ -156,7 +161,7 @@ export class CanvasManager implements ICanvasManager {
     
     const layer: Layer = {
       id: nanoid(),
-      name: layerData.name || `Layer ${this._state.layers.length + 1}`,
+      name: layerData.name || (layerData.type === 'group' ? `Group ${this._state.layers.filter(l => l.type === 'group').length + 1}` : `Layer ${this._state.layers.length + 1}`),
       type: layerData.type || 'raster',
       visible: layerData.visible ?? true,
       locked: layerData.locked ?? false,
@@ -164,11 +169,21 @@ export class CanvasManager implements ICanvasManager {
       blendMode: layerData.blendMode || 'normal',
       konvaLayer,
       objects: [],
-      parentId: layerData.parentId
+      parentId: layerData.parentId,
+      mask: layerData.mask,
+      filterStack: layerData.filterStack
     }
     
     // Apply blend mode
     this.applyBlendMode(konvaLayer, layer.blendMode)
+    
+    // Apply clipping to the new layer
+    konvaLayer.clip({
+      x: 0,
+      y: 0,
+      width: this._state.width,
+      height: this._state.height
+    })
     
     // Insert before overlay layers
     const index = this.stage.children.length - 2
@@ -181,6 +196,9 @@ export class CanvasManager implements ICanvasManager {
     if (this._state.layers.length === 1) {
       this._state.activeLayerId = layer.id
     }
+    
+    // Emit layer created event
+    this.typedEventBus.emit('layer.created', { layer })
     
     return layer
   }
@@ -221,6 +239,59 @@ export class CanvasManager implements ICanvasManager {
     this._state.layers.forEach((layer, index) => {
       layer.konvaLayer.setZIndex(index + 1) // +1 for background layer
     })
+    
+    // Emit reorder event
+    this.typedEventBus.emit('layer.reordered', {
+      layerIds: this._state.layers.map(l => l.id),
+      previousOrder: [...this._state.layers.map(l => l.id)]
+    })
+  }
+  
+  /**
+   * Move a layer into or out of a group
+   */
+  setLayerParent(layerId: string, parentId: string | undefined): void {
+    const layer = this._state.layers.find(l => l.id === layerId)
+    if (!layer) return
+    
+    // Prevent circular references
+    if (parentId) {
+      let currentParent = this._state.layers.find(l => l.id === parentId)
+      while (currentParent) {
+        if (currentParent.id === layerId) {
+          console.error('Cannot create circular layer group reference')
+          return
+        }
+        currentParent = currentParent.parentId ? this._state.layers.find(l => l.id === currentParent!.parentId) : undefined
+      }
+    }
+    
+    const previousParentId = layer.parentId
+    layer.parentId = parentId
+    
+    // Emit parent changed event
+    this.typedEventBus.emit('layer.parent.changed', {
+      layerId,
+      parentId,
+      previousParentId
+    })
+  }
+  
+  /**
+   * Get all child layers of a group (recursive)
+   */
+  getLayerDescendants(groupId: string): Layer[] {
+    const descendants: Layer[] = []
+    const children = this._state.layers.filter(l => l.parentId === groupId)
+    
+    for (const child of children) {
+      descendants.push(child)
+      if (child.type === 'group') {
+        descendants.push(...this.getLayerDescendants(child.id))
+      }
+    }
+    
+    return descendants
   }
   
   // Object operations
@@ -235,36 +306,97 @@ export class CanvasManager implements ICanvasManager {
       throw new Error('Layer not found')
     }
     
+    // Ensure object is positioned within visible bounds
+    const ensureVisiblePosition = (transform?: Partial<Transform>): Transform => {
+      // If transform is provided with explicit coordinates, use them
+      if (transform && ('x' in transform || 'y' in transform)) {
+        return {
+          x: transform.x ?? 0,
+          y: transform.y ?? 0,
+          scaleX: transform.scaleX ?? 1,
+          scaleY: transform.scaleY ?? 1,
+          rotation: transform.rotation ?? 0,
+          skewX: transform.skewX ?? 0,
+          skewY: transform.skewY ?? 0
+        }
+      }
+      
+      // Only center if no transform is provided at all
+      // Get viewport center in world coordinates
+      const viewportCenterX = (this.container.offsetWidth / 2 - this._state.pan.x) / this._state.zoom
+      const viewportCenterY = (this.container.offsetHeight / 2 - this._state.pan.y) / this._state.zoom
+      
+      return {
+        x: viewportCenterX,
+        y: viewportCenterY,
+        scaleX: 1,
+        scaleY: 1,
+        rotation: 0,
+        skewX: 0,
+        skewY: 0
+      }
+    }
+    
     // Create Konva node based on object type
     let node: Konva.Node
+    const transform = ensureVisiblePosition(objectData.transform)
     
     switch (objectData.type) {
       case 'image':
+        const imageElement = objectData.data as HTMLImageElement
+        if (!imageElement) {
+          throw new Error('Image data is required')
+        }
+        
         node = new Konva.Image({
-          image: objectData.data as HTMLImageElement,
-          x: objectData.transform?.x || 0,
-          y: objectData.transform?.y || 0
+          image: imageElement,
+          x: transform.x,
+          y: transform.y,
+          scaleX: transform.scaleX,
+          scaleY: transform.scaleY,
+          rotation: transform.rotation,
+          skewX: transform.skewX,
+          skewY: transform.skewY,
+          draggable: true
         })
+        
+        // Ensure image fits within canvas if it's too large
+        const imgWidth = imageElement.naturalWidth || imageElement.width
+        const imgHeight = imageElement.naturalHeight || imageElement.height
+        
+        if (imgWidth > this._state.width || imgHeight > this._state.height) {
+          const scaleX = this._state.width / imgWidth
+          const scaleY = this._state.height / imgHeight
+          const scale = Math.min(scaleX, scaleY, 1) * 0.8 // 80% of canvas size max
+          
+          node.scaleX(scale)
+          node.scaleY(scale)
+          transform.scaleX = scale
+          transform.scaleY = scale
+        }
         break
         
       case 'text':
         node = new Konva.Text({
           text: objectData.data as string,
-          x: objectData.transform?.x || 0,
-          y: objectData.transform?.y || 0,
+          x: transform.x,
+          y: transform.y,
           fontSize: 16,
-          fontFamily: 'Arial'
+          fontFamily: 'Arial',
+          fill: '#000000',
+          draggable: true
         })
         break
         
       case 'shape':
         // Default to rectangle for now
         node = new Konva.Rect({
-          x: objectData.transform?.x || 0,
-          y: objectData.transform?.y || 0,
+          x: transform.x,
+          y: transform.y,
           width: 100,
           height: 100,
-          fill: '#000000'
+          fill: '#000000',
+          draggable: true
         })
         break
         
@@ -280,22 +412,22 @@ export class CanvasManager implements ICanvasManager {
       locked: objectData.locked ?? false,
       opacity: objectData.opacity ?? 1,
       blendMode: objectData.blendMode || 'normal',
-      transform: objectData.transform || {
-        x: 0,
-        y: 0,
-        scaleX: 1,
-        scaleY: 1,
-        rotation: 0,
-        skewX: 0,
-        skewY: 0
-      },
+      transform,
       node,
-      layerId: targetLayerId
+      layerId: targetLayerId,
+      data: objectData.data,
+      filters: objectData.filters,
+      style: objectData.style,
+      metadata: objectData.metadata
     }
     
     // Add to Konva layer - cast to Shape or Group which are the valid types
     layer.konvaLayer.add(node as Konva.Shape | Konva.Group)
+    
+    // Add to layer objects
     layer.objects.push(object)
+    
+    // Update layer
     layer.konvaLayer.draw()
     
     // Get current version for this canvas
@@ -671,109 +803,45 @@ export class CanvasManager implements ICanvasManager {
     }
   }
   
-  // Filter operations
-  async applyFilter(filter: Filter, target?: CanvasObject | CanvasObject[]): Promise<void> {
-    const targets = target ? (Array.isArray(target) ? target : [target]) : this.getSelectedObjects()
-    
-    if (targets.length === 0) return
-    
-    for (const obj of targets) {
-      if (obj.type !== 'image') continue
-      
-      const imageNode = obj.node as Konva.Image
-      
-      // Cache the image for filter application
-      imageNode.cache()
-      
-      // Apply filter based on type
-      switch (filter.type) {
-        case 'brightness':
-          imageNode.filters([Konva.Filters.Brighten])
-          imageNode.brightness((Number(filter.params.value) || 0) / 100)
-          break
-          
-        case 'contrast':
-          imageNode.filters([Konva.Filters.Contrast])
-          imageNode.contrast(Number(filter.params.value) || 0)
-          break
-          
-        case 'blur':
-          imageNode.filters([Konva.Filters.Blur])
-          imageNode.blurRadius(Number(filter.params.radius) || 0)
-          break
-          
-        case 'grayscale':
-          imageNode.filters([Konva.Filters.Grayscale])
-          break
-          
-        case 'sepia':
-          imageNode.filters([Konva.Filters.Sepia])
-          break
-          
-        case 'invert':
-          imageNode.filters([Konva.Filters.Invert])
-          break
-          
-        case 'hue':
-          imageNode.filters([Konva.Filters.HSL])
-          imageNode.hue(Number(filter.params.value) || 0)
-          break
-          
-        case 'saturation':
-          imageNode.filters([Konva.Filters.HSL])
-          imageNode.saturation(Number(filter.params.value) || 0)
-          break
-          
-        case 'pixelate':
-          imageNode.filters([Konva.Filters.Pixelate])
-          imageNode.pixelSize(Number(filter.params.size) || 8)
-          break
-          
-        case 'noise':
-          imageNode.filters([Konva.Filters.Noise])
-          imageNode.noise(Number(filter.params.amount) || 0.5)
-          break
-          
-        case 'emboss':
-          imageNode.filters([Konva.Filters.Emboss])
-          imageNode.embossStrength(Number(filter.params.strength) || 0.5)
-          imageNode.embossWhiteLevel(Number(filter.params.whiteLevel) || 0.5)
-          imageNode.embossDirection(String(filter.params.direction) || 'top-left')
-          break
-          
-        case 'enhance':
-          imageNode.filters([Konva.Filters.Enhance])
-          imageNode.enhance(Number(filter.params.value) || 0.1)
-          break
-          
-        default:
-          console.warn(`Unsupported filter type: ${filter.type}`)
-          continue
-      }
-      
-      // Update the layer
-      const layer = this._state.layers.find(l => l.id === obj.layerId)
-      if (layer) {
-        layer.konvaLayer.batchDraw()
-      }
-      
-      // Emit event
-      const currentVersion = this.eventStore.getAggregateVersion(this.stage.id())
-      const event = new ObjectModifiedEvent(
-        this.stage.id(),
-        obj,
-        { ...obj },
-        { filters: [filter] },
-        this.executionContext?.getMetadata() || { source: 'user' },
-        currentVersion + 1
-      )
-      
-      if (this.executionContext) {
-        await this.executionContext.emit(event)
-      } else {
-        this.eventStore.append(event)
-      }
-    }
+  // Filter operations - now using FilterManager
+  /**
+   * Apply filter to layer (new method)
+   */
+  async applyFilterToLayer(filter: Filter, layerId: string): Promise<void> {
+    const filterTarget: FilterTarget = { type: 'layer', layerId }
+    await this.filterManager.applyFilter(filter, filterTarget, this.executionContext ?? undefined)
+  }
+  
+  /**
+   * Create adjustment layer (new method)
+   */
+  async createAdjustmentLayer(
+    filter: Filter, 
+    adjustmentType: 'brightness' | 'contrast' | 'curves' | 'levels' | 'hue-saturation'
+  ): Promise<void> {
+    const filterTarget: FilterTarget = { type: 'adjustment', adjustmentType }
+    await this.filterManager.applyFilter(filter, filterTarget, this.executionContext ?? undefined)
+  }
+  
+  /**
+   * Remove filter from layer (new method)
+   */
+  async removeFilterFromLayer(layerId: string, filterId: string): Promise<void> {
+    await this.filterManager.removeFilterFromLayer(layerId, filterId, this.executionContext ?? undefined)
+  }
+  
+  /**
+   * Update filter stack for layer (new method)
+   */
+  async updateLayerFilterStack(layerId: string, filterStack: FilterStack): Promise<void> {
+    await this.filterManager.updateFilterStack(layerId, filterStack, this.executionContext ?? undefined)
+  }
+  
+  /**
+   * Get the filter manager instance
+   */
+  getFilterManager(): FilterManager {
+    return this.filterManager
   }
   
   // Helper to get selected objects
@@ -789,25 +857,15 @@ export class CanvasManager implements ICanvasManager {
   
   // Transform operations
   async resize(width: number, height: number): Promise<void> {
+    // Store previous dimensions for event
     const previousWidth = this._state.width
     const previousHeight = this._state.height
     
+    // Update the actual canvas dimensions in state
     this._state.width = width
     this._state.height = height
-    this.stage.width(width)
-    this.stage.height(height)
     
-    // Update background
-    this.drawBackground()
-    
-    // Update container min dimensions
-    const wrapper = this.container.querySelector('div[style*="minWidth"]') as HTMLDivElement
-    if (wrapper) {
-      wrapper.style.minWidth = `${width}px`
-      wrapper.style.minHeight = `${height}px`
-    }
-    
-    // Emit resize event
+    // Emit canvas resize event
     const currentVersion = this.eventStore.getAggregateVersion(this.stage.id())
     const event = new CanvasResizedEvent(
       this.stage.id(),
@@ -824,6 +882,25 @@ export class CanvasManager implements ICanvasManager {
     } else {
       this.eventStore.append(event)
     }
+    
+    // Update viewport to show the canvas properly
+    this.updateViewport()
+    
+    // Update background and clipping
+    this.updateCanvasBackground()
+  }
+  
+  /**
+   * Update only the viewport size (when container resizes)
+   * This doesn't change the actual canvas dimensions
+   */
+  updateViewport(): void {
+    // Update stage viewport size to match container
+    this.stage.width(this.container.offsetWidth)
+    this.stage.height(this.container.offsetHeight)
+    
+    // Redraw all layers
+    this.stage.draw()
   }
   
   async crop(rect: Rect): Promise<void> {
@@ -924,18 +1001,45 @@ export class CanvasManager implements ICanvasManager {
   }
   
   fitToScreen(): void {
-    const containerWidth = this.container.offsetWidth
-    const containerHeight = this.container.offsetHeight
+    // Calculate the scale to fit the canvas in the viewport
+    const viewportWidth = this.container.offsetWidth
+    const viewportHeight = this.container.offsetHeight
+    const canvasWidth = this._state.width
+    const canvasHeight = this._state.height
     
-    const scaleX = containerWidth / this._state.width
-    const scaleY = containerHeight / this._state.height
-    const scale = Math.min(scaleX, scaleY)
+    // Calculate scale to fit with some padding
+    const padding = 40 // pixels of padding
+    const scaleX = (viewportWidth - padding * 2) / canvasWidth
+    const scaleY = (viewportHeight - padding * 2) / canvasHeight
+    const scale = Math.min(scaleX, scaleY, 1) // Don't zoom in beyond 100%
     
+    // Calculate pan to center the canvas
+    const scaledWidth = canvasWidth * scale
+    const scaledHeight = canvasHeight * scale
+    const panX = (viewportWidth - scaledWidth) / 2
+    const panY = (viewportHeight - scaledHeight) / 2
+    
+    // Apply zoom and pan
     this.setZoom(scale)
-    this.setPan({
-      x: (containerWidth - this._state.width * scale) / 2,
-      y: (containerHeight - this._state.height * scale) / 2
-    })
+    this.setPan({ x: panX, y: panY })
+  }
+  
+  /**
+   * Enable or disable stage dragging (for hand tool)
+   */
+  setDraggable(draggable: boolean): void {
+    this.stage.draggable(draggable)
+    
+    if (draggable) {
+      // Sync pan state when dragging
+      this.stage.on('dragmove', () => {
+        const pos = this.stage.position()
+        this._state.pan = { x: pos.x, y: pos.y }
+      })
+    } else {
+      // Remove the drag event listener
+      this.stage.off('dragmove')
+    }
   }
   
   // Utility methods
@@ -1497,24 +1601,44 @@ export class CanvasManager implements ICanvasManager {
   private renderAll(): void {
     this.stage.batchDraw()
   }
-
+  
   /**
-   * Draw background pattern or color
+   * Update the canvas background to show canvas bounds
    */
-  private drawBackground(): void {
-    // Clear existing background
-    this.backgroundLayer.destroyChildren()
+  private updateCanvasBackground(): void {
+    // Remove existing background if any
+    const existingBg = this.backgroundLayer.findOne('#canvas-background')
+    if (existingBg) {
+      existingBg.destroy()
+    }
     
-    // Create background rect
-    const bg = new Konva.Rect({
+    // Create a rect that shows the canvas bounds
+    const bgRect = new Konva.Rect({
+      id: 'canvas-background',
       x: 0,
       y: 0,
       width: this._state.width,
       height: this._state.height,
-      fill: this._state.backgroundColor
+      fill: this._state.backgroundColor === 'transparent' ? '#ffffff' : this._state.backgroundColor,
+      listening: false
     })
     
-    this.backgroundLayer.add(bg)
+    // Add to background layer at the bottom
+    this.backgroundLayer.add(bgRect)
+    bgRect.moveToBottom()
+    
+    // Clipping is applied directly to layers, no need for a separate rect
+    
+    // Apply clipping to all content layers (but not selection/overlay layers)
+    this._state.layers.forEach(layer => {
+      layer.konvaLayer.clip({
+        x: 0,
+        y: 0,
+        width: this._state.width,
+        height: this._state.height
+      })
+    })
+    
     this.backgroundLayer.draw()
   }
 } 

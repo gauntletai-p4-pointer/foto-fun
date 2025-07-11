@@ -7,11 +7,12 @@ import { CharacterPanel } from './CharacterPanel'
 import { ParagraphPanel } from './ParagraphPanel'
 import { GlyphsPanel } from './GlyphsPanel'
 import { TextEffectsPanel } from './TextEffectsPanel'
+import { AdjustmentsPanel } from './AdjustmentsPanel'
 import { AIChat } from './AIChat'
-import { Bot, Layers, Type, AlignLeft, Sparkles, Shapes } from 'lucide-react'
+import { Bot, Layers, Type, AlignLeft, Sparkles, Shapes, Sliders } from 'lucide-react'
 import { featureManager, FEATURES, type Feature } from '@/lib/config/features'
 
-type PanelType = 'ai' | 'layers' | 'character' | 'paragraph' | 'glyphs' | 'effects'
+type PanelType = 'ai' | 'layers' | 'character' | 'paragraph' | 'glyphs' | 'effects' | 'adjustments'
 
 interface PanelTab {
   id: PanelType
@@ -24,6 +25,7 @@ interface PanelTab {
 const allPanels: PanelTab[] = [
   { id: 'ai', label: 'AI', icon: Bot, component: AIChat, feature: FEATURES.AI_CHAT },
   { id: 'layers', label: 'Layers', icon: Layers, component: LayersPanel },
+  { id: 'adjustments', label: 'Adjustments', icon: Sliders, component: AdjustmentsPanel },
   { id: 'character', label: 'Character', icon: Type, component: CharacterPanel },
   { id: 'paragraph', label: 'Paragraph', icon: AlignLeft, component: ParagraphPanel },
   { id: 'glyphs', label: 'Glyphs', icon: Shapes, component: GlyphsPanel },

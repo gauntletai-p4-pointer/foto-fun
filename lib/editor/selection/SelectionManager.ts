@@ -1,7 +1,10 @@
 import type { CanvasManager, CanvasObject, Selection } from '@/lib/editor/canvas/types'
+import { PixelSelection, SelectionMode } from '@/types'
 import Konva from 'konva'
 import { TypedEventBus } from '@/lib/events/core/TypedEventBus'
 import { nanoid } from 'nanoid'
+import { SelectionOperations } from './SelectionOperations'
+import { SelectionRenderer } from './SelectionRenderer'
 
 export interface SelectionBounds {
   x: number
@@ -9,13 +12,6 @@ export interface SelectionBounds {
   width: number
   height: number
 }
-
-export interface PixelSelection {
-  mask: ImageData
-  bounds: SelectionBounds
-}
-
-export type SelectionMode = 'replace' | 'add' | 'subtract' | 'intersect'
 
 export type SelectionModification = 'expand' | 'contract' | 'feather' | 'invert'
 
@@ -36,10 +32,14 @@ export class SelectionManager {
   private marchingAntsAnimation: number | null = null
   private typedEventBus: TypedEventBus
   private selectionId: string | null = null
+  private operations: SelectionOperations
+  private renderer: SelectionRenderer
   
   constructor(canvasManager: CanvasManager, typedEventBus: TypedEventBus) {
     this.canvasManager = canvasManager
     this.typedEventBus = typedEventBus
+    this.operations = new SelectionOperations()
+    this.renderer = new SelectionRenderer(canvasManager, this)
     
     // Create off-screen canvas for selection operations
     this.selectionCanvas = document.createElement('canvas')
@@ -69,6 +69,61 @@ export class SelectionManager {
   }
   
   /**
+   * Apply a selection mask with the given mode
+   * This is the main entry point for selection tools
+   */
+  applySelection(mask: ImageData, mode: SelectionMode): void {
+    const bounds = this.operations.findBounds(mask)
+    const newSelection: PixelSelection = {
+      type: 'pixel',
+      mask,
+      bounds
+    }
+    
+    if (mode === 'replace' || !this.selection) {
+      this.setSelection(newSelection)
+    } else {
+      const combined = this.operations.combine(this.selection, newSelection, mode)
+      this.setSelection(combined)
+    }
+  }
+  
+  /**
+   * Set the current selection and emit events
+   */
+  private setSelection(selection: PixelSelection | null): void {
+    const previousSelection = this.selection
+    this.selection = selection
+    this.selectionId = selection ? nanoid() : null
+    
+    // Update renderer
+    if (selection) {
+      this.renderer.startRendering()
+    } else {
+      this.renderer.stopRendering()
+    }
+    
+    // Convert to canvas selection format
+    const canvasSelection: Selection | null = selection ? {
+      type: 'pixel',
+      bounds: selection.bounds,
+      mask: selection.mask
+    } : null
+    
+    const previousCanvasSelection: Selection | null = previousSelection ? {
+      type: 'pixel',
+      bounds: previousSelection.bounds,
+      mask: previousSelection.mask
+    } : null
+    
+    // Emit selection changed event
+    this.typedEventBus.emit('selection.changed', {
+      selection: canvasSelection,
+      previousSelection: previousCanvasSelection
+    })
+  }
+  
+  /**
    * Create a selection from a Konva shape
    */
   createFromShape(shape: Konva.Shape, mode: SelectionMode = 'replace'): void {
@@ -94,7 +149,14 @@ export class SelectionManager {
     
     // Clone the shape to avoid modifying the original
     const clonedShape = shape.clone()
-    tempLayer.add(clonedShape)
+    
+    // Ensure the cloned shape is a valid Konva node
+    if (clonedShape instanceof Konva.Shape || clonedShape instanceof Konva.Group) {
+      tempLayer.add(clonedShape)
+    } else {
+      console.error('Invalid shape type for selection')
+      return
+    }
     
     // Render to canvas
     tempLayer.draw()
@@ -200,7 +262,7 @@ export class SelectionManager {
    */
   private applySelectionMode(newMask: ImageData, bounds: SelectionBounds, mode: SelectionMode): void {
     if (mode === 'replace' || !this.selection) {
-      this.selection = { mask: newMask, bounds }
+      this.selection = { type: 'pixel', mask: newMask, bounds }
       this.selectionId = nanoid()
       
       // Convert to canvas selection format
@@ -245,7 +307,7 @@ export class SelectionManager {
         mask: this.selection.mask
       }
       
-      this.selection = { mask: resultMask, bounds: newBounds }
+      this.selection = { type: 'pixel', mask: resultMask, bounds: newBounds }
       
       const newCanvasSelection: Selection = {
         type: 'pixel',
@@ -509,6 +571,7 @@ export class SelectionManager {
     }
     
     this.selection = {
+      type: 'pixel',
       mask: imageData,
       bounds: { x: 0, y: 0, width, height }
     }
@@ -573,7 +636,7 @@ export class SelectionManager {
    * Restore selection from ImageData and bounds
    */
   restoreSelection(mask: ImageData, bounds: SelectionBounds): void {
-    this.selection = { mask, bounds }
+    this.selection = { type: 'pixel', mask, bounds }
   }
   
   /**
@@ -592,6 +655,7 @@ export class SelectionManager {
       this.selection = null
       this.selectionId = null
       this.stopMarchingAnts()
+      this.renderer.stopRendering()
       
       // Emit selection cleared event
       this.typedEventBus.emit('selection.cleared', {
@@ -601,6 +665,7 @@ export class SelectionManager {
       this.selection = null
       this.selectionId = null
       this.stopMarchingAnts()
+      this.renderer.stopRendering()
     }
   }
   
@@ -609,6 +674,13 @@ export class SelectionManager {
    */
   hasSelection(): boolean {
     return this.selection !== null
+  }
+  
+  /**
+   * Get the operations instance for external use
+   */
+  getOperations(): SelectionOperations {
+    return this.operations
   }
   
   /**
@@ -656,6 +728,7 @@ export class SelectionManager {
    */
   dispose(): void {
     this.stopMarchingAnts()
+    this.renderer.destroy()
     this.selection = null
   }
 } 

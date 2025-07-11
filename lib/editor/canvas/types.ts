@@ -82,10 +82,10 @@ export interface Layer {
   parentId?: string
   
   // Mask (if any)
-  mask?: {
-    type: 'alpha' | 'vector'
-    data: ImageData | Konva.Shape
-  }
+  mask?: LayerMask
+  
+  // Non-destructive filter stack
+  filterStack?: FilterStack
 }
 
 export type Selection = 
@@ -152,12 +152,67 @@ export interface Filter {
   apply?: (imageData: ImageData, params: Record<string, unknown>) => ImageData
 }
 
+/**
+ * Layer mask for selective filter/adjustment application
+ */
+export interface LayerMask {
+  type: 'alpha' | 'vector' | 'selection'
+  enabled: boolean
+  inverted: boolean
+  opacity: number
+  // Mask data - could be ImageData, Path2D, or Selection
+  data: ImageData | Konva.Shape | Selection
+  // Cached mask image for performance
+  cachedMask?: HTMLCanvasElement
+}
+
+/**
+ * Non-destructive filter stack for layers
+ */
+export interface FilterStack {
+  filters: FilterInstance[]
+  enabled: boolean
+  opacity: number
+  blendMode: BlendMode
+  // Cached result for performance
+  cachedResult?: HTMLCanvasElement
+  isDirty: boolean
+}
+
+/**
+ * Individual filter instance in a stack
+ */
+export interface FilterInstance {
+  id: string
+  filter: Filter
+  enabled: boolean
+  opacity: number
+  blendMode?: BlendMode
+  mask?: LayerMask
+  // WebGL or Konva filter type
+  engineType: 'webgl' | 'konva'
+}
+
+/**
+ * Adjustment layer specific properties
+ */
+export interface AdjustmentLayerData {
+  adjustmentType: 'brightness' | 'contrast' | 'curves' | 'levels' | 'hue-saturation' | 
+                   'color-balance' | 'vibrance' | 'exposure' | 'custom'
+  settings: Record<string, any>
+  // Which layers this adjustment affects
+  affectsLayers?: string[] // If not specified, affects all layers below
+}
+
 export interface CanvasManager {
   // State
   state: CanvasState
   
   // Konva access
   konvaStage: Konva.Stage
+  
+  // Initialization
+  initialize?(): Promise<void>
   
   // Layer operations
   addLayer(layer: Partial<Layer>): Layer
@@ -180,10 +235,17 @@ export interface CanvasManager {
   // Pixel operations
   getImageData(rect?: Rect): ImageData
   putImageData(imageData: ImageData, point: Point): void
-  applyFilter(filter: Filter, target?: CanvasObject | CanvasObject[]): Promise<void>
+  
+  // Filter operations
+  applyFilterToLayer(filter: Filter, layerId: string): Promise<void>
+  createAdjustmentLayer(filter: Filter, adjustmentType: 'brightness' | 'contrast' | 'curves' | 'levels' | 'hue-saturation'): Promise<void>
+  removeFilterFromLayer(layerId: string, filterId: string): Promise<void>
+  updateLayerFilterStack(layerId: string, filterStack: FilterStack): Promise<void>
+  getFilterManager?(): any // Optional to maintain backward compatibility
   
   // Transform operations
   resize(width: number, height: number): Promise<void>
+  updateViewport(): void
   crop(rect: Rect): Promise<void>
   rotate(angle: number, target?: CanvasObject | CanvasObject[]): Promise<void>
   flip(direction: 'horizontal' | 'vertical', target?: CanvasObject | CanvasObject[]): Promise<void>
@@ -192,6 +254,7 @@ export interface CanvasManager {
   setZoom(zoom: number): void
   setPan(pan: Point): void
   fitToScreen(): void
+  setDraggable(draggable: boolean): void
   
   // Object finding
   getObjectAtPoint(point: Point): CanvasObject | null

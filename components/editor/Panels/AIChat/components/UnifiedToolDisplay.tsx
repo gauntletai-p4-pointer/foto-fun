@@ -123,14 +123,14 @@ export function UnifiedToolDisplay({
       {/* Tool header */}
       <button
         onClick={() => setIsExpanded(!isExpanded)}
-        className="w-full px-3 py-2 flex items-center gap-2 hover:bg-muted/50 transition-colors"
+        className="w-full px-3 py-2 flex items-center gap-2 hover:bg-foreground/10 transition-colors"
       >
         <div className="flex items-center gap-2 flex-1">
           {/* Expand/collapse icon - for chain items, use > as the indicator */}
           {isExpanded ? (
-            <ChevronDown className="w-4 h-4 text-muted-foreground" />
+            <ChevronDown className="w-4 h-4 text-foreground/60" />
           ) : (
-            <ChevronRight className="w-4 h-4 text-muted-foreground" />
+            <ChevronRight className="w-4 h-4 text-foreground/60" />
           )}
           
           {/* Tool name badge - consistent blue for all tools */}
@@ -143,7 +143,7 @@ export function UnifiedToolDisplay({
           
           {/* Description */}
           {description && (
-            <span className="text-sm text-muted-foreground truncate">
+            <span className="text-sm text-foreground/60 truncate">
               {description}
             </span>
           )}
@@ -162,18 +162,18 @@ export function UnifiedToolDisplay({
       
       {/* Expandable content */}
       {isExpanded && (
-        <div className="px-3 py-2 border-t bg-muted/20 space-y-3">
+        <div className="px-3 py-2 border-t bg-foreground/5 space-y-3">
           {/* Parameters */}
           {input && Object.keys(input).length > 0 && (
             <div className="space-y-1">
-              <p className="text-xs font-medium text-muted-foreground">Parameters</p>
+              <p className="text-xs font-medium text-foreground/60">Parameters</p>
               <div className="pl-3 space-y-1">
                 {/* Special handling for Tool Chain steps */}
                 {toolName === 'Tool Chain' && 'steps' in input && Array.isArray(input.steps) ? (
                   <div className="space-y-1">
-                    <span className="text-xs font-medium text-muted-foreground">Steps: {input.steps.length}</span>
+                    <span className="text-xs font-medium text-foreground/60">Steps: {input.steps.length}</span>
                     {(input.steps as Array<{ tool: string; params?: unknown }>).map((step, idx) => (
-                      <div key={idx} className="text-xs text-muted-foreground">
+                      <div key={idx} className="text-xs text-foreground/60">
                         {idx + 1}. {step.tool}
                       </div>
                     ))}
@@ -182,7 +182,7 @@ export function UnifiedToolDisplay({
                   // Regular parameter display
                   Object.entries(input).map(([key, value]) => (
                     <div key={key} className="flex gap-2 text-xs">
-                      <span className="font-medium text-muted-foreground">{key}:</span>
+                      <span className="font-medium text-foreground/60">{key}:</span>
                       <span className="font-mono">{formatValue(value)}</span>
                     </div>
                   ))
@@ -194,7 +194,7 @@ export function UnifiedToolDisplay({
           {/* Result - show for all successful operations */}
           {state === 'output-available' && output && (
             <div className="space-y-1">
-              <p className="text-xs font-medium text-muted-foreground">Result</p>
+              <p className="text-xs font-medium text-foreground/60">Result</p>
               <div className="pl-3 space-y-1">
                 {(() => {
                   // Check for new standardized format
@@ -206,7 +206,7 @@ export function UnifiedToolDisplay({
                           <div className="mt-1 space-y-1">
                             {Object.entries(output.details).map(([key, value]) => (
                               <div key={key} className="flex gap-2 text-xs">
-                                <span className="font-medium text-muted-foreground">{formatFieldName(key)}:</span>
+                                <span className="font-medium text-foreground/60">{formatFieldName(key)}:</span>
                                 <span className="font-mono">
                                   {typeof value === 'object' && value !== null
                                     ? JSON.stringify(value, null, 2)
@@ -240,7 +240,7 @@ export function UnifiedToolDisplay({
                           <div className="mt-1 space-y-1">
                             {importantFields.map(([key, value]) => (
                               <div key={key} className="flex gap-2 text-xs">
-                                <span className="font-medium text-muted-foreground">{formatFieldName(key)}:</span>
+                                <span className="font-medium text-foreground/60">{formatFieldName(key)}:</span>
                                 <span className="font-mono">
                                   {typeof value === 'object' && value !== null
                                     ? JSON.stringify(value, null, 2)
@@ -270,7 +270,7 @@ export function UnifiedToolDisplay({
                       <div className="space-y-1">
                         {importantFields.map(([key, value]) => (
                           <div key={key} className="flex gap-2 text-xs">
-                            <span className="font-medium text-muted-foreground">{formatFieldName(key)}:</span>
+                            <span className="font-medium text-foreground/60">{formatFieldName(key)}:</span>
                             <span className="font-mono">
                               {typeof value === 'object' && value !== null
                                 ? JSON.stringify(value, null, 2)

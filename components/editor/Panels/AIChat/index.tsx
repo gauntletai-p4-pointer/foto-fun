@@ -244,20 +244,20 @@ export function AIChat() {
           {/* Welcome message */}
           {messages.length === 0 && (
             <div className="text-center py-8">
-              <h4 className="text-lg font-semibold mb-2">Welcome to AI Assistant</h4>
-              <p className="text-sm text-muted-foreground mb-6">
+              <h4 className="text-lg font-semibold mb-2 text-foreground">Welcome to AI Assistant</h4>
+              <p className="text-sm text-foreground/60 mb-6">
                 I can help you edit and enhance your images using various tools.
               </p>
               
               {/* Quick actions */}
               <div className="space-y-2">
-                <p className="text-xs text-muted-foreground">Try one of these:</p>
+                <p className="text-xs text-foreground/60">Try one of these:</p>
                 <div className="flex flex-wrap gap-2 justify-center">
                   {quickActions.map((action, index) => (
                     <button
                       key={index}
                       onClick={() => handleSubmit(action)}
-                      className="px-3 py-1.5 text-xs bg-secondary hover:bg-secondary/80 rounded-md transition-colors"
+                      className="px-3 py-1.5 text-xs bg-foreground/5 hover:bg-foreground/10 text-foreground rounded-md transition-colors"
                     >
                       {action}
                     </button>
@@ -281,7 +281,7 @@ export function AIChat() {
           
           {/* Loading indicator */}
           {(status === 'submitted' || status === 'streaming') && (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <div className="flex items-center gap-2 text-sm text-foreground/60">
               <div className="w-2 h-2 bg-primary rounded-full animate-pulse" />
               <div className="w-2 h-2 bg-primary rounded-full animate-pulse delay-75" />
               <div className="w-2 h-2 bg-primary rounded-full animate-pulse delay-150" />

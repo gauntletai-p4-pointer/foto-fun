@@ -210,14 +210,12 @@ export class CommandAdapter {
       locked: obj.locked,
       opacity: obj.opacity,
       blendMode: obj.blendMode,
+      transform: obj.transform,
       left: obj.transform.x,
       top: obj.transform.y,
-      scaleX: obj.transform.scaleX,
-      scaleY: obj.transform.scaleY,
       angle: obj.transform.rotation,
-      skewX: obj.transform.skewX,
-      skewY: obj.transform.skewY,
       layerId: obj.layerId,
+      node: obj.node,
       // Add any other properties that might be needed
       set: () => {},
       setCoords: () => {},
@@ -225,6 +223,34 @@ export class CommandAdapter {
         left: obj.transform.x,
         top: obj.transform.y,
         width: 100,
+        height: 100
+      })
+    }
+  }
+
+  /**
+   * Convert KonvaEvents to Fabric-like format for compatibility
+   */
+  convertKonvaToFabric(obj: CanvasObject): CanvasObject & {
+    left: number
+    top: number
+    angle: number
+    set: () => void
+    setCoords: () => void
+    getBoundingRect: () => { left: number; top: number; width: number; height: number }
+  } {
+    return {
+      ...obj,
+      left: obj.transform.x,
+      top: obj.transform.y,
+      angle: obj.transform.rotation,
+      // Remove scaleX as it doesn't exist in CanvasObject
+      set: () => {},
+      setCoords: () => {},
+      getBoundingRect: () => ({
+        left: obj.transform.x,
+        top: obj.transform.y,
+        width: 100, // Default values
         height: 100
       })
     }

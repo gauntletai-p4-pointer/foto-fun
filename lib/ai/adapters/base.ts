@@ -548,7 +548,7 @@ export abstract class FilterToolAdapter<
   
   /**
    * Apply filters to images using CanvasManager
-   * Now emits events when ExecutionContext is provided
+   * Now uses layer-based filtering system
    */
   protected async applyFilterToImages(
     images: CanvasImage[],
@@ -558,71 +558,37 @@ export abstract class FilterToolAdapter<
   ): Promise<void> {
     const filterType = this.getFilterType()
     
-    // Capture state before modification if we have an execution context
-    let previousStates: Map<string, Record<string, unknown>> | null = null
-    
-    if (executionContext) {
-      previousStates = new Map()
-      images.forEach(img => {
-        previousStates!.set(img.id, this.captureObjectState(img))
-      })
-    }
+    // Group images by layer for efficient filtering
+    const imagesByLayer = new Map<string, CanvasImage[]>()
+    images.forEach(img => {
+      const layerImages = imagesByLayer.get(img.layerId) || []
+      layerImages.push(img)
+      imagesByLayer.set(img.layerId, layerImages)
+    })
     
     try {
-      // Apply filters using CanvasManager's filter system
-      for (const img of images) {
-        console.log(`[${this.constructor.name}] Processing image ${img.id}`)
+      // Apply filters layer by layer
+      for (const [layerId, layerImages] of imagesByLayer) {
+        console.log(`[${this.constructor.name}] Processing ${layerImages.length} images in layer ${layerId}`)
         
         if (this.shouldApplyFilter(params)) {
           const filter = this.createFilter(params)
-          await canvas.applyFilter(filter, img)
-        } else {
-          // Remove existing filters of this type
-          const existingFilters = img.filters || []
-          const updatedFilters = existingFilters.filter(f => f.type !== filterType)
           
-          // Update the object with new filters
-          await canvas.updateObject(img.id, { filters: updatedFilters })
+          // Apply filter to the entire layer
+          await canvas.applyFilterToLayer(filter, layerId)
+        } else {
+          // Remove existing filters of this type from the layer
+          const layer = canvas.state.layers.find(l => l.id === layerId)
+          if (layer && layer.filterStack) {
+            const filterToRemove = layer.filterStack.filters.find(f => f.filter.type === filterType)
+            if (filterToRemove) {
+              await canvas.removeFilterFromLayer(layerId, filterToRemove.id)
+            }
+          }
         }
       }
       
-      // Emit events if we have an execution context
-      if (executionContext && previousStates) {
-        const modifications: Array<{
-          objectId: string
-          previousState: Record<string, unknown>
-          newState: Record<string, unknown>
-        }> = []
-        
-        // Build modifications
-        images.forEach(img => {
-          const prevState = previousStates!.get(img.id)
-          if (prevState) {
-            const newState = this.captureObjectState(img)
-            
-            // Check if filters actually changed
-            if (JSON.stringify(prevState) !== JSON.stringify(newState)) {
-              modifications.push({
-                objectId: img.id,
-                previousState: prevState,
-                newState: newState
-              })
-            }
-          }
-        })
-        
-        // Emit batch modification event if objects changed
-        if (modifications.length > 0) {
-          const event = new KonvaObjectsBatchModifiedEvent(
-            canvas.id,
-            modifications,
-            executionContext.getMetadata()
-          )
-          
-          await executionContext.emit(event)
-          console.log(`[FilterToolAdapter] Emitted batch modification event for ${modifications.length} images`)
-        }
-      }
+      console.log(`[FilterToolAdapter] Successfully applied ${filterType} filter to ${images.length} images across ${imagesByLayer.size} layers`)
     } catch (error) {
       console.error(`[FilterToolAdapter] Error applying ${filterType} filter:`, error)
       throw error

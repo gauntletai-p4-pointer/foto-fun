@@ -64,7 +64,7 @@ export function AgentStatusDisplay({ statusUpdates, isActive }: AgentStatusDispl
       "transition-all duration-300 ease-in-out",
       fadeOut && "opacity-0 scale-95"
     )}>
-      <div className="flex items-center gap-2 px-3 py-2 bg-muted/50 rounded-lg">
+      <div className="flex items-center gap-2 px-3 py-2 bg-foreground/10 rounded-lg">
         <div className="text-primary animate-pulse">
           {getStatusIcon(currentStatus.type)}
         </div>
@@ -73,7 +73,7 @@ export function AgentStatusDisplay({ statusUpdates, isActive }: AgentStatusDispl
             {currentStatus.message}
           </p>
           {currentStatus.details && (
-            <p className="text-xs text-muted-foreground truncate">
+            <p className="text-xs text-foreground/60 truncate">
               {currentStatus.details}
             </p>
           )}

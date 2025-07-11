@@ -15,7 +15,6 @@ import { contrastTool } from './adjustments/contrastTool'
 import { saturationTool } from './adjustments/saturationTool'
 import { hueTool } from './adjustments/hueTool'
 import { exposureTool } from './adjustments/exposureTool'
-import { colorTemperatureTool } from './adjustments/colorTemperatureTool'
 import type { Tool } from '@/types'
 import type { Tool as CanvasTool } from '@/lib/editor/canvas/types'
 import { rotateTool } from './transform/rotateTool'
@@ -24,7 +23,6 @@ import { resizeTool } from './transform/resizeTool'
 import { blurTool } from './filters/blurTool'
 import { sharpenTool } from './filters/sharpenTool'
 import { grayscaleTool } from './filters/grayscaleTool'
-import { sepiaTool } from './filters/sepiaTool'
 import { invertTool } from './filters/invertTool'
 import { vintageEffectsTool } from './filters/vintageEffectsTool'
 import { imageGenerationTool } from './ai-native/imageGenerationCanvasTool'
@@ -69,14 +67,12 @@ export const tools: Tool[] = [
   adaptTool(saturationTool),
   adaptTool(hueTool),
   adaptTool(exposureTool),
-  adaptTool(colorTemperatureTool),
   adaptTool(rotateTool),
   adaptTool(flipTool),
   adaptTool(resizeTool),
   adaptTool(blurTool),
   adaptTool(sharpenTool),
   adaptTool(grayscaleTool),
-  adaptTool(sepiaTool),
   adaptTool(invertTool),
   adaptTool(vintageEffectsTool),
   // AI-Native tools
@@ -105,14 +101,12 @@ export {
   saturationTool,
   hueTool,
   exposureTool,
-  colorTemperatureTool,
   rotateTool,
   flipTool,
   resizeTool,
   blurTool,
   sharpenTool,
   grayscaleTool,
-  sepiaTool,
   invertTool,
   vintageEffectsTool,
   imageGenerationTool,

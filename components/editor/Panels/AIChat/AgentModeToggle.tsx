@@ -34,7 +34,7 @@ export function AgentModeToggle({ agentMode, onToggle, disabled }: AgentModeTogg
           disabled={disabled}
         />
       </div>
-      <p className="text-xs text-muted-foreground">
+      <p className="text-xs text-foreground/60">
         {agentMode 
           ? 'AI plans multi-step workflows'
           : 'AI executes tools directly'

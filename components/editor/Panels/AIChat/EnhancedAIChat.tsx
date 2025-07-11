@@ -146,7 +146,7 @@ export function EnhancedAIChat() {
               )}
             >
               {message.role === 'assistant' && (
-                <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+                <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0 mt-0.5">
                   <Bot className="w-3 h-3 text-primary" />
                 </div>
               )}
@@ -156,7 +156,7 @@ export function EnhancedAIChat() {
                   "max-w-[80%] rounded-lg px-4 py-2",
                   message.role === 'user'
                     ? 'bg-primary text-primary-foreground'
-                    : 'bg-muted'
+                    : 'bg-foreground/5'
                 )}
               >
                 <p className="text-sm">{getMessageText(message)}</p>
@@ -194,10 +194,10 @@ export function EnhancedAIChat() {
           
           {isLoading && (
             <div className="flex gap-2">
-              <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center mt-0.5">
+              <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center mt-0.5">
                 <Bot className="w-3 h-3 text-primary" />
               </div>
-              <div className="bg-muted rounded-lg px-4 py-2">
+              <div className="bg-foreground/5 rounded-lg px-4 py-2">
                 <div className="flex items-center gap-2">
                   <Loader2 className="w-3 h-3 animate-spin" />
                   <span className="text-sm">AI is thinking...</span>

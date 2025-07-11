@@ -144,7 +144,7 @@ export function ToolPartRenderer({
     if (costApprovalData?.type === 'cost-approval-required') {
       return (
         <div className="space-y-2">
-          <div className="p-3 bg-primary/10 border border-primary/20 rounded-lg">
+          <div className="p-3 bg-primary/20 border border-primary/20 rounded-lg">
             <div className="flex items-center gap-2 text-primary">
               <AlertTriangle className="w-4 h-4" />
               <span className="font-medium">Cost Approval Required</span>
@@ -188,7 +188,7 @@ export function ToolPartRenderer({
     if (toolPart.state === 'input-streaming') {
       return (
         <div className="space-y-2">
-          <div className="p-3 bg-muted/30 rounded-lg border">
+          <div className="p-3 bg-foreground/5 rounded-lg border">
             <div className="flex items-center gap-2">
               <div className="flex gap-1">
                 <div className="w-2 h-2 bg-primary rounded-full animate-pulse" />
@@ -197,17 +197,17 @@ export function ToolPartRenderer({
               </div>
               <span className="text-sm font-medium">Agent is analyzing your request...</span>
             </div>
-            <div className="mt-2 space-y-1 text-xs text-muted-foreground">
+            <div className="mt-2 space-y-1 text-xs text-foreground/60">
               <div className="flex items-center gap-2">
-                <div className="w-1 h-1 bg-muted-foreground rounded-full" />
+                <div className="w-1 h-1 bg-foreground/20 rounded-full" />
                 <span>Capturing screenshot</span>
               </div>
               <div className="flex items-center gap-2">
-                <div className="w-1 h-1 bg-muted-foreground rounded-full" />
+                <div className="w-1 h-1 bg-foreground/20 rounded-full" />
                 <span>Analyzing with computer vision</span>
               </div>
               <div className="flex items-center gap-2">
-                <div className="w-1 h-1 bg-muted-foreground rounded-full" />
+                <div className="w-1 h-1 bg-foreground/20 rounded-full" />
                 <span>Creating enhancement plan</span>
               </div>
             </div>
@@ -249,17 +249,17 @@ export function ToolPartRenderer({
           />
         )}
         
-        <div className="text-sm text-muted-foreground">
+        <div className="text-sm text-foreground/60">
           {/* Show workflow steps if available */}
           {toolOutput.workflowSteps && toolOutput.workflowSteps.length > 0 && (
-            <div className="mb-3 p-3 bg-muted/30 rounded-md max-h-32 overflow-y-auto">
+            <div className="mb-3 p-3 bg-foreground/5 rounded-md max-h-32 overflow-y-auto">
               <p className="text-xs font-medium mb-2">Agent Workflow:</p>
               <div className="space-y-1">
                 {toolOutput.workflowSteps.map((step) => (
                   <div key={step.step} className="flex items-center gap-2 text-xs">
                     <span>{step.icon}</span>
                     <span className="font-medium">{step.name}:</span>
-                    <span className="text-muted-foreground">{step.description}</span>
+                    <span className="text-foreground/60">{step.description}</span>
                   </div>
                 ))}
               </div>
@@ -268,7 +268,7 @@ export function ToolPartRenderer({
           
           {/* Show detailed status updates if available */}
           {toolOutput.statusUpdates && toolOutput.statusUpdates.length > 0 && (
-            <div className="mb-3 p-3 bg-muted/30 rounded-md">
+            <div className="mb-3 p-3 bg-foreground/5 rounded-md">
               <button
                 onClick={() => setIsDetailsExpanded(!isDetailsExpanded)}
                 className="w-full flex items-center justify-between text-xs font-medium hover:opacity-80 transition-opacity"
@@ -285,11 +285,11 @@ export function ToolPartRenderer({
                   {toolOutput.statusUpdates.map((update, idx) => (
                     <div key={idx} className="text-xs">
                       <div className="flex items-start gap-2">
-                        <span className="text-muted-foreground">•</span>
+                        <span className="text-foreground/60">•</span>
                         <div className="flex-1">
                           <span className="font-medium">{update.message}</span>
                           {update.details && (
-                            <div className="text-muted-foreground mt-0.5">{update.details}</div>
+                            <div className="text-foreground/60 mt-0.5">{update.details}</div>
                           )}
                         </div>
                       </div>
@@ -310,9 +310,9 @@ export function ToolPartRenderer({
           
           {/* Show vision insights/reasoning if available */}
           {toolOutput.workflow?.reasoning && (
-            <div className="mb-3 p-3 bg-muted/30 rounded-md max-h-40 overflow-y-auto">
+            <div className="mb-3 p-3 bg-foreground/5 rounded-md max-h-40 overflow-y-auto">
               <p className="text-xs font-medium mb-1">AI Vision Analysis:</p>
-              <p className="text-xs text-muted-foreground whitespace-pre-wrap">
+              <p className="text-xs text-foreground/60 whitespace-pre-wrap">
                 {toolOutput.workflow.reasoning}
               </p>
             </div>
@@ -321,14 +321,14 @@ export function ToolPartRenderer({
           {/* Show the planned tools using UnifiedToolDisplay */}
           {toolOutput.toolExecutions && toolOutput.toolExecutions.length > 0 && (
             <div className="space-y-2 mb-4">
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <div className="flex items-center gap-2 text-sm text-foreground/60">
                 <span>Planned enhancements:</span>
               </div>
               <div className="max-h-60 overflow-y-auto space-y-2">
                 {toolOutput.toolExecutions.map((tool, idx) => (
                   <div key={idx} className="rounded-lg border p-3 space-y-1">
                     <div className="flex items-center gap-2">
-                      <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                      <ChevronRight className="w-4 h-4 text-foreground/60" />
                       <Badge 
                         variant="default" 
                         className="bg-primary text-primary-foreground hover:bg-primary/90"
@@ -342,7 +342,7 @@ export function ToolPartRenderer({
                       )}
                     </div>
                     {tool.description && (
-                      <p className="text-sm text-muted-foreground pl-6">
+                      <p className="text-sm text-foreground/60 pl-6">
                         {tool.description}
                       </p>
                     )}
@@ -372,17 +372,17 @@ export function ToolPartRenderer({
           />
         )}
         
-        <div className="text-sm text-muted-foreground">
+        <div className="text-sm text-foreground/60">
           {/* Show workflow steps if available */}
           {toolOutput.workflowSteps && toolOutput.workflowSteps.length > 0 && (
-            <div className="mb-3 p-3 bg-muted/30 rounded-md max-h-32 overflow-y-auto">
+            <div className="mb-3 p-3 bg-foreground/5 rounded-md max-h-32 overflow-y-auto">
               <p className="text-xs font-medium mb-2">Agent Workflow:</p>
               <div className="space-y-1">
                 {toolOutput.workflowSteps.map((step) => (
                   <div key={step.step} className="flex items-center gap-2 text-xs">
                     <span>{step.icon}</span>
                     <span className="font-medium">{step.name}:</span>
-                    <span className="text-muted-foreground">{step.description}</span>
+                    <span className="text-foreground/60">{step.description}</span>
                   </div>
                 ))}
               </div>
@@ -391,7 +391,7 @@ export function ToolPartRenderer({
           
           {/* Show detailed status updates if available */}
           {toolOutput.statusUpdates && toolOutput.statusUpdates.length > 0 && (
-            <div className="mb-3 p-3 bg-muted/30 rounded-md">
+            <div className="mb-3 p-3 bg-foreground/5 rounded-md">
               <button
                 onClick={() => setIsDetailsExpanded(!isDetailsExpanded)}
                 className="w-full flex items-center justify-between text-xs font-medium hover:opacity-80 transition-opacity"
@@ -408,11 +408,11 @@ export function ToolPartRenderer({
                   {toolOutput.statusUpdates.map((update, idx) => (
                     <div key={idx} className="text-xs">
                       <div className="flex items-start gap-2">
-                        <span className="text-muted-foreground">•</span>
+                        <span className="text-foreground/60">•</span>
                         <div className="flex-1">
                           <span className="font-medium">{update.message}</span>
                           {update.details && (
-                            <div className="text-muted-foreground mt-0.5">{update.details}</div>
+                            <div className="text-foreground/60 mt-0.5">{update.details}</div>
                           )}
                         </div>
                       </div>
@@ -433,9 +433,9 @@ export function ToolPartRenderer({
           
           {/* Show vision insights/reasoning if available */}
           {toolOutput.workflow?.reasoning && (
-            <div className="mb-3 p-3 bg-muted/30 rounded-md max-h-40 overflow-y-auto">
+            <div className="mb-3 p-3 bg-foreground/5 rounded-md max-h-40 overflow-y-auto">
               <p className="text-xs font-medium mb-1">AI Vision Analysis:</p>
-              <p className="text-xs text-muted-foreground whitespace-pre-wrap">
+              <p className="text-xs text-foreground/60 whitespace-pre-wrap">
                 {toolOutput.workflow.reasoning}
               </p>
             </div>
@@ -444,14 +444,14 @@ export function ToolPartRenderer({
           {/* Show the planned tools using UnifiedToolDisplay */}
           {toolOutput.toolExecutions && toolOutput.toolExecutions.length > 0 && (
             <div className="space-y-2 mb-4">
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <div className="flex items-center gap-2 text-sm text-foreground/60">
                 <span>Planned enhancements:</span>
               </div>
               <div className="max-h-60 overflow-y-auto space-y-2">
                 {toolOutput.toolExecutions.map((tool, idx) => (
                   <div key={idx} className="rounded-lg border p-3 space-y-1">
                     <div className="flex items-center gap-2">
-                      <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                      <ChevronRight className="w-4 h-4 text-foreground/60" />
                       <Badge 
                         variant="default" 
                         className="bg-primary text-primary-foreground hover:bg-primary/90"
@@ -465,7 +465,7 @@ export function ToolPartRenderer({
                       )}
                     </div>
                     {tool.description && (
-                      <p className="text-sm text-muted-foreground pl-6">
+                      <p className="text-sm text-foreground/60 pl-6">
                         {tool.description}
                       </p>
                     )}

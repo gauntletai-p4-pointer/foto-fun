@@ -37,6 +37,7 @@ export class ModifySelectionCommand extends Command {
     clonedMask.data.set(current.mask.data)
     
     this.previousSelection = {
+      type: 'pixel',
       mask: clonedMask,
       bounds: { ...current.bounds }
     }

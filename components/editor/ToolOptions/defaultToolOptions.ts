@@ -16,16 +16,44 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         }
       },
       {
+        id: 'autoSelectType',
+        type: 'dropdown',
+        label: 'Auto-Select Type',
+        value: 'layer',
+        props: {
+          options: [
+            { value: 'layer', label: 'Layer' },
+            { value: 'group', label: 'Group' }
+          ],
+          tooltip: 'Choose whether to select individual layers or entire groups'
+        }
+      },
+      {
         id: 'showTransform',
         type: 'checkbox',
         label: 'Show Transform Controls',
-        value: true
+        value: true,
+        props: {
+          tooltip: 'Display bounding box with transform handles'
+        }
+      },
+      {
+        id: 'showSmartGuides',
+        type: 'checkbox',
+        label: 'Show Smart Guides',
+        value: true,
+        props: {
+          tooltip: 'Show alignment guides when moving objects'
+        }
       },
       {
         id: 'alignmentGuides',
         type: 'checkbox',
         label: 'Show Alignment Guides',
-        value: false
+        value: false,
+        props: {
+          tooltip: 'Show persistent alignment guides'
+        }
       }
     ]
   },
@@ -82,15 +110,46 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
             { value: '16:9', label: '16:9' },
             { value: '4:3', label: '4:3' },
             { value: '3:2', label: '3:2' },
-            { value: '5:7', label: '5:7' }
+            { value: '5:7', label: '5:7' },
+            { value: '2:3', label: '2:3' },
+            { value: '9:16', label: '9:16' }
           ]
         }
       },
       {
-        id: 'showGuides',
+        id: 'overlayType',
+        type: 'dropdown',
+        label: 'Overlay',
+        value: 'thirds',
+        props: {
+          options: [
+            { value: 'none', label: 'None' },
+            { value: 'thirds', label: 'Rule of Thirds' },
+            { value: 'grid', label: 'Grid' },
+            { value: 'golden', label: 'Golden Ratio' }
+          ]
+        }
+      },
+      {
+        id: 'deletePixels',
         type: 'checkbox',
-        label: 'Show Guides',
-        value: true
+        label: 'Delete Cropped Pixels',
+        value: false,
+        props: {
+          tooltip: 'Make crop destructive (cannot be undone)'
+        }
+      },
+      {
+        id: 'shieldOpacity',
+        type: 'slider',
+        label: 'Shield Opacity',
+        value: 50,
+        props: {
+          min: 0,
+          max: 100,
+          step: 10,
+          unit: '%'
+        }
       }
     ]
   },
@@ -168,6 +227,251 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
     ]
   },
   
+  [TOOL_IDS.CONTRAST]: {
+    toolId: TOOL_IDS.CONTRAST,
+    options: [
+      {
+        id: 'adjustment',
+        type: 'slider',
+        label: 'Contrast',
+        value: 0,
+        props: {
+          min: -100,
+          max: 100,
+          step: 1,
+          unit: '%',
+          showValue: true
+        }
+      }
+    ]
+  },
+  
+  [TOOL_IDS.SATURATION]: {
+    toolId: TOOL_IDS.SATURATION,
+    options: [
+      {
+        id: 'adjustment',
+        type: 'slider',
+        label: 'Saturation',
+        value: 0,
+        props: {
+          min: -100,
+          max: 100,
+          step: 1,
+          unit: '%',
+          showValue: true
+        }
+      }
+    ]
+  },
+  
+  [TOOL_IDS.HUE]: {
+    toolId: TOOL_IDS.HUE,
+    options: [
+      {
+        id: 'rotation',
+        type: 'slider',
+        label: 'Hue',
+        value: 0,
+        props: {
+          min: -180,
+          max: 180,
+          step: 1,
+          unit: '°',
+          showValue: true
+        }
+      }
+    ]
+  },
+  
+  [TOOL_IDS.EXPOSURE]: {
+    toolId: TOOL_IDS.EXPOSURE,
+    options: [
+      {
+        id: 'adjustment',
+        type: 'slider',
+        label: 'Exposure',
+        value: 0,
+        props: {
+          min: -3,
+          max: 3,
+          step: 0.1,
+          unit: 'EV',
+          showValue: true
+        }
+      }
+    ]
+  },
+  
+  // Transform tools
+  [TOOL_IDS.ROTATE]: {
+    toolId: TOOL_IDS.ROTATE,
+    options: [
+      {
+        id: 'angle',
+        type: 'number',
+        label: 'Angle',
+        value: 0,
+        props: {
+          min: -360,
+          max: 360,
+          step: 1,
+          unit: '°'
+        }
+      },
+      {
+        id: 'preset',
+        type: 'button-group',
+        label: 'Rotate',
+        value: '',
+        props: {
+          options: [
+            { value: '90', label: '90° CW', icon: 'RotateCw' },
+            { value: '-90', label: '90° CCW', icon: 'RotateCcw' },
+            { value: '180', label: '180°', icon: 'RefreshCw' }
+          ]
+        }
+      }
+    ]
+  },
+  [TOOL_IDS.FLIP]: {
+    toolId: TOOL_IDS.FLIP,
+    options: [
+      {
+        id: 'direction',
+        type: 'button-group',
+        label: 'Flip',
+        value: 'horizontal',
+        props: {
+          options: [
+            { value: 'horizontal', label: 'Horizontal', icon: 'FlipHorizontal' },
+            { value: 'vertical', label: 'Vertical', icon: 'FlipVertical' }
+          ]
+        }
+      }
+    ]
+  },
+  [TOOL_IDS.RESIZE]: {
+    toolId: TOOL_IDS.RESIZE,
+    options: [
+      {
+        id: 'width',
+        type: 'number',
+        label: 'Width',
+        value: 100,
+        props: {
+          min: 1,
+          max: 10000,
+          step: 1,
+          unit: 'px'
+        }
+      },
+      {
+        id: 'height',
+        type: 'number',
+        label: 'Height',
+        value: 100,
+        props: {
+          min: 1,
+          max: 10000,
+          step: 1,
+          unit: 'px'
+        }
+      },
+      {
+        id: 'maintainAspectRatio',
+        type: 'checkbox',
+        label: 'Maintain Aspect Ratio',
+        value: true
+      },
+      {
+        id: 'unit',
+        type: 'dropdown',
+        label: 'Unit',
+        value: 'pixels',
+        props: {
+          options: [
+            { value: 'pixels', label: 'Pixels' },
+            { value: 'percent', label: 'Percent' }
+          ]
+        }
+      }
+    ]
+  },
+  
+  // Filter tools
+  [TOOL_IDS.BLUR]: {
+    toolId: TOOL_IDS.BLUR,
+    options: [
+      {
+        id: 'radius',
+        type: 'slider',
+        label: 'Blur Radius',
+        value: 0,
+        props: {
+          min: 0,
+          max: 50,
+          step: 1,
+          unit: 'px',
+          showValue: true
+        }
+      }
+    ]
+  },
+  
+  [TOOL_IDS.SHARPEN]: {
+    toolId: TOOL_IDS.SHARPEN,
+    options: [
+      {
+        id: 'amount',
+        type: 'slider',
+        label: 'Sharpen Amount',
+        value: 0,
+        props: {
+          min: 0,
+          max: 100,
+          step: 1,
+          unit: '%',
+          showValue: true
+        }
+      }
+    ]
+  },
+  
+  [TOOL_IDS.GRAYSCALE]: {
+    toolId: TOOL_IDS.GRAYSCALE,
+    options: [
+      {
+        id: 'apply',
+        type: 'button-group',
+        label: 'Grayscale',
+        value: 'toggle',
+        props: {
+          options: [
+            { value: 'toggle', label: 'Toggle On/Off' }
+          ]
+        }
+      }
+    ]
+  },
+  
+  [TOOL_IDS.INVERT]: {
+    toolId: TOOL_IDS.INVERT,
+    options: [
+      {
+        id: 'apply',
+        type: 'button-group',
+        label: 'Invert',
+        value: 'toggle',
+        props: {
+          options: [
+            { value: 'toggle', label: 'Toggle On/Off' }
+          ]
+        }
+      }
+    ]
+  },
+  
   'vintage-effects': {
     toolId: 'vintage-effects',
     options: [
@@ -189,5 +493,6 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
     ]
   },
   
+  // AI-Native tools
   // Add more tool options as needed
 } 

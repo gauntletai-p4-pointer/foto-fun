@@ -64,13 +64,13 @@ export function ToolExecutionDisplay({ executions, showConfidence = true }: Tool
             {/* Tool header */}
             <button
               onClick={() => toggleExpanded(index)}
-              className="w-full px-3 py-2 flex items-center gap-2 hover:bg-muted/50 transition-colors"
+              className="w-full px-3 py-2 flex items-center gap-2 hover:bg-foreground/10 transition-colors"
             >
               <div className="flex items-center gap-2 flex-1">
                 {isExpanded ? (
-                  <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                  <ChevronDown className="w-4 h-4 text-foreground/60" />
                 ) : (
-                  <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                  <ChevronRight className="w-4 h-4 text-foreground/60" />
                 )}
                 
                 <Badge 
@@ -81,7 +81,7 @@ export function ToolExecutionDisplay({ executions, showConfidence = true }: Tool
                 </Badge>
                 
                 {execution.description && (
-                  <span className="text-sm text-muted-foreground">
+                  <span className="text-sm text-foreground/60">
                     {execution.description}
                   </span>
                 )}
@@ -98,15 +98,15 @@ export function ToolExecutionDisplay({ executions, showConfidence = true }: Tool
             
             {/* Expandable content */}
             {isExpanded && (
-              <div className="px-3 py-2 border-t bg-muted/20 space-y-3">
+              <div className="px-3 py-2 border-t bg-foreground/5 space-y-3">
                 {/* Parameters */}
                 <div className="space-y-1">
-                  <p className="text-xs font-medium text-muted-foreground">Parameters</p>
+                  <p className="text-xs font-medium text-foreground/60">Parameters</p>
                   <div className="pl-3 space-y-1">
                     {execution.params && typeof execution.params === 'object' ? (
                       Object.entries(execution.params as Record<string, unknown>).map(([key, value]) => (
                         <div key={key} className="flex gap-2 text-xs">
-                          <span className="font-medium text-muted-foreground">{key}:</span>
+                          <span className="font-medium text-foreground/60">{key}:</span>
                           <span className="font-mono">{formatValue(value)}</span>
                         </div>
                       ))
@@ -119,7 +119,7 @@ export function ToolExecutionDisplay({ executions, showConfidence = true }: Tool
                 {/* Result */}
                 {execution.result !== undefined && (
                   <div className="space-y-1">
-                    <p className="text-xs font-medium text-muted-foreground">Result</p>
+                    <p className="text-xs font-medium text-foreground/60">Result</p>
                     <div className="pl-3">
                       <pre className="text-xs font-mono overflow-auto max-h-32">
                         {formatValue(execution.result)}

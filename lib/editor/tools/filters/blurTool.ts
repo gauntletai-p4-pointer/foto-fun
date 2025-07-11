@@ -1,13 +1,12 @@
 import { Brush } from 'lucide-react'
-import Konva from 'konva'
 import { TOOL_IDS } from '@/constants'
 import { BaseTool } from '../base/BaseTool'
-import type { CanvasObject } from '@/lib/editor/canvas/types'
-import { FilterAppliedEvent } from '@/lib/events/canvas/ToolEvents'
+import type { FilterTarget } from '@/lib/editor/filters/FilterManager'
+import type { Filter } from '@/lib/editor/canvas/types'
 
 /**
- * Blur Tool - Apply gaussian blur to images
- * Konva implementation with proper filter support
+ * Blur Tool - Apply gaussian blur to layers
+ * Now uses layer-based filtering exclusively
  */
 export class BlurTool extends BaseTool {
   // Tool identification
@@ -22,35 +21,20 @@ export class BlurTool extends BaseTool {
   private isApplying = false
   
   protected setupTool(): void {
-    const canvas = this.getCanvas()
-    
-    // Check for existing blur on selected objects
-    const selection = canvas.state.selection
-    if (selection?.type === 'objects') {
-      const firstObject = this.findObject(selection.objectIds[0])
-      if (firstObject && firstObject.type === 'image') {
-        const imageNode = firstObject.node as Konva.Image
-        const filters = imageNode.filters() || []
-        if (filters.includes(Konva.Filters.Blur)) {
-          // Get current blur value
-          const blurRadius = imageNode.blurRadius() || 0
-          this.currentBlur = blurRadius
-          this.setOption('blur', blurRadius)
-        }
-      }
-    }
-    
     // Set default blur value
-    this.setOption('blur', this.currentBlur)
+    this.setOption('radius', 0)
   }
   
   protected cleanupTool(): void {
-    // Reset state but keep filters applied
-    this.isApplying = false
+    // Nothing to clean up
   }
   
+  /**
+   * Handle option changes from the UI
+   */
   protected onOptionChange(key: string, value: unknown): void {
-    if (key === 'blur' && typeof value === 'number') {
+    if (key === 'radius' && typeof value === 'number') {
+      // Apply blur immediately when slider changes
       this.applyBlur(value)
     }
   }
@@ -64,32 +48,30 @@ export class BlurTool extends BaseTool {
     this.isApplying = true
     
     try {
-      const targets = this.getTargetObjects()
+      const canvas = this.getCanvas()
+      const filterManager = canvas.getFilterManager?.()
       
-      if (targets.length === 0) {
-        console.warn('[BlurTool] No images to blur')
+      if (!filterManager) {
+        console.error('[BlurTool] FilterManager not available')
         return
       }
       
-      const targetIds: string[] = []
-      
-      for (const target of targets) {
-        if (target.type === 'image') {
-          await this.applyBlurToImage(target, blurValue)
-          targetIds.push(target.id)
-        }
+      // Create filter
+      const filter: Filter = {
+        type: 'blur',
+        params: { radius: blurValue }
       }
       
-      // Emit event if in ExecutionContext
-      if (this.executionContext && targetIds.length > 0) {
-        await this.executionContext.emit(new FilterAppliedEvent(
-          'canvas',
-          'blur',
-          { blur: blurValue },
-          targetIds,
-          this.executionContext.getMetadata()
-        ))
+      // Determine target
+      const target = this.determineFilterTarget()
+      
+      if (!target) {
+        console.warn('[BlurTool] No valid target for filter')
+        return
       }
+      
+      // Apply filter through FilterManager
+      await filterManager.applyFilter(filter, target, this.executionContext)
       
       this.currentBlur = blurValue
     } finally {
@@ -98,111 +80,39 @@ export class BlurTool extends BaseTool {
   }
   
   /**
-   * Apply blur to a specific image object
+   * Determine the filter target based on current selection
    */
-  private async applyBlurToImage(obj: CanvasObject, blurRadius: number): Promise<void> {
-    const imageNode = obj.node as Konva.Image
-    
-    // Cache the image for filter application
-    imageNode.cache()
-    
-    // Set up blur filter
-    const filters = imageNode.filters() || []
-    
-    if (blurRadius > 0) {
-      // Add or keep blur filter
-      if (!filters.includes(Konva.Filters.Blur)) {
-        filters.push(Konva.Filters.Blur)
-        imageNode.filters(filters)
-      }
-      
-      // Apply blur radius (Konva uses pixel radius directly)
-      imageNode.blurRadius(blurRadius)
-    } else {
-      // Remove blur filter
-      const newFilters = filters.filter(f => f !== Konva.Filters.Blur)
-      imageNode.filters(newFilters)
-      
-      // Clear cache if no filters remain
-      if (newFilters.length === 0) {
-        imageNode.clearCache()
-      }
-    }
-    
-    // Redraw
-    const layer = this.findLayerForObject(obj)
-    if (layer) {
-      layer.konvaLayer.batchDraw()
-    }
-  }
-  
-  /**
-   * Get target objects based on selection or all images
-   */
-  private getTargetObjects(): CanvasObject[] {
+  private determineFilterTarget(): FilterTarget | null {
     const canvas = this.getCanvas()
     const selection = canvas.state.selection
+    const activeLayer = canvas.getActiveLayer()
     
-    if (selection?.type === 'objects') {
-      // Apply to selected objects
-      return selection.objectIds
-        .map(id => this.findObject(id))
-        .filter((obj): obj is CanvasObject => obj !== null && obj.type === 'image')
-    } else if (selection?.type === 'rectangle' || selection?.type === 'ellipse' || selection?.type === 'pixel') {
-      // For pixel selections, we'd need different handling
-      console.warn('[BlurTool] Pixel-based selections not yet implemented for blur')
-      return []
-    } else {
-      // Apply to all images
-      const allImages: CanvasObject[] = []
-      for (const layer of canvas.state.layers) {
-        for (const obj of layer.objects) {
-          if (obj.type === 'image' && !obj.locked && obj.visible) {
-            allImages.push(obj)
-          }
-        }
+    if (!activeLayer) {
+      console.warn('[BlurTool] No active layer')
+      return null
+    }
+    
+    // If there's a pixel selection, use it
+    if (selection && selection.type !== 'objects') {
+      return {
+        type: 'selection',
+        layerId: activeLayer.id,
+        selection
       }
-      return allImages
+    }
+    
+    // Otherwise apply to the entire active layer
+    return {
+      type: 'layer',
+      layerId: activeLayer.id
     }
   }
   
   /**
-   * Find an object by ID
+   * Apply blur for AI operations
    */
-  private findObject(objectId: string): CanvasObject | null {
-    const canvas = this.getCanvas()
-    for (const layer of canvas.state.layers) {
-      const obj = layer.objects.find(o => o.id === objectId)
-      if (obj) return obj
-    }
-    return null
-  }
-  
-  /**
-   * Find the layer containing an object
-   */
-  private findLayerForObject(obj: CanvasObject) {
-    const canvas = this.getCanvas()
-    return canvas.state.layers.find(layer => 
-      layer.objects.some(o => o.id === obj.id)
-    )
-  }
-  
-  /**
-   * Apply blur for AI operations with selection context
-   */
-  async applyWithContext(blurRadius: number, targetObjects?: CanvasObject[]): Promise<void> {
-    if (targetObjects) {
-      // Apply to specific objects
-      for (const obj of targetObjects) {
-        if (obj.type === 'image') {
-          await this.applyBlurToImage(obj, blurRadius)
-        }
-      }
-    } else {
-      // Use normal apply
-      await this.applyBlur(blurRadius)
-    }
+  async applyWithContext(blurRadius: number): Promise<void> {
+    await this.applyBlur(blurRadius)
   }
 }
 

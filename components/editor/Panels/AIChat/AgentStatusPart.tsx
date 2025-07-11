@@ -64,7 +64,7 @@ function ConfidenceDisplay({ confidence, threshold = 0.8, showThreshold = true }
         </div>
       </div>
       {showThreshold && (
-        <div className="text-xs text-muted-foreground">
+        <div className="text-xs text-foreground/60">
           Approval threshold: {Math.round(threshold * 100)}%
         </div>
       )}
@@ -105,7 +105,7 @@ export function AgentStatusPart({ status }: { status: AgentStatus }) {
   const Icon = config.icon
   
   return (
-    <div className="flex items-start gap-3 py-2 px-3 rounded-lg bg-muted/50 text-sm">
+    <div className="flex items-start gap-3 py-2 px-3 rounded-lg bg-foreground/10 text-sm">
       <div className={cn("mt-0.5", config.color)}>
         <Icon className="w-4 h-4" />
       </div>
@@ -120,13 +120,13 @@ export function AgentStatusPart({ status }: { status: AgentStatus }) {
                 </Badge>
               )}
             </div>
-            <p className="text-muted-foreground">{status.message}</p>
+            <p className="text-foreground/60">{status.message}</p>
             {status.details && (
-              <p className="text-xs text-muted-foreground">{status.details}</p>
+              <p className="text-xs text-foreground/60">{status.details}</p>
             )}
           </div>
           <div className="flex flex-col items-end gap-1">
-            <span className="text-xs text-muted-foreground">
+            <span className="text-xs text-foreground/60">
               {new Date(status.timestamp).toLocaleTimeString()}
             </span>
             {status.approvalRequired !== undefined && (

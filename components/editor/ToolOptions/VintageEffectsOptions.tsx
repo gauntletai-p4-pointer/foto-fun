@@ -48,8 +48,8 @@ export function VintageEffectsOptions({ tool, onChange }: VintageEffectsOptionsP
             )}
             title={effect.description}
           >
-            <div className="w-full h-20 bg-foreground/5 flex items-center justify-center">
-              <span className="text-[10px] text-foreground/60 text-center px-1">
+            <div className="w-full h-20 bg-content-background flex items-center justify-center">
+              <span className="text-[10px] text-foreground/80 text-center px-1 font-medium">
                 {effect.name}
               </span>
             </div>
@@ -61,7 +61,7 @@ export function VintageEffectsOptions({ tool, onChange }: VintageEffectsOptionsP
             </div>
             
             {/* Hover tooltip */}
-            <div className="absolute inset-x-0 -top-8 left-1/2 -translate-x-1/2 px-2 py-1 bg-background text-foreground text-xs rounded opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity whitespace-nowrap z-10 border border-foreground/10 shadow-lg">
+            <div className="absolute inset-x-0 -top-8 left-1/2 -translate-x-1/2 px-2 py-1 bg-content-background text-foreground text-xs rounded opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity whitespace-nowrap z-10 border border-border shadow-lg">
               {effect.description}
             </div>
           </button>
@@ -71,7 +71,7 @@ export function VintageEffectsOptions({ tool, onChange }: VintageEffectsOptionsP
       <div className="flex items-center gap-2 mt-2">
         <button
           onClick={() => tool.removeVintageEffect()}
-          className="px-3 py-1 text-xs bg-secondary text-secondary-foreground rounded hover:bg-secondary/80 transition-colors"
+          className="px-3 py-1 text-xs bg-foreground/5 text-foreground rounded hover:bg-foreground/10 transition-colors border border-border"
         >
           Remove Effect
         </button>

@@ -49,16 +49,16 @@ export function OptionSlider({ option, onChange, defaultValue = 0 }: OptionSlide
           min={min}
           max={max}
           step={step}
-          className="w-16 h-7 text-xs px-2 text-center"
+          className="w-16 h-7 text-xs px-2 text-center bg-content-background text-foreground border-border"
         />
-        <span className="text-sm text-foreground/60">
+        <span className="text-sm text-foreground font-medium min-w-[20px]">
           {unit}
         </span>
       </div>
       {showReset && (
         <button
           onClick={() => onChange(defaultValue)}
-          className="p-1 hover:bg-primary/10 rounded-md transition-colors"
+          className="p-1 hover:bg-primary/10 rounded-md transition-colors text-foreground/70 hover:text-foreground"
           title="Reset to default"
         >
           <RotateCcw className="h-3 w-3" />

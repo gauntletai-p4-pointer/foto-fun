@@ -14,6 +14,27 @@ export type {
   Transform
 } from '@/lib/editor/canvas/types'
 
+// Selection types for pixel-based selections
+export type SelectionMode = 'replace' | 'add' | 'subtract' | 'intersect'
+
+export interface PixelSelection {
+  type: 'pixel'
+  mask: ImageData // Alpha channel represents selection (0-255)
+  bounds: {
+    x: number
+    y: number
+    width: number
+    height: number
+  }
+}
+
+export interface SelectionState {
+  selection: PixelSelection | null
+  quickMaskMode: boolean
+  quickMaskColor: string
+  quickMaskOpacity: number
+}
+
 // Canvas state using new architecture
 export interface CanvasState {
   canvasManager: CanvasManager | null

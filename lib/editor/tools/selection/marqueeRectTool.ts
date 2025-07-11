@@ -1,179 +1,158 @@
+import { BaseSelectionTool } from '../base/BaseSelectionTool'
+import { ToolEvent, SelectionMode } from '@/types'
 import { Square } from 'lucide-react'
 import Konva from 'konva'
-import { TOOL_IDS } from '@/constants'
-import { BaseTool } from '../base/BaseTool'
-import type { ToolEvent, Point } from '@/lib/editor/canvas/types'
 
-/**
- * Rectangular Marquee Tool - Creates rectangular selections
- * Konva implementation with pixel-aware selection
- */
-export class MarqueeRectTool extends BaseTool {
-  // Tool identification
-  id = TOOL_IDS.MARQUEE_RECT
-  name = 'Rectangular Marquee Tool'
-  icon = Square
-  cursor = 'crosshair'
-  shortcut = 'M'
+export class MarqueeRectTool extends BaseSelectionTool {
+  static toolId = 'marquee-rect'
+  static toolName = 'Rectangular Marquee Tool'
+  static icon = Square
+  static cursor = 'crosshair'
+  static shortcut = 'M'
   
-  // Selection state
-  private isSelecting = false
-  private startPoint: Point | null = null
-  private selectionRect: Konva.Rect | null = null
-  private selectionLayer: Konva.Layer | null = null
+  id = MarqueeRectTool.toolId
+  name = MarqueeRectTool.toolName
+  icon = MarqueeRectTool.icon
+  cursor = MarqueeRectTool.cursor
+  shortcut = MarqueeRectTool.shortcut
+  
+  private preview: Konva.Rect | null = null
+  private currentBounds: { x: number; y: number; width: number; height: number } | null = null
+  private currentMode: SelectionMode = 'replace'
   
   protected setupTool(): void {
-    const canvas = this.getCanvas()
-    
-    // Create a dedicated layer for selection visualization
-    this.selectionLayer = new Konva.Layer()
-    canvas.konvaStage.add(this.selectionLayer)
-    
-    // Move selection layer to top
-    this.selectionLayer.moveToTop()
+    // Tool-specific setup
   }
   
   protected cleanupTool(): void {
-    // Clean up selection visualization
-    if (this.selectionRect) {
-      this.selectionRect.destroy()
-      this.selectionRect = null
-    }
-    
-    // Clean up selection layer
-    if (this.selectionLayer) {
-      this.selectionLayer.destroy()
-      this.selectionLayer = null
-    }
-    
-    // Reset state
-    this.isSelecting = false
-    this.startPoint = null
+    this.cleanup()
   }
   
-  async onMouseDown(event: ToolEvent): Promise<void> {
-    if (!this.selectionLayer) return
+  onMouseDown(event: ToolEvent): void {
+    this.isCreating = true
+    this.startPoint = event.point
+    this.currentMode = this.getSelectionMode(event)
     
-    this.isSelecting = true
-    this.startPoint = { x: event.point.x, y: event.point.y }
-    
-    // Remove any existing selection rect
-    if (this.selectionRect) {
-      this.selectionRect.destroy()
-    }
-    
-    // Create visual feedback
-    this.selectionRect = new Konva.Rect({
+    // Create preview rectangle
+    this.preview = new Konva.Rect({
       x: event.point.x,
       y: event.point.y,
       width: 0,
       height: 0,
-      stroke: '#000000',
+      stroke: this.getModeColor(this.currentMode),
       strokeWidth: 1,
       dash: [4, 4],
       fill: 'rgba(0, 0, 0, 0.1)',
-      listening: false // Don't interfere with mouse events
+      listening: false
     })
     
-    this.selectionLayer.add(this.selectionRect)
-    this.selectionLayer.batchDraw()
+    this.updateVisualFeedback(this.preview)
   }
   
   onMouseMove(event: ToolEvent): void {
-    if (!this.isSelecting || !this.selectionRect || !this.startPoint || !this.selectionLayer) return
+    if (!this.isCreating || !this.startPoint || !this.preview) return
     
     // Calculate bounds
-    const bounds = {
+    let bounds = {
       x: Math.min(this.startPoint.x, event.point.x),
       y: Math.min(this.startPoint.y, event.point.y),
       width: Math.abs(event.point.x - this.startPoint.x),
       height: Math.abs(event.point.y - this.startPoint.y)
     }
     
-    // Update visual feedback
-    this.selectionRect.setAttrs(bounds)
-    this.selectionLayer.batchDraw()
+    // Apply constraints based on modifiers
+    bounds = this.applyConstraints(bounds, event)
+    this.currentBounds = bounds
+    
+    // Update preview
+    this.preview.setAttrs(bounds)
+    
+    // Update mode and color if modifiers changed
+    const mode = this.getSelectionMode(event)
+    if (mode !== this.currentMode) {
+      this.currentMode = mode
+      this.preview.stroke(this.getModeColor(mode))
+    }
+    
+    this.overlayLayer.batchDraw()
   }
   
-  async onMouseUp(event: ToolEvent): Promise<void> {
-    if (!this.isSelecting || !this.selectionRect || !this.startPoint || !this.selectionLayer) return
+  onMouseUp(event: ToolEvent): void {
+    if (!this.isCreating || !this.currentBounds) return
     
-    this.isSelecting = false
+    // Get final selection mode
+    const mode = this.getSelectionMode(event)
     
-    const canvas = this.getCanvas()
-    const bounds = {
-      x: Math.min(this.startPoint.x, event.point.x),
-      y: Math.min(this.startPoint.y, event.point.y),
-      width: Math.abs(event.point.x - this.startPoint.x),
-      height: Math.abs(event.point.y - this.startPoint.y)
-    }
+    // Create selection mask
+    const mask = this.createSelectionMask(this.currentBounds)
     
-    // Only create selection if it has a minimum size
-    const minSize = 2
-    if (bounds.width >= minSize && bounds.height >= minSize) {
-      // Get the selection manager
-      const selectionManager = canvas.getSelectionManager()
-      
-      // Get the current selection mode
-      const mode = this.getOption('mode') as 'new' | 'add' | 'subtract' | 'intersect' || 'new'
-      const selectionMode = mode === 'new' ? 'replace' : mode
-      
-      // Create pixel-based rectangular selection
-      selectionManager.createRectangle(
-        bounds.x,
-        bounds.y,
-        bounds.width,
-        bounds.height,
-        selectionMode
-      )
-      
-      // The selection events will be emitted by the SelectionManager
-    }
-    
-    // Clean up visual feedback
-    this.selectionRect.destroy()
-    this.selectionRect = null
-    this.selectionLayer.batchDraw()
-    
-    // Reset state
-    this.startPoint = null
+    // Apply selection
+    this.finalizeSelection(mask, mode)
   }
   
   onKeyDown(event: KeyboardEvent): void {
-    // Handle modifier keys for selection modes
-    if (event.key === 'Shift') {
-      // Add to selection mode
-      this.setOption('mode', 'add')
-    } else if (event.key === 'Alt' || event.key === 'Option') {
-      // Subtract from selection mode  
-      this.setOption('mode', 'subtract')
+    if (event.key === 'Escape' && this.isCreating) {
+      this.cleanup()
     }
   }
   
-  onKeyUp(event: KeyboardEvent): void {
-    // Reset to default mode
-    if (event.key === 'Shift' || event.key === 'Alt' || event.key === 'Option') {
-      this.setOption('mode', 'new')
+  protected createSelectionMask(bounds: { x: number; y: number; width: number; height: number }): ImageData {
+    if (!this.canvas) {
+      throw new Error('Canvas not initialized')
     }
-  }
-  
-  protected onOptionChange(key: string, value: unknown): void {
-    if (key === 'mode' && this.selectionRect) {
-      // Update visual feedback based on mode
-      switch (value) {
-        case 'add':
-          this.selectionRect.stroke('#00ff00')
-          break
-        case 'subtract':
-          this.selectionRect.stroke('#ff0000')
-          break
-        default:
-          this.selectionRect.stroke('#000000')
+    
+    const canvasWidth = this.canvas.state.width
+    const canvasHeight = this.canvas.state.height
+    const mask = new ImageData(canvasWidth, canvasHeight)
+    
+    // Ensure bounds are within canvas
+    const x1 = Math.max(0, Math.floor(bounds.x))
+    const y1 = Math.max(0, Math.floor(bounds.y))
+    const x2 = Math.min(canvasWidth, Math.ceil(bounds.x + bounds.width))
+    const y2 = Math.min(canvasHeight, Math.ceil(bounds.y + bounds.height))
+    
+    // Fill rectangle in mask
+    for (let y = y1; y < y2; y++) {
+      for (let x = x1; x < x2; x++) {
+        const index = (y * canvasWidth + x) * 4 + 3
+        mask.data[index] = 255
       }
-      this.selectionLayer?.batchDraw()
+    }
+    
+    // Apply anti-aliasing if enabled
+    if (this.getOption('antiAlias')) {
+      this.applyAntiAliasing(mask, bounds)
+    }
+    
+    return mask
+  }
+  
+  private applyAntiAliasing(mask: ImageData, bounds: { x: number; y: number; width: number; height: number }): void {
+    // Apply anti-aliasing to edges
+    const { x, y, width, height } = bounds
+    
+    // Process edges
+    for (let py = Math.floor(y); py < Math.ceil(y + height); py++) {
+      for (let px = Math.floor(x); px < Math.ceil(x + width); px++) {
+        if (px < 0 || px >= mask.width || py < 0 || py >= mask.height) continue
+        
+        const index = (py * mask.width + px) * 4 + 3
+        
+        // Calculate distance to edge
+        let distance = 1
+        
+        if (px < x) distance = Math.min(distance, x - px)
+        if (px > x + width - 1) distance = Math.min(distance, px - (x + width - 1))
+        if (py < y) distance = Math.min(distance, y - py)
+        if (py > y + height - 1) distance = Math.min(distance, py - (y + height - 1))
+        
+        if (distance < 1) {
+          mask.data[index] = Math.floor(255 * distance)
+        }
+      }
     }
   }
 }
 
-// Export singleton instance
+// Export singleton instance for compatibility
 export const marqueeRectTool = new MarqueeRectTool() 

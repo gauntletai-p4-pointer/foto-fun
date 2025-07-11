@@ -1,13 +1,12 @@
 import { Palette } from 'lucide-react'
-import Konva from 'konva'
 import { TOOL_IDS } from '@/constants'
 import { BaseTool } from '../base/BaseTool'
-import type { CanvasObject } from '@/lib/editor/canvas/types'
-import { FilterAppliedEvent, FilterRemovedEvent } from '@/lib/events/canvas/ToolEvents'
+import type { FilterTarget } from '@/lib/editor/filters/FilterManager'
+import type { Filter } from '@/lib/editor/canvas/types'
 
 /**
- * Grayscale Tool - Convert images to grayscale
- * Konva implementation with toggle functionality
+ * Grayscale Tool - Convert images to black and white
+ * Now uses layer-based filtering exclusively
  */
 export class GrayscaleTool extends BaseTool {
   // Tool identification
@@ -15,26 +14,141 @@ export class GrayscaleTool extends BaseTool {
   name = 'Grayscale'
   icon = Palette
   cursor = 'default'
-  shortcut = 'G'
+  shortcut = undefined // Access via filters menu
   
-  // Track grayscale state
+  // Track if filter is applied
+  private isApplied = false
   private isApplying = false
   
   protected setupTool(): void {
-    // Set default action
-    this.setOption('action', null)
+    // Set default state
+    this.setOption('enabled', false)
   }
   
   protected cleanupTool(): void {
-    // Reset state but keep filters applied
-    this.isApplying = false
+    // Nothing to clean up
   }
   
+  /**
+   * Handle option changes from the UI
+   */
   protected onOptionChange(key: string, value: unknown): void {
-    if (key === 'action' && value === 'toggle') {
-      this.toggleGrayscale()
-      // Reset the action
-      this.setOption('action', null)
+    if (key === 'enabled' && typeof value === 'boolean') {
+      // Toggle grayscale
+      if (value) {
+        this.applyGrayscale()
+      } else {
+        this.removeGrayscale()
+      }
+    }
+  }
+  
+  /**
+   * Apply grayscale filter
+   */
+  async applyGrayscale(): Promise<void> {
+    if (this.isApplying) return
+    
+    this.isApplying = true
+    
+    try {
+      const canvas = this.getCanvas()
+      const filterManager = canvas.getFilterManager?.()
+      
+      if (!filterManager) {
+        console.error('[GrayscaleTool] FilterManager not available')
+        return
+      }
+      
+      // Create filter
+      const filter: Filter = {
+        type: 'grayscale',
+        params: {}
+      }
+      
+      // Determine target
+      const target = this.determineFilterTarget()
+      
+      if (!target) {
+        console.warn('[GrayscaleTool] No valid target for filter')
+        return
+      }
+      
+      // Apply filter through FilterManager
+      await filterManager.applyFilter(filter, target, this.executionContext)
+      
+      this.isApplied = true
+      this.setOption('enabled', true)
+    } finally {
+      this.isApplying = false
+    }
+  }
+  
+  /**
+   * Remove grayscale filter
+   */
+  async removeGrayscale(): Promise<void> {
+    if (this.isApplying) return
+    
+    this.isApplying = true
+    
+    try {
+      const canvas = this.getCanvas()
+      const filterManager = canvas.getFilterManager?.()
+      const activeLayer = canvas.getActiveLayer()
+      
+      if (!filterManager || !activeLayer) {
+        return
+      }
+      
+      // Find and remove grayscale filter from layer
+      if (activeLayer.filterStack) {
+        const grayscaleFilter = activeLayer.filterStack.filters.find(
+          f => f.filter.type === 'grayscale'
+        )
+        
+        if (grayscaleFilter) {
+          await filterManager.removeFilterFromLayer(
+            activeLayer.id,
+            grayscaleFilter.id,
+            this.executionContext
+          )
+        }
+      }
+      
+      this.isApplied = false
+      this.setOption('enabled', false)
+    } finally {
+      this.isApplying = false
+    }
+  }
+  
+  /**
+   * Determine the filter target based on current selection
+   */
+  private determineFilterTarget(): FilterTarget | null {
+    const canvas = this.getCanvas()
+    const selection = canvas.state.selection
+    const activeLayer = canvas.getActiveLayer()
+    
+    if (!activeLayer) {
+      console.warn('[GrayscaleTool] No active layer')
+      return null
+    }
+    
+    // If there's a pixel selection, use it
+    if (selection && selection.type !== 'objects') {
+      return {
+        type: 'selection',
+        layerId: activeLayer.id,
+        selection
+      }
+    }
+    
+    // Otherwise apply to the entire active layer
+    return {
+      type: 'layer',
+      layerId: activeLayer.id
     }
   }
   
@@ -42,184 +156,18 @@ export class GrayscaleTool extends BaseTool {
    * Toggle grayscale on/off
    */
   async toggleGrayscale(): Promise<void> {
-    if (this.isApplying) return
-    
-    this.isApplying = true
-    
-    try {
-      const targets = this.getTargetObjects()
-      
-      if (targets.length === 0) {
-        console.warn('[GrayscaleTool] No images to toggle')
-        return
-      }
-      
-      // Check if ANY of the target images already have grayscale applied
-      const hasGrayscaleApplied = targets.some(target => {
-        if (target.type === 'image') {
-          const imageNode = target.node as Konva.Image
-          const filters = imageNode.filters() || []
-          return filters.includes(Konva.Filters.Grayscale)
-        }
-        return false
-      })
-      
-      // If any image has grayscale, remove from all. Otherwise, add to all.
-      const shouldApplyGrayscale = !hasGrayscaleApplied
-      
-      console.log(`[GrayscaleTool] Toggling grayscale: currently=${hasGrayscaleApplied}, willApply=${shouldApplyGrayscale}`)
-      
-      const targetIds: string[] = []
-      
-      for (const target of targets) {
-        if (target.type === 'image') {
-          if (shouldApplyGrayscale) {
-            await this.applyGrayscaleToImage(target)
-          } else {
-            await this.removeGrayscaleFromImage(target)
-          }
-          targetIds.push(target.id)
-        }
-      }
-      
-      // Emit appropriate event if in ExecutionContext
-      if (this.executionContext && targetIds.length > 0) {
-        if (shouldApplyGrayscale) {
-          await this.executionContext.emit(new FilterAppliedEvent(
-            'canvas',
-            'grayscale',
-            {},
-            targetIds,
-            this.executionContext.getMetadata()
-          ))
-        } else {
-          await this.executionContext.emit(new FilterRemovedEvent(
-            'canvas',
-            'grayscale',
-            targetIds,
-            this.executionContext.getMetadata()
-          ))
-        }
-      }
-      
-    } finally {
-      this.isApplying = false
-    }
-  }
-  
-  /**
-   * Apply grayscale to a specific image object
-   */
-  private async applyGrayscaleToImage(obj: CanvasObject): Promise<void> {
-    const imageNode = obj.node as Konva.Image
-    
-    // Cache the image for filter application
-    imageNode.cache()
-    
-    // Set up grayscale filter
-    const filters = imageNode.filters() || []
-    if (!filters.includes(Konva.Filters.Grayscale)) {
-      filters.push(Konva.Filters.Grayscale)
-      imageNode.filters(filters)
-    }
-    
-    // Redraw
-    const layer = this.findLayerForObject(obj)
-    if (layer) {
-      layer.konvaLayer.batchDraw()
-    }
-  }
-  
-  /**
-   * Remove grayscale from a specific image object
-   */
-  private async removeGrayscaleFromImage(obj: CanvasObject): Promise<void> {
-    const imageNode = obj.node as Konva.Image
-    
-    // Remove grayscale filter
-    const filters = imageNode.filters() || []
-    const newFilters = filters.filter(f => f !== Konva.Filters.Grayscale)
-    imageNode.filters(newFilters)
-    
-    // Clear cache if no filters remain
-    if (newFilters.length === 0) {
-      imageNode.clearCache()
-    }
-    
-    // Redraw
-    const layer = this.findLayerForObject(obj)
-    if (layer) {
-      layer.konvaLayer.batchDraw()
-    }
-  }
-  
-  /**
-   * Get target objects based on selection or all images
-   */
-  private getTargetObjects(): CanvasObject[] {
-    const canvas = this.getCanvas()
-    const selection = canvas.state.selection
-    
-    if (selection?.type === 'objects') {
-      // Apply to selected objects
-      return selection.objectIds
-        .map(id => this.findObject(id))
-        .filter((obj): obj is CanvasObject => obj !== null && obj.type === 'image')
+    if (this.isApplied) {
+      await this.removeGrayscale()
     } else {
-      // Apply to all images
-      const allImages: CanvasObject[] = []
-      for (const layer of canvas.state.layers) {
-        for (const obj of layer.objects) {
-          if (obj.type === 'image' && !obj.locked && obj.visible) {
-            allImages.push(obj)
-          }
-        }
-      }
-      return allImages
+      await this.applyGrayscale()
     }
-  }
-  
-  /**
-   * Find an object by ID
-   */
-  private findObject(objectId: string): CanvasObject | null {
-    const canvas = this.getCanvas()
-    for (const layer of canvas.state.layers) {
-      const obj = layer.objects.find(o => o.id === objectId)
-      if (obj) return obj
-    }
-    return null
-  }
-  
-  /**
-   * Find the layer containing an object
-   */
-  private findLayerForObject(obj: CanvasObject) {
-    const canvas = this.getCanvas()
-    return canvas.state.layers.find(layer => 
-      layer.objects.some(o => o.id === obj.id)
-    )
   }
   
   /**
    * Apply grayscale for AI operations
    */
-  async applyWithContext(apply: boolean, targetObjects?: CanvasObject[]): Promise<void> {
-    if (targetObjects) {
-      // Apply to specific objects
-      for (const obj of targetObjects) {
-        if (obj.type === 'image') {
-          if (apply) {
-            await this.applyGrayscaleToImage(obj)
-          } else {
-            await this.removeGrayscaleFromImage(obj)
-          }
-        }
-      }
-    } else {
-      // Use toggle for general application
-      await this.toggleGrayscale()
-    }
+  async applyWithContext(): Promise<void> {
+    await this.applyGrayscale()
   }
 }
 

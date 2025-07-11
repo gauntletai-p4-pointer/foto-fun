@@ -25,7 +25,7 @@ export function EvaluationResultDisplay({
   const successPercentage = Math.round(successScore * 100)
   
   return (
-    <div className="space-y-3 p-4 bg-muted/30 rounded-lg border">
+    <div className="space-y-3 p-4 bg-foreground/5 rounded-lg border">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
@@ -58,14 +58,14 @@ export function EvaluationResultDisplay({
       {/* Success Progress */}
       <div className="space-y-1">
         <div className="flex items-center justify-between text-xs">
-          <span className="text-muted-foreground">Success Score</span>
+          <span className="text-foreground/60">Success Score</span>
           <span className="font-medium">{successPercentage}%</span>
         </div>
         <Progress 
           value={successPercentage} 
           className="h-2"
         />
-        <p className="text-xs text-muted-foreground">
+        <p className="text-xs text-foreground/60">
           {goalsMet ? "Goals achieved!" : "Room for improvement"}
         </p>
       </div>
@@ -73,7 +73,7 @@ export function EvaluationResultDisplay({
       {/* Evaluation Details */}
       <div className="space-y-2">
         <p className="text-sm font-medium">Analysis Results:</p>
-        <div className="text-sm text-muted-foreground whitespace-pre-wrap bg-background/50 p-3 rounded">
+        <div className="text-sm text-foreground/60 whitespace-pre-wrap bg-background/50 p-3 rounded">
           {evaluation}
         </div>
       </div>
@@ -88,7 +88,7 @@ export function EvaluationResultDisplay({
       
       {/* Continue Indicator */}
       {shouldContinue && !goalsMet && (
-        <div className="text-sm text-muted-foreground italic">
+        <div className="text-sm text-foreground/60 italic">
           The agent can continue improving the image. Would you like another iteration?
         </div>
       )}

@@ -31,8 +31,6 @@
   --destructive-foreground: #FFFFFF;
   --ring: #3B82F6;
   --border: rgb(26 26 26 / 0.1);
-  --muted: rgb(26 26 26 / 0.06);
-  --muted-foreground: rgb(26 26 26 / 0.6);
 
   /* === CHART COLORS === */
   --chart-1: #3B82F6;
@@ -51,8 +49,6 @@
   --color-destructive-foreground: var(--destructive-foreground);
   --color-ring: var(--ring);
   --color-border: var(--border);
-  --color-muted: var(--muted);
-  --color-muted-foreground: var(--muted-foreground);
   --color-chart-1: var(--chart-1);
   --color-chart-2: var(--chart-2);
   --color-chart-3: var(--chart-3);
@@ -74,8 +70,6 @@
   --destructive-foreground: #FFFFFF;
   --ring: #3B82F6;
   --border: rgb(250 250 250 / 0.1);
-  --muted: rgb(250 250 250 / 0.06);
-  --muted-foreground: rgb(250 250 250 / 0.6);
 
   /* === CHART COLORS DARK === */
   --chart-1: #60A5FA;

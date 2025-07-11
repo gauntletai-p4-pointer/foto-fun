@@ -11,6 +11,7 @@ import { getTypedEventBus } from '@/lib/events/core/TypedEventBus'
 import { useFileHandler } from '@/hooks/useFileHandler'
 import { ServiceContainer } from '@/lib/core/ServiceContainer'
 import type { ToolEvent } from '@/lib/editor/canvas/types'
+import { TOOL_IDS } from '@/constants'
 
 export function Canvas() {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -40,7 +41,7 @@ export function Canvas() {
     const startTime = Date.now()
     
     try {
-      // Create canvas manager
+      // Create canvas manager with the container div
       const manager = canvasFactory.create(containerRef.current)
       
       setCanvasManager(manager)
@@ -248,6 +249,142 @@ export function Canvas() {
     }
   }, [canvasManager, toolStore])
   
+  // Handle mouse wheel and trackpad gestures
+  useEffect(() => {
+    if (!canvasManager || !containerRef.current) return
+    
+    const container = containerRef.current
+    
+    // Handle wheel events for zoom and pan
+    const handleWheel = (e: WheelEvent) => {
+      e.preventDefault()
+      
+      // Alt + scroll for panning (override default zoom behavior)
+      if (e.altKey) {
+        const panSpeed = 1
+        if (e.shiftKey) {
+          // Alt + Shift + scroll for horizontal pan
+          const deltaX = e.deltaY * panSpeed
+          const currentPan = canvasManager.state.pan
+          canvasManager.setPan({
+            x: currentPan.x - deltaX,
+            y: currentPan.y
+          })
+        } else {
+          // Alt + scroll for vertical pan
+          const deltaY = e.deltaY * panSpeed
+          const currentPan = canvasManager.state.pan
+          canvasManager.setPan({
+            x: currentPan.x,
+            y: currentPan.y - deltaY
+          })
+        }
+        return
+      }
+      
+      // Check if it's a pinch gesture (trackpad)
+      // On macOS, pinch gestures come through as ctrl+wheel events
+      if (e.ctrlKey) {
+        // Pinch zoom on trackpad - match Photoshop behavior
+        // Photoshop behavior:
+        // - Two fingers spreading apart (pinch out) = zoom in
+        // - Two fingers coming together (pinch in) = zoom out
+        // Browser wheel events:
+        // - Pinch out (zoom in) = negative deltaY
+        // - Pinch in (zoom out) = positive deltaY
+        const zoomSpeed = 0.01
+        const delta = -e.deltaY * zoomSpeed  // Negative deltaY increases zoom
+        const currentZoom = canvasManager.state.zoom
+        const newZoom = Math.max(0.1, Math.min(10, currentZoom * (1 + delta)))
+        
+        // Get mouse position for zoom center
+        const rect = container.getBoundingClientRect()
+        const mousePos = {
+          x: e.clientX - rect.left,
+          y: e.clientY - rect.top
+        }
+        
+        // Calculate zoom with mouse position as center
+        const oldZoom = currentZoom
+        const stage = canvasManager.konvaStage
+        
+        // Get the current stage position (pan)
+        const oldPos = stage.position()
+        
+        // Calculate the point on the canvas that's under the mouse
+        // This accounts for the current zoom and pan
+        const pointTo = {
+          x: (mousePos.x - oldPos.x) / oldZoom,
+          y: (mousePos.y - oldPos.y) / oldZoom
+        }
+        
+        // Calculate new position to keep the same point under the mouse after zoom
+        const newPos = {
+          x: mousePos.x - pointTo.x * newZoom,
+          y: mousePos.y - pointTo.y * newZoom
+        }
+        
+        // Apply the new zoom and position
+        canvasManager.setZoom(newZoom)
+        canvasManager.setPan(newPos)
+      } else if (e.shiftKey) {
+        // Shift + scroll for horizontal pan
+        const panSpeed = 1
+        const deltaX = e.deltaY * panSpeed
+        const currentPan = canvasManager.state.pan
+        canvasManager.setPan({
+          x: currentPan.x - deltaX,
+          y: currentPan.y
+        })
+      } else {
+        // Regular two-finger scroll should zoom (Photoshop behavior)
+        // Two fingers up (negative deltaY) = zoom in
+        // Two fingers down (positive deltaY) = zoom out
+        const zoomSpeed = 0.001
+        const delta = -e.deltaY * zoomSpeed
+        const currentZoom = canvasManager.state.zoom
+        const newZoom = Math.max(0.1, Math.min(10, currentZoom * (1 + delta)))
+        
+        // Get mouse position for zoom center
+        const rect = container.getBoundingClientRect()
+        const mousePos = {
+          x: e.clientX - rect.left,
+          y: e.clientY - rect.top
+        }
+        
+        const oldZoom = currentZoom
+        const stage = canvasManager.konvaStage
+        
+        // Get the current stage position (pan)
+        const oldPos = stage.position()
+        
+        // Calculate the point on the canvas that's under the mouse
+        // This accounts for the current zoom and pan
+        const pointTo = {
+          x: (mousePos.x - oldPos.x) / oldZoom,
+          y: (mousePos.y - oldPos.y) / oldZoom
+        }
+        
+        // Calculate new position to keep the same point under the mouse after zoom
+        const newPos = {
+          x: mousePos.x - pointTo.x * newZoom,
+          y: mousePos.y - pointTo.y * newZoom
+        }
+        
+        // Apply the new zoom and position
+        canvasManager.setZoom(newZoom)
+        canvasManager.setPan(newPos)
+      }
+    }
+    
+    // Add passive: false to prevent Chrome warning and ensure preventDefault works
+    container.addEventListener('wheel', handleWheel, { passive: false })
+    
+    return () => {
+      container.removeEventListener('wheel', handleWheel)
+    }
+  }, [canvasManager])
+  
   // Handle keyboard events for tools
   useEffect(() => {
     if (!canvasManager || !toolStore) return
@@ -256,6 +393,18 @@ export function Canvas() {
       // Check if input is focused
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
         return
+      }
+      
+      // Spacebar for temporary hand tool
+      if (e.code === 'Space' && !e.repeat) {
+        e.preventDefault()
+        // Store current tool
+        const currentTool = toolStore.getActiveTool()
+        if (currentTool && currentTool.id !== TOOL_IDS.HAND) {
+          // Temporarily enable dragging
+          canvasManager.setDraggable(true)
+          canvasManager.konvaStage.container().style.cursor = 'grab'
+        }
       }
       
       // First, let the active tool handle the event
@@ -278,10 +427,10 @@ export function Canvas() {
       }
       
       // Zoom shortcuts
-      else if (isMeta && e.key === '=') {
+      else if (isMeta && (e.key === '=' || e.key === '+')) {
         e.preventDefault()
         const currentZoom = canvasManager.state.zoom
-        canvasManager.setZoom(Math.min(currentZoom * 1.2, 5))
+        canvasManager.setZoom(Math.min(currentZoom * 1.2, 10))
       } else if (isMeta && e.key === '-') {
         e.preventDefault()
         const currentZoom = canvasManager.state.zoom
@@ -313,6 +462,16 @@ export function Canvas() {
         return
       }
       
+      // Release spacebar - restore previous tool
+      if (e.code === 'Space') {
+        const currentTool = toolStore.getActiveTool()
+        if (currentTool && currentTool.id !== TOOL_IDS.HAND) {
+          // Disable dragging if not hand tool
+          canvasManager.setDraggable(false)
+          canvasManager.konvaStage.container().style.cursor = currentTool.cursor || 'default'
+        }
+      }
+      
       // Let the active tool handle the event
       const activeTool = toolStore.getActiveTool()
       if (activeTool?.onKeyUp) {
@@ -329,7 +488,7 @@ export function Canvas() {
     }
   }, [canvasManager, toolStore])
   
-  // Handle window resize
+  // Handle window resize for viewport changes
   useEffect(() => {
     if (!canvasManager || !containerRef.current) return
     
@@ -337,8 +496,8 @@ export function Canvas() {
       const container = containerRef.current
       if (!container) return
       
-      const { width, height } = container.getBoundingClientRect()
-      canvasManager.resize(width, height)
+      // Only update viewport size, not canvas size
+      canvasManager.updateViewport()
     }
     
     window.addEventListener('resize', handleResize)
@@ -361,33 +520,15 @@ export function Canvas() {
     <div 
       ref={containerRef}
       data-canvas-container
-      className="relative flex-1 bg-content-background min-w-0"
-      style={{ 
-        overflow: 'auto',
-        position: 'relative'
-      }}
+      className="relative flex-1 bg-content-background min-w-0 overflow-hidden"
       onDrop={handleDrop}
       onDragOver={handleDragOver}
     >
-      {/* Canvas wrapper with proper dimensions */}
-      <div 
-        style={{
-          position: 'relative',
-          margin: '16px', // Equivalent to p-4
-          minWidth: canvasManager ? `${canvasManager.state.width}px` : '800px',
-          minHeight: canvasManager ? `${canvasManager.state.height}px` : '600px',
-          backgroundColor: canvasManager?.state.backgroundColor || '#ffffff',
-          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
-          borderRadius: '4px',
-          overflow: 'hidden' // Only hide overflow on the actual canvas area
-        }}
-      >
-        {/* Konva will create the canvas elements inside this wrapper */}
-      </div>
+      {/* Konva will create the canvas elements inside the container */}
       
       {/* Zoom indicator */}
       {canvasManager && (
-        <div className="fixed bottom-8 right-8 bg-background/90 backdrop-blur-sm text-foreground px-3 py-1 rounded-md text-sm font-mono border border-foreground/10 shadow-lg z-10">
+        <div className="absolute bottom-4 right-4 bg-background/90 backdrop-blur-sm text-foreground px-3 py-1 rounded-md text-sm font-mono border border-foreground/10 shadow-lg">
           {Math.round(canvasManager.state.zoom * 100)}%
         </div>
       )}
