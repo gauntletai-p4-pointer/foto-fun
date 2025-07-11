@@ -80,17 +80,38 @@ export class SelectionManager {
     tempCanvas.height = this.selectionCanvas.height
     const tempCtx = tempCanvas.getContext('2d')!
     
+    // Store original fill to restore later
+    const originalFill = path.fill
+    const originalOpacity = path.opacity
+    
+    // Temporarily set path to have opaque fill for mask creation
+    // This ensures the selection mask has proper alpha values (255)
+    path.set({
+      fill: 'black',  // Use solid black for full opacity
+      opacity: 1      // Ensure full opacity
+    })
+    
     // Render the path to get its pixels
     tempCtx.save()
-    tempCtx.translate(path.left || 0, path.top || 0)
-    if (path.angle) {
-      tempCtx.rotate((path.angle * Math.PI) / 180)
-    }
-    tempCtx.scale(path.scaleX || 1, path.scaleY || 1)
     
-    // Draw the path
-    path.render(tempCtx as CanvasRenderingContext2D)
+    // Clear the canvas first
+    tempCtx.clearRect(0, 0, tempCanvas.width, tempCanvas.height)
+    
+    // When Fabric.js creates a Path, it normalizes the coordinates relative to the path's bounds
+    // and sets left/top to position it. We need to apply these transformations.
+    const matrix = path.calcTransformMatrix()
+    tempCtx.transform(matrix[0], matrix[1], matrix[2], matrix[3], matrix[4], matrix[5])
+    
+    // Now render the path - it will be drawn in the correct position
+    path._render(tempCtx)
+    
     tempCtx.restore()
+    
+    // Restore original fill properties
+    path.set({
+      fill: originalFill,
+      opacity: originalOpacity
+    })
     
     // Get the pixel data
     const imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height)

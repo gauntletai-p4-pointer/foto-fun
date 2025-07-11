@@ -132,17 +132,23 @@ class LassoTool extends SelectionTool {
     // Mark as system object
     markAsSystemObject(this.finalPath, SystemObjectType.TEMPORARY)
     
+    // IMPORTANT: Add the path to canvas before using it
+    // This ensures Fabric.js properly initializes the path's geometry
+    this.canvas.add(this.finalPath)
+    
+    // Force the path to calculate its dimensions
+    this.finalPath.setCoords()
+    
     // Get selection manager
     const canvasStore = useCanvasStore.getState()
     const selectionManager = canvasStore.selectionManager
     
     if (!selectionManager) {
       console.error('Selection system not initialized')
+      // Clean up
+      if (this.finalPath) this.canvas.remove(this.finalPath)
       return
     }
-    
-    // Add the path temporarily to canvas for selection creation
-    this.canvas.add(this.finalPath)
     
     // Get selection mode (new, add, subtract, intersect)
     const mode = this.selectionMode
