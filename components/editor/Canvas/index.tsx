@@ -54,6 +54,8 @@ export function Canvas() {
     // Initialize canvas
     initCanvas(canvas, width, height).then(() => {
       console.log('[Canvas] Initialization complete after', Date.now() - startTime, 'ms')
+      // Update filter states after canvas is initialized
+      useCanvasStore.getState().updateFilterStates()
     }).catch((error) => {
       console.error('[Canvas] Initialization failed:', error)
     })

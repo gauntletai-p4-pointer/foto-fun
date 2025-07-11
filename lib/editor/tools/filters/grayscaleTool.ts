@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars */
 import { Palette } from 'lucide-react'
 import { TOOL_IDS } from '@/constants'
-import type { Canvas } from 'fabric'
+import type { Canvas, FabricImage } from 'fabric'
 import { BaseFilterTool } from './BaseFilterTool'
 import { createToolState } from '../utils/toolState'
 import { useToolOptionsStore } from '@/store/toolOptionsStore'
@@ -9,7 +9,6 @@ import { useToolOptionsStore } from '@/store/toolOptionsStore'
 // Define tool state
 type GrayscaleToolState = {
   isApplying: boolean
-  isGrayscale: boolean
 }
 
 class GrayscaleTool extends BaseFilterTool {
@@ -22,8 +21,7 @@ class GrayscaleTool extends BaseFilterTool {
   
   // Tool state
   private state = createToolState<GrayscaleToolState>({
-    isApplying: false,
-    isGrayscale: false
+    isApplying: false
   })
   
   // Required: Get filter name
@@ -55,27 +53,10 @@ class GrayscaleTool extends BaseFilterTool {
   
   // Required: Cleanup
   protected cleanupFilterTool(): void {
-    // Don't reset the grayscale state - let it persist
+    // Reset applying state
     this.state.setState({
-      isApplying: false,
-      isGrayscale: this.state.get('isGrayscale')
+      isApplying: false
     })
-  }
-  
-  /**
-   * Apply grayscale filter
-   */
-  private async applyGrayscale(): Promise<void> {
-    if (this.state.get('isApplying')) return
-    
-    this.state.set('isApplying', true)
-    
-    try {
-      // Use the base class applyFilter method
-      await this.applyFilter({})
-    } finally {
-      this.state.set('isApplying', false)
-    }
   }
   
   // Required: Base cleanup (from BaseTool)
@@ -83,16 +64,40 @@ class GrayscaleTool extends BaseFilterTool {
     this.cleanupTool()
   }
   
+  /**
+   * Check if grayscale filter is already applied to the target images
+   */
+  private hasGrayscale(): boolean {
+    const targetImages = this.getTargetImages()
+    if (targetImages.length === 0) return false
+    
+    // Check the first image for grayscale filter
+    const firstImage = targetImages[0] as FabricImage
+    if (!firstImage.filters || firstImage.filters.length === 0) return false
+    
+    // Look for Grayscale filter
+    return firstImage.filters.some((filter: any) => {
+      const filterType = filter.type || filter.constructor.name
+      return filterType === 'Grayscale'
+    })
+  }
+  
   private async toggleGrayscale(): Promise<void> {
     if (this.state.get('isApplying')) return
     
     this.state.set('isApplying', true)
-    const newState = !this.state.get('isGrayscale')
     
     try {
-      // Use the base class applyFilter method
-      await this.applyFilter(this.getDefaultParams())
-      this.state.set('isGrayscale', newState)
+      // Check current state
+      const isCurrentlyGrayscale = this.hasGrayscale()
+      
+      if (isCurrentlyGrayscale) {
+        // Remove grayscale - apply with params that indicate removal
+        await this.applyFilter({ remove: true })
+      } else {
+        // Add grayscale - apply normally
+        await this.applyFilter({})
+      }
     } finally {
       this.state.set('isApplying', false)
     }

@@ -700,11 +700,15 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
     toolId: TOOL_IDS.SEPIA,
     options: [
       {
-        id: 'intensity',
-        type: 'slider',
-        label: 'Sepia Intensity',
-        value: 0,
-        props: { min: 0, max: 100, step: 1, unit: '%' }
+        id: 'action',
+        type: 'button-group',
+        label: 'Sepia',
+        value: null,
+        props: {
+          options: [
+            { value: 'toggle', label: 'Toggle Sepia' }
+          ]
+        }
       }
     ]
   },

@@ -2,11 +2,13 @@
 
 import { useEffect } from 'react'
 import { useToolStore } from '@/store/toolStore'
+import { useFilterStore, TOGGLE_FILTER_TOOLS } from '@/store/filterStore'
 import { tools } from '@/lib/editor/tools'
 import { cn } from '@/lib/utils'
 
 export function ToolPalette() {
   const { activeTool, setActiveTool, registerTools } = useToolStore()
+  const { isFilterActive } = useFilterStore()
   
   // Register tools on mount
   useEffect(() => {
@@ -32,6 +34,8 @@ export function ToolPalette() {
           const Icon = tool.icon
           const isActive = activeTool === tool.id
           const isImplemented = tool.isImplemented
+          const isToggleFilter = TOGGLE_FILTER_TOOLS.includes(tool.id as any)
+          const hasFilterApplied = isToggleFilter && isFilterActive(tool.id)
           
           return (
             <button
@@ -41,9 +45,11 @@ export function ToolPalette() {
                 "w-6 h-6 flex items-center justify-center rounded transition-colors relative group",
                 isActive 
                   ? "bg-primary text-primary-foreground" 
-                  : isImplemented
-                    ? "hover:bg-foreground/5 text-foreground/70 hover:text-foreground"
-                    : "hover:bg-foreground/5 text-foreground/30 cursor-not-allowed"
+                  : hasFilterApplied
+                    ? "bg-primary/20 text-primary border border-primary/30"
+                    : isImplemented
+                      ? "hover:bg-foreground/5 text-foreground/70 hover:text-foreground"
+                      : "hover:bg-foreground/5 text-foreground/30 cursor-not-allowed"
               )}
               title={tool.shortcut ? `${tool.name} (${tool.shortcut})` : tool.name}
               onClick={() => handleToolClick(tool.id, isImplemented)}
@@ -52,9 +58,15 @@ export function ToolPalette() {
                 className="w-4 h-4" 
               />
               
+              {/* Show indicator dot for active filters */}
+              {hasFilterApplied && !isActive && (
+                <div className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-primary rounded-full" />
+              )}
+              
               {/* Tool tooltip */}
               <div className="absolute left-full ml-2 top-1/2 -translate-y-1/2 px-2 py-1 bg-background text-foreground text-xs rounded opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity whitespace-nowrap z-10 border border-foreground/10 shadow-lg">
                 {tool.name} ({tool.shortcut})
+                {hasFilterApplied && <span className="block text-primary text-[10px]">Filter active</span>}
                 {!isImplemented && <span className="block text-foreground/60 text-[10px]">Coming soon</span>}
               </div>
             </button>

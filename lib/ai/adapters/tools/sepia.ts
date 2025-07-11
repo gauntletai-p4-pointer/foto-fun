@@ -5,10 +5,8 @@ import type { CanvasContext } from '@/lib/ai/tools/canvas-bridge'
 
 // Define parameter schema
 const sepiaParameters = z.object({
-  intensity: z.number()
-    .min(0)
-    .max(100)
-    .describe('Sepia intensity from 0 (no effect) to 100 (full sepia)')
+  enable: z.boolean()
+    .describe('Whether to enable sepia effect (true) or disable it (false)')
 })
 
 // Define types
@@ -16,7 +14,7 @@ type SepiaInput = z.infer<typeof sepiaParameters>
 
 interface SepiaOutput {
   success: boolean
-  intensity: number
+  enabled: boolean
   message: string
   targetingMode: 'selection' | 'all-images'
 }
@@ -25,20 +23,15 @@ interface SepiaOutput {
 export class SepiaAdapter extends CanvasToolAdapter<SepiaInput, SepiaOutput> {
   tool = sepiaTool
   aiName = 'applySepiaEffect'
-  description = `Apply sepia (vintage brown) effect to existing images. You MUST calculate the intensity based on user intent.
+  description = `Apply sepia (vintage brown) effect to existing images. Simple enable/disable control.
 
 INTELLIGENT TARGETING:
 - If you have images selected, only those images will have sepia applied
 - If no images are selected, all images on the canvas will have sepia applied
 
 Common sepia requests:
-- "sepia" or "vintage look" → intensity: 80
-- "strong sepia" or "heavy vintage" → intensity: 100
-- "subtle sepia" or "slight vintage" → intensity: 50
-- "remove sepia" → intensity: 0
-
-NEVER ask for exact values - interpret the user's intent.
-Range: 0 (no effect) to 100 (full sepia)`
+- "sepia" or "vintage look" → enable: true
+- "remove sepia" or "restore normal colors" → enable: false`
 
   metadata = {
     category: 'canvas-editing' as const,
@@ -57,13 +50,13 @@ Range: 0 (no effect) to 100 (full sepia)`
       // Activate the sepia tool
       await this.activateTool()
       
-      // Update the intensity option
-      await this.updateToolOption('intensity', params.intensity)
+      // Trigger the toggle action
+      await this.updateToolOption('action', 'toggle')
       
       return {
-        intensity: params.intensity,
-        message: params.intensity > 0 
-          ? `Applied ${params.intensity}% sepia effect to ${images.length} image(s)`
+        enabled: params.enable,
+        message: params.enable 
+          ? `Applied sepia effect to ${images.length} image(s)`
           : `Removed sepia effect from ${images.length} image(s)`
       }
     })

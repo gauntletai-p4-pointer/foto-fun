@@ -8,7 +8,7 @@ import { createToolState } from '../utils/toolState'
 // Define tool state
 type SharpenToolState = {
   isApplying: boolean
-  lastSharpen: number
+  strength: number
 }
 
 class SharpenTool extends BaseFilterTool {
@@ -22,7 +22,7 @@ class SharpenTool extends BaseFilterTool {
   // Tool state
   private state = createToolState<SharpenToolState>({
     isApplying: false,
-    lastSharpen: 0
+    strength: 0
   })
   
   // Required: Get filter name
@@ -32,25 +32,25 @@ class SharpenTool extends BaseFilterTool {
   
   // Required: Get default params
   protected getDefaultParams(): any {
-    return { strength: this.state.get('lastSharpen') }
+    return { strength: this.state.get('strength') }
   }
   
   // Required: Setup
   protected setupFilterTool(canvas: Canvas): void {
     // Subscribe to tool options
     this.subscribeToToolOptions(async () => {
-      const sharpen = this.getOptionValue('sharpen')
-      if (typeof sharpen === 'number' && sharpen !== this.state.get('lastSharpen')) {
-        await this.applySharpen(sharpen)
-        this.state.set('lastSharpen', sharpen)
+      const strength = this.getOptionValue('sharpen')
+      if (typeof strength === 'number' && strength !== this.state.get('strength')) {
+        await this.applySharpen(strength)
+        this.state.set('strength', strength)
       }
     })
     
     // Apply initial value if any
-    const initialSharpen = this.getOptionValue('sharpen')
-    if (typeof initialSharpen === 'number' && initialSharpen !== 0) {
-      this.applySharpen(initialSharpen).then(() => {
-        this.state.set('lastSharpen', initialSharpen)
+    const initialStrength = this.getOptionValue('sharpen')
+    if (typeof initialStrength === 'number' && initialStrength !== 0) {
+      this.applySharpen(initialStrength).then(() => {
+        this.state.set('strength', initialStrength)
       })
     }
     
@@ -63,7 +63,7 @@ class SharpenTool extends BaseFilterTool {
     // Don't reset the sharpen - let it persist
     this.state.setState({
       isApplying: false,
-      lastSharpen: this.state.get('lastSharpen')
+      strength: this.state.get('strength')
     })
   }
   
@@ -75,15 +75,15 @@ class SharpenTool extends BaseFilterTool {
   /**
    * Apply sharpen filter
    */
-  private async applySharpen(sharpen: number): Promise<void> {
+  private async applySharpen(strength: number): Promise<void> {
     if (this.state.get('isApplying')) return
     
     this.state.set('isApplying', true)
-    this.state.set('lastSharpen', sharpen)
+    this.state.set('strength', strength)
     
     try {
       // Use the base class applyFilter method
-      await this.applyFilter({ sharpen })
+      await this.applyFilter({ strength })
     } finally {
       this.state.set('isApplying', false)
     }

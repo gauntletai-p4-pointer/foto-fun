@@ -495,7 +495,7 @@ The following tools have AI adapters that enable natural language control:
 - **applyBlur**: "slight blur" → 10-20, "heavy blur" → 60-80
 - **applySharpen**: "sharpen edges" → 30-40, "strong sharpen" → 60-80
 - **applyGrayscale**: "black and white" → enable, "restore color" → disable
-- **applySepia**: "vintage effect" → 50-60, "old photo" → 80-90
+- **applySepia**: "vintage effect" → enable, "remove sepia" → disable
 - **applyInvert**: "negative effect" → enable, "normal colors" → disable
 
 #### Transform Tools

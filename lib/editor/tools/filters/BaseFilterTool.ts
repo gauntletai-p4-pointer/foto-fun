@@ -4,6 +4,7 @@ import { FilterPipeline } from '@/lib/editor/filters/FilterPipeline'
 import { LayerAwareSelectionManager } from '@/lib/editor/selection/LayerAwareSelectionManager'
 import { ApplyFilterCommand } from '@/lib/editor/commands/filters/ApplyFilterCommand'
 import { useCanvasStore } from '@/store/canvasStore'
+import { useFilterStore } from '@/store/filterStore'
 import type { Canvas, FabricImage } from 'fabric'
 
 /**
@@ -133,6 +134,9 @@ export abstract class BaseFilterTool extends BaseTool {
     
     // Call tool-specific setup
     this.setupFilterTool(canvas)
+    
+    // Update filter state on activation
+    this.updateFilterState()
   }
   
   /**
@@ -318,6 +322,9 @@ export abstract class BaseFilterTool extends BaseTool {
       // Execute with history tracking
       await this.executeCommand(command)
       console.log('[BaseFilterTool] Filter command executed successfully')
+      
+      // Update filter state in store
+      this.updateFilterState()
     } catch (error) {
       console.error(`[BaseFilterTool] Failed to apply ${filterName} filter:`, error)
     }
@@ -381,5 +388,46 @@ export abstract class BaseFilterTool extends BaseTool {
    */
   protected cleanupFilterTool(): void {
     // Override in subclasses if needed
+  }
+  
+  /**
+   * Update the filter store with the current filter state
+   */
+  protected updateFilterState(): void {
+    const filterStore = useFilterStore.getState()
+    const hasFilter = this.hasFilterApplied()
+    filterStore.setFilterActive(this.id, hasFilter)
+  }
+  
+  /**
+   * Check if this filter is currently applied
+   */
+  protected hasFilterApplied(): boolean {
+    const targetImages = this.getTargetImages()
+    if (targetImages.length === 0) return false
+    
+    const filterName = this.getFilterName()
+    const firstImage = targetImages[0] as FabricImage
+    if (!firstImage.filters || firstImage.filters.length === 0) return false
+    
+    // Check for the specific filter type
+    return firstImage.filters.some((filter: any) => {
+      const filterType = filter.type || filter.constructor.name
+      
+      // Map filter names to Fabric filter types
+      const filterTypeMap: Record<string, string> = {
+        'grayscale': 'Grayscale',
+        'sepia': 'Sepia',
+        'invert': 'Invert',
+        'blur': 'Blur',
+        'sharpen': 'Convolute',
+        'brightness': 'Brightness',
+        'contrast': 'Contrast',
+        'saturation': 'Saturation',
+        'hue': 'HueRotation'
+      }
+      
+      return filterType === filterTypeMap[filterName]
+    })
   }
 } 

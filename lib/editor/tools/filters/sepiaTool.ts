@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars */
 import { Sun } from 'lucide-react'
 import { TOOL_IDS } from '@/constants'
-import type { Canvas } from 'fabric'
+import type { Canvas, FabricImage } from 'fabric'
 import { BaseFilterTool } from './BaseFilterTool'
 import { createToolState } from '../utils/toolState'
 import { useToolOptionsStore } from '@/store/toolOptionsStore'
@@ -9,7 +9,6 @@ import { useToolOptionsStore } from '@/store/toolOptionsStore'
 // Define tool state
 type SepiaToolState = {
   isApplying: boolean
-  isSepia: boolean
 }
 
 class SepiaTool extends BaseFilterTool {
@@ -22,8 +21,7 @@ class SepiaTool extends BaseFilterTool {
   
   // Tool state
   private state = createToolState<SepiaToolState>({
-    isApplying: false,
-    isSepia: false
+    isApplying: false
   })
   
   // Required: Get filter name
@@ -55,10 +53,9 @@ class SepiaTool extends BaseFilterTool {
   
   // Required: Cleanup
   protected cleanupFilterTool(): void {
-    // Don't reset the sepia state - let it persist
+    // Reset applying state
     this.state.setState({
-      isApplying: false,
-      isSepia: this.state.get('isSepia')
+      isApplying: false
     })
   }
   
@@ -67,16 +64,40 @@ class SepiaTool extends BaseFilterTool {
     this.cleanupTool()
   }
   
+  /**
+   * Check if sepia filter is already applied to the target images
+   */
+  private hasSepia(): boolean {
+    const targetImages = this.getTargetImages()
+    if (targetImages.length === 0) return false
+    
+    // Check the first image for sepia filter
+    const firstImage = targetImages[0] as FabricImage
+    if (!firstImage.filters || firstImage.filters.length === 0) return false
+    
+    // Look for Sepia filter
+    return firstImage.filters.some((filter: any) => {
+      const filterType = filter.type || filter.constructor.name
+      return filterType === 'Sepia'
+    })
+  }
+  
   private async toggleSepia(): Promise<void> {
     if (this.state.get('isApplying')) return
     
     this.state.set('isApplying', true)
-    const newState = !this.state.get('isSepia')
     
     try {
-      // Use the base class applyFilter method
-      await this.applyFilter(this.getDefaultParams())
-      this.state.set('isSepia', newState)
+      // Check current state
+      const isCurrentlySepia = this.hasSepia()
+      
+      if (isCurrentlySepia) {
+        // Remove sepia - apply with params that indicate removal
+        await this.applyFilter({ remove: true })
+      } else {
+        // Add sepia - apply normally
+        await this.applyFilter({})
+      }
     } finally {
       this.state.set('isApplying', false)
     }

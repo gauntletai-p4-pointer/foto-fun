@@ -1,10 +1,11 @@
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
-import { Canvas, Point, TPointerEvent, TPointerEventInfo } from 'fabric'
+import { Canvas, Point, TPointerEvent, TPointerEventInfo, FabricImage } from 'fabric'
 import { DEFAULT_ZOOM, MIN_ZOOM, MAX_ZOOM, ZOOM_LEVELS } from '@/constants'
 import { LayerAwareSelectionManager, SelectionRenderer } from '@/lib/editor/selection'
 import { ClipboardManager } from '@/lib/editor/clipboard'
 import { useObjectRegistryStore } from './objectRegistryStore'
+import { useFilterStore, TOGGLE_FILTER_TOOLS } from './filterStore'
 
 interface CanvasStore {
   // Canvas instances
@@ -108,6 +109,9 @@ interface CanvasStore {
   
   // Check if canvas has content
   hasContent: () => boolean
+  
+  // Update filter states based on current canvas
+  updateFilterStates: () => void
 }
 
 export const useCanvasStore = create<CanvasStore>()(
@@ -427,6 +431,8 @@ export const useCanvasStore = create<CanvasStore>()(
               // Defer update to avoid blocking UI
               requestAnimationFrame(() => {
                 objectRegistry.updatePixelMap()
+                // Update filter states when objects are added
+                get().updateFilterStates()
               })
             }
           })
@@ -437,6 +443,8 @@ export const useCanvasStore = create<CanvasStore>()(
             if (obj && !obj.excludeFromExport) {
               requestAnimationFrame(() => {
                 objectRegistry.updatePixelMap()
+                // Update filter states when objects are removed
+                get().updateFilterStates()
               })
             }
           })
@@ -454,6 +462,8 @@ export const useCanvasStore = create<CanvasStore>()(
               
               (window as any).pixelMapUpdateTimeout = setTimeout(() => {
                 objectRegistry.updatePixelMapIfNeeded()
+                // Update filter states when objects are modified
+                get().updateFilterStates()
               }, 300) // Wait 300ms after last modification
             }
           })
@@ -552,6 +562,49 @@ export const useCanvasStore = create<CanvasStore>()(
       hasContent: () => {
         const { fabricCanvas } = get()
         return fabricCanvas && fabricCanvas.getObjects().length > 0
+      },
+      
+      // Update filter states based on current canvas
+      updateFilterStates: () => {
+        const { fabricCanvas } = get()
+        if (!fabricCanvas) return
+        
+        const filterStore = useFilterStore.getState()
+        const filterStates: Record<string, boolean> = {}
+        
+        // Initialize all toggle filters as false
+        TOGGLE_FILTER_TOOLS.forEach(toolId => {
+          filterStates[toolId] = false
+        })
+        
+        // Check images for active filters
+        const images = fabricCanvas.getObjects().filter(obj => obj instanceof FabricImage) as FabricImage[]
+        
+        if (images.length > 0) {
+          // Check the first image for filters (assuming all images have same filters)
+          const firstImage = images[0]
+          if (firstImage.filters && firstImage.filters.length > 0) {
+            firstImage.filters.forEach((filter: any) => {
+              const filterType = filter.type || filter.constructor.name
+              
+              // Map filter types to tool IDs
+              switch (filterType) {
+                case 'Grayscale':
+                  filterStates['grayscale'] = true
+                  break
+                case 'Sepia':
+                  filterStates['sepia'] = true
+                  break
+                case 'Invert':
+                  filterStates['invert'] = true
+                  break
+              }
+            })
+          }
+        }
+        
+        // Update the filter store
+        filterStore.updateFromCanvas(filterStates)
       },
       
       // Set active AI tool

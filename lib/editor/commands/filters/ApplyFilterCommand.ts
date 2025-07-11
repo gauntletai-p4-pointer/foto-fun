@@ -192,6 +192,11 @@ export class ApplyFilterCommand extends Command {
    * Check if filter should be applied based on params
    */
   private shouldApplyFilter(): boolean {
+    // Check for explicit removal
+    if (this.filterParams.remove === true) {
+      return false
+    }
+    
     switch (this.filterName.toLowerCase()) {
       case 'brightness':
       case 'contrast':
@@ -214,7 +219,7 @@ export class ApplyFilterCommand extends Command {
       case 'grayscale':
       case 'invert':
       case 'sepia':
-        return true // Toggle filters are always applied when called
+        return true // Toggle filters are applied unless explicitly removed
       
       default:
         return true

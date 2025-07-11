@@ -8,7 +8,7 @@ import { createToolState } from '../utils/toolState'
 // Define tool state
 type BlurToolState = {
   isAdjusting: boolean
-  blur: number
+  radius: number
 }
 
 class BlurTool extends BaseFilterTool {
@@ -22,7 +22,7 @@ class BlurTool extends BaseFilterTool {
   // Tool state
   private state = createToolState<BlurToolState>({
     isAdjusting: false,
-    blur: 0
+    radius: 0
   })
   
   // Required: Get filter name
@@ -32,25 +32,25 @@ class BlurTool extends BaseFilterTool {
   
   // Required: Get default params
   protected getDefaultParams(): any {
-    return { blur: this.state.get('blur') }
+    return { radius: this.state.get('radius') }
   }
   
   // Required: Setup
   protected setupFilterTool(canvas: Canvas): void {
     // Subscribe to tool options
     this.subscribeToToolOptions(async () => {
-      const blur = this.getOptionValue('blur')
-      if (typeof blur === 'number' && blur !== this.state.get('blur')) {
-        await this.applyBlur(blur)
-        this.state.set('blur', blur)
+      const radius = this.getOptionValue('blur')
+      if (typeof radius === 'number' && radius !== this.state.get('radius')) {
+        await this.applyBlur(radius)
+        this.state.set('radius', radius)
       }
     })
     
     // Apply initial value if any
-    const initialBlur = this.getOptionValue('blur')
-    if (typeof initialBlur === 'number' && initialBlur !== 0) {
-      this.applyBlur(initialBlur).then(() => {
-        this.state.set('blur', initialBlur)
+    const initialRadius = this.getOptionValue('blur')
+    if (typeof initialRadius === 'number' && initialRadius !== 0) {
+      this.applyBlur(initialRadius).then(() => {
+        this.state.set('radius', initialRadius)
       })
     }
     
@@ -63,7 +63,7 @@ class BlurTool extends BaseFilterTool {
     // Don't reset the blur - let it persist
     this.state.setState({
       isAdjusting: false,
-      blur: this.state.get('blur')
+      radius: this.state.get('radius')
     })
   }
   
@@ -75,15 +75,15 @@ class BlurTool extends BaseFilterTool {
   /**
    * Apply blur filter
    */
-  private async applyBlur(blur: number): Promise<void> {
+  private async applyBlur(radius: number): Promise<void> {
     if (this.state.get('isAdjusting')) return
     
     this.state.set('isAdjusting', true)
-    this.state.set('blur', blur)
+    this.state.set('radius', radius)
     
     try {
       // Use the base class applyFilter method
-      await this.applyFilter({ blur })
+      await this.applyFilter({ radius })
     } finally {
       this.state.set('isAdjusting', false)
     }

@@ -23,7 +23,6 @@
     - [x] Handle transparency in pixel ownership calculation
     - [x] Implement getObjectsAtPixel() for multiple overlaps
     - [x] Add click-through detection for transparent pixels
-    - [ ] Create object picker UI for ambiguous clicks (moved to Phase 4)
 
 ### 1.2 Update Types ✅
 - [x] **Update types/index.ts**
@@ -194,7 +193,7 @@
   - [x] Maintain compatibility with existing commands
   - [x] Handle command merging for rapid adjustments
 
-### 3.4 Update Filter Tools with Dual Pipeline ✅ (Base and examples completed)
+### 3.4 Update Filter Tools with Dual Pipeline ✅ (COMPLETED)
 - [x] **Create lib/editor/tools/filters/BaseFilterTool.ts**
   - [x] Abstract base class for all filter tools
   - [x] Implement selection detection logic
@@ -202,11 +201,11 @@
   - [x] Handle command creation
   - [x] Add performance monitoring
 
-- [ ] **Modify lib/editor/tools/filters/brightnessContrastTool.ts**
-  - [ ] Extend BaseFilterTool
-  - [ ] Use FilterPipeline for application
-  - [ ] Support both fabric.js and custom pipeline
-  - [ ] Update UI to show selection indicator
+- [x] **NOTE: brightnessContrastTool.ts does not exist**
+  - [x] Brightness and Contrast are separate tools in adjustments folder
+  - [x] Both already extend BaseFilterTool (see section 3.5)
+  - [x] Both support selection-aware filtering
+  - [x] Both show selection state in UI
 
 - [x] **Modify lib/editor/tools/filters/grayscaleTool.ts**
   - [x] Extend BaseFilterTool
@@ -220,23 +219,23 @@
   - [x] Support toggle with selection awareness
   - [x] Show selection state in UI
 
-- [ ] **Modify lib/editor/tools/filters/sepiaTool.ts**
-  - [ ] Extend BaseFilterTool
-  - [ ] Implement sepia algorithm for selections
-  - [ ] Use FilterPipeline for application
-  - [ ] Support intensity with selection awareness
+- [x] **Modify lib/editor/tools/filters/sepiaTool.ts**
+  - [x] Extend BaseFilterTool
+  - [x] Sepia algorithm already implemented in algorithms/sepia.ts
+  - [x] Use FilterPipeline for application
+  - [x] Support toggle with selection awareness
 
-- [ ] **Modify lib/editor/tools/filters/blurTool.ts**
-  - [ ] Extend BaseFilterTool
-  - [ ] Use custom blur algorithm for selections
-  - [ ] Handle edge pixels correctly with selections
-  - [ ] Support radius adjustment
+- [x] **Modify lib/editor/tools/filters/blurTool.ts**
+  - [x] Extend BaseFilterTool
+  - [x] Custom blur algorithm implemented in algorithms/blur.ts
+  - [x] Handle edge pixels correctly with selections
+  - [x] Support radius adjustment (parameter updated to 'radius')
 
-- [ ] **Modify lib/editor/tools/filters/sharpenTool.ts**
-  - [ ] Extend BaseFilterTool
-  - [ ] Use custom sharpen algorithm for selections
-  - [ ] Handle edge pixels correctly with selections
-  - [ ] Support strength adjustment
+- [x] **Modify lib/editor/tools/filters/sharpenTool.ts**
+  - [x] Extend BaseFilterTool
+  - [x] Custom sharpen algorithm implemented in algorithms/sharpen.ts
+  - [x] Handle edge pixels correctly with selections
+  - [x] Support strength adjustment (parameter updated to 'strength')
 
 #### 3.5 Adjustment Tools (brightness, contrast, saturation, hue, exposure, colorTemperature)
 Status: 🟡 PARTIALLY COMPLETED

@@ -242,6 +242,11 @@ export class FilterPipeline {
    * Check if filter should be applied based on params
    */
   private shouldApplyFilter(filterName: string, filterParams: any): boolean {
+    // Check for explicit removal
+    if (filterParams.remove === true) {
+      return false
+    }
+    
     switch (filterName.toLowerCase()) {
       case 'brightness':
       case 'contrast':
@@ -265,7 +270,7 @@ export class FilterPipeline {
       case 'grayscale':
       case 'invert':
       case 'sepia':
-        return true // Toggle filters are always applied when called
+        return true // Toggle filters are applied unless explicitly removed
       
       default:
         return true
