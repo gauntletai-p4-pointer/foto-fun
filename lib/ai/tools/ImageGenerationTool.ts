@@ -1,37 +1,33 @@
-import { Sparkles } from 'lucide-react'
 import { ObjectTool } from '@/lib/editor/tools/base/ObjectTool'
+import { Image } from 'lucide-react'
 import { ReplicateService } from '@/lib/ai/services/replicate'
-import type { ToolEvent } from '@/lib/editor/canvas/types'
+import { ModelRegistry } from '@/lib/ai/models/ModelRegistry'
+import { ModelPreferencesManager } from '@/lib/settings/ModelPreferences'
+import type { ModelTier } from '@/lib/plugins/types'
 
-/**
- * AI-Native Image Generation Tool
- * Creates images from text prompts using Stable Diffusion XL
- */
 export class ImageGenerationTool extends ObjectTool {
   id = 'image-generation'
   name = 'AI Image Generation'
-  icon = Sparkles
+  icon = Image
   cursor = 'crosshair'
   shortcut = 'G'
   
   private replicateService: ReplicateService | null = null
-  private isGenerating = false
+  private preferencesManager = ModelPreferencesManager.getInstance()
   
   protected setupTool(): void {
-    // Initialize with default options
+    // Initialize Replicate service
+    try {
+      this.replicateService = new ReplicateService()
+    } catch (error) {
+      console.error('[ImageGenerationTool] Failed to initialize Replicate service:', error)
+    }
+    
+    // Set default options
     this.setOption('prompt', '')
     this.setOption('width', 1024)
     this.setOption('height', 1024)
-    this.setOption('guidance_scale', 7.5)
-    this.setOption('negative_prompt', '')
-    
-    // Initialize Replicate service
-    const apiKey = process.env.NEXT_PUBLIC_REPLICATE_API_KEY
-    if (apiKey) {
-      this.replicateService = new ReplicateService(apiKey)
-    } else {
-      console.warn('Replicate API key not found')
-    }
+    this.setOption('modelTier', this.preferencesManager.getToolModelTier('image-generation'))
   }
   
   protected cleanupTool(): void {
@@ -39,71 +35,121 @@ export class ImageGenerationTool extends ObjectTool {
   }
   
   /**
-   * Generate image from current prompt
+   * Get available model tiers
    */
-  async generateImage(): Promise<void> {
-    if (!this.replicateService || this.isGenerating) return
-    
-    const prompt = this.getOption('prompt') as string
-    if (!prompt) {
-      console.warn('No prompt provided')
+  getModelTiers(): Record<string, ModelTier> {
+    const config = ModelRegistry.getModelConfig('image-generation')
+    return config?.tiers || {}
+  }
+  
+  /**
+   * Get current model tier
+   */
+  getCurrentTier(): ModelTier | undefined {
+    const tierId = this.getOption('modelTier') as string || 'balanced'
+    return ModelRegistry.getModelTier('image-generation', tierId)
+  }
+  
+  /**
+   * Set model tier
+   */
+  setModelTier(tierId: string): void {
+    const tiers = this.getModelTiers()
+    if (tiers[tierId]) {
+      this.setOption('modelTier', tierId)
+      this.preferencesManager.setToolModelTier('image-generation', tierId)
+    }
+  }
+  
+  async execute(): Promise<void> {
+    if (!this.replicateService) {
+      console.error('[ImageGenerationTool] Service not initialized')
       return
     }
     
-    this.isGenerating = true
+    const prompt = this.getOption('prompt') as string
+    if (!prompt) {
+      console.warn('[ImageGenerationTool] No prompt provided')
+      return
+    }
+    
+    const canvas = this.getCanvas()
+    const tier = this.getCurrentTier()
+    
+    if (!tier) {
+      console.error('[ImageGenerationTool] No model tier selected')
+      return
+    }
     
     try {
-      // Generate the image
+      console.log(`[ImageGenerationTool] Generating image with ${tier.name}...`)
+      console.log(`Prompt: ${prompt}`)
+      console.log(`Estimated cost: $${tier.cost}`)
+      
+      // Generate image using the selected model
+      // Note: For now, all models use SDXL. In the future, we'll update ReplicateService
+      // to support different models based on tier.modelId
       const imageData = await this.replicateService.generateImage(prompt, {
         width: this.getOption('width') as number,
         height: this.getOption('height') as number,
-        guidance_scale: this.getOption('guidance_scale') as number,
-        negative_prompt: this.getOption('negative_prompt') as string
+        // Add model-specific parameters
+        ...(tier.id === 'fast' ? { num_inference_steps: 4 } : {}),
+        ...(tier.id === 'best' ? { num_inference_steps: 50, guidance_scale: 7.5 } : {})
       })
-      
-      // Create object at last mouse position or center
-      const x = this.lastMousePosition?.x ?? this.getCanvas().state.canvasWidth / 2
-      const y = this.lastMousePosition?.y ?? this.getCanvas().state.canvasHeight / 2
       
       // Add to canvas
       const objectId = await this.createNewObject('image', {
-        x: x - imageData.naturalWidth / 2,
-        y: y - imageData.naturalHeight / 2,
+        data: imageData,
         width: imageData.naturalWidth,
         height: imageData.naturalHeight,
-        data: imageData,
         metadata: {
-          aiGenerated: true,
+          source: 'ai-generation',
           prompt,
-          model: 'stable-diffusion-xl'
+          modelUsed: tier.name,
+          modelId: tier.modelId,
+          cost: tier.cost
         }
       })
       
       // Select the new object
-      this.getCanvas().selectObject(objectId)
+      canvas.selectObject(objectId)
       
+      console.log('[ImageGenerationTool] Image generated successfully')
     } catch (error) {
-      console.error('Failed to generate image:', error)
-    } finally {
-      this.isGenerating = false
-    }
-  }
-  
-  onMouseDown(event: ToolEvent): void {
-    // Update position for generation
-    this.lastMousePosition = event.point
-    
-    // Trigger generation if we have a prompt
-    if (this.getOption('prompt')) {
-      this.generateImage()
+      console.error('[ImageGenerationTool] Failed to generate image:', error)
     }
   }
   
   /**
-   * Update prompt and regenerate
+   * Get tool-specific UI options
    */
-  async setPrompt(prompt: string): Promise<void> {
-    this.setOption('prompt', prompt)
-    await this.generateImage()
+  getUIOptions() {
+    return {
+      prompt: {
+        type: 'text' as const,
+        label: 'Prompt',
+        placeholder: 'Describe the image you want to generate...',
+        multiline: true
+      },
+      modelTier: {
+        type: 'model-selector' as const,
+        label: 'Quality',
+        tiers: this.getModelTiers()
+      },
+      width: {
+        type: 'number' as const,
+        label: 'Width',
+        min: 512,
+        max: 2048,
+        step: 64
+      },
+      height: {
+        type: 'number' as const,
+        label: 'Height', 
+        min: 512,
+        max: 2048,
+        step: 64
+      }
+    }
   }
 } 

@@ -35,6 +35,14 @@ export class SmartSelectionTool extends ObjectTool {
     this.eventBus = new TypedEventBus()
   }
   
+  protected setupTool(): void {
+    // Tool-specific setup
+  }
+  
+  protected cleanupTool(): void {
+    // Tool-specific cleanup
+  }
+  
   getOptions(): SmartSelectionOptions {
     return {
       mode: 'refine',

@@ -1,4 +1,5 @@
 import type { ToolAdapter } from './base'
+import type { UnifiedToolAdapter } from './base/UnifiedToolAdapter'
 import type { Tool } from 'ai'
 
 /**
@@ -6,12 +7,12 @@ import type { Tool } from 'ai'
  * Maps canvas tools to AI-compatible tool adapters
  */
 class AdapterRegistry {
-  private adapters = new Map<string, ToolAdapter>()
+  private adapters = new Map<string, ToolAdapter | UnifiedToolAdapter<Record<string, unknown>, Record<string, unknown>>>()
   
   /**
    * Register a tool adapter
    */
-  register(adapter: ToolAdapter): void {
+  register(adapter: ToolAdapter | UnifiedToolAdapter<Record<string, unknown>, Record<string, unknown>>): void {
     this.adapters.set(adapter.aiName, adapter)
     // console.log(`[AdapterRegistry] Registered AI adapter: ${adapter.aiName}`)
     // console.log(`[AdapterRegistry] Adapter description: ${adapter.description}`)
@@ -20,21 +21,21 @@ class AdapterRegistry {
   /**
    * Register multiple adapters at once
    */
-  registerMany(adapters: ToolAdapter[]): void {
+  registerMany(adapters: (ToolAdapter | UnifiedToolAdapter<Record<string, unknown>, Record<string, unknown>>)[]): void {
     adapters.forEach(adapter => this.register(adapter))
   }
   
   /**
    * Get adapter by name
    */
-  get(name: string): ToolAdapter | undefined {
+  get(name: string): ToolAdapter | UnifiedToolAdapter<unknown, unknown> | undefined {
     return this.adapters.get(name)
   }
   
   /**
    * Get all registered adapters
    */
-  getAll(): ToolAdapter[] {
+  getAll(): (ToolAdapter | UnifiedToolAdapter<unknown, unknown>)[] {
     return Array.from(this.adapters.values())
   }
   
@@ -77,21 +78,29 @@ class AdapterRegistry {
   /**
    * Get adapters by category for routing decisions
    */
-  getByCategory(category: 'canvas-editing' | 'ai-native'): ToolAdapter[] {
-    return this.getAll().filter(adapter => adapter.metadata.category === category)
+  getByCategory(category: 'canvas-editing' | 'ai-native'): (ToolAdapter | UnifiedToolAdapter<any, any>)[] {
+    return this.getAll().filter(adapter => {
+      // UnifiedToolAdapter doesn't have metadata.category, so we'll consider them all canvas-editing for now
+      if ('metadata' in adapter) {
+        return adapter.metadata.category === category
+      } else {
+        // UnifiedToolAdapter - assume canvas-editing
+        return category === 'canvas-editing'
+      }
+    })
   }
   
   /**
    * Get only canvas editing tools (for workflows)
    */
-  getCanvasEditingTools(): ToolAdapter[] {
+  getCanvasEditingTools(): (ToolAdapter | UnifiedToolAdapter<any, any>)[] {
     return this.getByCategory('canvas-editing')
   }
   
   /**
    * Get only AI-native tools (for single-tool execution)
    */
-  getAINativeTools(): ToolAdapter[] {
+  getAINativeTools(): (ToolAdapter | UnifiedToolAdapter<any, any>)[] {
     return this.getByCategory('ai-native')
   }
   
@@ -120,7 +129,7 @@ export async function autoDiscoverAdapters(): Promise<void> {
     const { ResizeToolAdapter } = await import('./tools/resize')
     const { FlipToolAdapter } = await import('./tools/flip')
     const { RotateToolAdapter } = await import('./tools/rotate')
-    const { ImageGenerationAdapter } = await import('./tools/imageGeneration')
+    const { ImageGenerationAdapter } = await import('./tools/ImageGenerationAdapter')
     const { ExposureToolAdapter } = await import('./tools/exposure')
     const { HueToolAdapter } = await import('./tools/hue')
     const { BlurToolAdapter } = await import('./tools/blur')
@@ -128,7 +137,7 @@ export async function autoDiscoverAdapters(): Promise<void> {
     const { GrayscaleToolAdapter } = await import('./tools/grayscale')
     const { InvertToolAdapter } = await import('./tools/invert')
     const { VintageEffectsToolAdapter } = await import('./tools/vintageEffects')
-    const { addTextAdapter } = await import('./tools/addText')
+    const { AddTextToolAdapter } = await import('./tools/addText')
     const { AnalyzeCanvasAdapter } = await import('./tools/analyzeCanvas')
     const { CanvasSelectionManagerAdapter } = await import('./tools/canvasSelectionManager')
     const { BrushToolAdapter } = await import('./tools/brush')
@@ -154,7 +163,7 @@ export async function autoDiscoverAdapters(): Promise<void> {
       new GrayscaleToolAdapter(),
       new InvertToolAdapter(),
       new VintageEffectsToolAdapter(),
-      addTextAdapter,  // This is already an instance
+      new AddTextToolAdapter(),
       new AnalyzeCanvasAdapter(),
       new CanvasSelectionManagerAdapter(),
       new BrushToolAdapter(),

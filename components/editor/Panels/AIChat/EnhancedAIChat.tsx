@@ -24,7 +24,7 @@ export function EnhancedAIChat() {
   
   const isCanvasReady = !!canvasManager?.konvaStage
   
-  const hasContent = () => {
+  const _hasContent = () => {
     return canvasManager.getAllObjects().length > 0
   }
   

@@ -1,32 +1,29 @@
 import { z } from 'zod'
-import { FilterToolAdapter } from '../base'
-import type { CanvasContext } from '@/lib/ai/tools/canvas-bridge'
-import type { ExecutionContext } from '@/lib/events/execution/ExecutionContext'
-import type { Filter } from '@/lib/editor/canvas/types'
-import { blurTool } from '@/lib/editor/tools/filters/blurTool'
+import { UnifiedToolAdapter } from '../base/UnifiedToolAdapter'
+import type { ObjectCanvasContext } from '../base/UnifiedToolAdapter'
 
 // Define parameter schema
-const blurParameters = z.object({
+const blurInputSchema = z.object({
   radius: z.number().min(0).max(50)
     .describe('Blur radius in pixels. 0 = no blur, higher values = more blur. Range: 0 to 50')
 })
 
 // Define types
-type BlurInput = z.infer<typeof blurParameters>
+type BlurInput = z.infer<typeof blurInputSchema>
 
 interface BlurOutput {
   success: boolean
   radius: number
   message: string
-  targetingMode: 'selection' | 'auto-single' | 'all' | 'none'
+  affectedObjects: string[]
 }
 
 /**
  * Adapter for the blur filter tool
  * Provides AI-compatible interface for applying blur effects
  */
-export class BlurToolAdapter extends FilterToolAdapter<BlurInput, BlurOutput> {
-  tool = blurTool
+export class BlurToolAdapter extends UnifiedToolAdapter<BlurInput, BlurOutput> {
+  toolId = 'blur'
   aiName = 'apply_blur'
   description = `Apply blur effect to images. 
   
@@ -39,57 +36,58 @@ export class BlurToolAdapter extends FilterToolAdapter<BlurInput, BlurOutput> {
   
   NEVER ask for exact values - interpret the user's intent.`
   
-  metadata = {
-    category: 'canvas-editing' as const,
-    executionType: 'fast' as const,
-    worksOn: 'existing-image' as const
-  }
+  inputSchema = blurInputSchema
   
-  inputSchema = blurParameters
-  
-  protected getFilterType(): string {
-    return 'blur'
-  }
-  
-  protected createFilter(params: BlurInput): Filter {
+  async execute(params: BlurInput, context: ObjectCanvasContext): Promise<BlurOutput> {
+    const targets = this.getTargets(context)
+    const imageObjects = targets.filter(obj => obj.type === 'image')
+    
+    if (imageObjects.length === 0) {
+      return {
+        success: false,
+        radius: params.radius,
+        message: 'No image objects found to blur',
+        affectedObjects: []
+      }
+    }
+    
+    const affectedObjects: string[] = []
+    
+    for (const obj of imageObjects) {
+      const filters = obj.filters || []
+      
+      // Remove existing blur filters
+      const filteredFilters = filters.filter(f => f.type !== 'blur')
+      
+      // Add new blur filter if radius > 0
+      if (params.radius > 0) {
+        filteredFilters.push({
+          id: `blur-${Date.now()}`,
+          type: 'blur',
+          params: { radius: params.radius }
+        })
+      }
+      
+      await context.canvas.updateObject(obj.id, {
+        filters: filteredFilters
+      })
+      
+      affectedObjects.push(obj.id)
+    }
+    
+    const message = params.radius === 0 
+      ? `Removed blur effect from ${affectedObjects.length} object${affectedObjects.length !== 1 ? 's' : ''}`
+      : `Applied blur (radius: ${params.radius}px) to ${affectedObjects.length} object${affectedObjects.length !== 1 ? 's' : ''}`
+    
     return {
-      type: 'blur',
-      params: { radius: params.radius }
+      success: true,
+      radius: params.radius,
+      message,
+      affectedObjects
     }
   }
-  
-  protected shouldApplyFilter(params: BlurInput): boolean {
-    return params.radius > 0
-  }
-  
-  protected getActionVerb(): string {
-    return 'apply blur'
-  }
-  
-  async execute(
-    params: BlurInput, 
-    context: CanvasContext,
-    executionContext?: ExecutionContext
-  ): Promise<BlurOutput> {
-    return this.executeWithCommonPatterns(
-      params,
-      context,
-      async (images, execContext) => {
-        console.log(`[BlurAdapter] Applying blur with radius: ${params.radius}px`)
-        
-        // Apply blur filter to all target images
-        await this.applyFilterToImages(images, params, context.canvas, execContext)
-        
-        const message = params.radius === 0 
-          ? 'Blur effect removed'
-          : `Blur applied with ${params.radius}px radius`
-        
-        return {
-          radius: params.radius,
-          message
-        }
-      },
-      executionContext
-    )
-  }
-} 
+}
+
+// Export singleton instance
+const blurAdapter = new BlurToolAdapter()
+export default blurAdapter 

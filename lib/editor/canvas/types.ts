@@ -45,23 +45,8 @@ export type BlendMode =
   | 'color'
   | 'luminosity'
 
-export interface CanvasObject {
-  id: string
-  type: 'image' | 'text' | 'shape' | 'path' | 'group' | 'verticalText'
-  name?: string
-  visible: boolean
-  locked: boolean
-  opacity: number
-  blendMode: BlendMode
-  transform: Transform
-  node: Konva.Node // Konva node reference
-  layerId: string
-  // Additional data based on type
-  data?: HTMLImageElement | string | Record<string, unknown> // Type-specific data
-  filters?: Filter[]
-  style?: Record<string, string | number | boolean>
-  metadata?: Record<string, unknown>
-}
+// CanvasObject is now defined in @/lib/editor/objects/types
+// This old definition is removed to avoid conflicts
 
 export interface Layer {
   id: string
@@ -76,7 +61,7 @@ export interface Layer {
   konvaLayer: Konva.Layer
   
   // Objects in this layer
-  objects: CanvasObject[]
+  objects: import('@/lib/editor/objects/types').CanvasObject[]
   
   // Parent layer for groups
   parentId?: string
@@ -104,7 +89,7 @@ export interface CanvasState {
   pan: Point
   
   // Object properties (NO LAYERS!)
-  objects: Map<string, CanvasObject> // Object ID -> Object
+  objects: Map<string, import('@/lib/editor/objects/types').CanvasObject> // Object ID -> Object
   objectOrder: string[] // IDs in z-order
   selectedObjectIds: Set<string> // Selected object IDs
   pixelSelection?: Selection // Selection within object
@@ -153,7 +138,8 @@ export interface Filter {
   name?: string
   type: 'brightness' | 'contrast' | 'blur' | 'grayscale' | 'sepia' | 'invert' | 
         'hue' | 'saturation' | 'pixelate' | 'noise' | 'emboss' | 'enhance' | 
-        'sharpen' | 'custom'
+        'sharpen' | 'brownie' | 'vintage-pinhole' | 'kodachrome' | 'technicolor' | 
+        'polaroid' | 'custom'
   params: Record<string, number | string | boolean>
   apply?: (imageData: ImageData, params: Record<string, unknown>) => ImageData
 }
@@ -311,45 +297,45 @@ export interface FilterParams {
   rotation?: number
 }
 
+// Type alias for cleaner references
+type CanvasObjectType = import('@/lib/editor/objects/types').CanvasObject
+
 // Serialization helpers
-export type SerializedCanvasObject = Omit<CanvasObject, 'node'> & {
+export type SerializedCanvasObject = Omit<CanvasObjectType, 'node'> & {
   node?: undefined
 }
 
-export function serializeCanvasObject(obj: CanvasObject): SerializedCanvasObject {
-  const { node: _node, ...rest } = obj
+export function serializeCanvasObject(obj: CanvasObjectType): SerializedCanvasObject {
+  // Remove any Konva node references for serialization
+  const { ...rest } = obj
   return rest as SerializedCanvasObject
 }
 
-export function serializeCanvasObjects(objects: CanvasObject[]): SerializedCanvasObject[] {
+export function serializeCanvasObjects(objects: CanvasObjectType[]): SerializedCanvasObject[] {
   return objects.map(serializeCanvasObject)
 }
 
 // Type guards for data unions
-export function isImageData(data: CanvasObject['data']): data is HTMLImageElement {
-  return data instanceof HTMLImageElement
+export function isImageData(data: CanvasObjectType['data']): data is import('@/lib/editor/objects/types').ImageData {
+  return data && typeof data === 'object' && 'element' in data
 }
 
-export function isStringData(data: CanvasObject['data']): data is string {
-  return typeof data === 'string'
+export function isStringData(data: CanvasObjectType['data']): data is import('@/lib/editor/objects/types').TextData {
+  return data && typeof data === 'object' && 'content' in data
 }
 
-export function isRecordData(data: CanvasObject['data']): data is Record<string, unknown> {
-  return data !== null && 
-         data !== undefined && 
-         typeof data === 'object' && 
-         !(data instanceof HTMLImageElement) &&
-         typeof data !== 'string'
+export function isRecordData(data: CanvasObjectType['data']): data is import('@/lib/editor/objects/types').ShapeData {
+  return data && typeof data === 'object' && 'type' in data
 }
 
 // Helper to get typed metadata
-export function getTypedMetadata(obj: CanvasObject): TypedMetadata {
+export function getTypedMetadata(obj: CanvasObjectType): TypedMetadata {
   return (obj.metadata || {}) as TypedMetadata
 }
 
 // Helper to safely access metadata values
 export function getMetadataValue<T extends MetadataValue>(
-  obj: CanvasObject,
+  obj: CanvasObjectType,
   key: keyof TypedMetadata,
   defaultValue: T
 ): T {
@@ -373,7 +359,7 @@ export function getTransformScale(transform: Transform): { x: number; y: number 
 // Canvas context type for AI operations
 export interface CanvasContext {
   canvas: CanvasManager
-  targetImages: CanvasObject[]
+  targetImages: CanvasObjectType[]
   targetingMode: 'all' | 'selected' | 'layer' | 'none' | 'auto-single'
   dimensions: {
     width: number

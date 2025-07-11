@@ -15,6 +15,10 @@ import { SelectionManager } from '@/lib/editor/selection/SelectionManager'
 import { SelectionRenderer } from '@/lib/editor/selection/SelectionRenderer'
 import { calculateFitToScreenScale } from './helpers'
 import type { CanvasObject } from '@/lib/editor/objects/types'
+import { ObjectFilterManager } from '@/lib/editor/filters/ObjectFilterManager'
+import { ServiceContainer } from '@/lib/core/ServiceContainer'
+import { EventStore } from '@/lib/events/core/EventStore'
+import { ResourceManager } from '@/lib/core/ResourceManager'
 
 /**
  * Object-based canvas manager implementation
@@ -28,6 +32,9 @@ export class CanvasManager implements ICanvasManager {
   // Selection system
   private selectionManager: SelectionManager | null = null
   private selectionRenderer: SelectionRenderer | null = null
+  
+  // Filter system
+  private filterManager: ObjectFilterManager | null = null
   
   // Canvas ID
   public readonly id: string = nanoid()
@@ -93,6 +100,17 @@ export class CanvasManager implements ICanvasManager {
     // Initialize selection system
     this.selectionManager = new SelectionManager(this as unknown as ICanvasManager, this.typedEventBus)
     this.selectionRenderer = new SelectionRenderer(this as unknown as ICanvasManager, this.selectionManager)
+    
+    // Initialize filter system
+    const serviceContainer = ServiceContainer.getInstance()
+    const eventStore = serviceContainer.getSync<EventStore>('EventStore')
+    const resourceManager = serviceContainer.getSync<ResourceManager>('ResourceManager')
+    this.filterManager = new ObjectFilterManager(
+      this,
+      eventStore,
+      typedEventBus,
+      resourceManager
+    )
     
     // Subscribe to object events
     this.subscribeToEvents()
@@ -295,9 +313,10 @@ export class CanvasManager implements ICanvasManager {
       })
     })
     
-    // Handle click for selection
-    node.on('click tap', () => {
-      this.objectManager.selectObject(objectId)
+    // Handle click for selection with smart effect group logic
+    node.on('click tap', (evt) => {
+      const event = evt.evt as MouseEvent
+      this.handleObjectClick(objectId, event)
     })
     
     this.contentLayer.draw()
@@ -559,13 +578,31 @@ export class CanvasManager implements ICanvasManager {
   
   // Filter operations
   async applyFilter(filter: Filter, targetIds?: string[]): Promise<void> {
-    // TODO: Implement filter application
-    console.log('Filter application not yet implemented', filter, targetIds)
+    if (!this.filterManager) {
+      console.error('Filter manager not initialized')
+      return
+    }
+    
+    const ids = targetIds || Array.from(this._state.selectedObjectIds)
+    for (const id of ids) {
+      await this.filterManager.applyFilterToObject(id, filter)
+    }
   }
   
   async removeFilter(filterId: string, targetIds?: string[]): Promise<void> {
-    // TODO: Implement filter removal
-    console.log('Filter removal not yet implemented', filterId, targetIds)
+    if (!this.filterManager) {
+      console.error('Filter manager not initialized')
+      return
+    }
+    
+    const ids = targetIds || Array.from(this._state.selectedObjectIds)
+    for (const id of ids) {
+      await this.filterManager.removeFilterFromObject(id, filterId)
+    }
+  }
+  
+  getFilterManager(): ObjectFilterManager | null {
+    return this.filterManager
   }
   
   // Transform operations
@@ -691,6 +728,9 @@ export class CanvasManager implements ICanvasManager {
   }
   
   destroy(): void {
+    if (this.filterManager) {
+      this.filterManager.destroy()
+    }
     this.stage.destroy()
   }
   
@@ -769,36 +809,177 @@ export class CanvasManager implements ICanvasManager {
   }
   
   async applyAdjustment(objectId: string, adjustment: { type: string; value: number }): Promise<void> {
-    const object = this.getObject(objectId)
-    if (!object) return
+    if (!this.filterManager) {
+      console.error('Filter manager not initialized')
+      return
+    }
     
-    // Store adjustment in object metadata for now
-    // This will be properly implemented with WebGL filters
-    await this.updateObject(objectId, {
-      metadata: {
-        ...object.metadata,
-        adjustments: {
-          ...(object.metadata?.adjustments as Record<string, number> || {}),
-          [adjustment.type]: adjustment.value
-        }
-      }
-    })
+    // Create a proper Adjustment object
+    const adjustmentObj: import('@/lib/editor/objects/types').Adjustment = {
+      id: `${adjustment.type}-${Date.now()}`,
+      type: adjustment.type as import('@/lib/editor/objects/types').Adjustment['type'],
+      params: { value: adjustment.value },
+      enabled: true
+    }
     
-    // TODO: Apply actual adjustment using WebGL filter
-    console.log('Adjustment stored, WebGL implementation pending:', adjustment)
+    await this.filterManager.applyAdjustmentToObject(objectId, adjustmentObj)
   }
   
   async applyFilterToObject(objectId: string, filter: Filter): Promise<void> {
+    if (!this.filterManager) {
+      console.error('Filter manager not initialized')
+      return
+    }
+    
+    await this.filterManager.applyFilterToObject(objectId, filter)
+  }
+  
+  // Effect Group functionality for AI operations
+  async applyEffectWithGroup(
+    targetObject: CanvasObject,
+    effectType: string,
+    effectData: Partial<CanvasObject>
+  ): Promise<string> {
+    // Create effect group
+    const groupId = await this.addObject({
+      type: 'group',
+      name: `${targetObject.name} (${effectType})`,
+      x: targetObject.x,
+      y: targetObject.y,
+      width: targetObject.width,
+      height: targetObject.height,
+      metadata: {
+        isEffectGroup: true,
+        effectType,
+        originalObjectId: targetObject.id,
+        children: [] // Will be populated when objects are moved to group
+      }
+    })
+    
+    // Move original object to group
+    await this.moveObjectToGroup(targetObject.id, groupId)
+    
+    // Add effect object with proper defaults
+    const effectId = await this.addObject({
+      type: effectData.type || 'image',
+      name: `${effectType} Effect`,
+      x: 0, // Relative to group
+      y: 0,
+      width: targetObject.width,
+      height: targetObject.height,
+      ...effectData,
+      metadata: {
+        ...effectData.metadata,
+        parentGroup: groupId,
+        isEffectObject: true,
+        effectType
+      }
+    })
+    
+    // Move effect object to group
+    await this.moveObjectToGroup(effectId, groupId)
+    
+    // Select the group
+    this.selectObject(groupId)
+    
+    return groupId
+  }
+  
+  // Smart selection logic for effect groups
+  handleObjectClick(clickedId: string, event: MouseEvent): void {
+    const clicked = this.getObject(clickedId)
+    if (!clicked) return
+    
+    // Check if part of effect group
+    const parentGroup = this.findParentGroup(clicked)
+    if (parentGroup?.metadata?.isEffectGroup) {
+      // Alt-click selects individual object within group
+      if (event.altKey) {
+        this.selectObject(clickedId)
+      } else {
+        // Normal click selects whole group
+        this.selectObject(parentGroup.id)
+      }
+    } else {
+      // Normal object selection
+      this.selectObject(clickedId)
+    }
+  }
+  
+  // Helper to find parent group of an object
+  private findParentGroup(object: CanvasObject): CanvasObject | null {
+    const parentGroupId = object.metadata?.parentGroup as string
+    if (!parentGroupId) return null
+    
+    const parentGroup = this.getObject(parentGroupId)
+    return parentGroup && parentGroup.type === 'group' ? parentGroup : null
+  }
+  
+  // Get all objects in a group (including nested)
+  getGroupObjects(groupId: string): CanvasObject[] {
+    const group = this.getObject(groupId)
+    if (!group || group.type !== 'group') return []
+    
+    const children = (group.metadata?.children as string[]) || []
+    const objects: CanvasObject[] = []
+    
+    for (const childId of children) {
+      const child = this.getObject(childId)
+      if (child) {
+        objects.push(child)
+        // Recursively get nested group objects
+        if (child.type === 'group') {
+          objects.push(...this.getGroupObjects(childId))
+        }
+      }
+    }
+    
+    return objects
+  }
+  
+  // Ungroup objects (dissolve effect group)
+  async ungroupObjects(groupId: string): Promise<void> {
+    const group = this.getObject(groupId)
+    if (!group || group.type !== 'group') return
+    
+    const children = (group.metadata?.children as string[]) || []
+    
+    // Move all children to root
+    for (const childId of children) {
+      await this.moveObjectToRoot(childId)
+      
+      // Adjust child position to be absolute
+      const child = this.getObject(childId)
+      if (child) {
+        await this.updateObject(childId, {
+          x: child.x + group.x,
+          y: child.y + group.y
+        })
+      }
+    }
+    
+    // Remove the group
+    await this.removeObject(groupId)
+    
+    // Select the former children
+    this.selectMultiple(children)
+  }
+  
+  // Check if an object is part of an effect group
+  isInEffectGroup(objectId: string): boolean {
     const object = this.getObject(objectId)
-    if (!object) return
+    if (!object) return false
     
-    // Add filter to object's filter array
-    const filters = object.filters || []
-    filters.push(filter)
+    const parentGroup = this.findParentGroup(object)
+    return parentGroup?.metadata?.isEffectGroup === true
+  }
+  
+  // Get the effect group for an object (if any)
+  getEffectGroup(objectId: string): CanvasObject | null {
+    const object = this.getObject(objectId)
+    if (!object) return null
     
-    await this.updateObject(objectId, { filters })
-    
-    // TODO: Apply actual filter using WebGL/Konva
-    console.log('Filter added to object, rendering implementation pending:', filter)
+    const parentGroup = this.findParentGroup(object)
+    return parentGroup?.metadata?.isEffectGroup ? parentGroup : null
   }
 } 

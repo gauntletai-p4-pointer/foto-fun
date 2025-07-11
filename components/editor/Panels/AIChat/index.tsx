@@ -194,7 +194,7 @@ export function AIChat() {
       isReady: true
     }
     
-    const allObjects = canvasManager?.getAllObjects() || []
+    const _allObjects = canvasManager?.getAllObjects() || []
     
     // Send message with context in body (matching what the server expects)
     sendMessage(

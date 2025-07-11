@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { UnifiedToolAdapter, type ObjectCanvasContext } from '../base/UnifiedToolAdapter'
-import { contrastTool } from '@/lib/editor/tools/adjustments/contrastTool'
+// import { contrastTool } from '@/lib/editor/tools/adjustments/contrastTool'
 
 // Define parameter schema
 const contrastParameters = z.object({

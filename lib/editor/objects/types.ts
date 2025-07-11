@@ -2,7 +2,7 @@ import type { BlendMode, Filter } from '@/lib/editor/canvas/types'
 
 export interface Adjustment {
   id: string
-  type: 'brightness' | 'contrast' | 'saturation' | 'hue' | 'curves' | 'levels'
+  type: 'brightness' | 'contrast' | 'saturation' | 'hue' | 'curves' | 'levels' | 'exposure'
   params: Record<string, number | string | boolean>
   enabled: boolean
 }

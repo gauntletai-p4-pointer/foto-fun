@@ -153,11 +153,11 @@ export function useToolCallHandler({
               console.log('[AIChat] Tool chain completed successfully:', chainResult)
               
               // After executing all tools, capture the updated canvas state
-              let canvasScreenshot: string | undefined
+              let _canvasScreenshot: string | undefined
               
               if (canvasManager?.konvaStage) {
                 // Capture screenshot for evaluation
-                canvasScreenshot = await canvasManager.konvaStage.toDataURL({
+                _canvasScreenshot = await canvasManager.konvaStage.toDataURL({
                   pixelRatio: 1,
                   mimeType: 'image/png'
                 })
@@ -227,11 +227,11 @@ export function useToolCallHandler({
             }
             
             // After executing all tools, capture the updated canvas state
-            let canvasScreenshot: string | undefined
+            let _canvasScreenshot: string | undefined
             
             if (canvasManager?.konvaStage) {
               // Capture screenshot for evaluation
-              canvasScreenshot = await canvasManager.konvaStage.toDataURL({
+              _canvasScreenshot = await canvasManager.konvaStage.toDataURL({
                 pixelRatio: 1,
                 mimeType: 'image/png'
               })

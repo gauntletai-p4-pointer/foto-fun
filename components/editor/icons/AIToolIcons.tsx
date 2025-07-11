@@ -7,7 +7,6 @@ import {
   Eraser,
   Grid3x3,
   Brush,
-  Image,
   ScanSearch,
   Maximize2,
   UserCheck,

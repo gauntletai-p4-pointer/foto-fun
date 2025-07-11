@@ -20,7 +20,7 @@ export interface ObjectCanvasContext {
  * Base class for unified tool adapters
  * Provides consistent interface for both UI and AI tool execution
  */
-export abstract class UnifiedToolAdapter<TInput = any, TOutput = any> {
+export abstract class UnifiedToolAdapter<TInput = Record<string, unknown>, TOutput = Record<string, unknown>> {
   /**
    * ID of the actual tool this adapter wraps
    */

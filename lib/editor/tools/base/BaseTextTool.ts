@@ -1,7 +1,8 @@
 import { BaseTool } from './BaseTool'
 import Konva from 'konva'
 import { createToolState } from '../utils/toolState'
-import type { ToolEvent, Point, CanvasObject } from '@/lib/editor/canvas/types'
+import type { ToolEvent, Point } from '@/lib/editor/canvas/types'
+import type { CanvasObject } from '@/lib/editor/objects/types'
 import { KonvaObjectAddedEvent, KonvaObjectModifiedEvent } from '@/lib/events/canvas/CanvasEvents'
 
 // Extend TextToolState to satisfy Record constraint

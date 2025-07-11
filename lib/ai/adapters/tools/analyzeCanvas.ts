@@ -1,14 +1,13 @@
 import { z } from 'zod'
-import { tool } from 'ai'
-import { BaseToolAdapter } from '../base'
-import type { CanvasObject } from '@/lib/editor/canvas/types'
-import type { Tool } from '@/types'
-import type { CanvasContext } from '@/lib/ai/tools/canvas-bridge'
+import { UnifiedToolAdapter } from '../base/UnifiedToolAdapter'
+import type { ObjectCanvasContext } from '../base/UnifiedToolAdapter'
 
-export interface AnalyzeCanvasInput {
-  includeHistogram?: boolean
-  includeObjectDetails?: boolean
-}
+const analyzeCanvasInputSchema = z.object({
+  includeHistogram: z.boolean().optional().describe('Include color histogram analysis'),
+  includeObjectDetails: z.boolean().optional().describe('Include details about individual objects')
+})
+
+type AnalyzeCanvasInput = z.infer<typeof analyzeCanvasInputSchema>
 
 export interface AnalyzeCanvasOutput {
   success: boolean
@@ -24,67 +23,52 @@ export interface AnalyzeCanvasOutput {
       dominantColors: string[]
     }
     objects?: Array<{
+      id: string
       type: string
+      name: string
       position: { x: number; y: number }
       size: { width: number; height: number }
+      visible: boolean
+      locked: boolean
     }>
     description: string
   }
+  message: string
 }
 
-export class AnalyzeCanvasAdapter extends BaseToolAdapter<AnalyzeCanvasInput, AnalyzeCanvasOutput> {
-  tool = {} as unknown as Tool // This is a special adapter that doesn't wrap a canvas tool
+/**
+ * Adapter for analyzing the canvas state
+ * Provides detailed information about objects and canvas properties
+ */
+export class AnalyzeCanvasAdapter extends UnifiedToolAdapter<AnalyzeCanvasInput, AnalyzeCanvasOutput> {
+  toolId = 'analyze'
   aiName = 'analyzeCanvas'
   description = `Analyze the current canvas state and provide detailed information about its contents.
 
 This tool provides information about:
 - Canvas dimensions and content
-- Objects and layers present
+- Objects present on the canvas
 - Image analysis and properties
 - Suggestions for improvements
 
 Use this when you need to understand what's currently on the canvas.`
 
-  metadata = {
-    category: 'canvas-editing' as const,
-    executionType: 'fast' as const,
-    worksOn: 'existing-image' as const
-  }
-
-  inputSchema = z.object({
-    includeHistogram: z.boolean().optional().describe('Include color histogram analysis'),
-    includeObjectDetails: z.boolean().optional().describe('Include details about individual objects')
-  })
+  inputSchema = analyzeCanvasInputSchema
   
   async execute(
     params: AnalyzeCanvasInput,
-    context: CanvasContext,
+    context: ObjectCanvasContext,
   ): Promise<AnalyzeCanvasOutput> {
     const { canvas } = context
     
-    if (!canvas) {
-      return {
-        success: false,
-        analysis: {
-          dimensions: { width: 0, height: 0 },
-          hasContent: false,
-          objectCount: 0,
-          description: 'Canvas not available'
-        }
-      }
-    }
-    
     try {
-      // Get basic canvas info
-      const objects: CanvasObject[] = []
-      canvas.state.layers.forEach(layer => {
-        objects.push(...layer.objects)
-      })
+      // Get all objects
+      const objects = canvas.getAllObjects()
       
       const analysis: AnalyzeCanvasOutput['analysis'] = {
         dimensions: {
-          width: (canvas.state.documentBounds?.width || 0),
-          height: (canvas.state.documentBounds?.height || 0)
+          width: canvas.state.canvasWidth,
+          height: canvas.state.canvasHeight
         },
         hasContent: objects.length > 0,
         objectCount: objects.length,
@@ -93,7 +77,7 @@ Use this when you need to understand what's currently on the canvas.`
       
       // Generate a small thumbnail for AI analysis
       if (objects.length > 0) {
-        // For now, we'll skip thumbnail generation as it requires Konva stage access
+        // For now, we'll skip thumbnail generation as it requires canvas rendering
         // This would need to be implemented in the client-side execution
         analysis.imageData = undefined
       }
@@ -106,21 +90,26 @@ Use this when you need to understand what's currently on the canvas.`
       // Get object details if requested
       if (params.includeObjectDetails) {
         analysis.objects = objects.map(obj => ({
-          type: obj.type || 'unknown',
-          position: { x: obj.transform.x || 0, y: obj.transform.y || 0 },
+          id: obj.id,
+          type: obj.type,
+          name: obj.name,
+          position: { x: obj.x, y: obj.y },
           size: { 
-            width: 100 * obj.transform.scaleX, 
-            height: 100 * obj.transform.scaleY 
-          }
+            width: obj.width * (obj.scaleX || 1), 
+            height: obj.height * (obj.scaleY || 1)
+          },
+          visible: obj.visible,
+          locked: obj.locked
         }))
       }
       
       // Generate description
-      analysis.description = this.generateDescription(analysis)
+      analysis.description = this.generateDescription(analysis, objects)
       
       return {
         success: true,
-        analysis
+        analysis,
+        message: 'Canvas analyzed successfully'
       }
     } catch (error) {
       console.error('Canvas analysis error:', error)
@@ -131,7 +120,8 @@ Use this when you need to understand what's currently on the canvas.`
           hasContent: false,
           objectCount: 0,
           description: 'Failed to analyze canvas'
-        }
+        },
+        message: error instanceof Error ? error.message : 'Failed to analyze canvas'
       }
     }
   }
@@ -147,63 +137,34 @@ Use this when you need to understand what's currently on the canvas.`
     }
   }
   
-  private generateDescription(analysis: AnalyzeCanvasOutput['analysis']): string {
+  private generateDescription(
+    analysis: AnalyzeCanvasOutput['analysis'], 
+    objects: Array<{ type: string; name: string }>
+  ): string {
     if (!analysis.hasContent) {
       return `Empty canvas (${analysis.dimensions.width}x${analysis.dimensions.height}px)`
     }
     
-    let desc = `Canvas with ${analysis.objectCount} object(s) at ${analysis.dimensions.width}x${analysis.dimensions.height}px`
+    // Count object types
+    const typeCounts = objects.reduce((acc, obj) => {
+      acc[obj.type] = (acc[obj.type] || 0) + 1
+      return acc
+    }, {} as Record<string, number>)
+    
+    const typeDescriptions = Object.entries(typeCounts)
+      .map(([type, count]) => `${count} ${type}${count > 1 ? 's' : ''}`)
+      .join(', ')
+    
+    let desc = `Canvas (${analysis.dimensions.width}x${analysis.dimensions.height}px) with ${typeDescriptions}`
     
     if (analysis.histogram) {
       const brightness = analysis.histogram.brightness > 0.6 ? 'bright' : 
                         analysis.histogram.brightness < 0.4 ? 'dark' : 'normal brightness'
       const saturation = analysis.histogram.saturation > 0.6 ? 'vibrant' :
                         analysis.histogram.saturation < 0.4 ? 'muted' : 'normal saturation'
-      desc += `. Image appears ${brightness} with ${saturation}`
+      desc += `. Overall appearance: ${brightness} with ${saturation}`
     }
     
     return desc
   }
-  
-  async resolveParams(): Promise<AnalyzeCanvasInput> {
-    // Default behavior - include basic analysis
-    return {
-      includeHistogram: false,
-      includeObjectDetails: false
-    }
-  }
-  
-  clientExecutionRequired = false
-
-  // Override toAITool since this adapter runs server-side
-  toAITool(): unknown {
-    const toolConfig = {
-      description: this.description,
-      inputSchema: this.inputSchema as z.ZodSchema,
-      execute: async (args: unknown) => {
-        console.log(`[${this.aiName}] Server-side analysis tool call with args:`, args)
-        
-        // For analyze canvas, we can't actually execute server-side without the canvas
-        // But we can return a result that tells the AI what to expect
-        return {
-          success: true,
-          analysis: {
-            dimensions: { width: 0, height: 0 },
-            hasContent: true,
-            objectCount: 1,
-            description: 'Canvas analysis requires client-side execution to access the actual canvas',
-            imageData: undefined
-          },
-          message: 'Canvas analysis will be performed on the client',
-          clientExecutionRequired: true,
-          params: args
-        }
-      }
-    }
-    
-    return tool(toolConfig as unknown as Parameters<typeof tool>[0])
-  }
-}
-
-// Export both named and default
-export default AnalyzeCanvasAdapter 
+} 

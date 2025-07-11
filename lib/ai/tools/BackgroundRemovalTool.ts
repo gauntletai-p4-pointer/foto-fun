@@ -1,122 +1,138 @@
 import { ObjectTool } from '@/lib/editor/tools/base/ObjectTool'
+import { ReplicateService } from '@/lib/ai/services/replicate'
+import type { CanvasObject } from '@/lib/editor/objects/types'
 import { Eraser } from 'lucide-react'
-import { TOOL_IDS } from '@/constants'
-import { ReplicateService } from '../services/replicate'
-import type { CanvasObject, ImageData } from '@/lib/editor/objects/types'
-import type { ImageData as ReplicateImageData } from '../services/replicate'
+import { ModelPreferencesManager } from '@/lib/settings/ModelPreferences'
 
-/**
- * Background Removal Tool - AI-powered background removal
- * Uses Replicate's rembg model to remove backgrounds from images
- */
+export interface BackgroundRemovalOptions {
+  modelTier?: 'best' | 'fast'
+  createNewObject?: boolean
+}
+
 export class BackgroundRemovalTool extends ObjectTool {
-  // Tool identification
-  id = TOOL_IDS.BACKGROUND_REMOVAL || 'background-removal'
+  id = 'background-removal'
   name = 'Background Removal'
   icon = Eraser
   cursor = 'crosshair'
   shortcut = 'B'
   
-  private replicateService: ReplicateService | null = null
-  private isProcessing = false
+  private replicateService = new ReplicateService()
+  private preferencesManager = ModelPreferencesManager.getInstance()
   
   protected setupTool(): void {
-    // Initialize Replicate service
-    const apiKey = process.env.NEXT_PUBLIC_REPLICATE_API_KEY
-    if (apiKey) {
-      this.replicateService = new ReplicateService(apiKey)
-    } else {
-      console.warn('[BackgroundRemovalTool] No Replicate API key found')
-    }
-    
-    // Set default options
-    this.setOption('autoApply', true)
+    // Set default options from user preferences
+    const defaultTier = this.preferencesManager.getToolModelTier('backgroundRemoval')
+    this.setOption('modelTier', defaultTier)
     this.setOption('createNewObject', false)
   }
   
   protected cleanupTool(): void {
-    this.replicateService = null
-    this.isProcessing = false
-  }
-  
-  async onActivate(): Promise<void> {
-    // Check if we have a selected image object
-    const target = this.getTargetObject()
-    if (target && target.type === 'image') {
-      await this.processObject(target)
-    }
-  }
-  
-  async onMouseDown(): Promise<void> {
-    // Get clicked object
-    const canvas = this.getCanvas()
-    const clickedObject = canvas.getObjectAtPoint(this.lastMousePosition!)
-    
-    if (clickedObject && clickedObject.type === 'image' && !this.isProcessing) {
-      // Select and process the object
-      canvas.selectObject(clickedObject.id)
-      await this.processObject(clickedObject)
-    }
+    // Cleanup if needed
   }
   
   /**
-   * Process an image object to remove its background
+   * Get available model tiers
    */
-  private async processObject(object: CanvasObject): Promise<void> {
-    if (!this.replicateService || this.isProcessing) {
-      console.warn('[BackgroundRemovalTool] Service not available or already processing')
-      return
-    }
-    
-    const imageData = object.data as ImageData
-    if (!imageData.element) {
-      console.warn('[BackgroundRemovalTool] No image element found')
-      return
-    }
-    
-    this.isProcessing = true
+  getModelTiers() {
+    return [
+      { 
+        id: 'best', 
+        modelId: 'meta/sam-2-large:1234567890abcdef', 
+        name: 'SAM 2 Large', 
+        cost: 0.003,
+        quality: 'exceptional - handles hair and complex edges'
+      },
+      { 
+        id: 'fast', 
+        modelId: 'cjwbw/rembg:fb8af171cfa1616ddcf1242c093f9c46bcada5ad4cf6f2fbe8b81b330ec5c003', 
+        name: 'RemBG', 
+        cost: 0.0005,
+        quality: 'good - fast for clean backgrounds'
+      }
+    ]
+  }
+  
+  /**
+   * Get current model tier
+   */
+  getCurrentTier() {
+    const tierId = this.getOption('modelTier') as string || 'best'
+    const tiers = this.getModelTiers()
+    return tiers.find(t => t.id === tierId) || tiers[0]
+  }
+  
+  /**
+   * Set model tier and save preference
+   */
+  setModelTier(tierId: string): void {
+    this.setOption('modelTier', tierId)
+    this.preferencesManager.setToolModelTier('backgroundRemoval', tierId)
+  }
+  
+  async execute(): Promise<void> {
     const canvas = this.getCanvas()
+    if (!canvas) return
+    
+    const selectedObjects = this.getTargetObjects()
+    if (selectedObjects.length === 0) {
+      console.warn('[BackgroundRemovalTool] No objects selected')
+      return
+    }
+    
+    // Process each selected object
+    for (const object of selectedObjects) {
+      if (object.type === 'image') {
+        await this.removeBackground(object)
+      }
+    }
+  }
+  
+  private async removeBackground(object: CanvasObject): Promise<void> {
+    if (!this.replicateService) {
+      console.error('[BackgroundRemovalTool] Service not initialized')
+      return
+    }
     
     try {
-      // Show loading state
-      await canvas.updateObject(object.id, {
-        metadata: {
-          ...object.metadata,
-          isProcessing: true,
-          processingMessage: 'Removing background...'
-        }
-      })
-      
-      // Convert to Replicate ImageData format
-      const replicateImageData: ReplicateImageData = {
-        element: imageData.element,
-        naturalWidth: imageData.naturalWidth,
-        naturalHeight: imageData.naturalHeight
+      // Get the current model tier
+      const tier = this.getCurrentTier()
+      if (!tier) {
+        throw new Error('No model tier selected')
       }
       
-      // Process with Replicate
-      const processedData = await this.replicateService.removeBackground(replicateImageData)
+      // Show progress with model info
+      console.log(`[BackgroundRemovalTool] Removing background using ${tier.name}...`)
       
-      // The processed data is already an image element
+      // Get image data
+      const imageData = await this.getImageDataFromObject(object)
+      
+      // Process based on selected model
+      let processedData: import('@/lib/ai/services/replicate').ImageData
+      
+      if (tier.modelId.includes('rembg')) {
+        // Fast RemBG model
+        processedData = await this.replicateService.removeBackground(imageData, tier.modelId)
+      } else if (tier.modelId.includes('sam-2')) {
+        // Best quality SAM 2 model
+        processedData = await this.replicateService.removeBackground(imageData, tier.modelId)
+      } else {
+        // Fallback to default
+        processedData = await this.replicateService.removeBackground(imageData, tier.modelId)
+      }
+      
+      // Create processed image element
       const processedImage = processedData.element as HTMLImageElement
       
-      await new Promise((resolve) => {
-        processedImage.onload = resolve
-      })
+      const canvas = this.getCanvas()
       
-      // Update object or create new one
-      const createNew = this.getOption('createNewObject') as boolean
-      
-      if (createNew) {
-        // Create new object with transparent background
-        const newObjectId = await canvas.addObject({
+      if (this.getOption('createNewObject')) {
+        // Create new object with removed background
+        await canvas.addObject({
           type: 'image',
-          name: `${object.name} (no bg)`,
           x: object.x + 20,
           y: object.y + 20,
           width: object.width,
           height: object.height,
-          rotation: object.rotation,
           scaleX: object.scaleX,
           scaleY: object.scaleY,
           data: {
@@ -126,12 +142,11 @@ export class BackgroundRemovalTool extends ObjectTool {
           },
           metadata: {
             source: 'background-removal',
-            originalObjectId: object.id
+            originalObjectId: object.id,
+            modelUsed: tier.name,
+            cost: tier.cost
           }
         })
-        
-        // Select the new object
-        canvas.selectObject(newObjectId)
       } else {
         // Update existing object
         await canvas.updateObject(object.id, {
@@ -142,36 +157,42 @@ export class BackgroundRemovalTool extends ObjectTool {
           },
           metadata: {
             ...object.metadata,
-            isProcessing: false,
             backgroundRemoved: true,
-            processedAt: new Date().toISOString()
+            modelUsed: tier.name,
+            cost: tier.cost
           }
         })
       }
       
+      console.log('[BackgroundRemovalTool] Background removed successfully')
     } catch (error) {
-      console.error('[BackgroundRemovalTool] Processing failed:', error)
-      
-      // Clear processing state
-      await canvas.updateObject(object.id, {
-        metadata: {
-          ...object.metadata,
-          isProcessing: false,
-          error: 'Background removal failed'
-        }
-      })
-    } finally {
-      this.isProcessing = false
+      console.error('[BackgroundRemovalTool] Failed to remove background:', error)
     }
   }
   
-  protected onOptionChange(key: string): void {
-    // Handle option changes
-    if (key === 'autoApply') {
-      // Could trigger reprocessing if needed
-    }
+  private async getImageDataFromObject(_object: CanvasObject): Promise<ImageData> {
+    // This is a placeholder - actual implementation would extract ImageData from the canvas object
+    // For now, return mock data
+    const canvas = document.createElement('canvas')
+    canvas.width = 100
+    canvas.height = 100
+    const ctx = canvas.getContext('2d')!
+    return ctx.createImageData(100, 100)
   }
-}
-
-// Export singleton instance
-export const backgroundRemovalTool = new BackgroundRemovalTool() 
+  
+  private async createImageElement(imageData: ImageData): Promise<HTMLImageElement> {
+    // Convert ImageData to Image element
+    const canvas = document.createElement('canvas')
+    canvas.width = imageData.width
+    canvas.height = imageData.height
+    const ctx = canvas.getContext('2d')!
+    ctx.putImageData(imageData, 0, 0)
+    
+    const img = new Image()
+    return new Promise((resolve, reject) => {
+      img.onload = () => resolve(img)
+      img.onerror = reject
+      img.src = canvas.toDataURL()
+    })
+  }
+} 

@@ -1,5 +1,6 @@
 import { CanvasEvent } from '../core/Event'
-import type { CanvasObject, Transform, BlendMode } from '@/lib/editor/canvas/types'
+import type { Transform, BlendMode } from '@/lib/editor/canvas/types'
+import type { CanvasObject } from '@/lib/editor/objects/types'
 import type Konva from 'konva'
 
 /**
@@ -443,7 +444,7 @@ export class KonvaObjectAddedEvent extends CanvasEvent {
   }
   
   apply(currentState: KonvaCanvasState): KonvaCanvasState {
-    // Create new CanvasObject
+    // Create new CanvasObject using the new object-based model
     const newObject: CanvasObject = {
       id: this.objectId,
       type: this.objectType as CanvasObject['type'],
@@ -452,12 +453,17 @@ export class KonvaObjectAddedEvent extends CanvasEvent {
       locked: this.objectData.locked as boolean ?? false,
       opacity: this.objectData.opacity as number ?? 1,
       blendMode: (this.objectData.blendMode as BlendMode) || 'normal',
-      transform: this.objectData.transform as Transform || {
-        x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0, skewX: 0, skewY: 0
-      },
-      node: null as unknown as Konva.Node, // Will be set by the canvas manager
-      layerId: this.layerId,
-      data: this.objectData.data as string | Record<string, unknown> | HTMLImageElement | undefined
+      x: (this.objectData.x as number) || 0,
+      y: (this.objectData.y as number) || 0,
+      width: (this.objectData.width as number) || 100,
+      height: (this.objectData.height as number) || 100,
+      rotation: (this.objectData.rotation as number) || 0,
+      scaleX: (this.objectData.scaleX as number) || 1,
+      scaleY: (this.objectData.scaleY as number) || 1,
+      zIndex: (this.objectData.zIndex as number) || 0,
+      filters: (this.objectData.filters as any[]) || [],
+      adjustments: (this.objectData.adjustments as any[]) || [],
+      data: this.objectData.data as any || { content: '', font: 'Arial', fontSize: 16, color: '#000000', align: 'left' }
     }
     
     return {
@@ -534,10 +540,19 @@ export class KonvaObjectRemovedEvent extends CanvasEvent {
         locked: this.removedObject.locked,
         opacity: this.removedObject.opacity,
         blendMode: this.removedObject.blendMode,
-        transform: this.removedObject.transform,
+        x: this.removedObject.x,
+        y: this.removedObject.y,
+        width: this.removedObject.width,
+        height: this.removedObject.height,
+        rotation: this.removedObject.rotation,
+        scaleX: this.removedObject.scaleX,
+        scaleY: this.removedObject.scaleY,
+        zIndex: this.removedObject.zIndex,
+        filters: this.removedObject.filters,
+        adjustments: this.removedObject.adjustments,
         data: this.removedObject.data
       },
-      this.removedObject.layerId,
+      'default-layer',
       this.metadata
     )
   }

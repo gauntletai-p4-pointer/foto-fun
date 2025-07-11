@@ -1,33 +1,31 @@
 import { z } from 'zod'
-import { CanvasToolAdapter } from '../base'
-import { rotateTool } from '@/lib/editor/tools/transform/rotateTool'
-import type { CanvasContext } from '@/lib/ai/tools/canvas-bridge'
-import type { ExecutionContext } from '@/lib/events/execution/ExecutionContext'
+import { UnifiedToolAdapter } from '../base/UnifiedToolAdapter'
+import type { ObjectCanvasContext } from '../base/UnifiedToolAdapter'
 
 // Define parameter schema
-const rotateParameters = z.object({
+const rotateInputSchema = z.object({
   angle: z.number().min(-360).max(360)
     .describe('Rotation angle in degrees. Positive values rotate clockwise, negative values rotate counter-clockwise')
 })
 
 // Define types
-type RotateInput = z.infer<typeof rotateParameters>
+type RotateInput = z.infer<typeof rotateInputSchema>
 
 interface RotateOutput {
   success: boolean
   angle: number
   message: string
-  targetingMode: 'selection' | 'auto-single' | 'all' | 'none'
+  affectedObjects: string[]
 }
 
 /**
  * Adapter for the rotate tool
- * Provides AI-compatible interface for rotating images
+ * Provides AI-compatible interface for rotating objects
  */
-export class RotateToolAdapter extends CanvasToolAdapter<RotateInput, RotateOutput> {
-  tool = rotateTool
-  aiName = 'rotate_image'
-  description = `Rotate images by a specific angle.
+export class RotateToolAdapter extends UnifiedToolAdapter<RotateInput, RotateOutput> {
+  toolId = 'rotate'
+  aiName = 'rotate_objects'
+  description = `Rotate objects by a specific angle.
 
   You MUST calculate the rotation angle based on user intent:
   - "rotate 90 degrees" → 90
@@ -41,41 +39,45 @@ export class RotateToolAdapter extends CanvasToolAdapter<RotateInput, RotateOutp
   
   NEVER ask for exact angles - interpret the user's intent.`
   
-  metadata = {
-    category: 'canvas-editing' as const,
-    executionType: 'fast' as const,
-    worksOn: 'existing-image' as const
-  }
-  
-  inputSchema = rotateParameters
-  
-  protected getActionVerb(): string {
-    return 'rotate'
-  }
+  inputSchema = rotateInputSchema
   
   async execute(
     params: RotateInput, 
-    context: CanvasContext,
-    executionContext?: ExecutionContext
+    context: ObjectCanvasContext
   ): Promise<RotateOutput> {
-    return this.executeWithCommonPatterns(
-      params,
-      context,
-      async (images) => {
-        console.log(`[RotateAdapter] Rotating ${images.length} images by ${params.angle} degrees`)
-        
-        // Apply rotation to all target images using CanvasManager
-        await context.canvas.rotate(params.angle, images)
-        
-        const directionText = params.angle > 0 ? 'clockwise' : 'counter-clockwise'
-        const message = `Rotated ${images.length} image${images.length !== 1 ? 's' : ''} by ${Math.abs(params.angle)}° ${directionText}`
-        
-        return {
-          angle: params.angle,
-          message
-        }
-      },
-      executionContext
-    )
+    const targets = this.getTargets(context)
+    
+    if (targets.length === 0) {
+      return {
+        success: false,
+        angle: params.angle,
+        message: 'No objects selected to rotate',
+        affectedObjects: []
+      }
+    }
+    
+    const affectedObjects: string[] = []
+    
+    // Apply rotation to all target objects
+    for (const obj of targets) {
+      const currentRotation = obj.rotation || 0
+      const newRotation = currentRotation + params.angle
+      
+      await context.canvas.updateObject(obj.id, {
+        rotation: newRotation
+      })
+      
+      affectedObjects.push(obj.id)
+    }
+    
+    const directionText = params.angle > 0 ? 'clockwise' : 'counter-clockwise'
+    const message = `Rotated ${affectedObjects.length} object${affectedObjects.length !== 1 ? 's' : ''} by ${Math.abs(params.angle)}° ${directionText}`
+    
+    return {
+      success: true,
+      angle: params.angle,
+      message,
+      affectedObjects
+    }
   }
 } 

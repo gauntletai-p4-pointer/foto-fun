@@ -3,7 +3,7 @@ import { ObjectTool } from '@/lib/editor/tools/base/ObjectTool'
 import type { CanvasObject } from '@/lib/editor/objects/types'
 import type { ToolEvent } from '@/lib/editor/canvas/types'
 import { ReplicateService } from '@/lib/ai/services/replicate'
-import { TOOL_IDS } from '@/constants'
+// import { TOOL_IDS } from '@/constants'
 
 /**
  * Face Enhancement Tool - AI-powered face enhancement
@@ -119,7 +119,7 @@ export class FaceEnhancementTool extends ObjectTool {
           type: 'ai.face.enhanced',
           objectId: object.id,
           scale: this.getOption('enhancementScale')
-        } as any)
+        } as { type: string; objectId: string; scale: unknown })
       }
       
     } catch (error) {

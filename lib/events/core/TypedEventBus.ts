@@ -1,4 +1,5 @@
-import type { Layer, Selection, Point, CanvasObject } from '@/lib/editor/canvas/types'
+import type { Layer, Selection, Point } from '@/lib/editor/canvas/types'
+import type { CanvasObject } from '@/lib/editor/objects/types'
 
 /**
  * Event type registry for type-safe event handling
@@ -380,6 +381,33 @@ export interface EventRegistry {
   }
   'command.redone': {
     commandId: string
+  }
+  
+  // AI events
+  'ai.processing.started': {
+    taskId: string
+    toolId: string
+    description: string
+    targetObjectIds?: string[]
+  }
+  'ai.processing.completed': {
+    taskId: string
+    toolId: string
+    success: boolean
+    result?: Record<string, unknown>
+    affectedObjectIds?: string[]
+  }
+  'ai.processing.failed': {
+    taskId: string
+    toolId: string
+    error: string
+    details?: Record<string, unknown>
+  }
+  'tool.message': {
+    toolId: string
+    message: string
+    type: 'info' | 'warning' | 'error' | 'success'
+    data?: Record<string, unknown>
   }
 }
 

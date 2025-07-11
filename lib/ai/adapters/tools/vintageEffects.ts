@@ -1,33 +1,29 @@
 import { z } from 'zod'
-import { BaseToolAdapter } from '../base'
-import type { CanvasContext } from '@/lib/ai/tools/canvas-bridge'
-import type { ExecutionContext } from '@/lib/events/execution/ExecutionContext'
-import { vintageEffectsTool } from '@/lib/editor/tools/filters/vintageEffectsTool'
-import { ServiceContainer } from '@/lib/core/ServiceContainer'
-import type { EventToolStore } from '@/lib/store/tools/EventToolStore'
+import { UnifiedToolAdapter } from '../base/UnifiedToolAdapter'
+import type { ObjectCanvasContext } from '../base/UnifiedToolAdapter'
 
 // Define parameter schema
-const vintageEffectsParameters = z.object({
-  effect: z.enum(['sepia', 'blackAndWhite', 'vintage1970s', 'vintagePolaroid'])
+const vintageEffectsInputSchema = z.object({
+  effect: z.enum(['brownie', 'vintage-pinhole', 'kodachrome', 'technicolor', 'polaroid'])
     .describe('The vintage effect to apply')
 })
 
 // Define types
-type VintageEffectsInput = z.infer<typeof vintageEffectsParameters>
+type VintageEffectsInput = z.infer<typeof vintageEffectsInputSchema>
 
 interface VintageEffectsOutput {
   success: boolean
   effect: string
   message: string
-  targetingMode: 'selection' | 'auto-single'
+  affectedObjects: string[]
 }
 
 /**
  * Adapter for the vintage effects tool
  * Provides AI-compatible interface for applying vintage film effects
  */
-export class VintageEffectsToolAdapter extends BaseToolAdapter<VintageEffectsInput, VintageEffectsOutput> {
-  tool = vintageEffectsTool
+export class VintageEffectsToolAdapter extends UnifiedToolAdapter<VintageEffectsInput, VintageEffectsOutput> {
+  toolId = 'vintage-effects'
   aiName = 'applyVintageEffect'
   description = `Apply vintage film effects to images. These are WebGL-powered effects that simulate classic film types.
 
@@ -50,97 +46,64 @@ Common requests:
 
 NEVER ask which effect - interpret the user's intent and choose the most appropriate effect.`
   
-  metadata = {
-    category: 'canvas-editing' as const,
-    executionType: 'fast' as const,
-    worksOn: 'existing-image' as const
-  }
+  inputSchema = vintageEffectsInputSchema
   
-  inputSchema = vintageEffectsParameters
-  
-  async execute(
-    params: VintageEffectsInput, 
-    context: CanvasContext,
-    executionContext?: ExecutionContext
-  ): Promise<VintageEffectsOutput> {
-    try {
-      console.log(`[VintageEffectsAdapter] Execute called with effect: ${params.effect}`)
-      
-      const canvas = context.canvas
-      if (!canvas) {
-        throw new Error('Canvas is required but not provided in context')
-      }
-      
-      // Get target images from context
-      const images = context.targetImages
-      
-      if (images.length === 0) {
-        throw new Error('No images found to apply vintage effect')
-      }
-      
-      // Create a selection snapshot from the target images
-      const { SelectionSnapshotFactory } = await import('@/lib/ai/execution/SelectionSnapshot')
-      const selectionSnapshot = SelectionSnapshotFactory.fromObjects(images)
-      
-      // Apply vintage effect using the tool
-      const container = ServiceContainer.getInstance()
-      const toolStore = container.getSync<EventToolStore>('ToolStore')
-      
-      // Activate the tool
-      await toolStore.activateTool(this.tool.id)
-      
-      // Set selection snapshot on the tool
-      const tool = toolStore.getTool(this.tool.id)
-      if (tool && 'setSelectionSnapshot' in tool && typeof tool.setSelectionSnapshot === 'function') {
-        tool.setSelectionSnapshot(selectionSnapshot)
-      }
-      
-      // Set the effect on the tool
-      if (tool && 'setOption' in tool && typeof tool.setOption === 'function') {
-        tool.setOption('effect', params.effect)
-      }
-      
-      // If we have an execution context, set it on the tool
-      if (tool && executionContext && 'setExecutionContext' in tool) {
-        const toolWithContext = tool as { setExecutionContext: (context: ExecutionContext) => void }
-        toolWithContext.setExecutionContext(executionContext)
-      }
-      
-      // Apply effect using the tool's method
-      if (tool && 'applyVintageEffect' in tool && typeof tool.applyVintageEffect === 'function') {
-        const toolWithApply = tool as { applyVintageEffect: (effect: string) => Promise<void> }
-        await toolWithApply.applyVintageEffect(params.effect)
-      }
-      
-      // Get human-readable effect name
-      const effectNames: Record<string, string> = {
-        'brownie': 'Brownie camera',
-        'vintage-pinhole': 'Vintage pinhole',
-        'kodachrome': 'Kodachrome film',
-        'technicolor': 'Technicolor film',
-        'polaroid': 'Polaroid instant camera'
-      }
-      
-      const effectName = effectNames[params.effect] || params.effect
-      const message = `Applied ${effectName} effect to ${images.length} image${images.length !== 1 ? 's' : ''}`
-      
-      return {
-        success: true,
-        effect: params.effect,
-        message,
-        targetingMode: context.targetingMode === 'selection' || context.targetingMode === 'auto-single' 
-          ? context.targetingMode 
-          : 'auto-single' // Default to auto-single for 'all' or 'none'
-      }
-    } catch (error) {
+  async execute(params: VintageEffectsInput, context: ObjectCanvasContext): Promise<VintageEffectsOutput> {
+    const targets = this.getTargets(context)
+    const imageObjects = targets.filter(obj => obj.type === 'image')
+    
+    if (imageObjects.length === 0) {
       return {
         success: false,
-        effect: '',
-        message: error instanceof Error ? error.message : 'Failed to apply vintage effect',
-        targetingMode: context.targetingMode === 'selection' || context.targetingMode === 'auto-single' 
-          ? context.targetingMode 
-          : 'auto-single' // Default to auto-single for 'all' or 'none'
+        effect: params.effect,
+        message: 'No image objects found to apply vintage effect',
+        affectedObjects: []
       }
     }
+    
+    const affectedObjects: string[] = []
+    
+    for (const obj of imageObjects) {
+      const filters = obj.filters || []
+      
+      // Remove existing vintage effect filters
+      const filteredFilters = filters.filter(f => !['brownie', 'vintage-pinhole', 'kodachrome', 'technicolor', 'polaroid'].includes(f.type))
+      
+      // Add new vintage effect filter
+      filteredFilters.push({
+        id: `vintage-${Date.now()}`,
+        type: params.effect,
+        params: {}
+      })
+      
+      await context.canvas.updateObject(obj.id, {
+        filters: filteredFilters
+      })
+      
+      affectedObjects.push(obj.id)
+    }
+    
+    // Get human-readable effect name
+    const effectNames: Record<string, string> = {
+      'brownie': 'Brownie camera',
+      'vintage-pinhole': 'Vintage pinhole',
+      'kodachrome': 'Kodachrome film',
+      'technicolor': 'Technicolor film',
+      'polaroid': 'Polaroid instant camera'
+    }
+    
+    const effectName = effectNames[params.effect] || params.effect
+    const message = `Applied ${effectName} effect to ${affectedObjects.length} object${affectedObjects.length !== 1 ? 's' : ''}`
+    
+    return {
+      success: true,
+      effect: params.effect,
+      message,
+      affectedObjects
+    }
   }
-} 
+}
+
+// Export singleton instance
+const vintageEffectsAdapter = new VintageEffectsToolAdapter()
+export default vintageEffectsAdapter 

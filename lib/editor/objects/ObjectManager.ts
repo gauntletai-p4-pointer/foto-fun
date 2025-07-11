@@ -98,7 +98,7 @@ export class ObjectManager {
     }
     
     // Remove from parent group if any
-    for (const [id, obj] of this.objects) {
+    for (const [_id, obj] of this.objects) {
       if (obj.type === 'group' && obj.children?.includes(objectId)) {
         obj.children = obj.children.filter(cId => cId !== objectId)
       }
@@ -337,7 +337,7 @@ export class ObjectManager {
     if (!object || !group || group.type !== 'group') return
     
     // Remove from current parent if any
-    for (const [id, obj] of this.objects) {
+    for (const [_id, obj] of this.objects) {
       if (obj.type === 'group' && obj.children?.includes(objectId)) {
         obj.children = obj.children.filter(cId => cId !== objectId)
       }

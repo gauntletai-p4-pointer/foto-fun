@@ -4,7 +4,7 @@ import type { ToolEvent } from '@/lib/editor/canvas/types'
 import type { CanvasObject } from '@/lib/editor/objects/types'
 import { ReplicateService } from '@/lib/ai/services/replicate'
 import { TypedEventBus } from '@/lib/events/core/TypedEventBus'
-import { nanoid } from 'nanoid'
+// import { nanoid } from 'nanoid'
 import { isImageObject } from '@/lib/editor/objects/types'
 import { AIPromptBrushIcon } from '@/components/editor/icons/AIToolIcons'
 
@@ -135,7 +135,7 @@ export class AIPromptBrush extends ObjectDrawingTool {
     this.updatePreview()
   }
   
-  async onMouseUp(event: ToolEvent): Promise<void> {
+  async onMouseUp(_event: ToolEvent): Promise<void> {
     if (!this.isDrawing || !this.currentStroke || !this.strokeCanvas) return
     
     this.isDrawing = false

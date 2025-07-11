@@ -60,13 +60,13 @@ export function ObjectTreeItem({
   
   const Icon = objectTypeIcons[object.type] || Square
   
-  const handleVisibilityToggle = async (e: React.MouseEvent) => {
-    e.stopPropagation()
+  const handleVisibilityToggle = async (_e: React.MouseEvent) => {
+    _e.stopPropagation()
     await canvasManager.updateObject(object.id, { visible: !object.visible })
   }
   
-  const handleLockToggle = async (e: React.MouseEvent) => {
-    e.stopPropagation()
+  const handleLockToggle = async (_e: React.MouseEvent) => {
+    _e.stopPropagation()
     await canvasManager.updateObject(object.id, { locked: !object.locked })
   }
   
@@ -79,20 +79,20 @@ export function ObjectTreeItem({
     }
   }
   
-  const handleGroupToggle = (e: React.MouseEvent) => {
+    const handleGroupToggle = (e: React.MouseEvent) => {
     e.stopPropagation()
     if (isGroup) {
       onToggleExpand(object.id)
     }
   }
-  
-  const handleDragEnter = (e: React.DragEvent) => {
+
+  const handleDragEnter = (_e: React.DragEvent) => {
     if (isGroup) {
       setIsDragOver(true)
     }
   }
-  
-  const handleDragLeave = (e: React.DragEvent) => {
+
+  const handleDragLeave = (_e: React.DragEvent) => {
     setIsDragOver(false)
   }
   

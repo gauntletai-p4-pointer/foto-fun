@@ -1,31 +1,28 @@
 import { z } from 'zod'
-import { FilterToolAdapter } from '../base'
-import type { CanvasContext } from '@/lib/ai/tools/canvas-bridge'
-import type { ExecutionContext } from '@/lib/events/execution/ExecutionContext'
-import type { Filter } from '@/lib/editor/canvas/types'
-import { grayscaleTool } from '@/lib/editor/tools/filters/grayscaleTool'
+import { UnifiedToolAdapter } from '../base/UnifiedToolAdapter'
+import type { ObjectCanvasContext } from '../base/UnifiedToolAdapter'
 
 // Define parameter schema
-const grayscaleParameters = z.object({
+const grayscaleInputSchema = z.object({
   enabled: z.boolean().describe('Whether to apply grayscale effect. true = convert to grayscale, false = remove grayscale')
 })
 
 // Define types
-type GrayscaleInput = z.infer<typeof grayscaleParameters>
+type GrayscaleInput = z.infer<typeof grayscaleInputSchema>
 
 interface GrayscaleOutput {
   success: boolean
   enabled: boolean
   message: string
-  targetingMode: 'selection' | 'auto-single' | 'all' | 'none'
+  affectedObjects: string[]
 }
 
 /**
  * Adapter for the grayscale filter tool
  * Provides AI-compatible interface for converting images to grayscale
  */
-export class GrayscaleToolAdapter extends FilterToolAdapter<GrayscaleInput, GrayscaleOutput> {
-  tool = grayscaleTool
+export class GrayscaleToolAdapter extends UnifiedToolAdapter<GrayscaleInput, GrayscaleOutput> {
+  toolId = 'grayscale'
   aiName = 'apply_grayscale'
   description = `Convert images to grayscale (black and white) or remove grayscale effect.
   
@@ -38,57 +35,58 @@ export class GrayscaleToolAdapter extends FilterToolAdapter<GrayscaleInput, Gray
   
   NEVER ask the user - determine from their intent.`
   
-  metadata = {
-    category: 'canvas-editing' as const,
-    executionType: 'fast' as const,
-    worksOn: 'existing-image' as const
-  }
+  inputSchema = grayscaleInputSchema
   
-  inputSchema = grayscaleParameters
-  
-  protected getFilterType(): string {
-    return 'grayscale'
-  }
-  
-  protected createFilter(): Filter {
+  async execute(params: GrayscaleInput, context: ObjectCanvasContext): Promise<GrayscaleOutput> {
+    const targets = this.getTargets(context)
+    const imageObjects = targets.filter(obj => obj.type === 'image')
+    
+    if (imageObjects.length === 0) {
+      return {
+        success: false,
+        enabled: params.enabled,
+        message: 'No image objects found to apply grayscale',
+        affectedObjects: []
+      }
+    }
+    
+    const affectedObjects: string[] = []
+    
+    for (const obj of imageObjects) {
+      const filters = obj.filters || []
+      
+      // Remove existing grayscale filters
+      const filteredFilters = filters.filter(f => f.type !== 'grayscale')
+      
+      // Add grayscale filter if enabled
+      if (params.enabled) {
+        filteredFilters.push({
+          id: `grayscale-${Date.now()}`,
+          type: 'grayscale',
+          params: {}
+        })
+      }
+      
+      await context.canvas.updateObject(obj.id, {
+        filters: filteredFilters
+      })
+      
+      affectedObjects.push(obj.id)
+    }
+    
+    const message = params.enabled 
+      ? `Converted ${affectedObjects.length} object${affectedObjects.length !== 1 ? 's' : ''} to grayscale`
+      : `Removed grayscale effect from ${affectedObjects.length} object${affectedObjects.length !== 1 ? 's' : ''}`
+    
     return {
-      type: 'grayscale',
-      params: {}
+      success: true,
+      enabled: params.enabled,
+      message,
+      affectedObjects
     }
   }
-  
-  protected shouldApplyFilter(params: GrayscaleInput): boolean {
-    return params.enabled
-  }
-  
-  protected getActionVerb(): string {
-    return 'apply grayscale'
-  }
-  
-  async execute(
-    params: GrayscaleInput, 
-    context: CanvasContext,
-    executionContext?: ExecutionContext
-  ): Promise<GrayscaleOutput> {
-    return this.executeWithCommonPatterns(
-      params,
-      context,
-      async (images, _execContext) => {
-        console.log(`[GrayscaleAdapter] ${params.enabled ? 'Applying' : 'Removing'} grayscale effect`)
-        
-        // Apply or remove grayscale filter
-        await this.applyFilterToImages(images, params, context.canvas, _execContext)
-        
-        const message = params.enabled 
-          ? 'Image converted to grayscale'
-          : 'Grayscale effect removed'
-        
-        return {
-          enabled: params.enabled,
-          message
-        }
-      },
-      executionContext
-    )
-  }
-} 
+}
+
+// Export singleton instance
+const grayscaleAdapter = new GrayscaleToolAdapter()
+export default grayscaleAdapter 

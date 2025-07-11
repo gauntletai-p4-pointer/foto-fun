@@ -1,31 +1,28 @@
 import { z } from 'zod'
-import { BaseToolAdapter } from '../base'
-import { exposureTool } from '@/lib/editor/tools/adjustments/exposureTool'
-import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
-import type { CanvasContext } from '@/lib/ai/tools/canvas-bridge'
+import { UnifiedToolAdapter } from '../base/UnifiedToolAdapter'
+import type { ObjectCanvasContext } from '../base/UnifiedToolAdapter'
 
 // Define parameter schema
-const exposureParameters = z.object({
+const exposureInputSchema = z.object({
   adjustment: z.number()
     .min(-100)
     .max(100)
     .describe('Exposure adjustment from -100 (darkest) to 100 (brightest)')
 })
 
-type ExposureInput = z.infer<typeof exposureParameters>
+type ExposureInput = z.infer<typeof exposureInputSchema>
 
 // Define output type
 interface ExposureOutput {
   success: boolean
   adjustment: number
-  affectedImages: number
   message: string
-  targetingMode: 'selection' | 'auto-single'
+  affectedObjects: string[]
 }
 
 // Create adapter class
-export class ExposureToolAdapter extends BaseToolAdapter<ExposureInput, ExposureOutput> {
-  tool = exposureTool
+export class ExposureToolAdapter extends UnifiedToolAdapter<ExposureInput, ExposureOutput> {
+  toolId = 'exposure'
   aiName = 'adjustExposure'
   description = `Adjust the exposure of existing images (simulates camera exposure compensation).
 
@@ -54,46 +51,52 @@ Note: Exposure has a more dramatic effect than brightness, affecting the entire 
 NEVER ask for exact values - always interpret the user's intent and choose an appropriate value.
 Range: -100 (very dark) to +100 (very bright)`
 
-  metadata = {
-    category: 'canvas-editing' as const,
-    executionType: 'fast' as const,
-    worksOn: 'existing-image' as const
-  }
-
-  inputSchema = exposureParameters
+  inputSchema = exposureInputSchema
   
-  async execute(params: ExposureInput, context: CanvasContext): Promise<ExposureOutput> {
-    console.log('[ExposureToolAdapter] ===== EXECUTE CALLED =====')
-    console.log('[ExposureToolAdapter] Execute called with params:', params)
-    console.log('[ExposureToolAdapter] Adjustment value:', params.adjustment)
-    console.log('[ExposureToolAdapter] Targeting mode:', context.targetingMode)
+  async execute(params: ExposureInput, context: ObjectCanvasContext): Promise<ExposureOutput> {
+    const targets = this.getTargets(context)
+    const imageObjects = targets.filter(obj => obj.type === 'image')
     
-    // Use pre-filtered target images from enhanced context
-    const images = context.targetImages
-    
-    console.log('[ExposureToolAdapter] Target images:', images.length)
-    console.log('[ExposureToolAdapter] Targeting mode:', context.targetingMode)
-    
-    if (images.length === 0) {
-      throw new Error('No images found to adjust exposure. Please load an image or select images first.')
+    if (imageObjects.length === 0) {
+      return {
+        success: false,
+        adjustment: params.adjustment,
+        message: 'No image objects found to adjust exposure',
+        affectedObjects: []
+      }
     }
     
-    // Create a selection snapshot from the target images
-    const { SelectionSnapshotFactory } = await import('@/lib/ai/execution/SelectionSnapshot')
-    const selectionSnapshot = SelectionSnapshotFactory.fromObjects(images)
+    const affectedObjects: string[] = []
     
-    // Apply the exposure adjustment using the base class helper with selection snapshot
-    await this.applyToolOperation(this.tool.id, 'adjustment', params.adjustment, context.canvas, selectionSnapshot)
-    
-    console.log('[ExposureToolAdapter] Exposure adjustment applied successfully')
-    console.log('[ExposureToolAdapter] Final result: adjustment =', params.adjustment, '%')
+    for (const obj of imageObjects) {
+      const adjustments = obj.adjustments || []
+      
+      // Remove existing exposure adjustments
+      const filteredAdjustments = adjustments.filter(adj => adj.type !== 'exposure')
+      
+      // Add new exposure adjustment if not zero
+      if (params.adjustment !== 0) {
+        filteredAdjustments.push({
+          id: `exposure-${Date.now()}`,
+          type: 'exposure',
+          params: { value: params.adjustment },
+          enabled: true
+        })
+      }
+      
+      await context.canvas.updateObject(obj.id, {
+        adjustments: filteredAdjustments
+      })
+      
+      affectedObjects.push(obj.id)
+    }
     
     // Generate descriptive message
     let description = ''
     const magnitude = Math.abs(params.adjustment)
     
     if (params.adjustment === 0) {
-      description = 'No change to exposure'
+      description = 'Reset exposure to neutral'
     } else if (params.adjustment > 0) {
       // Increased exposure (overexposed)
       if (magnitude <= 25) {
@@ -122,28 +125,14 @@ Range: -100 (very dark) to +100 (very bright)`
     const stops = Math.abs(params.adjustment / 33)
     const stopInfo = stops >= 0.5 ? ` (~${stops.toFixed(1)} stops)` : ''
     
-    const message = `${description} (${params.adjustment > 0 ? '+' : ''}${params.adjustment}%${stopInfo}) on ${images.length} image${images.length !== 1 ? 's' : ''}`
+    const message = `${description} (${params.adjustment > 0 ? '+' : ''}${params.adjustment}%${stopInfo}) on ${affectedObjects.length} object${affectedObjects.length !== 1 ? 's' : ''}`
     
     return {
       success: true,
       adjustment: params.adjustment,
-      affectedImages: images.length,
       message,
-      targetingMode: context.targetingMode === 'selection' || context.targetingMode === 'auto-single' 
-        ? context.targetingMode 
-        : 'auto-single' // Default to auto-single for 'all' or 'none'
+      affectedObjects
     }
-  }
-  
-  canExecute(canvas: CanvasManager): boolean {
-    // Can only adjust exposure if there are images on the canvas
-    const hasImages = canvas.state.layers.some(layer => 
-      layer.objects.some(obj => obj.type === 'image')
-    )
-    if (!hasImages) {
-      console.warn('Exposure tool: No images on canvas')
-    }
-    return hasImages
   }
 }
 

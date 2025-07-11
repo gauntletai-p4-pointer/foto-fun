@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { UnifiedToolAdapter, type ObjectCanvasContext } from '../base/UnifiedToolAdapter'
-import { brightnessTool } from '@/lib/editor/tools/adjustments/brightnessTool'
+// import { brightnessTool } from '@/lib/editor/tools/adjustments/brightnessTool'
 
 // Define parameter schema
 const brightnessParameters = z.object({

@@ -348,7 +348,7 @@ export function ToolPalette() {
     const Icon = activeGroupTool.icon
     const isExpanded = expandedGroup === group.id
     
-    const handleGroupClick = (e: React.MouseEvent) => {
+    const handleGroupClick = (_e: React.MouseEvent) => {
       if (hasMultipleTools) {
         // Always activate the default/primary tool
         handleToolClick(activeGroupTool.id, activeGroupTool.isImplemented, group.id)

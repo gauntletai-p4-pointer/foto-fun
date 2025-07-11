@@ -1,35 +1,31 @@
 import { z } from 'zod'
-import { BaseToolAdapter } from '../base'
-import { hueTool } from '@/lib/editor/tools/adjustments/hueTool'
-import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
-import type { CanvasContext } from '@/lib/ai/tools/canvas-bridge'
+import { UnifiedToolAdapter } from '../base/UnifiedToolAdapter'
+import type { ObjectCanvasContext } from '../base/UnifiedToolAdapter'
 
 // Input schema following AI SDK v5 patterns
-const hueParameters = z.object({
+const hueInputSchema = z.object({
   rotation: z.number()
     .min(-180)
     .max(180)
     .describe('Hue rotation in degrees from -180 to 180, where 0 is no change')
 })
 
-type HueInput = z.infer<typeof hueParameters>
+type HueInput = z.infer<typeof hueInputSchema>
 
 // Output type
 interface HueOutput {
   success: boolean
-  previousValue: number
-  newValue: number
-  affectedImages: number
-  targetingMode: 'selection' | 'auto-single'
-  message?: string
+  rotation: number
+  message: string
+  affectedObjects: string[]
 }
 
 /**
  * Adapter for the hue tool to make it AI-compatible
  * Following AI SDK v5 patterns with intelligent image targeting
  */
-export class HueToolAdapter extends BaseToolAdapter<HueInput, HueOutput> {
-  tool = hueTool
+export class HueToolAdapter extends UnifiedToolAdapter<HueInput, HueOutput> {
+  toolId = 'hue'
   aiName = 'adjustHue'
   description = `Adjust image hue (color rotation on the color wheel). You MUST calculate the rotation value based on user intent.
 
@@ -58,44 +54,52 @@ If NO explicit degrees are given, use these patterns:
 NOTE: This rotates ALL colors on the color wheel by the same amount.
 NEVER ask for exact values - always interpret the user's intent and choose an appropriate value.`
   
-  inputSchema = hueParameters
+  inputSchema = hueInputSchema
   
-  // Add metadata property required by BaseToolAdapter
-  metadata = {
-    category: 'canvas-editing' as const,
-    executionType: 'fast' as const,
-    worksOn: 'existing-image' as const
-  }
-  
-  async execute(params: HueInput, context: CanvasContext): Promise<HueOutput> {
-    console.log('[HueToolAdapter] Execute called with params:', params)
-    console.log('[HueToolAdapter] Targeting mode:', context.targetingMode)
+  async execute(params: HueInput, context: ObjectCanvasContext): Promise<HueOutput> {
+    const targets = this.getTargets(context)
+    const imageObjects = targets.filter(obj => obj.type === 'image')
     
-    // Use pre-filtered target images from enhanced context
-    const images = context.targetImages
-    
-    console.log('[HueToolAdapter] Target images:', images.length)
-    console.log('[HueToolAdapter] Targeting mode:', context.targetingMode)
-    
-    if (images.length === 0) {
-      throw new Error('No images found to adjust hue. Please load an image or select images first.')
+    if (imageObjects.length === 0) {
+      return {
+        success: false,
+        rotation: params.rotation,
+        message: 'No image objects found to adjust hue',
+        affectedObjects: []
+      }
     }
     
-    // Create a selection snapshot from the target images
-    const { SelectionSnapshotFactory } = await import('@/lib/ai/execution/SelectionSnapshot')
-    const selectionSnapshot = SelectionSnapshotFactory.fromObjects(images)
+    const affectedObjects: string[] = []
     
-    // Apply the hue adjustment using the base class helper with selection snapshot
-    await this.applyToolOperation(this.tool.id, 'rotation', params.rotation, context.canvas, selectionSnapshot)
-    
-    console.log('[HueToolAdapter] Hue adjustment applied successfully')
+    for (const obj of imageObjects) {
+      const adjustments = obj.adjustments || []
+      
+      // Remove existing hue adjustments
+      const filteredAdjustments = adjustments.filter(adj => adj.type !== 'hue')
+      
+      // Add new hue adjustment if not zero
+      if (params.rotation !== 0) {
+        filteredAdjustments.push({
+          id: `hue-${Date.now()}`,
+          type: 'hue',
+          params: { value: params.rotation },
+          enabled: true
+        })
+      }
+      
+      await context.canvas.updateObject(obj.id, {
+        adjustments: filteredAdjustments
+      })
+      
+      affectedObjects.push(obj.id)
+    }
     
     // Generate descriptive message based on rotation
     let colorShift = ''
     const normalizedRotation = ((params.rotation % 360) + 360) % 360 // Normalize to 0-360
     
     if (params.rotation === 0) {
-      colorShift = 'No color shift applied'
+      colorShift = 'Reset hue to original colors'
     } else if (params.rotation === 180 || params.rotation === -180) {
       colorShift = 'Shifted to complementary colors'
     } else if (normalizedRotation >= 345 || normalizedRotation <= 30) {
@@ -112,29 +116,14 @@ NEVER ask for exact values - always interpret the user's intent and choose an ap
       colorShift = 'Shifted colors toward purple/magenta tones'
     }
     
-    const message = `${colorShift} (${params.rotation > 0 ? '+' : ''}${params.rotation}°) on ${images.length} image${images.length !== 1 ? 's' : ''}`
+    const message = `${colorShift} (${params.rotation > 0 ? '+' : ''}${params.rotation}°) on ${affectedObjects.length} object${affectedObjects.length !== 1 ? 's' : ''}`
     
     return {
       success: true,
-      previousValue: 0, // In a real implementation, we'd track the current hue
-      newValue: params.rotation,
-      affectedImages: images.length,
-      targetingMode: context.targetingMode === 'selection' || context.targetingMode === 'auto-single' 
-        ? context.targetingMode 
-        : 'auto-single', // Default to auto-single for 'all' or 'none'
-      message
+      rotation: params.rotation,
+      message,
+      affectedObjects
     }
-  }
-  
-  canExecute(canvas: CanvasManager): boolean {
-    // Can only adjust hue if there are images on the canvas
-    const hasImages = canvas.state.layers.some(layer => 
-      layer.objects.some(obj => obj.type === 'image')
-    )
-    if (!hasImages) {
-      console.warn('Hue tool: No images on canvas')
-    }
-    return hasImages
   }
 }
 

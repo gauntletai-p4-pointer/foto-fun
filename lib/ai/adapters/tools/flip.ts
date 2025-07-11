@@ -1,33 +1,31 @@
 import { z } from 'zod'
-import { CanvasToolAdapter } from '../base'
-import { flipTool } from '@/lib/editor/tools/transform/flipTool'
-import type { CanvasContext } from '@/lib/ai/tools/canvas-bridge'
-import type { ExecutionContext } from '@/lib/events/execution/ExecutionContext'
+import { UnifiedToolAdapter } from '../base/UnifiedToolAdapter'
+import type { ObjectCanvasContext } from '../base/UnifiedToolAdapter'
 
 // Define parameter schema
-const flipParameters = z.object({
+const flipInputSchema = z.object({
   direction: z.enum(['horizontal', 'vertical'])
     .describe('Direction to flip: horizontal (left-right) or vertical (up-down)')
 })
 
 // Define types
-type FlipInput = z.infer<typeof flipParameters>
+type FlipInput = z.infer<typeof flipInputSchema>
 
 interface FlipOutput {
   success: boolean
   direction: 'horizontal' | 'vertical'
   message: string
-  targetingMode: 'selection' | 'auto-single' | 'all' | 'none'
+  affectedObjects: string[]
 }
 
 /**
  * Adapter for the flip tool
- * Provides AI-compatible interface for flipping images
+ * Provides AI-compatible interface for flipping objects
  */
-export class FlipToolAdapter extends CanvasToolAdapter<FlipInput, FlipOutput> {
-  tool = flipTool
-  aiName = 'flip_image'
-  description = `Flip images horizontally or vertically.
+export class FlipToolAdapter extends UnifiedToolAdapter<FlipInput, FlipOutput> {
+  toolId = 'flip'
+  aiName = 'flip_objects'
+  description = `Flip objects horizontally or vertically.
 
   You MUST determine the flip direction based on user intent:
   - "flip horizontally" or "mirror" → horizontal
@@ -37,41 +35,51 @@ export class FlipToolAdapter extends CanvasToolAdapter<FlipInput, FlipOutput> {
   
   NEVER ask for the direction - interpret the user's intent.`
   
-  metadata = {
-    category: 'canvas-editing' as const,
-    executionType: 'fast' as const,
-    worksOn: 'existing-image' as const
-  }
-  
-  inputSchema = flipParameters
-  
-  protected getActionVerb(): string {
-    return 'flip'
-  }
+  inputSchema = flipInputSchema
   
   async execute(
     params: FlipInput, 
-    context: CanvasContext,
-    executionContext?: ExecutionContext
+    context: ObjectCanvasContext
   ): Promise<FlipOutput> {
-    return this.executeWithCommonPatterns(
-      params,
-      context,
-      async (images) => {
-        console.log(`[FlipAdapter] Flipping ${images.length} images ${params.direction}ly`)
-        
-        // Apply flip to all target images using CanvasManager
-        await context.canvas.flip(params.direction, images)
-        
-        const directionText = params.direction === 'horizontal' ? 'horizontally' : 'vertically'
-        const message = `Flipped ${images.length} image${images.length !== 1 ? 's' : ''} ${directionText}`
-        
-        return {
-          direction: params.direction,
-          message
-        }
-      },
-      executionContext
-    )
+    const targets = this.getTargets(context)
+    
+    if (targets.length === 0) {
+      return {
+        success: false,
+        direction: params.direction,
+        message: 'No objects selected to flip',
+        affectedObjects: []
+      }
+    }
+    
+    const affectedObjects: string[] = []
+    
+    // Apply flip to all target objects
+    for (const obj of targets) {
+      const currentScaleX = obj.scaleX || 1
+      const currentScaleY = obj.scaleY || 1
+      
+      if (params.direction === 'horizontal') {
+        await context.canvas.updateObject(obj.id, {
+          scaleX: -currentScaleX
+        })
+      } else {
+        await context.canvas.updateObject(obj.id, {
+          scaleY: -currentScaleY
+        })
+      }
+      
+      affectedObjects.push(obj.id)
+    }
+    
+    const directionText = params.direction === 'horizontal' ? 'horizontally' : 'vertically'
+    const message = `Flipped ${affectedObjects.length} object${affectedObjects.length !== 1 ? 's' : ''} ${directionText}`
+    
+    return {
+      success: true,
+      direction: params.direction,
+      message,
+      affectedObjects
+    }
   }
 } 

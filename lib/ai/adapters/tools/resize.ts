@@ -1,10 +1,9 @@
 import { z } from 'zod'
-import { BaseToolAdapter } from '../base'
-import { resizeTool } from '@/lib/editor/tools/transform/resizeTool'
-import type { CanvasContext } from '@/lib/ai/tools/canvas-bridge'
+import { UnifiedToolAdapter } from '../base/UnifiedToolAdapter'
+import type { ObjectCanvasContext } from '../base/UnifiedToolAdapter'
 
 // Define parameter schema
-const resizeParameters = z.object({
+const resizeInputSchema = z.object({
   mode: z.enum(['percentage', 'absolute'])
     .describe('Resize mode: percentage (scale) or absolute (specific dimensions)'),
   width: z.number()
@@ -21,7 +20,7 @@ const resizeParameters = z.object({
   maintainAspectRatio: data.maintainAspectRatio ?? true
 }))
 
-type ResizeInput = z.infer<typeof resizeParameters>
+type ResizeInput = z.infer<typeof resizeInputSchema>
 
 // Define output type
 interface ResizeOutput {
@@ -29,18 +28,21 @@ interface ResizeOutput {
   mode: string
   dimensions: { width: number; height: number }
   message: string
-  targetingMode: 'selection' | 'auto-single'
+  affectedObjects: string[]
 }
 
-// Create adapter class
-export class ResizeToolAdapter extends BaseToolAdapter<ResizeInput, ResizeOutput> {
-  tool = resizeTool
-  aiName = 'resizeImage'
-  description = `Resize existing images to different dimensions. You MUST calculate dimensions based on user intent.
+/**
+ * Adapter for the resize tool
+ * Provides AI-compatible interface for resizing objects
+ */
+export class ResizeToolAdapter extends UnifiedToolAdapter<ResizeInput, ResizeOutput> {
+  toolId = 'resize'
+  aiName = 'resizeObjects'
+  description = `Resize objects to different dimensions. You MUST calculate dimensions based on user intent.
 
 INTELLIGENT TARGETING:
-- If you have images selected, only those images will be resized
-- If no images are selected, all images on the canvas will be resized
+- If you have objects selected, only those objects will be resized
+- If no objects are selected, all objects on the canvas will be resized
 
 Common resize requests:
 - "resize to 50%" → mode: "percentage", width: 50, maintainAspectRatio: true
@@ -51,143 +53,119 @@ Common resize requests:
 
 NEVER ask for exact dimensions - interpret the user's intent.`
 
-  metadata = {
-    category: 'canvas-editing' as const,
-    executionType: 'fast' as const,
-    worksOn: 'existing-image' as const
-  }
-
-  inputSchema = resizeParameters
+  inputSchema = resizeInputSchema
   
-  async execute(params: ResizeInput, context: CanvasContext): Promise<ResizeOutput> {
-    try {
-      console.log('[ResizeToolAdapter] Execute called with params:', params)
-      console.log('[ResizeToolAdapter] Targeting mode:', context.targetingMode)
-      
-      // Use pre-filtered target images from enhanced context
-      const images = context.targetImages
-      
-      console.log('[ResizeToolAdapter] Target images:', images.length)
-      console.log('[ResizeToolAdapter] Targeting mode:', context.targetingMode)
-      
-      if (images.length === 0) {
-        throw new Error('No images found to resize. Please load an image or select images first.')
-      }
-      
-      // Create a selection snapshot from the target images
-      const { SelectionSnapshotFactory } = await import('@/lib/ai/execution/SelectionSnapshot')
-      const selectionSnapshot = SelectionSnapshotFactory.fromObjects(images)
-      
-      // Tool activation is handled by the base class applyToolOperation method
-      
-      // Small delay to ensure tool is activated and subscribed
-      await new Promise(resolve => setTimeout(resolve, 50))
-      
-      try {
-        // TODO: Implement tool options when stores are migrated
-        /*
-        // Get the resize tool options and update them
-        const { useToolOptionsStore } = await import('@/store/toolOptionsStore')
-        const store = useToolOptionsStore.getState()
-        
-        // Set the mode
-        store.updateOption(this.tool.id, 'mode', params.mode)
-        store.updateOption(this.tool.id, 'maintainAspectRatio', params.maintainAspectRatio)
-        
-        if (params.mode === 'percentage') {
-          store.updateOption(this.tool.id, 'percentage', params.width)
-        } else {
-          // For absolute mode, update width and height
-          const currentWidth = context.canvas.getWidth()
-          const currentHeight = context.canvas.getHeight()
-          const aspectRatio = currentWidth / currentHeight
-          
-          store.updateOption(this.tool.id, 'width', params.width)
-          
-          if (params.height !== undefined) {
-            store.updateOption(this.tool.id, 'height', params.height)
-          } else if (params.maintainAspectRatio) {
-            // Calculate height based on aspect ratio
-            const calculatedHeight = Math.round(params.width / aspectRatio)
-            store.updateOption(this.tool.id, 'height', calculatedHeight)
-          }
-        }
-        */
-        
-        // For now, just apply the resize directly
-        await this.applyToolOperation(this.tool.id, 'resize', params, context.canvas, selectionSnapshot)
-      } finally {
-        // Clear selection snapshot
-        /*
-        if (tool && 'setSelectionSnapshot' in tool && typeof tool.setSelectionSnapshot === 'function') {
-          tool.setSelectionSnapshot(null)
-        }
-        */
-      }
-      
-      const finalDimensions = params.mode === 'percentage' 
-        ? { width: params.width, height: params.width }
-        : { width: params.width, height: params.height || Math.round(params.width / (context.canvas.getWidth() / context.canvas.getHeight())) }
-      
-      console.log('[ResizeToolAdapter] Resize applied successfully')
-      
-      // Generate descriptive message
-      let description = ''
-      
-      if (params.mode === 'percentage') {
-        const scale = params.width // Assuming width and height are the same for percentage mode
-        if (scale === 100) {
-          description = 'No size change'
-        } else if (scale > 100) {
-          description = `Enlarged to ${scale}% of original size`
-        } else {
-          description = `Reduced to ${scale}% of original size`
-        }
-      } else {
-        // Pixels mode
-        const aspectRatio = finalDimensions.width / finalDimensions.height
-        let aspectDescription = ''
-        
-        if (Math.abs(aspectRatio - 1) < 0.01) {
-          aspectDescription = 'square'
-        } else if (aspectRatio > 1.77 && aspectRatio < 1.78) {
-          aspectDescription = '16:9'
-        } else if (aspectRatio > 1.33 && aspectRatio < 1.34) {
-          aspectDescription = '4:3'
-        } else if (aspectRatio > 1) {
-          aspectDescription = 'landscape'
-        } else {
-          aspectDescription = 'portrait'
-        }
-        
-        description = `Resized to ${finalDimensions.width}×${finalDimensions.height}px (${aspectDescription})`
-      }
-      
-      const message = `${description} for ${images.length} image${images.length !== 1 ? 's' : ''}`
-      
-      return {
-        success: true,
-        mode: params.mode,
-        dimensions: finalDimensions,
-        message,
-        targetingMode: context.targetingMode === 'selection' || context.targetingMode === 'auto-single' 
-          ? context.targetingMode 
-          : 'auto-single' // Default to auto-single for 'all' or 'none'
-      }
-    } catch (error) {
+  async execute(params: ResizeInput, context: ObjectCanvasContext): Promise<ResizeOutput> {
+    const targets = this.getTargets(context)
+    
+    if (targets.length === 0) {
       return {
         success: false,
-        mode: '',
+        mode: params.mode,
         dimensions: { width: 0, height: 0 },
-        message: error instanceof Error ? error.message : 'Failed to resize',
-        targetingMode: context.targetingMode === 'selection' || context.targetingMode === 'auto-single' 
-          ? context.targetingMode 
-          : 'auto-single' // Default to auto-single for 'all' or 'none'
+        message: 'No objects found to resize',
+        affectedObjects: []
       }
     }
+    
+    const affectedObjects: string[] = []
+    
+    // Apply resize to all target objects
+    for (const obj of targets) {
+      if (params.mode === 'percentage') {
+        // Scale mode
+        const scale = params.width / 100
+        const currentScaleX = obj.scaleX || 1
+        const currentScaleY = obj.scaleY || 1
+        
+        await context.canvas.updateObject(obj.id, {
+          scaleX: currentScaleX * scale,
+          scaleY: params.maintainAspectRatio ? currentScaleY * scale : currentScaleY
+        })
+      } else {
+        // Absolute mode
+        const currentWidth = obj.width * (obj.scaleX || 1)
+        const currentHeight = obj.height * (obj.scaleY || 1)
+        const aspectRatio = currentWidth / currentHeight
+        
+        const newWidth = params.width
+        let newHeight = params.height
+        
+        if (!newHeight && params.maintainAspectRatio) {
+          newHeight = Math.round(newWidth / aspectRatio)
+        } else if (!newHeight) {
+          newHeight = currentHeight
+        }
+        
+        const newScaleX = newWidth / obj.width
+        const newScaleY = newHeight / obj.height
+        
+        await context.canvas.updateObject(obj.id, {
+          scaleX: newScaleX,
+          scaleY: newScaleY
+        })
+      }
+      
+      affectedObjects.push(obj.id)
+    }
+    
+    // Calculate final dimensions for message
+    let finalDimensions: { width: number; height: number }
+    
+    if (params.mode === 'percentage') {
+      finalDimensions = { width: params.width, height: params.width }
+    } else {
+      const firstObj = targets[0]
+      const currentWidth = firstObj.width * (firstObj.scaleX || 1)
+      const currentHeight = firstObj.height * (firstObj.scaleY || 1)
+      const aspectRatio = currentWidth / currentHeight
+      
+      finalDimensions = {
+        width: params.width,
+        height: params.height || Math.round(params.width / aspectRatio)
+      }
+    }
+    
+    // Generate descriptive message
+    let description = ''
+    
+    if (params.mode === 'percentage') {
+      const scale = params.width
+      if (scale === 100) {
+        description = 'No size change'
+      } else if (scale > 100) {
+        description = `Enlarged to ${scale}% of original size`
+      } else {
+        description = `Reduced to ${scale}% of original size`
+      }
+    } else {
+      // Pixels mode
+      const aspectRatio = finalDimensions.width / finalDimensions.height
+      let aspectDescription = ''
+      
+      if (Math.abs(aspectRatio - 1) < 0.01) {
+        aspectDescription = 'square'
+      } else if (aspectRatio > 1.77 && aspectRatio < 1.78) {
+        aspectDescription = '16:9'
+      } else if (aspectRatio > 1.33 && aspectRatio < 1.34) {
+        aspectDescription = '4:3'
+      } else if (aspectRatio > 1) {
+        aspectDescription = 'landscape'
+      } else {
+        aspectDescription = 'portrait'
+      }
+      
+      description = `Resized to ${finalDimensions.width}×${finalDimensions.height}px (${aspectDescription})`
+    }
+    
+    const message = `${description} for ${affectedObjects.length} object${affectedObjects.length !== 1 ? 's' : ''}`
+    
+    return {
+      success: true,
+      mode: params.mode,
+      dimensions: finalDimensions,
+      message,
+      affectedObjects
+    }
   }
-}
-
-// Export singleton instance
-const resizeAdapter = new ResizeToolAdapter()
-export default resizeAdapter 
+} 

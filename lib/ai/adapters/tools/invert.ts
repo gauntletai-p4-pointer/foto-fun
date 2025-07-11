@@ -1,31 +1,28 @@
 import { z } from 'zod'
-import { FilterToolAdapter } from '../base'
-import type { CanvasContext } from '@/lib/ai/tools/canvas-bridge'
-import type { ExecutionContext } from '@/lib/events/execution/ExecutionContext'
-import type { Filter } from '@/lib/editor/canvas/types'
-import { invertTool } from '@/lib/editor/tools/filters/invertTool'
+import { UnifiedToolAdapter } from '../base/UnifiedToolAdapter'
+import type { ObjectCanvasContext } from '../base/UnifiedToolAdapter'
 
 // Define parameter schema
-const invertParameters = z.object({
+const invertInputSchema = z.object({
   enabled: z.boolean().describe('Whether to apply invert effect. true = invert colors, false = restore original colors')
 })
 
 // Define types
-type InvertInput = z.infer<typeof invertParameters>
+type InvertInput = z.infer<typeof invertInputSchema>
 
 interface InvertOutput {
   success: boolean
   enabled: boolean
   message: string
-  targetingMode: 'selection' | 'auto-single' | 'all' | 'none'
+  affectedObjects: string[]
 }
 
 /**
  * Adapter for the invert filter tool
  * Provides AI-compatible interface for inverting image colors
  */
-export class InvertToolAdapter extends FilterToolAdapter<InvertInput, InvertOutput> {
-  tool = invertTool
+export class InvertToolAdapter extends UnifiedToolAdapter<InvertInput, InvertOutput> {
+  toolId = 'invert'
   aiName = 'invert_colors'
   description = `Invert the colors of images (create negative effect) or restore original colors.
   
@@ -38,57 +35,58 @@ export class InvertToolAdapter extends FilterToolAdapter<InvertInput, InvertOutp
   
   NEVER ask the user - determine from their intent.`
   
-  metadata = {
-    category: 'canvas-editing' as const,
-    executionType: 'fast' as const,
-    worksOn: 'existing-image' as const
-  }
+  inputSchema = invertInputSchema
   
-  inputSchema = invertParameters
-  
-  protected getFilterType(): string {
-    return 'invert'
-  }
-  
-  protected createFilter(): Filter {
+  async execute(params: InvertInput, context: ObjectCanvasContext): Promise<InvertOutput> {
+    const targets = this.getTargets(context)
+    const imageObjects = targets.filter(obj => obj.type === 'image')
+    
+    if (imageObjects.length === 0) {
+      return {
+        success: false,
+        enabled: params.enabled,
+        message: 'No image objects found to invert',
+        affectedObjects: []
+      }
+    }
+    
+    const affectedObjects: string[] = []
+    
+    for (const obj of imageObjects) {
+      const filters = obj.filters || []
+      
+      // Remove existing invert filters
+      const filteredFilters = filters.filter(f => f.type !== 'invert')
+      
+      // Add invert filter if enabled
+      if (params.enabled) {
+        filteredFilters.push({
+          id: `invert-${Date.now()}`,
+          type: 'invert',
+          params: {}
+        })
+      }
+      
+      await context.canvas.updateObject(obj.id, {
+        filters: filteredFilters
+      })
+      
+      affectedObjects.push(obj.id)
+    }
+    
+    const message = params.enabled 
+      ? `Inverted colors on ${affectedObjects.length} object${affectedObjects.length !== 1 ? 's' : ''} (negative effect applied)`
+      : `Removed color inversion from ${affectedObjects.length} object${affectedObjects.length !== 1 ? 's' : ''}`
+    
     return {
-      type: 'invert',
-      params: {}
+      success: true,
+      enabled: params.enabled,
+      message,
+      affectedObjects
     }
   }
-  
-  protected shouldApplyFilter(params: InvertInput): boolean {
-    return params.enabled
-  }
-  
-  protected getActionVerb(): string {
-    return 'invert colors'
-  }
-  
-  async execute(
-    params: InvertInput, 
-    context: CanvasContext,
-    executionContext?: ExecutionContext
-  ): Promise<InvertOutput> {
-    return this.executeWithCommonPatterns(
-      params,
-      context,
-      async (images, execContext) => {
-        console.log(`[InvertAdapter] ${params.enabled ? 'Applying' : 'Removing'} color inversion`)
-        
-        // Apply or remove invert filter
-        await this.applyFilterToImages(images, params, context.canvas, execContext)
-        
-        const message = params.enabled 
-          ? 'Colors inverted (negative effect applied)'
-          : 'Color inversion removed'
-        
-        return {
-          enabled: params.enabled,
-          message
-        }
-      },
-      executionContext
-    )
-  }
-} 
+}
+
+// Export singleton instance
+const invertAdapter = new InvertToolAdapter()
+export default invertAdapter 

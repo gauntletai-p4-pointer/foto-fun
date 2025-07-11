@@ -5,9 +5,9 @@ import { ResourceManager } from './ResourceManager'
 import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
 import type { DocumentSerializer } from '@/lib/editor/persistence/DocumentSerializer'
 import type { ExportManager } from '@/lib/editor/export/ExportManager'
-import type { ImageLoaderService } from '@/lib/editor/canvas/services/ImageLoaderService'
-import type { LayerManager } from '@/lib/editor/canvas/services/LayerManager'
-import type { RenderPipeline } from '@/lib/editor/canvas/services/RenderPipeline'
+// import type { ImageLoaderService } from '@/lib/editor/canvas/services/ImageLoaderService'
+// import type { LayerManager } from '@/lib/editor/canvas/services/LayerManager'
+// import type { RenderPipeline } from '@/lib/editor/canvas/services/RenderPipeline'
 
 // Event System
 import { EventStore } from '@/lib/events/core/EventStore'

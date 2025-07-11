@@ -1,13 +1,9 @@
 import { z } from 'zod'
-import { CanvasToolAdapter } from '../base'
-import { moveTool } from '@/lib/editor/tools/transform/moveTool'
-import type { CanvasContext } from '@/lib/ai/tools/canvas-bridge'
-import type { ExecutionContext } from '@/lib/events/execution/ExecutionContext'
-import type { CanvasObject } from '@/lib/editor/canvas/types'
-import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
+import { UnifiedToolAdapter } from '../base/UnifiedToolAdapter'
+import type { ObjectCanvasContext } from '../base/UnifiedToolAdapter'
 
 // Input schema for move operations
-const moveParameters = z.object({
+const moveInputSchema = z.object({
   x: z.number().optional().describe('Target X position in pixels. If not provided, maintains current X.'),
   y: z.number().optional().describe('Target Y position in pixels. If not provided, maintains current Y.'),
   deltaX: z.number().optional().describe('Move by this amount horizontally (positive = right, negative = left)'),
@@ -18,7 +14,7 @@ const moveParameters = z.object({
   distributeVertically: z.boolean().optional().describe('Distribute selected objects evenly vertically')
 })
 
-type MoveInput = z.infer<typeof moveParameters>
+type MoveInput = z.infer<typeof moveInputSchema>
 
 interface MoveOutput {
   success: boolean
@@ -28,15 +24,15 @@ interface MoveOutput {
     oldPosition: { x: number; y: number }
     newPosition: { x: number; y: number }
   }>
-  message?: string
+  message: string
 }
 
 /**
  * AI adapter for the Move Tool
  * Enables AI to intelligently position and align objects
  */
-export class MoveToolAdapter extends CanvasToolAdapter<MoveInput, MoveOutput> {
-  tool = moveTool
+export class MoveToolAdapter extends UnifiedToolAdapter<MoveInput, MoveOutput> {
+  toolId = 'move'
   aiName = 'moveObjects'
   description = `Move, position, and align objects on the canvas.
 
@@ -55,68 +51,55 @@ INTELLIGENT POSITIONING:
 
 The tool works on selected objects or all objects if none selected.`
 
-  metadata = {
-    category: 'canvas-editing' as const,
-    executionType: 'fast' as const,
-    worksOn: 'existing-image' as const
-  }
-
-  inputSchema = moveParameters
+  inputSchema = moveInputSchema
   
-  protected getActionVerb(): string {
-    return 'move'
-  }
-  
-  async execute(params: MoveInput, context: CanvasContext, executionContext?: ExecutionContext): Promise<MoveOutput> {
-    return this.executeWithCommonPatterns(
-      params,
-      context,
-      async (images) => {
-        const canvas = context.canvas
-        const positions: MoveOutput['positions'] = []
-        
-        // Get objects to move
-        const objectsToMove = images.length > 0 ? images : canvas.state.layers.flatMap(l => l.objects)
-        
-        if (objectsToMove.length === 0) {
-          throw new Error('No objects to move')
-        }
-        
-        // Handle distribution
-        if (params.distributeHorizontally || params.distributeVertically) {
-          await this.distributeObjects(objectsToMove, params, canvas, positions)
-        } 
-        // Handle alignment
-        else if (params.alignment) {
-          await this.alignObjects(objectsToMove, params.alignment, canvas, positions)
-        }
-        // Handle position/delta movement
-        else {
-          await this.moveObjects(objectsToMove, params, canvas, positions)
-        }
-        
-        const message = this.generateMessage(params, positions.length)
-        
-        return {
-          movedObjects: positions.length,
-          positions,
-          message
-        }
-      },
-      executionContext
-    )
+  async execute(params: MoveInput, context: ObjectCanvasContext): Promise<MoveOutput> {
+    const targets = this.getTargets(context)
+    
+    if (targets.length === 0) {
+      return {
+        success: false,
+        movedObjects: 0,
+        positions: [],
+        message: 'No objects to move'
+      }
+    }
+    
+    const positions: MoveOutput['positions'] = []
+    
+    // Handle distribution
+    if (params.distributeHorizontally || params.distributeVertically) {
+      await this.distributeObjects(targets, params, context, positions)
+    } 
+    // Handle alignment
+    else if (params.alignment) {
+      await this.alignObjects(targets, params.alignment, context, positions)
+    }
+    // Handle position/delta movement
+    else {
+      await this.moveObjects(targets, params, context, positions)
+    }
+    
+    const message = this.generateMessage(params, positions.length)
+    
+    return {
+      success: true,
+      movedObjects: positions.length,
+      positions,
+      message
+    }
   }
   
   private async moveObjects(
-    objects: CanvasObject[], 
+    objects: Array<{ id: string; x: number; y: number }>, 
     params: MoveInput, 
-    canvas: CanvasManager,
+    context: ObjectCanvasContext,
     positions: MoveOutput['positions']
   ): Promise<void> {
     for (const obj of objects) {
-      const oldPos = { x: obj.transform.x, y: obj.transform.y }
-      let newX = obj.transform.x
-      let newY = obj.transform.y
+      const oldPos = { x: obj.x, y: obj.y }
+      let newX = obj.x
+      let newY = obj.y
       
       // Apply absolute position
       if (params.x !== undefined) newX = params.x
@@ -127,8 +110,9 @@ The tool works on selected objects or all objects if none selected.`
       if (params.deltaY !== undefined) newY += params.deltaY
       
       // Update object
-      await canvas.updateObject(obj.id, {
-        transform: { ...obj.transform, x: newX, y: newY }
+      await context.canvas.updateObject(obj.id, {
+        x: newX,
+        y: newY
       })
       
       positions.push({
@@ -140,39 +124,37 @@ The tool works on selected objects or all objects if none selected.`
   }
   
   private async alignObjects(
-    objects: CanvasObject[],
+    objects: Array<{ id: string; x: number; y: number; width: number; height: number }>,
     alignment: string,
-    canvas: CanvasManager,
+    context: ObjectCanvasContext,
     positions: MoveOutput['positions']
   ): Promise<void> {
-    const canvasWidth = (canvas.state.documentBounds?.width || 0)
-    const canvasHeight = (canvas.state.documentBounds?.height || 0)
+    const canvasWidth = context.canvas.state.canvasWidth
+    const canvasHeight = context.canvas.state.canvasHeight
     
     for (const obj of objects) {
-      const oldPos = { x: obj.transform.x, y: obj.transform.y }
-      const objWidth = (obj.node?.width?.() || 0) * (obj.transform.scaleX || 1)
-      const objHeight = (obj.node?.height?.() || 0) * (obj.transform.scaleY || 1)
-      
-      let newX = obj.transform.x
-      let newY = obj.transform.y
+      const oldPos = { x: obj.x, y: obj.y }
+      let newX = obj.x
+      let newY = obj.y
       
       // Calculate new position based on alignment
       switch (alignment) {
         case 'left': newX = 0; break
-        case 'center': newX = (canvasWidth - objWidth) / 2; break
-        case 'right': newX = canvasWidth - objWidth; break
+        case 'center': newX = (canvasWidth - obj.width) / 2; break
+        case 'right': newX = canvasWidth - obj.width; break
         case 'top': newY = 0; break
-        case 'middle': newY = (canvasHeight - objHeight) / 2; break
-        case 'bottom': newY = canvasHeight - objHeight; break
+        case 'middle': newY = (canvasHeight - obj.height) / 2; break
+        case 'bottom': newY = canvasHeight - obj.height; break
         case 'top-left': newX = 0; newY = 0; break
-        case 'top-right': newX = canvasWidth - objWidth; newY = 0; break
-        case 'bottom-left': newX = 0; newY = canvasHeight - objHeight; break
-        case 'bottom-right': newX = canvasWidth - objWidth; newY = canvasHeight - objHeight; break
+        case 'top-right': newX = canvasWidth - obj.width; newY = 0; break
+        case 'bottom-left': newX = 0; newY = canvasHeight - obj.height; break
+        case 'bottom-right': newX = canvasWidth - obj.width; newY = canvasHeight - obj.height; break
       }
       
       // Update object
-      await canvas.updateObject(obj.id, {
-        transform: { ...obj.transform, x: newX, y: newY }
+      await context.canvas.updateObject(obj.id, {
+        x: newX,
+        y: newY
       })
       
       positions.push({
@@ -184,16 +166,16 @@ The tool works on selected objects or all objects if none selected.`
   }
   
   private async distributeObjects(
-    objects: CanvasObject[],
+    objects: Array<{ id: string; x: number; y: number }>,
     params: MoveInput,
-    canvas: CanvasManager,
+    context: ObjectCanvasContext,
     positions: MoveOutput['positions']
   ): Promise<void> {
     if (objects.length < 2) return
     
     // Sort objects by position
     const sortedObjects = [...objects].sort((a, b) => 
-      params.distributeHorizontally ? a.transform.x - b.transform.x : a.transform.y - b.transform.y
+      params.distributeHorizontally ? a.x - b.x : a.y - b.y
     )
     
     // Calculate spacing
@@ -201,43 +183,43 @@ The tool works on selected objects or all objects if none selected.`
     const last = sortedObjects[sortedObjects.length - 1]
     
     if (params.distributeHorizontally) {
-      const totalWidth = last.transform.x - first.transform.x
+      const totalWidth = last.x - first.x
       const spacing = totalWidth / (objects.length - 1)
       
       for (let i = 1; i < sortedObjects.length - 1; i++) {
         const obj = sortedObjects[i]
-        const oldPos = { x: obj.transform.x, y: obj.transform.y }
-        const newX = first.transform.x + spacing * i
+        const oldPos = { x: obj.x, y: obj.y }
+        const newX = first.x + spacing * i
         
-        await canvas.updateObject(obj.id, {
-          transform: { ...obj.transform, x: newX }
+        await context.canvas.updateObject(obj.id, {
+          x: newX
         })
         
         positions.push({
           id: obj.id,
           oldPosition: oldPos,
-          newPosition: { x: newX, y: obj.transform.y }
+          newPosition: { x: newX, y: obj.y }
         })
       }
     }
     
     if (params.distributeVertically) {
-      const totalHeight = last.transform.y - first.transform.y
+      const totalHeight = last.y - first.y
       const spacing = totalHeight / (objects.length - 1)
       
       for (let i = 1; i < sortedObjects.length - 1; i++) {
         const obj = sortedObjects[i]
-        const oldPos = { x: obj.transform.x, y: obj.transform.y }
-        const newY = first.transform.y + spacing * i
+        const oldPos = { x: obj.x, y: obj.y }
+        const newY = first.y + spacing * i
         
-        await canvas.updateObject(obj.id, {
-          transform: { ...obj.transform, y: newY }
+        await context.canvas.updateObject(obj.id, {
+          y: newY
         })
         
         positions.push({
           id: obj.id,
           oldPosition: oldPos,
-          newPosition: { x: obj.transform.x, y: newY }
+          newPosition: { x: obj.x, y: newY }
         })
       }
     }
@@ -261,9 +243,5 @@ The tool works on selected objects or all objects if none selected.`
     }
     
     return `Moved ${count} object${count > 1 ? 's' : ''} to new position`
-  }
-  
-  canExecute(canvas: { state: { layers: Array<{ objects: Array<unknown> }> } }): boolean {
-    return canvas.state.layers.some(layer => layer.objects.length > 0)
   }
 } 

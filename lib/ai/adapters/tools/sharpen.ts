@@ -1,27 +1,26 @@
 import { z } from 'zod'
-import { BaseToolAdapter } from '../base'
-import { sharpenTool } from '@/lib/editor/tools/filters/sharpenTool'
-import type { CanvasContext } from '@/lib/ai/tools/canvas-bridge'
+import { UnifiedToolAdapter } from '../base/UnifiedToolAdapter'
+import type { ObjectCanvasContext } from '../base/UnifiedToolAdapter'
 
 // Define parameter schema
-const sharpenParameters = z.object({
+const sharpenInputSchema = z.object({
   amount: z.number().min(0).max(100)
     .describe('Sharpen intensity as a percentage (0-100). 0 = no sharpening, 100 = maximum sharpening')
 })
 
 // Define types
-type SharpenInput = z.infer<typeof sharpenParameters>
+type SharpenInput = z.infer<typeof sharpenInputSchema>
 
 interface SharpenOutput {
   success: boolean
   amount: number
   message: string
-  targetingMode: 'selection' | 'auto-single'
+  affectedObjects: string[]
 }
 
 // Create adapter class
-export class SharpenAdapter extends BaseToolAdapter<SharpenInput, SharpenOutput> {
-  tool = sharpenTool
+export class SharpenAdapter extends UnifiedToolAdapter<SharpenInput, SharpenOutput> {
+  toolId = 'sharpen'
   aiName = 'sharpenImage'
   description = `Sharpen existing images to make them appear more crisp and detailed. You MUST calculate the amount based on user intent.
 
@@ -38,96 +37,67 @@ Common sharpen requests:
 NEVER ask for exact values - interpret the user's intent.
 Range: 0 (no sharpening) to 50 (maximum sharpening)`
 
-  metadata = {
-    category: 'canvas-editing' as const,
-    executionType: 'fast' as const,
-    worksOn: 'existing-image' as const
-  }
-
-  inputSchema = sharpenParameters
+  inputSchema = sharpenInputSchema
   
-  async execute(params: SharpenInput, context: CanvasContext): Promise<SharpenOutput> {
-    try {
-      console.log('[SharpenAdapter] Execute called with params:', params)
-      console.log('[SharpenAdapter] Targeting mode:', context.targetingMode)
-      
-      // Use pre-filtered target images from enhanced context
-      const images = context.targetImages
-      
-      console.log('[SharpenAdapter] Target images:', images.length)
-      console.log('[SharpenAdapter] Targeting mode:', context.targetingMode)
-      
-      if (images.length === 0) {
-        throw new Error('No images found to sharpen. Please load an image or select images first.')
-      }
-      
-      // Create a selection snapshot from the target images
-      const { SelectionSnapshotFactory } = await import('@/lib/ai/execution/SelectionSnapshot')
-      const selectionSnapshot = SelectionSnapshotFactory.fromObjects(images)
-      
-      // Tool activation is handled by the base class applyToolOperation method
-      
-      // Small delay to ensure tool is activated and subscribed
-      await new Promise(resolve => setTimeout(resolve, 50))
-      
-      try {
-        // TODO: Implement tool options when stores are migrated
-        /*
-        // Get the sharpen tool options and update them
-        const { useToolOptionsStore } = await import('@/store/toolOptionsStore')
-        const store = useToolOptionsStore.getState()
-        
-        // Update the intensity value
-        store.updateOption(this.tool.id, 'intensity', params.intensity)
-        */
-        
-        // For now, just apply the sharpen directly
-        await this.applyToolOperation(this.tool.id, 'intensity', params.amount, context.canvas, selectionSnapshot)
-      } finally {
-        // Clear selection snapshot
-        /*
-        if (tool && 'setSelectionSnapshot' in tool && typeof tool.setSelectionSnapshot === 'function') {
-          tool.setSelectionSnapshot(null)
-        }
-        */
-      }
-      
-      console.log('[SharpenAdapter] Sharpen adjustment applied successfully')
-      
-      // Generate descriptive message
-      let description = ''
-      
-      if (params.amount === 0) {
-        description = 'Removed sharpening'
-      } else if (params.amount <= 20) {
-        description = 'Applied subtle sharpening'
-      } else if (params.amount <= 40) {
-        description = 'Applied moderate sharpening'
-      } else if (params.amount <= 70) {
-        description = 'Applied strong sharpening'
-      } else {
-        description = 'Applied intense sharpening'
-      }
-      
-      const message = `${description} (${params.amount}% intensity) to ${images.length} image${images.length !== 1 ? 's' : ''}`
-      
-      return {
-        success: true,
-        amount: params.amount,
-        message,
-        targetingMode: context.targetingMode === 'selection' || context.targetingMode === 'auto-single' 
-          ? context.targetingMode 
-          : 'auto-single' // Default to auto-single for 'all' or 'none'
-      }
-    } catch (error) {
+  async execute(params: SharpenInput, context: ObjectCanvasContext): Promise<SharpenOutput> {
+    const targets = this.getTargets(context)
+    const imageObjects = targets.filter(obj => obj.type === 'image')
+    
+    if (imageObjects.length === 0) {
       return {
         success: false,
-        amount: 0,
-        message: error instanceof Error ? error.message : 'Failed to sharpen image',
-        targetingMode: context.targetingMode === 'selection' || context.targetingMode === 'auto-single' 
-          ? context.targetingMode 
-          : 'auto-single' // Default to auto-single for 'all' or 'none'
+        amount: params.amount,
+        message: 'No image objects found to sharpen',
+        affectedObjects: []
       }
+    }
+    
+    const affectedObjects: string[] = []
+    
+    for (const obj of imageObjects) {
+      const filters = obj.filters || []
+      
+      // Remove existing sharpen filters
+      const filteredFilters = filters.filter(f => f.type !== 'sharpen')
+      
+      // Add new sharpen filter if amount > 0
+      if (params.amount > 0) {
+        filteredFilters.push({
+          id: `sharpen-${Date.now()}`,
+          type: 'sharpen',
+          params: { amount: params.amount }
+        })
+      }
+      
+      await context.canvas.updateObject(obj.id, {
+        filters: filteredFilters
+      })
+      
+      affectedObjects.push(obj.id)
+    }
+    
+    // Generate descriptive message
+    let description = ''
+    
+    if (params.amount === 0) {
+      description = 'Removed sharpening'
+    } else if (params.amount <= 20) {
+      description = 'Applied subtle sharpening'
+    } else if (params.amount <= 40) {
+      description = 'Applied moderate sharpening'
+    } else if (params.amount <= 70) {
+      description = 'Applied strong sharpening'
+    } else {
+      description = 'Applied intense sharpening'
+    }
+    
+    const message = `${description} (${params.amount}% intensity) on ${affectedObjects.length} object${affectedObjects.length !== 1 ? 's' : ''}`
+    
+    return {
+      success: true,
+      amount: params.amount,
+      message,
+      affectedObjects
     }
   }
 }
