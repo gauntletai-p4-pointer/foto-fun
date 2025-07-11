@@ -95,11 +95,16 @@ export function ToolOptions() {
         )
       
       case 'slider':
+        // Get the original default value from defaultToolOptions
+        const originalDefaultValue = defaultToolOptions[activeTool]?.options
+          .find(opt => opt.id === option.id)?.value || 0
+        
         return (
           <OptionSlider
             key={key}
             option={option}
             onChange={(value) => handleOptionChange(option.id, value)}
+            defaultValue={originalDefaultValue}
           />
         )
       
