@@ -1,4 +1,7 @@
+import { ObjectTool } from '@/lib/editor/tools/base/ObjectTool'
+import { Palette } from 'lucide-react'
 import { ReplicateService } from '../services/replicate'
+import { ModelPreferencesManager } from '@/lib/settings/ModelPreferences'
 import type { CanvasObject } from '@/lib/editor/objects/types'
 
 export interface StyleTransferOptions {
@@ -11,58 +14,100 @@ export interface StyleTransferOptions {
  * AI-powered style transfer tool
  * Apply artistic styles to images using AI
  */
-export class StyleTransferTool {
-  readonly id = 'ai-style-transfer'
-  readonly name = 'Style Transfer'
-  readonly description = 'Apply artistic styles to images using AI'
+export class StyleTransferTool extends ObjectTool {
+  id = 'ai-style-transfer'
+  name = 'Style Transfer'
+  icon = Palette
+  cursor = 'crosshair'
+  shortcut = 'S'
   
-  private replicateService = new ReplicateService()
+  private replicateService: ReplicateService | null = null
+  private isProcessing = false
+  private preferencesManager = ModelPreferencesManager.getInstance()
+  
+  protected setupTool(): void {
+    // Initialize Replicate service
+    const apiKey = process.env.NEXT_PUBLIC_REPLICATE_API_TOKEN
+    if (apiKey) {
+      this.replicateService = new ReplicateService(apiKey)
+    } else {
+      console.error('[StyleTransferTool] No Replicate API key found')
+    }
+    
+    // Set default options
+    this.setOption('prompt', '')
+    this.setOption('strength', 0.7)
+    this.setOption('modelTier', this.preferencesManager.getToolModelTier('style-transfer') || 'best')
+  }
+  
+  protected cleanupTool(): void {
+    this.replicateService = null
+    this.isProcessing = false
+  }
 
   async execute(
     imageObject: CanvasObject, 
     options: StyleTransferOptions
   ): Promise<CanvasObject> {
-    const imageData = imageObject.data as import('@/lib/editor/objects/types').ImageData
-    
-    // Convert image to data URL
-    const imageDataUrl = await this.imageToDataUrl(imageData.element)
-    
-    // Use SDXL Image-to-Image model
-    const modelId = options.modelTier === 'artistic'
-      ? 'tommoore515/material_stable_diffusion:7d7bf2b2-4a0b-4b8b-8b8b-8b8b8b8b8b8b'
-      : 'stability-ai/stable-diffusion-xl-img2img:39ed52f2a78e934b3ba6e2a89f5b1c712de7dfea535525255b1aa35c5565e08b'
-    
-    const modelInputs = {
-      image: imageDataUrl,
-      prompt: options.prompt,
-      strength: options.strength || 0.7,
-      num_inference_steps: 30,
-      guidance_scale: 7.5
+    if (!this.replicateService) {
+      throw new Error('Replicate service not initialized')
     }
     
-    // Call Replicate model
-    const output = await this.replicateService.runModel(modelId, modelInputs)
+    this.isProcessing = true
     
-    // Extract image URL from output
-    const resultImageUrl = this.extractImageUrl(output)
-    
-    // Load the result image
-    const resultImage = await this.loadImage(resultImageUrl)
-    
-    // Create new styled object
-    const styledObject: CanvasObject = {
-      ...imageObject,
-      id: this.generateId(),
-      name: `${imageObject.name} (Style: ${options.prompt})`,
-      data: {
-        src: resultImageUrl,
-        naturalWidth: resultImage.naturalWidth,
-        naturalHeight: resultImage.naturalHeight,
-        element: resultImage
+    try {
+      const imageData = imageObject.data as import('@/lib/editor/objects/types').ImageData
+      
+      // Convert image to data URL
+      const imageDataUrl = await this.imageToDataUrl(imageData.element)
+      
+      // Get settings from options or tool defaults
+      const modelTier = options.modelTier || (this.getOption('modelTier') as string) || 'best'
+      const strength = options.strength || (this.getOption('strength') as number) || 0.7
+      
+      // Use SDXL Image-to-Image model
+      const modelId = modelTier === 'artistic'
+        ? 'tommoore515/material_stable_diffusion:7d7bf2b2-4a0b-4b8b-8b8b-8b8b8b8b8b8b'
+        : 'stability-ai/stable-diffusion-xl-img2img:39ed52f2a78e934b3ba6e2a89f5b1c712de7dfea535525255b1aa35c5565e08b'
+      
+      const modelInputs = {
+        image: imageDataUrl,
+        prompt: options.prompt,
+        strength: strength,
+        num_inference_steps: 30,
+        guidance_scale: 7.5
       }
+      
+      // Call Replicate model
+      const output = await this.replicateService.runModel(modelId, modelInputs)
+      
+      // Extract image URL from output
+      const resultImageUrl = this.extractImageUrl(output)
+      
+      // Load the result image
+      const resultImage = await this.loadImage(resultImageUrl)
+      
+      // Create new styled object using canvas manager
+      const styledObjectId = await this.createNewObject('image', {
+        name: `${imageObject.name} (Style: ${options.prompt})`,
+        data: {
+          src: resultImageUrl,
+          naturalWidth: resultImage.naturalWidth,
+          naturalHeight: resultImage.naturalHeight,
+          element: resultImage
+        }
+      })
+      
+      // Get the created object
+      const styledObject = this.getCanvas().getObject(styledObjectId)
+      if (!styledObject) {
+        throw new Error('Failed to create styled object')
+      }
+      
+      return styledObject
+    } finally {
+      this.isProcessing = false
     }
-    
-    return styledObject
   }
 
   private async imageToDataUrl(element: HTMLImageElement | HTMLCanvasElement): Promise<string> {
@@ -99,7 +144,4 @@ export class StyleTransferTool {
     })
   }
 
-  private generateId(): string {
-    return `styled_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
-  }
 } 

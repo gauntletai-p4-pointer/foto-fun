@@ -219,6 +219,7 @@ export interface CanvasManager {
   deselectAll(): void
   selectObject(objectId: string): void
   selectMultiple(objectIds: string[]): void
+  getSelectedObjects(): import('@/lib/editor/objects/types').CanvasObject[]
   getSelectionManager(): SelectionManager
   
   // Pixel operations

@@ -14,7 +14,17 @@ const inputSchema = z.object({
   modelTier: z.enum(['best', 'fast']).default('best').describe('Quality tier: best for highest quality, fast for speed')
 })
 
-type Input = z.infer<typeof inputSchema>
+interface Input {
+  lightDirection: {
+    x: number
+    y: number
+    z: number
+  }
+  intensity: number
+  softness: number
+  colorTemperature: 'warm' | 'neutral' | 'cool'
+  modelTier: 'best' | 'fast'
+}
 
 interface Output {
   objectId: string
@@ -52,13 +62,13 @@ export class RelightingAdapter extends UnifiedToolAdapter<Input, Output> {
     const targetImage = imageTargets[0]
     
     try {
+      // Convert lightDirection coordinates to direction string
+      const lightDirectionStr = this.convertLightDirection(validated.lightDirection)
+      
       // Execute relighting
       const resultObject = await this.tool.execute(targetImage, {
-        lightDirection: validated.lightDirection,
-        intensity: validated.intensity,
-        softness: validated.softness,
-        colorTemperature: validated.colorTemperature,
-        modelTier: validated.modelTier
+        lightDirection: lightDirectionStr,
+        intensity: validated.intensity
       })
       
       // Add the result object to canvas
@@ -98,6 +108,20 @@ export class RelightingAdapter extends UnifiedToolAdapter<Input, Output> {
       
     } catch (error) {
       throw new Error(`Relighting failed: ${this.formatError(error)}`)
+    }
+  }
+  
+  private convertLightDirection(coords: { x: number; y: number; z: number }): 'left' | 'right' | 'top' | 'bottom' | 'front' {
+    // Convert x,y,z coordinates to direction string
+    const { x, y } = coords
+    
+    // Determine primary direction based on strongest component
+    if (Math.abs(x) > Math.abs(y)) {
+      return x > 0 ? 'right' : 'left'
+    } else if (Math.abs(y) > 0.1) {
+      return y > 0 ? 'bottom' : 'top'
+    } else {
+      return 'front'
     }
   }
 }

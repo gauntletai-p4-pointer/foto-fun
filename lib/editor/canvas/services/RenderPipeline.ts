@@ -76,7 +76,7 @@ export class RenderPipeline {
    */
   async renderDocument(canvas: CanvasManager): Promise<void> {
     const plan: RenderPlan = {
-      layers: new Set(canvas.state.layers.map(l => l.id)),
+      // No longer needed in object-based architecture
       objects: new Set(),
       fullRedraw: true,
       dirtyRegions: []
@@ -207,25 +207,22 @@ export class RenderPipeline {
   private async partialRedraw(plan: RenderPlan): Promise<void> {
     // Update dirty regions
     for (const region of plan.dirtyRegions) {
-      if (!this.dirtyRegions.has(region.layerId)) {
-        this.dirtyRegions.set(region.layerId, [])
+      if (!this.dirtyRegions.has(region.objectId)) {
+        this.dirtyRegions.set(region.objectId, [])
       }
-      this.dirtyRegions.get(region.layerId)!.push(region)
+      this.dirtyRegions.get(region.objectId)!.push(region)
     }
     
-    // Render each affected layer
-    for (const layerId of plan.layers) {
-      const layer = this.canvas.state.layers.find(l => l.id === layerId)
-      if (layer) {
-        // For now, redraw entire layer
-        // TODO: Implement true dirty rectangle rendering
-        layer.konvaLayer.batchDraw()
-      }
+    // Render affected objects - just redraw the content layer
+    if (plan.objects.size > 0) {
+      // For now, redraw content layer where objects are rendered  
+      // TODO: Implement true dirty rectangle rendering for individual objects
+      this.canvas.contentLayer.batchDraw()
     }
     
     // Clear processed regions
-    for (const layerId of plan.layers) {
-      this.dirtyRegions.delete(layerId)
+    for (const objectId of plan.objects) {
+      this.dirtyRegions.delete(objectId)
     }
   }
   
@@ -366,7 +363,7 @@ export class RenderPipeline {
     return merged
   }
   
-  private regionsOverlap(a: Omit<DirtyRegion, 'layerId'>, b: Omit<DirtyRegion, 'layerId'>): boolean {
+  private regionsOverlap(a: Omit<DirtyRegion, 'objectId'>, b: Omit<DirtyRegion, 'objectId'>): boolean {
     return !(
       a.x + a.width < b.x ||
       b.x + b.width < a.x ||

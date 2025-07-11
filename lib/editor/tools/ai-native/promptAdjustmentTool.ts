@@ -184,10 +184,11 @@ export class PromptAdjustmentTool extends ObjectTool {
     if (!canvas) return
     
     try {
+      const taskId = `${this.id}-${Date.now()}`
       this.eventBus.emit('ai.processing.started', {
+        taskId,
         toolId: this.id,
-        operation: 'prompt-adjustment',
-        prompt: options.prompt
+        description: `Adjusting with prompt: ${options.prompt}`
       })
       
       for (const object of objects) {
@@ -203,16 +204,16 @@ export class PromptAdjustmentTool extends ObjectTool {
       }
       
       this.eventBus.emit('ai.processing.completed', {
+        taskId,
         toolId: this.id,
-        operation: 'prompt-adjustment',
-        result: 'success'
+        success: true
       })
       
     } catch (error) {
       console.error('Prompt adjustment failed:', error)
       this.eventBus.emit('ai.processing.failed', {
+        taskId,
         toolId: this.id,
-        operation: 'prompt-adjustment',
         error: error instanceof Error ? error.message : 'Unknown error'
       })
     }

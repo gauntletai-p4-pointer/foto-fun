@@ -12,7 +12,15 @@ const inputSchema = z.object({
   modelTier: z.enum(['best', 'alternative']).default('best').describe('Quality tier: best for highest quality, alternative for speed')
 })
 
-type Input = z.infer<typeof inputSchema>
+interface Input {
+  targetArea: {
+    x: number
+    y: number
+    width: number
+    height: number
+  }
+  modelTier: 'best' | 'alternative'
+}
 
 interface Output {
   objectId: string

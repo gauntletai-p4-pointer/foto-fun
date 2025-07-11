@@ -8,7 +8,11 @@ const inputSchema = z.object({
   mode: z.enum(['new', 'add', 'subtract', 'intersect']).default('new').describe('Selection mode: new replaces current selection, add extends it, subtract removes matches, intersect keeps only overlapping')
 })
 
-type Input = z.infer<typeof inputSchema>
+interface Input {
+  query: string
+  threshold: number
+  mode: 'new' | 'add' | 'subtract' | 'intersect'
+}
 
 interface Output {
   matchedObjects: string[]
@@ -22,7 +26,7 @@ interface Output {
  * Selects objects using natural language descriptions
  */
 export class SemanticSelectionAdapter extends UnifiedToolAdapter<Input, Output> {
-  toolId = 'semantic-selection'
+  toolId = 'ai-semantic-selection'
   aiName = 'selectBySemantic'
   description = 'Select objects on the canvas using natural language descriptions. Use queries like "all faces", "the blue car", "sky area", or "people in the background" to intelligently select relevant objects.'
   inputSchema = inputSchema

@@ -154,6 +154,9 @@ export async function autoDiscoverAdapters(): Promise<void> {
     const { InpaintingAdapter } = await import('./tools/InpaintingAdapter')
     const { OutpaintingAdapter } = await import('./tools/OutpaintingAdapter')
     const { SemanticSelectionAdapter } = await import('./tools/SemanticSelectionAdapter')
+    const { DepthEstimationAdapter } = await import('./tools/DepthEstimationAdapter')
+    const { InstructionEditingAdapter } = await import('./tools/InstructionEditingAdapter')
+    const { PromptEnhancementAdapter } = await import('./tools/PromptEnhancementAdapter')
     
     const { registerChainAdapter } = await import('../execution/ChainAdapter')
     
@@ -193,7 +196,10 @@ export async function autoDiscoverAdapters(): Promise<void> {
       new FaceEnhancementAdapter(),
       new InpaintingAdapter(),
       new OutpaintingAdapter(),
-      new SemanticSelectionAdapter()
+      new SemanticSelectionAdapter(),
+      new DepthEstimationAdapter(),
+      new InstructionEditingAdapter(),
+      new PromptEnhancementAdapter()
     ]
     
     // Register all adapters

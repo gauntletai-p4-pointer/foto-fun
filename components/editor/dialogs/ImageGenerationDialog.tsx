@@ -12,7 +12,6 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Loader2 } from 'lucide-react'
 import { ImageGenerationAdapter } from '@/lib/ai/adapters/tools/ImageGenerationAdapter'
-import type { CanvasContext } from '@/lib/ai/tools/canvas-bridge'
 // Toast notifications - TODO: implement proper toast system
 
 const COMMON_DIMENSIONS = [
@@ -81,34 +80,25 @@ export function ImageGenerationDialog() {
       const result = await adapter.execute(
         {
           prompt: prompt.trim(),
-          negative_prompt: negativePrompt.trim() || undefined,
+          negativePrompt: negativePrompt.trim(),
           width,
           height,
-          steps,
         },
         {
           canvas: canvasManager,
-          targetImages: [],
-          targetingMode: 'auto-single',
-          dimensions: {
-            width: canvasManager.state.canvasWidth,
-            height: canvasManager.state.canvasHeight
-          },
-          selection: {
-            type: 'none' as const,
-            data: undefined
-          }
-        } as unknown as CanvasContext
+          targetObjects: [],
+          targetingMode: 'selected'
+        }
       )
       
-      if (result.success) {
-        console.log('Image generated successfully')
+      if (result.objectId) {
+        console.log('Image generated successfully with object ID:', result.objectId)
         
         // Close dialog after successful generation
         toolStore.deactivateTool()
       } else {
-        console.error('Generation Failed:', result.message || 'Failed to generate image')
-        alert(result.message || 'Failed to generate image')
+        console.error('Generation Failed: No object ID returned')
+        alert('Failed to generate image: No object created')
       }
     } catch (error) {
       console.error('Image generation error:', error)

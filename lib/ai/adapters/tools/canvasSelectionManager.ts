@@ -128,7 +128,7 @@ IMPORTANT: Use this BETWEEN steps in workflows, especially:
       
       case 'get-info': {
         const allObjects = context.canvas.getAllObjects()
-        const selectedObjects = (context.canvas as { getSelectedObjects(): CanvasObject[] }).getSelectedObjects()
+        const selectedObjects = context.canvas.getSelectedObjects()
         const selectedIds = new Set(selectedObjects.map((obj: CanvasObject) => obj.id))
         
         const objectInfo = allObjects.map(obj => ({

@@ -1,5 +1,9 @@
+import { ObjectTool } from '@/lib/editor/tools/base/ObjectTool'
+import { Eraser } from 'lucide-react'
 import { ReplicateService } from '../services/replicate'
+import { ModelPreferencesManager } from '@/lib/settings/ModelPreferences'
 import type { CanvasObject } from '@/lib/editor/objects/types'
+import { TypedEventBus } from '@/lib/events/core/TypedEventBus'
 
 export interface ObjectRemovalOptions {
   modelTier?: 'best' | 'alternative'
@@ -9,58 +13,121 @@ export interface ObjectRemovalOptions {
  * AI-powered object removal tool
  * Uses LaMa or inpainting models to remove unwanted objects
  */
-export class ObjectRemovalTool {
-  readonly id = 'ai-object-removal'
-  readonly name = 'Object Removal'
-  readonly description = 'Remove unwanted objects from images using AI'
+export class ObjectRemovalTool extends ObjectTool {
+  id = 'ai-object-removal'
+  name = 'Object Removal'
+  icon = Eraser
+  cursor = 'crosshair'
+  shortcut = 'R'
   
-  private replicateService = new ReplicateService()
+  private replicateService: ReplicateService | null = null
+  private isProcessing = false
+  private preferencesManager = ModelPreferencesManager.getInstance()
+  private eventBus = new TypedEventBus()
+  
+  protected setupTool(): void {
+    // Initialize Replicate service
+    const apiKey = process.env.NEXT_PUBLIC_REPLICATE_API_TOKEN
+    if (apiKey) {
+      this.replicateService = new ReplicateService(apiKey)
+    } else {
+      console.error('[ObjectRemovalTool] No Replicate API key found')
+    }
+    
+    // Set default options
+    this.setOption('modelTier', this.preferencesManager.getToolModelTier('object-removal') || 'best')
+  }
+  
+  protected cleanupTool(): void {
+    this.replicateService = null
+    this.isProcessing = false
+  }
 
   async execute(
     imageObject: CanvasObject, 
     maskObject: CanvasObject,
     options: ObjectRemovalOptions = {}
   ): Promise<CanvasObject> {
-    const imageData = imageObject.data as import('@/lib/editor/objects/types').ImageData
-    const maskData = maskObject.data as import('@/lib/editor/objects/types').ImageData
-    
-    // Convert images to data URLs
-    const imageDataUrl = await this.imageToDataUrl(imageData.element)
-    const maskDataUrl = await this.imageToDataUrl(maskData.element)
-    
-    // Use LaMa model for object removal
-    const modelId = options.modelTier === 'alternative'
-      ? 'stability-ai/stable-diffusion-xl-inpainting:7762fd07cf82c948538e41f63f77d685e02b063e37e496e96eefd46c929f9bdc'
-      : 'chenxwh/lama:3b2d8b4e3ce55e1b5b7d9c1c6e5f8b2a9d1c3e4f5a6b7c8d9e0f1a2b3c4d5e6f'
-    
-    const modelInputs = {
-      image: imageDataUrl,
-      mask: maskDataUrl
+    if (!this.replicateService) {
+      throw new Error('Replicate service not initialized')
     }
     
-    // Call Replicate model
-    const output = await this.replicateService.runModel(modelId, modelInputs)
+    this.isProcessing = true
     
-    // Extract image URL from output
-    const resultImageUrl = this.extractImageUrl(output)
+    const taskId = `${this.id}-${Date.now()}`
+    this.eventBus.emit('ai.processing.started', {
+      taskId,
+      toolId: this.id,
+      description: 'Removing object with AI',
+      targetObjectIds: [imageObject.id]
+    })
     
-    // Load the result image
-    const resultImage = await this.loadImage(resultImageUrl)
-    
-    // Create new object with removed content
-    const resultObject: CanvasObject = {
-      ...imageObject,
-      id: this.generateId(),
-      name: `${imageObject.name} (Object Removed)`,
-      data: {
-        src: resultImageUrl,
-        naturalWidth: resultImage.naturalWidth,
-        naturalHeight: resultImage.naturalHeight,
-        element: resultImage
+    try {
+      const imageData = imageObject.data as import('@/lib/editor/objects/types').ImageData
+      const maskData = maskObject.data as import('@/lib/editor/objects/types').ImageData
+      
+      // Convert images to data URLs
+      const imageDataUrl = await this.imageToDataUrl(imageData.element)
+      const maskDataUrl = await this.imageToDataUrl(maskData.element)
+      
+      // Get model tier from options or tool setting
+      const modelTier = options.modelTier || (this.getOption('modelTier') as string) || 'best'
+      
+      // Use LaMa model for object removal
+      const modelId = modelTier === 'alternative'
+        ? 'stability-ai/stable-diffusion-xl-inpainting:7762fd07cf82c948538e41f63f77d685e02b063e37e496e96eefd46c929f9bdc'
+        : 'chenxwh/lama:3b2d8b4e3ce55e1b5b7d9c1c6e5f8b2a9d1c3e4f5a6b7c8d9e0f1a2b3c4d5e6f'
+      
+      const modelInputs = {
+        image: imageDataUrl,
+        mask: maskDataUrl
       }
+      
+      // Call Replicate model
+      const output = await this.replicateService.runModel(modelId, modelInputs)
+      
+      // Extract image URL from output
+      const resultImageUrl = this.extractImageUrl(output)
+      
+      // Load the result image
+      const resultImage = await this.loadImage(resultImageUrl)
+      
+      // Create new object with removed content using canvas manager
+      const resultObjectId = await this.createNewObject('image', {
+        name: `${imageObject.name} (Object Removed)`,
+        data: {
+          src: resultImageUrl,
+          naturalWidth: resultImage.naturalWidth,
+          naturalHeight: resultImage.naturalHeight,
+          element: resultImage
+        }
+      })
+      
+      // Get the created object
+      const resultObject = this.getCanvas().getObject(resultObjectId)
+      if (!resultObject) {
+        throw new Error('Failed to create result object')
+      }
+      
+      this.eventBus.emit('ai.processing.completed', {
+        taskId,
+        toolId: this.id,
+        success: true,
+        affectedObjectIds: [resultObjectId]
+      })
+      
+      return resultObject
+    } catch (error) {
+      console.error('Object removal failed:', error)
+      this.eventBus.emit('ai.processing.failed', {
+        taskId,
+        toolId: this.id,
+        error: error instanceof Error ? error.message : 'Object removal failed'
+      })
+      throw error
+    } finally {
+      this.isProcessing = false
     }
-    
-    return resultObject
   }
 
   private async imageToDataUrl(element: HTMLImageElement | HTMLCanvasElement): Promise<string> {
@@ -97,7 +164,4 @@ export class ObjectRemovalTool {
     })
   }
 
-  private generateId(): string {
-    return `object_removed_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
-  }
 } 

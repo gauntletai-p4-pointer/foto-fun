@@ -13,7 +13,7 @@ const inputSchema = z.object({
   }).optional()
 })
 
-type Input = z.infer<typeof inputSchema>
+type Input = z.output<typeof inputSchema>
 
 interface Output {
   objectId: string
@@ -28,7 +28,7 @@ interface Output {
  * Creates new image objects from text prompts
  */
 export class ImageGenerationAdapter extends UnifiedToolAdapter<Input, Output> {
-  toolId = 'image-generation'
+  toolId = 'ai-image-generation'
   aiName = 'generateImage'
   description = 'Generate an AI image from a text prompt. Creates a new image object on the canvas.'
   inputSchema = inputSchema
@@ -55,11 +55,15 @@ export class ImageGenerationAdapter extends UnifiedToolAdapter<Input, Output> {
     
     try {
       // Generate the image
-      const imageData = await this.replicateService.generateImage(validated.prompt, {
-        width: validated.width,
-        height: validated.height,
-        negative_prompt: validated.negativePrompt
-      })
+      const imageData = await this.replicateService.generateImage(
+        validated.prompt,
+        'black-forest-labs/flux-1.1-pro',
+        {
+          width: validated.width,
+          height: validated.height,
+          negative_prompt: validated.negativePrompt
+        }
+      )
       
       // Determine position
       let x: number, y: number

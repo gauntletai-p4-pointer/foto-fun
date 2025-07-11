@@ -9,7 +9,7 @@ const inputSchema = z.object({
   modelTier: z.enum(['best', 'fast']).default('best').describe('Quality tier: best for highest quality, fast for speed')
 })
 
-type Input = z.infer<typeof inputSchema>
+type Input = z.output<typeof inputSchema>
 
 interface Output {
   objectIds: string[]

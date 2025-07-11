@@ -32,14 +32,17 @@ export function TextWarpSection({ object }: TextWarpSectionProps) {
     // TODO: Update TextWarp to work with Konva text objects
     // For now, just update the object metadata
     console.log('Applying warp:', { warpStyle, bendAmount })
-    canvasManager.updateObject(object.id, {
-      data: {
-        ...(typeof object.data === 'object' ? object.data : {}),
-        isWarped: true,
-        warpStyle,
-        bendAmount
-      }
-    })
+    // Only update if this is a text object
+    if (object.type === 'text' && typeof object.data === 'object' && 'content' in object.data) {
+      canvasManager.updateObject(object.id, {
+        data: {
+          ...object.data,
+          isWarped: true,
+          warpStyle,
+          bendAmount
+        }
+      })
+    }
     setIsWarped(true)
   }, [object, canvasManager, warpStyle, bendAmount])
   
@@ -47,14 +50,17 @@ export function TextWarpSection({ object }: TextWarpSectionProps) {
     if (!object || !canvasManager) return
     
     console.log('Removing warp')
-    canvasManager.updateObject(object.id, {
-      data: {
-        ...(typeof object.data === 'object' ? object.data : {}),
-        isWarped: false,
-        warpStyle: null,
-        bendAmount: 0
-      }
-    })
+    // Only update if this is a text object
+    if (object.type === 'text' && typeof object.data === 'object' && 'content' in object.data) {
+      canvasManager.updateObject(object.id, {
+        data: {
+          ...object.data,
+          isWarped: false,
+          warpStyle: null,
+          bendAmount: 0
+        }
+      })
+    }
     setIsWarped(false)
   }, [object, canvasManager])
   

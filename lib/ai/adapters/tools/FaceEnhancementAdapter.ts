@@ -3,12 +3,16 @@ import { UnifiedToolAdapter, type ObjectCanvasContext } from '../base/UnifiedToo
 import { FaceEnhancementTool } from '@/lib/ai/tools/FaceEnhancementTool'
 
 const inputSchema = z.object({
-  modelTier: z.enum(['best', 'fast']).default('best').describe('Quality tier: best for highest quality, fast for speed'),
-  enhancementScale: z.number().min(1).max(4).default(2).describe('Enhancement scale (1-4): higher values provide better quality but take longer'),
-  autoDetect: z.boolean().default(true).describe('Automatically detect and enhance all faces in the image')
+  modelTier: z.enum(['best', 'fast']).optional().describe('Quality tier: best for highest quality, fast for speed'),
+  enhancementScale: z.number().min(1).max(4).optional().describe('Enhancement scale (1-4): higher values provide better quality but take longer'),
+  autoDetect: z.boolean().optional().describe('Automatically detect and enhance all faces in the image')
 })
 
-type Input = z.infer<typeof inputSchema>
+interface Input {
+  modelTier?: 'best' | 'fast'
+  enhancementScale?: number
+  autoDetect?: boolean
+}
 
 interface Output {
   objectId: string
@@ -29,8 +33,13 @@ export class FaceEnhancementAdapter extends UnifiedToolAdapter<Input, Output> {
   private tool = new FaceEnhancementTool()
   
   async execute(params: Input, context: ObjectCanvasContext): Promise<Output> {
-    // Validate input
-    const validated = this.validateInput(params)
+    // Validate input and apply defaults
+    const validated = this.validateInput({
+      modelTier: params.modelTier || 'best',
+      enhancementScale: params.enhancementScale || 2,
+      autoDetect: params.autoDetect ?? true,
+      ...params
+    })
     
     // Get image targets only
     const imageTargets = this.getImageTargets(context)
@@ -55,7 +64,7 @@ export class FaceEnhancementAdapter extends UnifiedToolAdapter<Input, Output> {
       return {
         objectId: targetImage.id,
         facesEnhanced: 1, // Placeholder - actual implementation would detect face count
-        enhancementScale: validated.enhancementScale
+        enhancementScale: validated.enhancementScale || 2
       }
       
     } catch (error) {

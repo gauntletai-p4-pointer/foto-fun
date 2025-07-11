@@ -69,7 +69,7 @@ export abstract class EnhancedDrawingTool extends BaseTool {
    * Initialize drawing layers
    */
   protected initializeDrawingLayers(canvas: CanvasManager): void {
-    const stage = canvas.konvaStage
+    const stage = canvas.stage
     if (!stage) return
     
     // Create temporary drawing layer for live preview
@@ -78,8 +78,8 @@ export abstract class EnhancedDrawingTool extends BaseTool {
     })
     stage.add(this.tempLayer)
     
-    // Get or create main drawing layer
-    this.drawingLayer = canvas.getActiveLayer()?.konvaLayer || null
+    // Use the content layer for drawing in object-based architecture
+    this.drawingLayer = canvas.contentLayer || null
   }
   
   /**

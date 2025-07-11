@@ -101,18 +101,9 @@ export class FlipTool extends BaseTool {
         transformedObjects.push({ objectId: target.id, before, after })
       }
       
-      // Redraw all affected layers
-      const affectedLayers = new Set<string>()
-      for (const target of targets) {
-        const layer = this.findLayerForObject(target)
-        if (layer) {
-          affectedLayers.add(layer.id)
-        }
-      }
-      
       const canvas = this.getCanvas()
       // Redraw the canvas - objects are managed directly now
-      canvas.render()
+      canvas.stage.batchDraw()
       
       // Emit event if in ExecutionContext
       if (this.executionContext && transformedObjects.length > 0) {

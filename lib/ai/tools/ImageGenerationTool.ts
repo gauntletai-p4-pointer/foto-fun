@@ -4,9 +4,10 @@ import { ReplicateService } from '@/lib/ai/services/replicate'
 import { ModelRegistry } from '@/lib/ai/models/ModelRegistry'
 import { ModelPreferencesManager } from '@/lib/settings/ModelPreferences'
 import type { ModelTier } from '@/lib/plugins/types'
+import { TypedEventBus } from '@/lib/events/core/TypedEventBus'
 
 export class ImageGenerationTool extends ObjectTool {
-  id = 'image-generation'
+  id = 'ai-image-generation'
   name = 'AI Image Generation'
   icon = Image
   cursor = 'crosshair'
@@ -14,6 +15,7 @@ export class ImageGenerationTool extends ObjectTool {
   
   private replicateService: ReplicateService | null = null
   private preferencesManager = ModelPreferencesManager.getInstance()
+  private eventBus = new TypedEventBus()
   
   protected setupTool(): void {
     // Initialize Replicate service
@@ -82,6 +84,13 @@ export class ImageGenerationTool extends ObjectTool {
     }
     
     try {
+      const taskId = `${this.id}-${Date.now()}`
+      this.eventBus.emit('ai.processing.started', {
+        taskId,
+        toolId: this.id,
+        description: `Generating image: ${prompt}`
+      })
+      
       console.log(`[ImageGenerationTool] Generating image with ${tier.name}...`)
       console.log(`Prompt: ${prompt}`)
       console.log(`Estimated cost: $${tier.cost}`)
@@ -115,8 +124,20 @@ export class ImageGenerationTool extends ObjectTool {
       canvas.selectObject(objectId)
       
       console.log('[ImageGenerationTool] Image generated successfully')
+      
+      this.eventBus.emit('ai.processing.completed', {
+        taskId,
+        toolId: this.id,
+        success: true,
+        affectedObjectIds: [objectId]
+      })
     } catch (error) {
       console.error('[ImageGenerationTool] Failed to generate image:', error)
+      this.eventBus.emit('ai.processing.failed', {
+        taskId,
+        toolId: this.id,
+        error: error instanceof Error ? error.message : 'Image generation failed'
+      })
     }
   }
   

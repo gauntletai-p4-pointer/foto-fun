@@ -175,8 +175,8 @@ export class MagicEraserTool extends ObjectTool {
     } catch (error) {
       console.error('Magic eraser failed:', error)
       this.eventBus.emit('ai.processing.failed', {
+        taskId,
         toolId: this.id,
-        operation: 'object-removal',
         error: error instanceof Error ? error.message : 'Unknown error'
       })
     }
@@ -289,9 +289,11 @@ export class MagicEraserTool extends ObjectTool {
     const options = this.getOptions()
     
     try {
+      const taskId = `${this.id}-fill-${Date.now()}`
       this.eventBus.emit('ai.processing.started', {
+        taskId,
         toolId: this.id,
-        operation: 'content-aware-fill'
+        description: 'Content-aware fill'
       })
       
       // Get the original image
@@ -341,9 +343,9 @@ export class MagicEraserTool extends ObjectTool {
         })
         
         this.eventBus.emit('ai.processing.completed', {
+          taskId,
           toolId: this.id,
-          operation: 'content-aware-fill',
-          result: 'success'
+          success: true
         })
       }
       
@@ -352,8 +354,8 @@ export class MagicEraserTool extends ObjectTool {
     } catch (error) {
       console.error('Content-aware fill failed:', error)
       this.eventBus.emit('ai.processing.failed', {
+        taskId,
         toolId: this.id,
-        operation: 'content-aware-fill',
         error: error instanceof Error ? error.message : 'Unknown error'
       })
     }

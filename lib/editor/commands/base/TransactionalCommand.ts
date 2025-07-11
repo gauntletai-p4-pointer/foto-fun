@@ -1,5 +1,6 @@
 import { Command, type ICommand } from './Command'
 import type { CanvasManager, BlendMode } from '@/lib/editor/canvas/types'
+import type { CanvasObject } from '@/lib/editor/objects/types'
 import { CommandExecutionError } from '@/lib/ai/errors'
 import { ServiceContainer } from '@/lib/core/ServiceContainer'
 
@@ -7,35 +8,28 @@ import { ServiceContainer } from '@/lib/core/ServiceContainer'
  * Canvas state snapshot for rollback
  */
 export interface CanvasStateSnapshot {
-  layers: Array<{
+  objects: Array<{
     id: string
-    objects: Array<{
-      id: string
-      type: 'image' | 'text' | 'shape' | 'path' | 'group' | 'verticalText'
-      transform: {
-        x: number
-        y: number
-        scaleX: number
-        scaleY: number
-        rotation: number
-        skewX: number
-        skewY: number
-      }
-      data: HTMLImageElement | string | Record<string, unknown> | undefined
-      visible: boolean
-      locked: boolean
-      opacity: number
-      blendMode: BlendMode
-    }>
+    type: 'image' | 'text' | 'shape' | 'group' | 'verticalText'
+    name: string
+    x: number
+    y: number
+    width: number
+    height: number
+    rotation: number
+    scaleX: number
+    scaleY: number
+    zIndex: number
+    opacity: number
+    blendMode: BlendMode
+    visible: boolean
+    locked: boolean
+    data: any
   }>
-  selection: {
-    type: string
-    data: unknown
-  } | null
-  activeLayerId: string | null
+  selectedObjectIds: string[]
   backgroundColor: string
-  width: number
-  height: number
+  canvasWidth: number
+  canvasHeight: number
   zoom: number
   pan: { x: number; y: number }
 }
@@ -133,28 +127,30 @@ export abstract class TransactionalCommand extends Command {
     const state = canvas.state
     
     // Deep clone the state to create a snapshot
+    const allObjects = canvas.getAllObjects()
     const snapshot: CanvasStateSnapshot = {
-      layers: state.layers.map(layer => ({
-        id: layer.id,
-        objects: layer.objects.map(obj => ({
-          id: obj.id,
-          type: obj.type,
-          transform: { ...obj.transform },
-          data: obj.data,
-          visible: obj.visible,
-          locked: obj.locked,
-          opacity: obj.opacity,
-          blendMode: obj.blendMode
-        }))
+      objects: allObjects.map(obj => ({
+        id: obj.id,
+        type: obj.type,
+        name: obj.name,
+        x: obj.x,
+        y: obj.y,
+        width: obj.width,
+        height: obj.height,
+        rotation: obj.rotation,
+        scaleX: obj.scaleX,
+        scaleY: obj.scaleY,
+        zIndex: obj.zIndex,
+        opacity: obj.opacity,
+        blendMode: obj.blendMode,
+        visible: obj.visible,
+        locked: obj.locked,
+        data: structuredClone(obj.data)
       })),
-      selection: state.selection ? {
-        type: state.selection.type,
-        data: JSON.parse(JSON.stringify(state.selection))
-      } : null,
-      activeLayerId: state.activeLayerId,
+      selectedObjectIds: Array.from(state.selectedObjectIds),
       backgroundColor: state.backgroundColor,
-      width: state.width,
-      height: state.height,
+      canvasWidth: state.canvasWidth,
+      canvasHeight: state.canvasHeight,
       zoom: state.zoom,
       pan: { ...state.pan }
     }
@@ -169,54 +165,40 @@ export abstract class TransactionalCommand extends Command {
     const canvas = this.getCanvasManager()
     if (!canvas) return
     
-    // Clear existing layers
+    // Clear existing objects
     const currentObjects = canvas.getAllObjects()
-    for (const layer of currentLayers) {
-      canvas.removeLayer(layer.id)
+    for (const obj of currentObjects) {
+      await canvas.removeObject(obj.id)
     }
     
-    // Restore layers and objects
-    for (const layerData of snapshot.layers) {
-      const layer = canvas.addLayer({
-        id: layerData.id,
-        name: `Layer ${layerData.id}`
+    // Restore objects
+    for (const objData of snapshot.objects) {
+      await canvas.addObject({
+        ...objData
       })
-      
-      // Restore objects in the layer
-      for (const objData of layerData.objects) {
-        await canvas.addObject({
-          ...objData,
-          layerId: layer.id
-        }, layer.id)
-      }
     }
     
     // Restore canvas properties
-    await canvas.resize(snapshot.width, snapshot.height)
+    await canvas.resize(snapshot.canvasWidth, snapshot.canvasHeight)
     canvas.setZoom(snapshot.zoom)
     canvas.setPan(snapshot.pan)
     
     // Restore selection
-    if (snapshot.selection) {
-      if (snapshot.selection.type === 'objects' && snapshot.selection.data && typeof snapshot.selection.data === 'object' && 'objectIds' in snapshot.selection.data) {
-        canvas.setSelection({
-          type: 'objects',
-          objectIds: (snapshot.selection.data as { objectIds: string[] }).objectIds
-        })
-      } else {
-        canvas.setSelection(snapshot.selection.data as Parameters<typeof canvas.setSelection>[0])
+    if (snapshot.selectedObjectIds.length > 0) {
+      // Select objects one by one
+      canvas.clearSelection()
+      for (const objectId of snapshot.selectedObjectIds) {
+        const object = canvas.getObject(objectId)
+        if (object) {
+          canvas.selectObject(objectId, true) // true = add to selection
+        }
       }
     } else {
-      canvas.setSelection(null)
-    }
-    
-    // Restore active layer
-    if (snapshot.activeLayerId) {
-      canvas.setActiveLayer(snapshot.activeLayerId)
+      canvas.clearSelection()
     }
     
     // Force redraw
-    canvas.konvaStage.batchDraw()
+    canvas.stage.batchDraw()
   }
   
   /**

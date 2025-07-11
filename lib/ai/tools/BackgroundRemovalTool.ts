@@ -3,6 +3,7 @@ import { ReplicateService } from '@/lib/ai/services/replicate'
 import type { CanvasObject } from '@/lib/editor/objects/types'
 import { Eraser } from 'lucide-react'
 import { ModelPreferencesManager } from '@/lib/settings/ModelPreferences'
+import { TypedEventBus } from '@/lib/events/core/TypedEventBus'
 
 export interface BackgroundRemovalOptions {
   modelTier?: 'best' | 'fast'
@@ -18,6 +19,7 @@ export class BackgroundRemovalTool extends ObjectTool {
   
   private replicateService = new ReplicateService()
   private preferencesManager = ModelPreferencesManager.getInstance()
+  private eventBus = new TypedEventBus()
   
   protected setupTool(): void {
     // Set default options from user preferences
@@ -94,6 +96,14 @@ export class BackgroundRemovalTool extends ObjectTool {
     }
     
     try {
+      const taskId = `${this.id}-${Date.now()}`
+      this.eventBus.emit('ai.processing.started', {
+        taskId,
+        toolId: this.id,
+        description: 'Removing background with AI',
+        targetObjectIds: [object.id]
+      })
+      
       // Get the current model tier
       const tier = this.getCurrentTier()
       if (!tier) {
@@ -165,8 +175,20 @@ export class BackgroundRemovalTool extends ObjectTool {
       }
       
       console.log('[BackgroundRemovalTool] Background removed successfully')
+      
+      this.eventBus.emit('ai.processing.completed', {
+        taskId,
+        toolId: this.id,
+        success: true,
+        affectedObjectIds: [object.id]
+      })
     } catch (error) {
       console.error('[BackgroundRemovalTool] Failed to remove background:', error)
+      this.eventBus.emit('ai.processing.failed', {
+        taskId,
+        toolId: this.id,
+        error: error instanceof Error ? error.message : 'Background removal failed'
+      })
     }
   }
   

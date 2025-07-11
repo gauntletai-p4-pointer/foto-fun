@@ -1,4 +1,7 @@
+import { ObjectTool } from '@/lib/editor/tools/base/ObjectTool'
+import { Layers } from 'lucide-react'
 import { ReplicateService } from '../services/replicate'
+import { ModelPreferencesManager } from '@/lib/settings/ModelPreferences'
 import type { CanvasObject } from '@/lib/editor/objects/types'
 
 export interface VariationOptions {
@@ -11,60 +14,101 @@ export interface VariationOptions {
  * AI-powered variation generation tool
  * Create variations of existing images
  */
-export class VariationTool {
-  readonly id = 'ai-variation'
-  readonly name = 'Image Variations'
-  readonly description = 'Generate variations of existing images using AI'
+export class VariationTool extends ObjectTool {
+  id = 'ai-variation'
+  name = 'Image Variations'
+  icon = Layers
+  cursor = 'crosshair'
+  shortcut = 'V'
   
-  private replicateService = new ReplicateService()
+  private replicateService: ReplicateService | null = null
+  private isProcessing = false
+  private preferencesManager = ModelPreferencesManager.getInstance()
+  
+  protected setupTool(): void {
+    // Initialize Replicate service
+    const apiKey = process.env.NEXT_PUBLIC_REPLICATE_API_TOKEN
+    if (apiKey) {
+      this.replicateService = new ReplicateService(apiKey)
+    } else {
+      console.error('[VariationTool] No Replicate API key found')
+    }
+    
+    // Set default options
+    this.setOption('prompt', 'high quality, detailed')
+    this.setOption('strength', 0.3)
+    this.setOption('numVariations', 2)
+  }
+  
+  protected cleanupTool(): void {
+    this.replicateService = null
+    this.isProcessing = false
+  }
 
   async execute(
     imageObject: CanvasObject, 
     options: VariationOptions = {}
   ): Promise<CanvasObject[]> {
-    const imageData = imageObject.data as import('@/lib/editor/objects/types').ImageData
-    
-    // Convert image to data URL
-    const imageDataUrl = await this.imageToDataUrl(imageData.element)
-    
-    const modelId = 'stability-ai/stable-diffusion-xl-img2img:39ed52f2a78e934b3ba6e2a89f5b1c712de7dfea535525255b1aa35c5565e08b'
-    
-    const modelInputs = {
-      image: imageDataUrl,
-      prompt: options.prompt || 'high quality, detailed',
-      strength: options.strength || 0.3,
-      num_outputs: options.numVariations || 2,
-      num_inference_steps: 30,
-      guidance_scale: 7.5
+    if (!this.replicateService) {
+      throw new Error('Replicate service not initialized')
     }
     
-    // Call Replicate model
-    const output = await this.replicateService.runModel(modelId, modelInputs)
+    this.isProcessing = true
     
-    // Extract image URLs from output (multiple results)
-    const resultUrls = this.extractImageUrls(output)
-    
-    // Load all result images and create objects
-    const variations: CanvasObject[] = []
-    for (let i = 0; i < resultUrls.length; i++) {
-      const resultImage = await this.loadImage(resultUrls[i])
+    try {
+      const imageData = imageObject.data as import('@/lib/editor/objects/types').ImageData
       
-      const variationObject: CanvasObject = {
-        ...imageObject,
-        id: this.generateId(),
-        name: `${imageObject.name} (Variation ${i + 1})`,
-        data: {
-          src: resultUrls[i],
-          naturalWidth: resultImage.naturalWidth,
-          naturalHeight: resultImage.naturalHeight,
-          element: resultImage
+      // Convert image to data URL
+      const imageDataUrl = await this.imageToDataUrl(imageData.element)
+      
+      // Get settings from options or tool defaults
+      const prompt = options.prompt || (this.getOption('prompt') as string) || 'high quality, detailed'
+      const strength = options.strength || (this.getOption('strength') as number) || 0.3
+      const numVariations = options.numVariations || (this.getOption('numVariations') as number) || 2
+      
+      const modelId = 'stability-ai/stable-diffusion-xl-img2img:39ed52f2a78e934b3ba6e2a89f5b1c712de7dfea535525255b1aa35c5565e08b'
+      
+      const modelInputs = {
+        image: imageDataUrl,
+        prompt: prompt,
+        strength: strength,
+        num_outputs: numVariations,
+        num_inference_steps: 30,
+        guidance_scale: 7.5
+      }
+      
+      // Call Replicate model
+      const output = await this.replicateService.runModel(modelId, modelInputs)
+      
+      // Extract image URLs from output (multiple results)
+      const resultUrls = this.extractImageUrls(output)
+      
+      // Load all result images and create objects using canvas manager
+      const variations: CanvasObject[] = []
+      for (let i = 0; i < resultUrls.length; i++) {
+        const resultImage = await this.loadImage(resultUrls[i])
+        
+        const variationObjectId = await this.createNewObject('image', {
+          name: `${imageObject.name} (Variation ${i + 1})`,
+          data: {
+            src: resultUrls[i],
+            naturalWidth: resultImage.naturalWidth,
+            naturalHeight: resultImage.naturalHeight,
+            element: resultImage
+          }
+        })
+        
+        // Get the created object
+        const variationObject = this.getCanvas().getObject(variationObjectId)
+        if (variationObject) {
+          variations.push(variationObject)
         }
       }
       
-      variations.push(variationObject)
+      return variations
+    } finally {
+      this.isProcessing = false
     }
-    
-    return variations
   }
 
   private async imageToDataUrl(element: HTMLImageElement | HTMLCanvasElement): Promise<string> {
@@ -105,7 +149,4 @@ export class VariationTool {
     })
   }
 
-  private generateId(): string {
-    return `variation_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
-  }
 } 

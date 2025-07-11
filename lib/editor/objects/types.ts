@@ -72,6 +72,10 @@ export interface TextData {
   letterSpacing?: number
   // For vertical text
   direction?: 'horizontal' | 'vertical'
+  // For text warp effects
+  isWarped?: boolean
+  warpStyle?: string | null
+  bendAmount?: number
 }
 
 export interface ShapeData {

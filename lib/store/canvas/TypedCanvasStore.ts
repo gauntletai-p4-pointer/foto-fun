@@ -354,10 +354,12 @@ export class TypedCanvasStore {
   }
   
   /**
-   * Get active layer
+   * Get active layer - DEPRECATED: Use getSelectedObjects() in object-based architecture
    */
-  getActiveLayer(): Layer | null {
-    return this.state.layers.find(l => l.id === this.state.activeLayerId) || null
+  getActiveLayer(): null {
+    // Objects are managed directly now, no active layer concept
+    console.warn('getActiveLayer() is deprecated. Use getSelectedObjects() in object-based architecture.')
+    return null
   }
   
   /**

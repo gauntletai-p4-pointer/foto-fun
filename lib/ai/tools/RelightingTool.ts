@@ -1,4 +1,7 @@
+import { ObjectTool } from '@/lib/editor/tools/base/ObjectTool'
+import { Lightbulb } from 'lucide-react'
 import { ReplicateService } from '../services/replicate'
+import { ModelPreferencesManager } from '@/lib/settings/ModelPreferences'
 import type { CanvasObject } from '@/lib/editor/objects/types'
 
 export interface RelightingOptions {
@@ -10,53 +13,94 @@ export interface RelightingOptions {
  * AI-powered relighting tool
  * Change lighting conditions in images
  */
-export class RelightingTool {
-  readonly id = 'ai-relighting'
-  readonly name = 'AI Relighting'
-  readonly description = 'Change lighting conditions in images using AI'
+export class RelightingTool extends ObjectTool {
+  id = 'ai-relighting'
+  name = 'AI Relighting'
+  icon = Lightbulb
+  cursor = 'crosshair'
+  shortcut = 'L'
   
-  private replicateService = new ReplicateService()
+  private replicateService: ReplicateService | null = null
+  private isProcessing = false
+  private preferencesManager = ModelPreferencesManager.getInstance()
+  
+  protected setupTool(): void {
+    // Initialize Replicate service
+    const apiKey = process.env.NEXT_PUBLIC_REPLICATE_API_TOKEN
+    if (apiKey) {
+      this.replicateService = new ReplicateService(apiKey)
+    } else {
+      console.error('[RelightingTool] No Replicate API key found')
+    }
+    
+    // Set default options
+    this.setOption('lightDirection', 'front')
+    this.setOption('intensity', 1.0)
+  }
+  
+  protected cleanupTool(): void {
+    this.replicateService = null
+    this.isProcessing = false
+  }
 
   async execute(
     imageObject: CanvasObject, 
     options: RelightingOptions = {}
   ): Promise<CanvasObject> {
-    const imageData = imageObject.data as import('@/lib/editor/objects/types').ImageData
-    
-    // Convert image to data URL
-    const imageDataUrl = await this.imageToDataUrl(imageData.element)
-    
-    const modelId = 'tencentarc/ic-light:1b8e4c9b-4f8a-4a6b-8b8b-8b8b8b8b8b8b'
-    
-    const modelInputs = {
-      image: imageDataUrl,
-      light_direction: options.lightDirection || 'front',
-      light_intensity: options.intensity || 1.0
+    if (!this.replicateService) {
+      throw new Error('Replicate service not initialized')
     }
     
-    // Call Replicate model
-    const output = await this.replicateService.runModel(modelId, modelInputs)
+    this.isProcessing = true
     
-    // Extract image URL from output
-    const resultImageUrl = this.extractImageUrl(output)
-    
-    // Load the result image
-    const resultImage = await this.loadImage(resultImageUrl)
-    
-    // Create new relit object
-    const relitObject: CanvasObject = {
-      ...imageObject,
-      id: this.generateId(),
-      name: `${imageObject.name} (Relit)`,
-      data: {
-        src: resultImageUrl,
-        naturalWidth: resultImage.naturalWidth,
-        naturalHeight: resultImage.naturalHeight,
-        element: resultImage
+    try {
+      const imageData = imageObject.data as import('@/lib/editor/objects/types').ImageData
+      
+      // Convert image to data URL
+      const imageDataUrl = await this.imageToDataUrl(imageData.element)
+      
+      // Get settings from options or tool defaults
+      const lightDirection = options.lightDirection || (this.getOption('lightDirection') as string) || 'front'
+      const intensity = options.intensity || (this.getOption('intensity') as number) || 1.0
+      
+      const modelId = 'tencentarc/ic-light:1b8e4c9b-4f8a-4a6b-8b8b-8b8b8b8b8b8b'
+      
+      const modelInputs = {
+        image: imageDataUrl,
+        light_direction: lightDirection,
+        light_intensity: intensity
       }
+      
+      // Call Replicate model
+      const output = await this.replicateService.runModel(modelId, modelInputs)
+      
+      // Extract image URL from output
+      const resultImageUrl = this.extractImageUrl(output)
+      
+      // Load the result image
+      const resultImage = await this.loadImage(resultImageUrl)
+      
+      // Create new relit object using canvas manager
+      const relitObjectId = await this.createNewObject('image', {
+        name: `${imageObject.name} (Relit)`,
+        data: {
+          src: resultImageUrl,
+          naturalWidth: resultImage.naturalWidth,
+          naturalHeight: resultImage.naturalHeight,
+          element: resultImage
+        }
+      })
+      
+      // Get the created object
+      const relitObject = this.getCanvas().getObject(relitObjectId)
+      if (!relitObject) {
+        throw new Error('Failed to create relit object')
+      }
+      
+      return relitObject
+    } finally {
+      this.isProcessing = false
     }
-    
-    return relitObject
   }
 
   private async imageToDataUrl(element: HTMLImageElement | HTMLCanvasElement): Promise<string> {
@@ -93,9 +137,6 @@ export class RelightingTool {
     })
   }
 
-  private generateId(): string {
-    return `relit_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
-  }
 }
 
 export interface PromptEnhancementOptions {

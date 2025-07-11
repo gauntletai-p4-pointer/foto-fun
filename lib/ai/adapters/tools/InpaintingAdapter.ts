@@ -14,7 +14,7 @@ const inputSchema = z.object({
   useSelection: z.boolean().default(false).describe('Use existing canvas selection as mask instead of specified area')
 })
 
-type Input = z.infer<typeof inputSchema>
+type Input = z.output<typeof inputSchema>
 
 interface Output {
   objectId: string

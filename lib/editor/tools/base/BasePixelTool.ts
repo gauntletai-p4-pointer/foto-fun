@@ -42,11 +42,11 @@ export abstract class BasePixelTool extends BaseTool {
   }
   
   protected setupTool(): void {
-    // Initialize pixel buffer for the active layer
+    // Initialize pixel buffer for the canvas (object-based architecture)
     const canvas = this.getCanvas()
-    const activeLayer = canvas.getActiveLayer()
-    if (activeLayer) {
-      this.pixelBuffer = new PixelBuffer(canvas, activeLayer)
+    if (canvas) {
+      // In object-based architecture, we work with the canvas content layer
+      this.pixelBuffer = new PixelBuffer(canvas, canvas.contentLayer)
     }
     
     // Load brush settings from options

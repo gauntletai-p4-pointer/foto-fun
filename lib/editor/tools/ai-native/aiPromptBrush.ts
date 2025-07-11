@@ -194,10 +194,11 @@ export class AIPromptBrush extends ObjectDrawingTool {
     const options = this.getOptions()
     
     try {
+      const taskId = `${this.id}-${Date.now()}`
       this.eventBus.emit('ai.processing.started', {
+        taskId,
         toolId: this.id,
-        operation: 'prompt-painting',
-        prompt: options.prompt
+        description: `AI painting with prompt: ${options.prompt}`
       })
       
       // Get the stroke mask
@@ -253,9 +254,9 @@ export class AIPromptBrush extends ObjectDrawingTool {
         })
         
         this.eventBus.emit('ai.processing.completed', {
+          taskId,
           toolId: this.id,
-          operation: 'prompt-painting',
-          result: 'success'
+          success: true
         })
       }
       
@@ -264,8 +265,8 @@ export class AIPromptBrush extends ObjectDrawingTool {
     } catch (error) {
       console.error('AI prompt brush failed:', error)
       this.eventBus.emit('ai.processing.failed', {
+        taskId,
         toolId: this.id,
-        operation: 'prompt-painting',
         error: error instanceof Error ? error.message : 'Unknown error'
       })
     }

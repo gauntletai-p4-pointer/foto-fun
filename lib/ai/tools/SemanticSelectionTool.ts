@@ -10,7 +10,7 @@ import { ReplicateService } from '@/lib/ai/services/replicate'
  */
 export class SemanticSelectionTool extends ObjectTool {
   // Tool identification
-  id = 'semantic-selection'
+  id = 'ai-semantic-selection'
   name = 'AI Semantic Selection'
   icon = Search
   cursor = 'crosshair'

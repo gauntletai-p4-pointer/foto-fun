@@ -5,7 +5,7 @@ import type { CanvasObject } from '@/lib/editor/objects/types'
 import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
 import { useService } from '@/lib/core/AppInitializer'
 import { TextLayerStyles } from '@/lib/editor/text/effects'
-import type Konva from 'konva'
+import Konva from 'konva'
 
 interface TextPresetsSectionProps {
   object: CanvasObject | null

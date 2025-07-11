@@ -557,9 +557,10 @@ export abstract class FilterToolAdapter<
     // Group images by layer for efficient filtering
     const imagesByLayer = new Map<string, CanvasImage[]>()
     images.forEach(img => {
-      const layerImages = imagesByLayer.get(img.layerId) || []
+      const layerId = img.layerId || 'default'
+      const layerImages = imagesByLayer.get(layerId) || []
       layerImages.push(img)
-      imagesByLayer.set(img.layerId, layerImages)
+      imagesByLayer.set(layerId, layerImages)
     })
     
     try {
