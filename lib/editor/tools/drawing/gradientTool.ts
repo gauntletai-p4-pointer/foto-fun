@@ -1,8 +1,9 @@
 import { Palette } from 'lucide-react'
 import { BaseTool } from '../base/BaseTool'
-import type { ToolEvent, Point, CanvasManager } from '@/lib/editor/canvas/types'
+import type { ToolEvent, Point } from '@/lib/editor/canvas/types'
 import { TOOL_IDS } from '@/constants'
 import Konva from 'konva'
+import { GradientAppliedEvent } from '@/lib/events/canvas/GradientEvents'
 
 /**
  * Gradient Tool
@@ -38,7 +39,7 @@ export class GradientTool extends BaseTool {
     const canvas = this.getCanvas()
     this.previewLayer = new Konva.Layer()
     // Get stage from canvas internals
-    const stage = (canvas as any).stage
+    const stage = (canvas as unknown as { stage: Konva.Stage }).stage
     if (stage) {
       stage.add(this.previewLayer)
     }
@@ -55,7 +56,7 @@ export class GradientTool extends BaseTool {
   /**
    * Get tool-specific options
    */
-  getToolOptions(): Record<string, any> {
+  getToolOptions(): Record<string, unknown> {
     return {
       gradientType: {
         type: 'select',
@@ -148,7 +149,7 @@ export class GradientTool extends BaseTool {
     this.updatePreview()
   }
   
-  onMouseUp(_event: ToolEvent): void {
+  onMouseUp(): void {
     if (!this.isDrawing || !this.startPoint || !this.endPoint) return
     
     this.isDrawing = false
@@ -172,7 +173,7 @@ export class GradientTool extends BaseTool {
     
     const canvas = this.getCanvas()
     // Get stage from canvas internals
-    const stage = (canvas as any).stage
+    const stage = (canvas as unknown as { stage: Konva.Stage }).stage
     if (!stage) return
     
     // Create rectangle covering entire canvas
@@ -196,16 +197,43 @@ export class GradientTool extends BaseTool {
     
     const gradient = this.createGradient()
     if (gradient) {
-      this.gradientShape.fillPriority('linear-gradient')
-      this.gradientShape.fill(gradient as any)
+      this.applyGradientToShape(this.gradientShape, gradient)
       this.previewLayer?.batchDraw()
+    }
+  }
+  
+  /**
+   * Apply gradient configuration to shape
+   */
+  private applyGradientToShape(shape: Konva.Rect, gradientConfig: Record<string, unknown>): void {
+    const config = gradientConfig as {
+      start?: { x: number; y: number }
+      end?: { x: number; y: number }
+      startRadius?: number
+      endRadius?: number
+      colorStops: (number | string)[]
+    }
+    
+    if (this.gradientType === 'radial') {
+      shape.fillRadialGradientStartPoint(config.start || { x: 0, y: 0 })
+      shape.fillRadialGradientEndPoint(config.end || { x: 0, y: 0 })
+      shape.fillRadialGradientStartRadius(config.startRadius || 0)
+      shape.fillRadialGradientEndRadius(config.endRadius || 100)
+      shape.fillRadialGradientColorStops(config.colorStops)
+      shape.fillPriority('radial-gradient')
+    } else {
+      // Linear gradient for all other types
+      shape.fillLinearGradientStartPoint(config.start || { x: 0, y: 0 })
+      shape.fillLinearGradientEndPoint(config.end || { x: 100, y: 100 })
+      shape.fillLinearGradientColorStops(config.colorStops)
+      shape.fillPriority('linear-gradient')
     }
   }
   
   /**
    * Create gradient configuration based on type
    */
-  private createGradient(): any {
+  private createGradient(): Record<string, unknown> | null {
     if (!this.startPoint || !this.endPoint) return null
     
     // Process gradient stops
@@ -255,7 +283,7 @@ export class GradientTool extends BaseTool {
   /**
    * Create angle gradient (conic)
    */
-  private createAngleGradient(colorStops: number[]): any {
+  private createAngleGradient(colorStops: (number | string)[]): Record<string, unknown> | null {
     if (!this.startPoint || !this.endPoint) return null
     
     // Calculate angle
@@ -277,21 +305,23 @@ export class GradientTool extends BaseTool {
   /**
    * Create reflected gradient
    */
-  private createReflectedGradient(colorStops: number[]): any {
+  private createReflectedGradient(colorStops: (number | string)[]): Record<string, unknown> | null {
     if (!this.startPoint || !this.endPoint) return null
     
     // Reflected gradient uses mirrored color stops
-    const reflectedStops: number[] = []
+    const reflectedStops: (number | string)[] = []
     
     // First half
     for (let i = 0; i < colorStops.length; i += 2) {
-      reflectedStops.push(colorStops[i] * 0.5)
+      const offset = colorStops[i] as number
+      reflectedStops.push(offset * 0.5)
       reflectedStops.push(colorStops[i + 1])
     }
     
     // Second half (reversed)
     for (let i = colorStops.length - 2; i >= 0; i -= 2) {
-      reflectedStops.push(0.5 + (1 - colorStops[i]) * 0.5)
+      const offset = colorStops[i] as number
+      reflectedStops.push(0.5 + (1 - offset) * 0.5)
       reflectedStops.push(colorStops[i + 1])
     }
     
@@ -305,7 +335,7 @@ export class GradientTool extends BaseTool {
   /**
    * Create diamond gradient
    */
-  private createDiamondGradient(colorStops: number[]): any {
+  private createDiamondGradient(colorStops: (number | string)[]): Record<string, unknown> | null {
     if (!this.startPoint || !this.endPoint) return null
     
     // Diamond gradient is like radial but with square shape
@@ -344,15 +374,16 @@ export class GradientTool extends BaseTool {
     
     // Emit event for history
     if (this.executionContext) {
-      this.executionContext.emit('gradient.applied', {
-        toolId: this.id,
-        gradientId: `gradient-${Date.now()}`,
-        type: this.gradientType,
-        startPoint: this.startPoint,
-        endPoint: this.endPoint,
-        stops: this.gradientStops,
-        layerId: activeLayer.id
-      })
+      this.executionContext.emit(new GradientAppliedEvent(
+        'canvas',
+        `gradient-${Date.now()}`,
+        this.gradientType,
+        this.startPoint,
+        this.endPoint,
+        this.gradientStops,
+        activeLayer.id,
+        this.executionContext.getMetadata()
+      ))
     }
   }
   

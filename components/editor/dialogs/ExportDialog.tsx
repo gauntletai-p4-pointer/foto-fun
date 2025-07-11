@@ -32,8 +32,10 @@ export function ExportDialog({ open, onOpenChange }: ExportDialogProps) {
   const canvasManager = useService<CanvasManager>('CanvasManager')
   const typedEventBus = useService<ReturnType<typeof getTypedEventBus>>('TypedEventBus')
   
-  // Create export manager instance
-  const [exportManager] = useState(() => new ExportManager(canvasManager, typedEventBus))
+  // Create export manager instance only when canvasManager is available
+  const [exportManager] = useState(() => 
+    canvasManager ? new ExportManager(canvasManager, typedEventBus) : null
+  )
   
   // Export settings
   const [exportType, setExportType] = useState<'document' | 'selection' | 'region'>('document')
@@ -50,13 +52,18 @@ export function ExportDialog({ open, onOpenChange }: ExportDialogProps) {
   const [regionWidth, setRegionWidth] = useState(100)
   const [regionHeight, setRegionHeight] = useState(100)
   
-  // Get canvas dimensions
-  const canvasWidth = canvasManager.getWidth()
-  const canvasHeight = canvasManager.getHeight()
+  // Get canvas dimensions with null check
+  const canvasWidth = canvasManager?.getWidth() || 800
+  const canvasHeight = canvasManager?.getHeight() || 600
   const aspectRatio = canvasWidth / canvasHeight
   
   // Get presets
-  const presets = exportManager.getPresets()
+  const presets = exportManager?.getPresets() || []
+  
+  // Don't render if canvas manager is not available
+  if (!canvasManager || !exportManager) {
+    return null
+  }
   
   const handleExport = async () => {
     try {
@@ -153,7 +160,7 @@ export function ExportDialog({ open, onOpenChange }: ExportDialogProps) {
               <FileImage className="h-4 w-4 mr-2" />
               Document
             </TabsTrigger>
-            <TabsTrigger value="selection" disabled={!canvasManager.getSelectionData()}>
+            <TabsTrigger value="selection" disabled={!canvasManager?.getSelectionData()}>
               <Image className="h-4 w-4 mr-2" />
               Selection
             </TabsTrigger>

@@ -202,7 +202,7 @@ export class DerivedStore<TParentState, TState> {
 import { useEffect, useState, useRef } from 'react'
 
 export function useStore<TState>(
-  store: BaseStore<TState> | DerivedStore<unknown, TState>
+  store: BaseStore<TState> | DerivedStore<any, TState>
 ): TState {
   const [state, setState] = useState(() => store.getState())
   const storeRef = useRef(store)
@@ -229,7 +229,7 @@ export function useDerivedStore<TState, TDerived>(
   selector: (state: TState) => TDerived,
   deps: React.DependencyList = []
 ): TDerived {
-  const derivedStoreRef = useRef<DerivedStore<TState, TDerived> | undefined>(undefined)
+  const derivedStoreRef = useRef<DerivedStore<TState, TDerived> | null>(null)
   const depsRef = useRef(deps)
   
   // Create or update derived store if dependencies change
@@ -238,5 +238,5 @@ export function useDerivedStore<TState, TDerived>(
     depsRef.current = deps
   }
   
-  return useStore(derivedStoreRef.current)
+  return useStore(derivedStoreRef.current!)
 } 

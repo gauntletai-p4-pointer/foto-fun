@@ -25,7 +25,7 @@ export class CutCommand extends Command {
     this.typedEventBus = ServiceContainer.getInstance().getSync<TypedEventBus>('TypedEventBus')
   }
   
-  async execute(): Promise<void> {
+  protected async doExecute(): Promise<void> {
     // Copy objects to clipboard
     await this.clipboard.cut(this.objects)
     

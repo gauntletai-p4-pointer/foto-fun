@@ -11,7 +11,15 @@ export interface SerializedDocument {
     width: number
     height: number
     backgroundColor: string
-    layers: unknown[]
+    layers: Array<{
+      id?: string
+      name: string
+      visible: boolean
+      locked: boolean
+      opacity: number
+      blendMode: string
+      objects?: unknown[]
+    }>
     selection?: unknown
   }
   metadata: {
@@ -243,13 +251,13 @@ export class DocumentSerializer {
         visible: layerData.visible,
         locked: layerData.locked,
         opacity: layerData.opacity,
-        blendMode: layerData.blendMode
+        blendMode: layerData.blendMode as any // Cast to any since BlendMode type is complex
       })
       
       // Load objects in the layer
       if (layerData.objects && Array.isArray(layerData.objects)) {
         for (const objData of layerData.objects) {
-          await this.canvasManager.addObject(objData, layer.id)
+          await this.canvasManager.addObject(objData as any, layer.id)
         }
       }
     }

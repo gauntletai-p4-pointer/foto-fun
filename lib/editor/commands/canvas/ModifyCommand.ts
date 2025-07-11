@@ -69,7 +69,7 @@ export class ModifyCommand extends Command {
     }
   }
   
-  async execute(): Promise<void> {
+  protected async doExecute(): Promise<void> {
     // Find the object
     const object = this.findObject(this.objectId)
     if (!object) {

@@ -1,14 +1,20 @@
 // Base command classes
 export * from './base'
 
+// Command manager
+export * from './CommandManager'
+
 // Canvas commands
 export * from './canvas'
 
-// TODO: Add layer commands when layer system is implemented
+// Layer commands
 export * from './layer'
 
-// TODO: Add selection commands when selection system is enhanced
+// Selection commands
 export * from './selection'
 
-// TODO: Add clipboard commands when clipboard system is implemented
+// Text commands
+export * from './text'
+
+// Clipboard commands
 export * from './clipboard' 

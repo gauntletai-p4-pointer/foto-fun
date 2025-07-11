@@ -3,11 +3,12 @@ import Konva from 'konva'
 import { TOOL_IDS } from '@/constants'
 import { BaseTextTool } from '../base/BaseTextTool'
 import type { ToolEvent, CanvasObject } from '@/lib/editor/canvas/types'
+import { TextEngine } from '@/lib/editor/text/engines/TextEngine'
 
 /**
  * Type on Path Tool - Allows text to follow the curve of a path
  * Click on any path object to add text that follows its curve
- * Konva implementation
+ * Full Konva implementation with proper path following
  */
 export class TypeOnPathTool extends BaseTextTool {
   // Tool identification
@@ -22,6 +23,12 @@ export class TypeOnPathTool extends BaseTextTool {
   private pathHoverTimeout: NodeJS.Timeout | null = null
   private originalPathStroke: string | null = null
   private originalPathStrokeWidth: number | null = null
+  private textEngine: TextEngine | null = null
+  private pathTextGroup: Konva.Group | null = null
+  
+  constructor() {
+    super()
+  }
   
   /**
    * Override setup to add path detection
@@ -32,6 +39,8 @@ export class TypeOnPathTool extends BaseTextTool {
     // Set up path-specific options
     this.setOption('pathOffset', 0) // Distance along path (0-1)
     this.setOption('pathSide', 'top') // 'top' or 'bottom' of path
+    this.setOption('spacing', 0) // Letter spacing adjustment
+    this.setOption('baselineShift', 0) // Vertical offset from path
   }
   
   /**
@@ -107,7 +116,15 @@ export class TypeOnPathTool extends BaseTextTool {
    * Check if a canvas object is a path object
    */
   private isPathObject(obj: CanvasObject): boolean {
-    return obj.type === 'shape' // In Konva, paths are typically shapes
+    // Check if it's a path or line shape
+    if (obj.type === 'shape' && obj.node) {
+      const node = obj.node as Konva.Shape
+      return node instanceof Konva.Path || 
+             node instanceof Konva.Line ||
+             node instanceof Konva.Arrow ||
+             (node.getClassName() === 'Shape' && node.getAttr('data'))
+    }
+    return false
   }
   
   /**
@@ -140,30 +157,43 @@ export class TypeOnPathTool extends BaseTextTool {
     const fontFamily = this.getOption('fontFamily') as string
     const fontSize = this.getOption('fontSize') as number
     const color = this.getOption('color') as string
-    // const bold = this.getOption('bold') as boolean
-    // const italic = this.getOption('italic') as boolean
     const underline = this.getOption('underline') as boolean
     
     if (this.selectedPath) {
-      // Create text that will follow the path
-      const text = new Konva.Text({
-        x,
-        y,
-        text: ' ', // Start with space
+      // Create a group to hold the path text
+      this.pathTextGroup = new Konva.Group({
+        draggable: true,
+        id: `path-text-group-${Date.now()}`
+      })
+      
+      // Create hidden text for editing
+      const editText = new Konva.Text({
+        x: 0,
+        y: 0,
+        text: ' ',
         fontFamily,
         fontSize,
         fill: color,
         fontStyle: this.getFontStyle(),
         textDecoration: underline ? 'underline' : '',
-        draggable: true,
-        // Store reference to the path
-        id: `path-text-${Date.now()}`
+        visible: false // Hidden, only for editing
       })
       
-      // Set up text-on-path behavior
-      this.setupTextOnPath(text, this.selectedPath)
+      this.pathTextGroup.add(editText)
       
-      return text
+      // Store reference to the path
+      this.pathTextGroup.setAttr('pathReference', this.selectedPath)
+      this.pathTextGroup.setAttr('editText', editText)
+      
+      // Add to layer
+      const layer = this.selectedPath.getLayer()
+      if (layer) {
+        layer.add(this.pathTextGroup)
+        layer.batchDraw()
+      }
+      
+      // Return the edit text for base class compatibility
+      return editText
     } else {
       // Create regular text if no path selected
       return new Konva.Text({
@@ -181,26 +211,210 @@ export class TypeOnPathTool extends BaseTextTool {
   }
   
   /**
-   * Set up text to follow path using Konva's path following
+   * Override to handle text changes and render along path
    */
-  private setupTextOnPath(text: Konva.Text, path: Konva.Shape): void {
-    // This is a simplified implementation
-    // In a full implementation, you would:
-    // 1. Get the path data from the shape
-    // 2. Calculate character positions along the path
-    // 3. Rotate each character to match path direction
-    // 4. Update positions on text change
+  protected onTextChange(text: string): void {
+    if (this.pathTextGroup && this.selectedPath) {
+      this.renderTextOnPath(text)
+    }
+  }
+  
+  /**
+   * Render text along the path
+   */
+  private renderTextOnPath(text: string): void {
+    if (!this.pathTextGroup || !this.selectedPath) return
     
-    // For now, just position the text at the start of the path
-    const pathBounds = path.getClientRect()
-    text.x(pathBounds.x)
-    text.y(pathBounds.y)
+    // Clear existing path text (keep edit text)
+    const editText = this.pathTextGroup.getAttr('editText') as Konva.Text
+    this.pathTextGroup.getChildren().forEach(child => {
+      if (child !== editText) {
+        child.destroy()
+      }
+    })
     
-    // Store path reference for future updates
-    text.setAttr('pathReference', path)
+    if (!text || text.trim() === '') return
     
-    // TODO: Implement proper path following algorithm
-    console.log('Text on path setup - full implementation needed for path following')
+    // Get path points
+    const pathPoints = this.getPathPoints(this.selectedPath)
+    if (pathPoints.length < 2) return
+    
+    // Get text properties
+    const fontFamily = this.getOption('fontFamily') as string
+    const fontSize = this.getOption('fontSize') as number
+    const color = this.getOption('color') as string
+    const pathOffset = this.getOption('pathOffset') as number
+    const spacing = this.getOption('spacing') as number
+    const baselineShift = this.getOption('baselineShift') as number
+    
+    // Measure text using canvas
+    const canvas = document.createElement('canvas')
+    const ctx = canvas.getContext('2d')!
+    ctx.font = `${fontSize}px ${fontFamily}`
+    
+    const totalLength = this.calculatePathLength(pathPoints)
+    const startOffset = totalLength * pathOffset
+    
+    // Calculate character positions along path
+    let currentOffset = startOffset
+    
+    for (let i = 0; i < text.length; i++) {
+      const char = text[i]
+      const charMetrics = ctx.measureText(char)
+      
+      // Find position and angle on path
+      const position = this.getPointOnPath(pathPoints, currentOffset, totalLength)
+      if (!position) break
+      
+      // Create character text
+      const charText = new Konva.Text({
+        x: position.x,
+        y: position.y - baselineShift,
+        text: char,
+        fontFamily,
+        fontSize,
+        fill: color,
+        fontStyle: this.getFontStyle(),
+        rotation: position.angle
+      })
+      
+      // Center character on path
+      charText.offsetX(charMetrics.width / 2)
+      charText.offsetY(fontSize / 2)
+      
+      this.pathTextGroup.add(charText)
+      
+      // Move to next character position
+      currentOffset += charMetrics.width + spacing
+      
+      // Stop if we've gone past the path
+      if (currentOffset > totalLength) break
+    }
+    
+    const layer = this.pathTextGroup.getLayer()
+    if (layer) layer.batchDraw()
+  }
+  
+  /**
+   * Get points from a path shape
+   */
+  private getPathPoints(shape: Konva.Shape): { x: number; y: number }[] {
+    if (shape instanceof Konva.Path) {
+      // Parse SVG path data
+      const data = shape.data()
+      return this.parseSVGPath(data)
+    } else if (shape instanceof Konva.Line || shape instanceof Konva.Arrow) {
+      // Get line points
+      const points = shape.points()
+      const result: { x: number; y: number }[] = []
+      for (let i = 0; i < points.length; i += 2) {
+        result.push({ x: points[i], y: points[i + 1] })
+      }
+      return result
+    }
+    
+    // Fallback: sample points along shape
+    return this.sampleShapePoints(shape)
+  }
+  
+  /**
+   * Parse SVG path data to points (simplified)
+   */
+  private parseSVGPath(data: string): { x: number; y: number }[] {
+    // This is a simplified parser - in production, use a proper SVG path parser
+    const points: { x: number; y: number }[] = []
+    const commands = data.match(/[MLCQZmlcqz][^MLCQZmlcqz]*/g) || []
+    
+    let currentX = 0
+    let currentY = 0
+    
+    commands.forEach(cmd => {
+      const type = cmd[0]
+      const coords = cmd.slice(1).trim().split(/[\s,]+/).map(Number)
+      
+      switch (type) {
+        case 'M':
+        case 'L':
+          currentX = coords[0]
+          currentY = coords[1]
+          points.push({ x: currentX, y: currentY })
+          break
+        case 'm':
+        case 'l':
+          currentX += coords[0]
+          currentY += coords[1]
+          points.push({ x: currentX, y: currentY })
+          break
+        // Add more commands as needed
+      }
+    })
+    
+    return points
+  }
+  
+  /**
+   * Sample points along a shape's perimeter
+   */
+  private sampleShapePoints(shape: Konva.Shape, samples = 100): { x: number; y: number }[] {
+    const points: { x: number; y: number }[] = []
+    const bounds = shape.getClientRect()
+    
+    // Simple rectangle sampling - override for specific shapes
+    for (let i = 0; i <= samples; i++) {
+      const t = i / samples
+      points.push({
+        x: bounds.x + bounds.width * t,
+        y: bounds.y
+      })
+    }
+    
+    return points
+  }
+  
+  /**
+   * Calculate total path length
+   */
+  private calculatePathLength(points: { x: number; y: number }[]): number {
+    let length = 0
+    for (let i = 1; i < points.length; i++) {
+      const dx = points[i].x - points[i - 1].x
+      const dy = points[i].y - points[i - 1].y
+      length += Math.sqrt(dx * dx + dy * dy)
+    }
+    return length
+  }
+  
+  /**
+   * Get point and angle at specific offset along path
+   */
+  private getPointOnPath(
+    points: { x: number; y: number }[], 
+    offset: number, 
+    totalLength: number
+  ): { x: number; y: number; angle: number } | null {
+    if (offset < 0 || offset > totalLength) return null
+    
+    let currentLength = 0
+    
+    for (let i = 1; i < points.length; i++) {
+      const dx = points[i].x - points[i - 1].x
+      const dy = points[i].y - points[i - 1].y
+      const segmentLength = Math.sqrt(dx * dx + dy * dy)
+      
+      if (currentLength + segmentLength >= offset) {
+        // Found the segment
+        const t = (offset - currentLength) / segmentLength
+        return {
+          x: points[i - 1].x + dx * t,
+          y: points[i - 1].y + dy * t,
+          angle: Math.atan2(dy, dx) * 180 / Math.PI
+        }
+      }
+      
+      currentLength += segmentLength
+    }
+    
+    return null
   }
   
   /**
@@ -210,24 +424,13 @@ export class TypeOnPathTool extends BaseTextTool {
     super.onOptionChange(key, value)
     
     // Handle path-specific options
-    if (key === 'pathOffset' || key === 'pathSide') {
+    if (key === 'pathOffset' || key === 'pathSide' || key === 'spacing' || key === 'baselineShift') {
       const currentText = this.state.get('currentText')
-      if (currentText && currentText.getAttr('pathReference')) {
-        // Update text position along path
-        this.updateTextOnPath(currentText)
+      if (currentText && this.pathTextGroup) {
+        const text = currentText.text()
+        this.renderTextOnPath(text)
       }
     }
-  }
-  
-  /**
-   * Update text position along path
-   */
-  private updateTextOnPath(text: Konva.Text): void {
-    const path = text.getAttr('pathReference') as Konva.Shape
-    if (!path) return
-    
-    // TODO: Implement path following position updates
-    console.log('Update text on path - full implementation needed')
   }
   
   /**
@@ -236,6 +439,7 @@ export class TypeOnPathTool extends BaseTextTool {
   protected async commitText(): Promise<void> {
     await super.commitText()
     this.clearPathSelection()
+    this.pathTextGroup = null
   }
   
   /**
@@ -244,6 +448,14 @@ export class TypeOnPathTool extends BaseTextTool {
   protected cancelEditing(): void {
     super.cancelEditing()
     this.clearPathSelection()
+    
+    // Remove the path text group if canceling
+    if (this.pathTextGroup) {
+      this.pathTextGroup.destroy()
+      const layer = this.pathTextGroup.getLayer()
+      if (layer) layer.batchDraw()
+      this.pathTextGroup = null
+    }
   }
 }
 

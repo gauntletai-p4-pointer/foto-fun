@@ -1,7 +1,7 @@
 import { EventStore } from './EventStore'
 import { TypedEventBus } from './TypedEventBus'
 import type { Event } from './Event'
-import type { Selection } from '@/lib/editor/canvas/types'
+import type { Selection, CanvasObject, Layer } from '@/lib/editor/canvas/types'
 
 /**
  * Bridge between EventStore (event sourcing) and TypedEventBus (UI updates)
@@ -65,105 +65,113 @@ export class EventStoreBridge {
    */
   private handleEvent(event: Event): void {
     try {
+      // Get the serialized event data which includes the 'data' property
+      const serializedEvent = event.toJSON()
+      const eventData = serializedEvent.data as Record<string, unknown>
+      
       // Use event type to determine what to emit
       switch (event.type) {
         case 'canvas.object.added': {
           // For ObjectAddedEvent, we need to reconstruct the data
-          const eventData = (event as unknown as { toJSON: () => { data: { canvasId: string; objectData: unknown; layerId?: string } } }).toJSON()
+          const data = eventData as { canvasId: string; objectData: unknown; layerId?: string }
           this.typedEventBus.emit('canvas.object.added', {
-            canvasId: eventData.data.canvasId,
-            object: eventData.data.objectData,
-            layerId: eventData.data.layerId
+            canvasId: data.canvasId,
+            object: data.objectData as CanvasObject,
+            layerId: data.layerId
           })
           break
         }
         
         case 'canvas.object.modified': {
-          const eventData = (event as unknown as { toJSON: () => { data: { canvasId: string; objectId: string; previousState: unknown; newState: unknown } } }).toJSON()
+          const data = eventData as { canvasId: string; objectId: string; previousState: unknown; newState: unknown }
           this.typedEventBus.emit('canvas.object.modified', {
-            canvasId: eventData.data.canvasId,
-            objectId: eventData.data.objectId,
-            previousState: eventData.data.previousState,
-            newState: eventData.data.newState
+            canvasId: data.canvasId,
+            objectId: data.objectId,
+            previousState: data.previousState as Record<string, unknown>,
+            newState: data.newState as Record<string, unknown>
           })
           break
         }
         
         case 'canvas.object.removed': {
-          const eventData = (event as unknown as { toJSON: () => { data: { canvasId: string; objectId: string } } }).toJSON()
+          const data = eventData as { canvasId: string; objectId: string }
           this.typedEventBus.emit('canvas.object.removed', {
-            canvasId: eventData.data.canvasId,
-            objectId: eventData.data.objectId
+            canvasId: data.canvasId,
+            objectId: data.objectId
           })
           break
         }
         
         case 'canvas.objects.batch.modified': {
-          const eventData = (event as unknown as { toJSON: () => { data: { canvasId: string; modifications: unknown } } }).toJSON()
+          const data = eventData as { canvasId: string; modifications: Array<{
+            object: CanvasObject
+            previousState: Record<string, unknown>
+            newState: Record<string, unknown>
+          }> }
           this.typedEventBus.emit('canvas.objects.batch.modified', {
-            canvasId: eventData.data.canvasId,
-            modifications: eventData.data.modifications
+            canvasId: data.canvasId,
+            modifications: data.modifications
           })
           break
         }
         
         // Layer events
         case 'layer.created': {
-          const eventData = (event as unknown as { toJSON: () => { data: { layer: unknown } } }).toJSON()
+          const data = eventData as { layer: Layer }
           this.typedEventBus.emit('layer.created', {
-            layer: eventData.data.layer
+            layer: data.layer
           })
           break
         }
         
         case 'layer.removed': {
-          const eventData = (event as unknown as { toJSON: () => { data: { layerId: string } } }).toJSON()
+          const data = eventData as { layerId: string }
           this.typedEventBus.emit('layer.removed', {
-            layerId: eventData.data.layerId
+            layerId: data.layerId
           })
           break
         }
         
         case 'layer.modified': {
-          const eventData = (event as unknown as { toJSON: () => { data: { layerId: string; modifications: unknown } } }).toJSON()
+          const data = eventData as { layerId: string; modifications: Partial<Layer> }
           this.typedEventBus.emit('layer.modified', {
-            layerId: eventData.data.layerId,
-            modifications: eventData.data.modifications
+            layerId: data.layerId,
+            modifications: data.modifications
           })
           break
         }
         
         case 'layers.reordered': {
-          const eventData = (event as unknown as { toJSON: () => { data: { layerIds: string[]; previousOrder: string[] } } }).toJSON()
+          const data = eventData as { layerIds: string[]; previousOrder: string[] }
           this.typedEventBus.emit('layer.reordered', {
-            layerIds: eventData.data.layerIds,
-            previousOrder: eventData.data.previousOrder
+            layerIds: data.layerIds,
+            previousOrder: data.previousOrder
           })
           break
         }
         
         // Selection events
         case 'selection.changed': {
-          const eventData = (event as unknown as { toJSON: () => { data: { selection: Selection | null; previousSelection: Selection | null } } }).toJSON()
+          const data = eventData as { selection: Selection | null; previousSelection: Selection | null }
           this.typedEventBus.emit('selection.changed', {
-            selection: eventData.data.selection,
-            previousSelection: eventData.data.previousSelection
+            selection: data.selection,
+            previousSelection: data.previousSelection
           })
           break
         }
         
         case 'selection.cleared': {
-          const eventData = (event as unknown as { toJSON: () => { data: { previousSelection: Selection } } }).toJSON()
+          const data = eventData as { previousSelection: Selection }
           this.typedEventBus.emit('selection.cleared', {
-            previousSelection: eventData.data.previousSelection
+            previousSelection: data.previousSelection
           })
           break
         }
         
         // Canvas state events
         case 'canvas.resized': {
-          const eventData = (event as unknown as { toJSON: () => { data: { previousSize: { width: number; height: number }; newSize: { width: number; height: number } } } }).toJSON()
-          const { previousSize, newSize } = eventData.data
+          const data = eventData as { previousSize: { width: number; height: number }; newSize: { width: number; height: number } }
+          const { previousSize, newSize } = data
           this.typedEventBus.emit('canvas.resized', {
             width: newSize.width,
             height: newSize.height,
@@ -174,24 +182,29 @@ export class EventStoreBridge {
         }
         
         case 'canvas.background.changed': {
-          const eventData = (event as unknown as { toJSON: () => { data: { newColor: string; previousColor: string } } }).toJSON()
+          const data = eventData as { newColor: string; previousColor: string }
           this.typedEventBus.emit('canvas.background.changed', {
-            backgroundColor: eventData.data.newColor,
-            previousColor: eventData.data.previousColor
+            backgroundColor: data.newColor,
+            previousColor: data.previousColor
           })
           break
         }
         
         // Tool events
         case 'tool.activated': {
-          const eventData = (event as unknown as { toJSON: () => { data: unknown } }).toJSON()
-          this.typedEventBus.emit('tool.activated', eventData.data)
+          const data = eventData as { toolId: string; previousToolId: string | null }
+          this.typedEventBus.emit('tool.activated', data)
           break
         }
         
         case 'tool.option.changed': {
-          const eventData = (event as unknown as { toJSON: () => { data: unknown } }).toJSON()
-          this.typedEventBus.emit('tool.option.changed', eventData.data)
+          const data = eventData as { 
+            toolId: string
+            optionId?: string
+            optionKey?: string
+            value: unknown
+          }
+          this.typedEventBus.emit('tool.option.changed', data)
           break
         }
         

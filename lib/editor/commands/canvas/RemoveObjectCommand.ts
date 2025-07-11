@@ -15,7 +15,7 @@ export class RemoveObjectCommand extends Command {
     this.typedEventBus = ServiceContainer.getInstance().getSync<TypedEventBus>('TypedEventBus')
   }
   
-  async execute(): Promise<void> {
+  protected async doExecute(): Promise<void> {
     // Emit object removed event
     this.typedEventBus.emit('canvas.object.removed', {
       canvasId: 'main', // TODO: Get actual canvas ID

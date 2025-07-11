@@ -13,7 +13,7 @@ export class CreateLayerCommand extends Command {
     this.typedEventBus = ServiceContainer.getInstance().getSync<TypedEventBus>('TypedEventBus')
   }
   
-  async execute(): Promise<void> {
+  protected async doExecute(): Promise<void> {
     this.typedEventBus.emit('layer.created', {
       layer: this.layer
     })

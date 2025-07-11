@@ -14,7 +14,7 @@ export class DuplicateLayerCommand extends Command {
     this.typedEventBus = ServiceContainer.getInstance().getSync<TypedEventBus>('TypedEventBus')
   }
   
-  async execute(): Promise<void> {
+  protected async doExecute(): Promise<void> {
     // TODO: Implement layer duplication logic
     // For now, just emit a placeholder layer creation
     const duplicatedLayer: Layer = {

@@ -318,10 +318,13 @@ export function useResourceManager(): ResourceManager {
 }
 
 // Decorators
-export function AutoDispose<T extends Record<string, unknown>>(target: T, propertyKey: string): void {
+export function AutoDispose<T extends Record<string, unknown>>(
+  target: T,
+  propertyKey: string & keyof T
+): void {
   const originalMethod = target[propertyKey] as (...args: unknown[]) => Promise<unknown>
   
-  target[propertyKey] = async function(this: T, ...args: unknown[]) {
+  const wrappedMethod = async function(this: T, ...args: unknown[]) {
     const resourceManager = new ResourceManager()
     
     try {
@@ -332,4 +335,11 @@ export function AutoDispose<T extends Record<string, unknown>>(target: T, proper
       await resourceManager.dispose()
     }
   }
+  
+  Object.defineProperty(target, propertyKey, {
+    value: wrappedMethod,
+    writable: true,
+    enumerable: false,
+    configurable: true
+  })
 } 

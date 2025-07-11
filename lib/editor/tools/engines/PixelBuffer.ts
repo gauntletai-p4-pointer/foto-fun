@@ -55,9 +55,20 @@ export class PixelBuffer {
   }
   
   /**
-   * Get pixel data for a specific region
+   * Get pixel data - either for entire canvas or specific region
    */
-  getPixelData(x: number, y: number, width: number, height: number): ImageData {
+  getPixelData(): ImageData
+  getPixelData(x: number, y: number, width: number, height: number): ImageData
+  getPixelData(x?: number, y?: number, width?: number, height?: number): ImageData {
+    if (x === undefined || y === undefined || width === undefined || height === undefined) {
+      // Return entire canvas data
+      return this.workingContext.getImageData(
+        0, 0,
+        this.workingCanvas.width,
+        this.workingCanvas.height
+      )
+    }
+    
     if (!this.pixelData) {
       throw new Error('Pixel buffer not initialized')
     }
@@ -73,6 +84,20 @@ export class PixelBuffer {
       clampedY, 
       clampedWidth, 
       clampedHeight
+    )
+  }
+  
+  /**
+   * Update pixels with new image data
+   */
+  updatePixels(imageData: ImageData): void {
+    this.workingContext.putImageData(imageData, 0, 0)
+    
+    // Update our cached pixel data
+    this.pixelData = this.workingContext.getImageData(
+      0, 0,
+      this.workingCanvas.width,
+      this.workingCanvas.height
     )
   }
   
@@ -156,7 +181,7 @@ export class PixelBuffer {
   /**
    * Commit the current stroke to the layer
    */
-  async commitStroke(_strokeData: ImageData): Promise<void> {
+  async commitStroke(): Promise<void> {
     // Create a Konva image from the stroke data
     const imageObj = new Image()
     const dataUrl = this.workingCanvas.toDataURL()

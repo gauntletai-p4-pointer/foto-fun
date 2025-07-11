@@ -51,7 +51,7 @@ export class CloneStampTool extends BasePixelTool {
   /**
    * Get tool-specific options
    */
-  getToolOptions(): Record<string, any> {
+  getToolOptions(): Record<string, unknown> {
     return {
       size: {
         type: 'slider',
@@ -293,8 +293,8 @@ export class CloneStampTool extends BasePixelTool {
         if (destX < 0 || destX >= width || destY < 0 || destY >= height) continue
         
         // Source coordinates (in sourceData buffer)
-        const srcX = Math.floor(sourcePoint.x - this.sourcePoint.x + sourceDataHalfSize + sx - halfSize)
-        const srcY = Math.floor(sourcePoint.y - this.sourcePoint.y + sourceDataHalfSize + sy - halfSize)
+        const srcX = Math.floor(sourcePoint.x - this.sourcePoint!.x + sourceDataHalfSize + sx - halfSize)
+        const srcY = Math.floor(sourcePoint.y - this.sourcePoint!.y + sourceDataHalfSize + sy - halfSize)
         
         if (srcX < 0 || srcX >= this.sourceData.width || srcY < 0 || srcY >= this.sourceData.height) continue
         
@@ -350,7 +350,7 @@ export class CloneStampTool extends BasePixelTool {
   /**
    * Begin clone stroke
    */
-  protected beginStroke(_event: ToolEvent): void {
+  protected beginStroke(): void {
     const dimensions = this.pixelBuffer?.getDimensions()
     if (!dimensions) return
     

@@ -15,7 +15,7 @@ export class AddObjectCommand extends Command {
     this.typedEventBus = ServiceContainer.getInstance().getSync<TypedEventBus>('TypedEventBus')
   }
   
-  async execute(): Promise<void> {
+  protected async doExecute(): Promise<void> {
     // Emit object added event
     this.typedEventBus.emit('canvas.object.added', {
       canvasId: 'main', // TODO: Get actual canvas ID

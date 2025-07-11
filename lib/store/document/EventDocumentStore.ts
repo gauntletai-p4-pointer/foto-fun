@@ -184,6 +184,8 @@ export class EventDocumentStore extends BaseStore<DocumentStoreState> {
    * Open a document from file
    */
   async openDocument(file: File): Promise<void> {
+    console.log('[DocumentStore] Opening document:', file.name)
+    
     this.setState(state => ({
       ...state,
       isLoading: true,
@@ -194,9 +196,12 @@ export class EventDocumentStore extends BaseStore<DocumentStoreState> {
       const reader = new FileReader()
       
       reader.onload = (e) => {
+        console.log('[DocumentStore] File read successfully')
         const img = new Image()
         
         img.onload = () => {
+          console.log('[DocumentStore] Image loaded:', img.width, 'x', img.height)
+          
           const newDocument: Document = {
             id: uuidv4(),
             name: file.name.replace(/\.[^/.]+$/, ''), // Remove extension
@@ -208,6 +213,7 @@ export class EventDocumentStore extends BaseStore<DocumentStoreState> {
             modified: new Date()
           }
           
+          console.log('[DocumentStore] Emitting document.loaded event')
           // Emit document loaded event
           this.typedEventBus.emit('document.loaded', {
             document: {
@@ -221,6 +227,7 @@ export class EventDocumentStore extends BaseStore<DocumentStoreState> {
             }
           })
           
+          console.log('[DocumentStore] Emitting document.image.ready event')
           // Emit image ready event for canvas to load the image
           this.typedEventBus.emit('document.image.ready', {
             documentId: newDocument.id,
@@ -228,10 +235,12 @@ export class EventDocumentStore extends BaseStore<DocumentStoreState> {
             dataUrl: e.target?.result as string
           })
           
+          console.log('[DocumentStore] Document opened successfully')
           resolve()
         }
         
         img.onerror = () => {
+          console.error('[DocumentStore] Failed to load image')
           this.setState(state => ({
             ...state,
             isLoading: false,
@@ -244,6 +253,7 @@ export class EventDocumentStore extends BaseStore<DocumentStoreState> {
       }
       
       reader.onerror = () => {
+        console.error('[DocumentStore] Failed to read file')
         this.setState(state => ({
           ...state,
           isLoading: false,

@@ -77,7 +77,8 @@ export class EventToolOptionsStore extends BaseStore<ToolOptionsState> {
       this.typedEventBus.on('tool.option.changed', (data) => {
         this.setState(state => {
           const toolValues = new Map(state.optionValues.get(data.toolId) || [])
-          toolValues.set(data.optionKey || data.optionId, data.value)
+          const optionKey = data.optionKey || data.optionId || 'value'
+          toolValues.set(optionKey, data.value)
           
           const newOptionValues = new Map(state.optionValues)
           newOptionValues.set(data.toolId, toolValues)
@@ -189,7 +190,7 @@ export class EventToolOptionsStore extends BaseStore<ToolOptionsState> {
     // Return default value
     const config = state.optionConfigs.get(toolId)
     const option = config?.options.find(o => o.id === optionId)
-    return option?.defaultValue ?? option?.value as T
+    return (option?.defaultValue ?? option?.value) as T | undefined
   }
   
   /**

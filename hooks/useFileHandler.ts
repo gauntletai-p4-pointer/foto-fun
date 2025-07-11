@@ -93,9 +93,12 @@ export function useFileHandler(mode: 'open' | 'insert' = 'open') {
   const handleFile = useCallback(async (file: File) => {
     console.log('[FileHandler] ========== HANDLE FILE START ==========')
     console.log('[FileHandler] File:', file.name, 'Mode:', mode)
+    console.log('[FileHandler] File type:', file.type)
+    console.log('[FileHandler] File size:', file.size)
     
     const error = validateFile(file)
     if (error) {
+      console.error('[FileHandler] Validation error:', error)
       alert(error) // In production, use a proper toast notification
       return
     }
@@ -104,13 +107,15 @@ export function useFileHandler(mode: 'open' | 'insert' = 'open') {
       if (mode === 'insert') {
         console.log('[FileHandler] Calling insertImage...')
         await insertImage(file)
+        console.log('[FileHandler] insertImage completed successfully')
       } else {
         console.log('[FileHandler] Calling openDocument...')
         await openDocument(file)
+        console.log('[FileHandler] openDocument completed successfully')
       }
       console.log('[FileHandler] ========== HANDLE FILE END ==========')
     } catch (error) {
-      console.error('Failed to handle file:', error)
+      console.error('[FileHandler] Failed to handle file:', error)
       alert('Failed to handle file. Please try again.')
     }
   }, [openDocument, mode])

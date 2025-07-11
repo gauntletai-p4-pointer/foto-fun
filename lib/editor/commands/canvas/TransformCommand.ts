@@ -38,7 +38,7 @@ export class TransformCommand extends Command {
     })
   }
   
-  async execute(): Promise<void> {
+  protected async doExecute(): Promise<void> {
     const objects = this.getObjects()
     if (objects.length === 0) return
     

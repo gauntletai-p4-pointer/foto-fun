@@ -29,7 +29,7 @@ export class CompositeCommand extends Command {
   /**
    * Execute all commands in order
    */
-  async execute(): Promise<void> {
+  protected async doExecute(): Promise<void> {
     for (const command of this.commands) {
       if (command.canExecute()) {
         await command.execute()

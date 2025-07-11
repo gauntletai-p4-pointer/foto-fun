@@ -116,7 +116,7 @@ export class ShortcutManager {
       meta: true,
       description: 'Select all',
       handler: () => {
-        this.canvasManager.selectAll()
+        this.canvasManager?.selectAll()
       }
     })
     
@@ -125,7 +125,7 @@ export class ShortcutManager {
       meta: true,
       description: 'Deselect',
       handler: () => {
-        this.canvasManager.deselectAll()
+        this.canvasManager?.deselectAll()
       }
     })
     
@@ -216,7 +216,7 @@ export class ShortcutManager {
       meta: true,
       description: 'Fit to screen',
       handler: () => {
-        this.canvasManager.fitToScreen()
+        this.canvasManager?.fitToScreen()
       }
     })
     
@@ -225,7 +225,7 @@ export class ShortcutManager {
       meta: true,
       description: 'Actual size (100%)',
       handler: () => {
-        this.canvasManager.setZoom(1)
+        this.canvasManager?.setZoom(1)
       }
     })
     
@@ -234,6 +234,7 @@ export class ShortcutManager {
       meta: true,
       description: 'Zoom in',
       handler: () => {
+        if (!this.canvasManager) return
         const currentZoom = this.canvasManager.state.zoom
         this.canvasManager.setZoom(Math.min(currentZoom * 1.25, 32))
       }
@@ -244,6 +245,7 @@ export class ShortcutManager {
       meta: true,
       description: 'Zoom out',
       handler: () => {
+        if (!this.canvasManager) return
         const currentZoom = this.canvasManager.state.zoom
         this.canvasManager.setZoom(Math.max(currentZoom / 1.25, 0.01))
       }

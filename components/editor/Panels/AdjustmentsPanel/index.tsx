@@ -1,6 +1,7 @@
 'use client'
 
-import { useToolStore } from '@/lib/store/tools'
+import { useService } from '@/lib/core/AppInitializer'
+import { EventToolStore, useEventToolStore } from '@/lib/store/tools/EventToolStore'
 import { Slider } from '@/components/ui/slider'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -109,9 +110,10 @@ const toolConfigs: Record<string, ToolConfig> = {
 }
 
 export function AdjustmentsPanel() {
-  const toolStore = useToolStore()
+  const toolStore = useService<EventToolStore>('ToolStore')
+  const toolState = useEventToolStore() // Subscribe to store changes
   
-  const activeTool = toolStore.activeTool
+  const activeTool = toolState.activeTool
   const activeToolId = activeTool?.id
   
   // Check if active tool is an adjustment/filter tool

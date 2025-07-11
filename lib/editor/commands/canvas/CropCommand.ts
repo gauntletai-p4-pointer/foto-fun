@@ -33,7 +33,7 @@ export class CropCommand extends Command {
     }
   }
   
-  async execute(): Promise<void> {
+  protected async doExecute(): Promise<void> {
     // Store the current canvas content before cropping
     this.previousState.imageData = this.canvasManager.getImageData()
     

@@ -493,6 +493,648 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
     ]
   },
   
+  // Paint tools
+  [TOOL_IDS.ERASER]: {
+    toolId: TOOL_IDS.ERASER,
+    options: [
+      {
+        id: 'mode',
+        type: 'dropdown',
+        label: 'Mode',
+        value: 'brush',
+        props: {
+          options: [
+            { value: 'brush', label: 'Brush' },
+            { value: 'pencil', label: 'Pencil' },
+            { value: 'block', label: 'Block' },
+            { value: 'background', label: 'Background Eraser' }
+          ]
+        }
+      },
+      {
+        id: 'size',
+        type: 'slider',
+        label: 'Size',
+        value: 20,
+        props: {
+          min: 1,
+          max: 200,
+          step: 1,
+          unit: 'px'
+        }
+      },
+      {
+        id: 'tolerance',
+        type: 'slider',
+        label: 'Tolerance',
+        value: 32,
+        props: {
+          min: 0,
+          max: 255,
+          step: 1,
+          tooltip: 'For Background Eraser mode'
+        }
+      }
+    ]
+  },
+  
+  [TOOL_IDS.CLONE_STAMP]: {
+    toolId: TOOL_IDS.CLONE_STAMP,
+    options: [
+      {
+        id: 'size',
+        type: 'slider',
+        label: 'Size',
+        value: 50,
+        props: {
+          min: 10,
+          max: 300,
+          step: 1,
+          unit: 'px'
+        }
+      },
+      {
+        id: 'opacity',
+        type: 'slider',
+        label: 'Opacity',
+        value: 100,
+        props: {
+          min: 0,
+          max: 100,
+          step: 1,
+          unit: '%'
+        }
+      },
+      {
+        id: 'aligned',
+        type: 'checkbox',
+        label: 'Aligned',
+        value: true,
+        props: {
+          tooltip: 'Keep source point aligned with cursor'
+        }
+      },
+      {
+        id: 'sampleAllLayers',
+        type: 'checkbox',
+        label: 'Sample All Layers',
+        value: false
+      }
+    ]
+  },
+  
+  [TOOL_IDS.HEALING_BRUSH]: {
+    toolId: TOOL_IDS.HEALING_BRUSH,
+    options: [
+      {
+        id: 'mode',
+        type: 'dropdown',
+        label: 'Mode',
+        value: 'normal',
+        props: {
+          options: [
+            { value: 'normal', label: 'Normal' },
+            { value: 'spot', label: 'Spot Healing' }
+          ]
+        }
+      },
+      {
+        id: 'size',
+        type: 'slider',
+        label: 'Size',
+        value: 30,
+        props: {
+          min: 5,
+          max: 200,
+          step: 1,
+          unit: 'px'
+        }
+      },
+      {
+        id: 'hardness',
+        type: 'slider',
+        label: 'Hardness',
+        value: 50,
+        props: {
+          min: 0,
+          max: 100,
+          step: 1,
+          unit: '%'
+        }
+      }
+    ]
+  },
+  
+  [TOOL_IDS.GRADIENT]: {
+    toolId: TOOL_IDS.GRADIENT,
+    options: [
+      {
+        id: 'type',
+        type: 'dropdown',
+        label: 'Type',
+        value: 'linear',
+        props: {
+          options: [
+            { value: 'linear', label: 'Linear' },
+            { value: 'radial', label: 'Radial' },
+            { value: 'angle', label: 'Angle' },
+            { value: 'reflected', label: 'Reflected' },
+            { value: 'diamond', label: 'Diamond' }
+          ]
+        }
+      },
+      {
+        id: 'opacity',
+        type: 'slider',
+        label: 'Opacity',
+        value: 100,
+        props: {
+          min: 0,
+          max: 100,
+          step: 1,
+          unit: '%'
+        }
+      },
+      {
+        id: 'reverse',
+        type: 'checkbox',
+        label: 'Reverse',
+        value: false
+      },
+      {
+        id: 'dither',
+        type: 'checkbox',
+        label: 'Dither',
+        value: false,
+        props: {
+          tooltip: 'Reduce banding in gradients'
+        }
+      }
+    ]
+  },
+  
   // AI-Native tools
-  // Add more tool options as needed
+  [TOOL_IDS.AI_IMAGE_GENERATION]: {
+    toolId: TOOL_IDS.AI_IMAGE_GENERATION,
+    options: [
+      {
+        id: 'model',
+        type: 'dropdown',
+        label: 'Model',
+        value: 'stable-diffusion',
+        props: {
+          options: [
+            { value: 'stable-diffusion', label: 'Stable Diffusion' },
+            { value: 'dall-e', label: 'DALL-E' },
+            { value: 'midjourney', label: 'Midjourney' }
+          ]
+        }
+      },
+      {
+        id: 'width',
+        type: 'number',
+        label: 'Width',
+        value: 512,
+        props: {
+          min: 256,
+          max: 1024,
+          step: 64,
+          unit: 'px'
+        }
+      },
+      {
+        id: 'height',
+        type: 'number',
+        label: 'Height',
+        value: 512,
+        props: {
+          min: 256,
+          max: 1024,
+          step: 64,
+          unit: 'px'
+        }
+      },
+      {
+        id: 'steps',
+        type: 'slider',
+        label: 'Steps',
+        value: 50,
+        props: {
+          min: 10,
+          max: 150,
+          step: 10
+        }
+      },
+      {
+        id: 'guidance',
+        type: 'slider',
+        label: 'Guidance Scale',
+        value: 7.5,
+        props: {
+          min: 1,
+          max: 20,
+          step: 0.5
+        }
+      }
+    ]
+  },
+  
+  // Selection tools
+  [TOOL_IDS.MARQUEE_ELLIPSE]: {
+    toolId: TOOL_IDS.MARQUEE_ELLIPSE,
+    options: [
+      {
+        id: 'selectionMode',
+        type: 'button-group',
+        label: 'Selection Mode',
+        value: 'new',
+        props: {
+          options: [
+            { value: 'new', label: 'New Selection', icon: 'Circle' },
+            { value: 'add', label: 'Add to Selection', icon: 'Plus' },
+            { value: 'subtract', label: 'Subtract from Selection', icon: 'Minus' },
+            { value: 'intersect', label: 'Intersect Selection', icon: 'X' }
+          ]
+        }
+      },
+      {
+        id: 'feather',
+        type: 'number',
+        label: 'Feather',
+        value: 0,
+        props: {
+          min: 0,
+          max: 250,
+          unit: 'px'
+        }
+      },
+      {
+        id: 'antiAlias',
+        type: 'checkbox',
+        label: 'Anti-alias',
+        value: true
+      }
+    ]
+  },
+  
+  [TOOL_IDS.LASSO]: {
+    toolId: TOOL_IDS.LASSO,
+    options: [
+      {
+        id: 'selectionMode',
+        type: 'button-group',
+        label: 'Selection Mode',
+        value: 'new',
+        props: {
+          options: [
+            { value: 'new', label: 'New Selection', icon: 'Lasso' },
+            { value: 'add', label: 'Add to Selection', icon: 'Plus' },
+            { value: 'subtract', label: 'Subtract from Selection', icon: 'Minus' },
+            { value: 'intersect', label: 'Intersect Selection', icon: 'X' }
+          ]
+        }
+      },
+      {
+        id: 'feather',
+        type: 'number',
+        label: 'Feather',
+        value: 0,
+        props: {
+          min: 0,
+          max: 250,
+          unit: 'px'
+        }
+      },
+      {
+        id: 'antiAlias',
+        type: 'checkbox',
+        label: 'Anti-alias',
+        value: true
+      }
+    ]
+  },
+  
+  [TOOL_IDS.MAGIC_WAND]: {
+    toolId: TOOL_IDS.MAGIC_WAND,
+    options: [
+      {
+        id: 'tolerance',
+        type: 'slider',
+        label: 'Tolerance',
+        value: 32,
+        props: {
+          min: 0,
+          max: 255,
+          step: 1
+        }
+      },
+      {
+        id: 'selectionMode',
+        type: 'button-group',
+        label: 'Selection Mode',
+        value: 'new',
+        props: {
+          options: [
+            { value: 'new', label: 'New Selection', icon: 'Wand2' },
+            { value: 'add', label: 'Add to Selection', icon: 'Plus' },
+            { value: 'subtract', label: 'Subtract from Selection', icon: 'Minus' },
+            { value: 'intersect', label: 'Intersect Selection', icon: 'X' }
+          ]
+        }
+      },
+      {
+        id: 'sampleAllLayers',
+        type: 'checkbox',
+        label: 'Sample All Layers',
+        value: false
+      },
+      {
+        id: 'contiguous',
+        type: 'checkbox',
+        label: 'Contiguous',
+        value: true
+      }
+    ]
+  },
+  
+  [TOOL_IDS.QUICK_SELECTION]: {
+    toolId: TOOL_IDS.QUICK_SELECTION,
+    options: [
+      {
+        id: 'size',
+        type: 'slider',
+        label: 'Size',
+        value: 30,
+        props: {
+          min: 1,
+          max: 200,
+          step: 1,
+          unit: 'px'
+        }
+      },
+      {
+        id: 'selectionMode',
+        type: 'button-group',
+        label: 'Selection Mode',
+        value: 'new',
+        props: {
+          options: [
+            { value: 'new', label: 'New Selection', icon: 'Wand2' },
+            { value: 'add', label: 'Add to Selection', icon: 'Plus' },
+            { value: 'subtract', label: 'Subtract from Selection', icon: 'Minus' }
+          ]
+        }
+      },
+      {
+        id: 'sampleAllLayers',
+        type: 'checkbox',
+        label: 'Sample All Layers',
+        value: false
+      }
+    ]
+  },
+  
+  // Navigation tools
+  [TOOL_IDS.HAND]: {
+    toolId: TOOL_IDS.HAND,
+    options: [
+      {
+        id: 'scrollAllWindows',
+        type: 'checkbox',
+        label: 'Scroll All Windows',
+        value: false
+      }
+    ]
+  },
+  
+  [TOOL_IDS.ZOOM]: {
+    toolId: TOOL_IDS.ZOOM,
+    options: [
+      {
+        id: 'zoomMode',
+        type: 'button-group',
+        label: 'Zoom Mode',
+        value: 'in',
+        props: {
+          options: [
+            { value: 'in', label: 'Zoom In', icon: 'Plus' },
+            { value: 'out', label: 'Zoom Out', icon: 'Minus' }
+          ]
+        }
+      },
+      {
+        id: 'resizeWindowToFit',
+        type: 'checkbox',
+        label: 'Resize Window To Fit',
+        value: false
+      },
+      {
+        id: 'zoomAllWindows',
+        type: 'checkbox',
+        label: 'Zoom All Windows',
+        value: false
+      }
+    ]
+  },
+  
+  // Sampling tools
+  [TOOL_IDS.EYEDROPPER]: {
+    toolId: TOOL_IDS.EYEDROPPER,
+    options: [
+      {
+        id: 'sampleSize',
+        type: 'dropdown',
+        label: 'Sample Size',
+        value: 'point',
+        props: {
+          options: [
+            { value: 'point', label: 'Point Sample' },
+            { value: '3x3', label: '3x3 Average' },
+            { value: '5x5', label: '5x5 Average' },
+            { value: '11x11', label: '11x11 Average' },
+            { value: '31x31', label: '31x31 Average' }
+          ]
+        }
+      },
+      {
+        id: 'sampleAllLayers',
+        type: 'checkbox',
+        label: 'Sample All Layers',
+        value: true
+      },
+      {
+        id: 'showSamplingRing',
+        type: 'checkbox',
+        label: 'Show Sampling Ring',
+        value: true
+      }
+    ]
+  },
+  
+  // Type tools
+  [TOOL_IDS.TYPE_HORIZONTAL]: {
+    toolId: TOOL_IDS.TYPE_HORIZONTAL,
+    options: [
+      {
+        id: 'fontFamily',
+        type: 'dropdown',
+        label: 'Font',
+        value: 'Arial',
+        props: {
+          options: [
+            { value: 'Arial', label: 'Arial' },
+            { value: 'Helvetica', label: 'Helvetica' },
+            { value: 'Times New Roman', label: 'Times New Roman' },
+            { value: 'Georgia', label: 'Georgia' },
+            { value: 'Verdana', label: 'Verdana' },
+            { value: 'Courier New', label: 'Courier New' }
+          ]
+        }
+      },
+      {
+        id: 'fontSize',
+        type: 'number',
+        label: 'Size',
+        value: 60,
+        props: {
+          min: 6,
+          max: 1296,
+          step: 1,
+          unit: 'pt'
+        }
+      },
+      {
+        id: 'color',
+        type: 'color',
+        label: 'Color',
+        value: '#000000'
+      }
+    ]
+  },
+  
+  [TOOL_IDS.TYPE_VERTICAL]: {
+    toolId: TOOL_IDS.TYPE_VERTICAL,
+    options: [
+      {
+        id: 'fontFamily',
+        type: 'dropdown',
+        label: 'Font',
+        value: 'Arial',
+        props: {
+          options: [
+            { value: 'Arial', label: 'Arial' },
+            { value: 'Helvetica', label: 'Helvetica' },
+            { value: 'Times New Roman', label: 'Times New Roman' },
+            { value: 'Georgia', label: 'Georgia' },
+            { value: 'Verdana', label: 'Verdana' },
+            { value: 'Courier New', label: 'Courier New' }
+          ]
+        }
+      },
+      {
+        id: 'fontSize',
+        type: 'number',
+        label: 'Size',
+        value: 60,
+        props: {
+          min: 6,
+          max: 1296,
+          step: 1,
+          unit: 'pt'
+        }
+      },
+      {
+        id: 'color',
+        type: 'color',
+        label: 'Color',
+        value: '#000000'
+      }
+    ]
+  },
+  
+  [TOOL_IDS.TYPE_MASK]: {
+    toolId: TOOL_IDS.TYPE_MASK,
+    options: [
+      {
+        id: 'fontFamily',
+        type: 'dropdown',
+        label: 'Font',
+        value: 'Arial',
+        props: {
+          options: [
+            { value: 'Arial', label: 'Arial' },
+            { value: 'Helvetica', label: 'Helvetica' },
+            { value: 'Times New Roman', label: 'Times New Roman' },
+            { value: 'Georgia', label: 'Georgia' },
+            { value: 'Verdana', label: 'Verdana' },
+            { value: 'Courier New', label: 'Courier New' }
+          ]
+        }
+      },
+      {
+        id: 'fontSize',
+        type: 'number',
+        label: 'Size',
+        value: 60,
+        props: {
+          min: 6,
+          max: 1296,
+          step: 1,
+          unit: 'pt'
+        }
+      }
+    ]
+  },
+  
+  [TOOL_IDS.TYPE_ON_PATH]: {
+    toolId: TOOL_IDS.TYPE_ON_PATH,
+    options: [
+      {
+        id: 'fontFamily',
+        type: 'dropdown',
+        label: 'Font',
+        value: 'Arial',
+        props: {
+          options: [
+            { value: 'Arial', label: 'Arial' },
+            { value: 'Helvetica', label: 'Helvetica' },
+            { value: 'Times New Roman', label: 'Times New Roman' },
+            { value: 'Georgia', label: 'Georgia' },
+            { value: 'Verdana', label: 'Verdana' },
+            { value: 'Courier New', label: 'Courier New' }
+          ]
+        }
+      },
+      {
+        id: 'fontSize',
+        type: 'number',
+        label: 'Size',
+        value: 60,
+        props: {
+          min: 6,
+          max: 1296,
+          step: 1,
+          unit: 'pt'
+        }
+      },
+      {
+        id: 'color',
+        type: 'color',
+        label: 'Color',
+        value: '#000000'
+      },
+      {
+        id: 'pathOffset',
+        type: 'slider',
+        label: 'Path Offset',
+        value: 0,
+        props: {
+          min: -100,
+          max: 100,
+          step: 1,
+          unit: '%'
+        }
+      }
+    ]
+  }
 } 

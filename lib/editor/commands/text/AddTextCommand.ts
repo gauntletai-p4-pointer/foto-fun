@@ -30,7 +30,7 @@ export class AddTextCommand extends Command {
     this.typedEventBus = ServiceContainer.getInstance().getSync<TypedEventBus>('TypedEventBus')
   }
   
-  async execute(): Promise<void> {
+  protected async doExecute(): Promise<void> {
     // Create text object
     this.textObject = {
       id: nanoid(),

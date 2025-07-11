@@ -12,7 +12,7 @@ export class RemoveLayerCommand extends Command {
     this.typedEventBus = ServiceContainer.getInstance().getSync<TypedEventBus>('TypedEventBus')
   }
   
-  async execute(): Promise<void> {
+  protected async doExecute(): Promise<void> {
     this.typedEventBus.emit('layer.removed', {
       layerId: this.layerId
     })

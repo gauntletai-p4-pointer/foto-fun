@@ -50,7 +50,7 @@ export class HealingBrushTool extends BasePixelTool {
   /**
    * Get tool-specific options
    */
-  getToolOptions(): Record<string, any> {
+  getToolOptions(): Record<string, unknown> {
     return {
       mode: {
         type: 'select',
@@ -446,7 +446,7 @@ export class HealingBrushTool extends BasePixelTool {
   /**
    * Begin healing stroke
    */
-  protected beginStroke(_event: ToolEvent): void {
+  protected beginStroke(): void {
     const dimensions = this.pixelBuffer?.getDimensions()
     if (!dimensions) return
     

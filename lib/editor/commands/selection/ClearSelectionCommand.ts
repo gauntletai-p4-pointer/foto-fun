@@ -13,7 +13,7 @@ export class ClearSelectionCommand extends Command {
     this.selectionManager = selectionManager
   }
   
-  async execute(): Promise<void> {
+  protected async doExecute(): Promise<void> {
     // Save current selection if any
     const current = this.selectionManager.getSelection()
     if (current) {

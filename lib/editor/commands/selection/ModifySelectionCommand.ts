@@ -21,7 +21,7 @@ export class ModifySelectionCommand extends Command {
     this.amount = amount
   }
   
-  async execute(): Promise<void> {
+  protected async doExecute(): Promise<void> {
     // Save current selection
     const current = this.selectionManager.getSelection()
     if (!current) {

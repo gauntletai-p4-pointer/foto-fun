@@ -18,7 +18,7 @@ export class EditTextCommand extends Command {
     super('Edit text')
   }
   
-  async execute(): Promise<void> {
+  protected async doExecute(): Promise<void> {
     const canvas = this.getCanvasManager()
     if (!canvas) {
       throw new Error('Canvas manager not available')

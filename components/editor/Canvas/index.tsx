@@ -1,17 +1,17 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import React, { useRef, useEffect, useState } from 'react'
 import { useService, useAsyncService } from '@/lib/core/AppInitializer'
-import { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
+import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
 import { CanvasManagerFactory } from '@/lib/editor/canvas/CanvasManagerFactory'
-import { useCanvasStore as useTypedCanvasStore } from '@/lib/store/canvas/TypedCanvasStore'
 import { TypedCanvasStore } from '@/lib/store/canvas/TypedCanvasStore'
 import { EventToolStore } from '@/lib/store/tools/EventToolStore'
 import { getTypedEventBus } from '@/lib/events/core/TypedEventBus'
+import { TOOL_IDS } from '@/constants'
+import type { ToolEvent } from '@/lib/editor/canvas/types'
+import { useCanvasStore as useTypedCanvasStore } from '@/lib/store/canvas/TypedCanvasStore'
 import { useFileHandler } from '@/hooks/useFileHandler'
 import { ServiceContainer } from '@/lib/core/ServiceContainer'
-import type { ToolEvent } from '@/lib/editor/canvas/types'
-import { TOOL_IDS } from '@/constants'
 
 export function Canvas() {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -59,27 +59,30 @@ export function Canvas() {
     
     return () => {
       // Clean up
-      const currentManager = canvasManager
-      if (currentManager) {
-        currentManager.destroy()
+      if (canvasManager) {
+        canvasManager.destroy()
       }
       setCanvasManager(null)
       
       // Clear the CanvasManager from the container
       container.updateInstance('CanvasManager', null)
     }
-  }, [canvasFactory, loading, canvasStore, toolStore, eventBus, container])
+  }, [canvasFactory, loading, canvasStore, toolStore, eventBus, container, canvasManager])
   
   // Handle document image loading
   useEffect(() => {
     if (!canvasManager) return
     
-    const unsubscribe = eventBus.on('document.image.ready', async (data) => {
+    console.log('[Canvas] Setting up document.image.ready listener')
+    
+    const unsubscribe = eventBus.on('document.image.ready', async (data: { imageElement: HTMLImageElement }) => {
+      console.log('[Canvas] Received document.image.ready event', data)
       console.log('[Canvas] Loading document image...')
       
       try {
         // Clear existing content
         const layers = [...canvasManager.state.layers]
+        console.log('[Canvas] Clearing', layers.length, 'layers')
         layers.forEach(layer => {
           layer.objects.forEach(obj => {
             canvasManager.removeObject(obj.id)
@@ -87,9 +90,11 @@ export function Canvas() {
         })
         
         // Resize canvas to match image
+        console.log('[Canvas] Resizing canvas to', data.imageElement.width, 'x', data.imageElement.height)
         await canvasManager.resize(data.imageElement.width, data.imageElement.height)
         
         // Add the image to the canvas
+        console.log('[Canvas] Adding image to canvas')
         await canvasManager.addObject({
           type: 'image',
           data: data.imageElement,
@@ -106,6 +111,7 @@ export function Canvas() {
         })
         
         // Fit to screen
+        console.log('[Canvas] Fitting to screen')
         canvasManager.fitToScreen()
         
         console.log('[Canvas] Document image loaded successfully')
@@ -115,6 +121,7 @@ export function Canvas() {
     })
     
     return () => {
+      console.log('[Canvas] Removing document.image.ready listener')
       unsubscribe()
     }
   }, [canvasManager, eventBus])
@@ -135,6 +142,12 @@ export function Canvas() {
         
         // Activate new tool
         tool.onActivate?.(canvasManager)
+        
+        // Set cursor
+        const container = canvasManager.konvaStage.container()
+        if (container) {
+          container.style.cursor = tool.cursor || 'default'
+        }
       }
     })
     
@@ -143,7 +156,10 @@ export function Canvas() {
       const activeTool = toolStore.getActiveTool()
       if (activeTool && activeTool.id === data.toolId && 'setOption' in activeTool) {
         const tool = activeTool as { setOption: (key: string, value: unknown) => void }
-        tool.setOption(data.optionId, data.value)
+        const optionKey = data.optionId || data.optionKey || ''
+        if (optionKey) {
+          tool.setOption(optionKey, data.value)
+        }
       }
     })
     
@@ -151,6 +167,11 @@ export function Canvas() {
     const activeTool = toolStore.getActiveTool()
     if (activeTool) {
       activeTool.onActivate?.(canvasManager)
+      // Set initial cursor
+      const container = canvasManager.konvaStage.container()
+      if (container) {
+        container.style.cursor = activeTool.cursor || 'default'
+      }
     }
     
     return () => {
@@ -174,7 +195,6 @@ export function Canvas() {
     // Helper to create ToolEvent from mouse event
     const createToolEvent = (type: 'mousedown' | 'mousemove' | 'mouseup', e: MouseEvent): ToolEvent => {
       const rect = container.getBoundingClientRect()
-      const pointerPos = stage.getPointerPosition() || { x: 0, y: 0 }
       
       // Calculate canvas coordinates considering zoom and pan
       const zoom = canvasManager.state.zoom

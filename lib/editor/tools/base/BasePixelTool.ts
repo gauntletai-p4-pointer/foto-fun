@@ -137,7 +137,7 @@ export abstract class BasePixelTool extends BaseTool {
     if (!this.pixelBuffer || !this.currentStroke) return
     
     // Commit the stroke to the layer
-    await this.pixelBuffer.commitStroke(this.currentStroke)
+    await this.pixelBuffer.commitStroke()
     
     // Emit paint event
     if (this.executionContext) {

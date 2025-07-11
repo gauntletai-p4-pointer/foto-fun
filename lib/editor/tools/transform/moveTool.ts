@@ -111,6 +111,9 @@ export class MoveTool extends BaseTool {
     // Check for Alt key (duplication)
     const isDuplicating = event.altKey
     
+    // Set pointer position from the event to avoid Konva warning
+    stage.setPointersPositions(event.nativeEvent)
+    
     // Get clicked object
     const pos = stage.getPointerPosition()
     if (!pos) return
@@ -170,6 +173,9 @@ export class MoveTool extends BaseTool {
     
     // Update cursor based on hover
     if (!this.dragState) {
+      // Set pointer position from the event to avoid Konva warning
+      stage.setPointersPositions(event.nativeEvent)
+      
       const pos = stage.getPointerPosition()
       if (pos) {
         const shape = stage.getIntersection(pos)

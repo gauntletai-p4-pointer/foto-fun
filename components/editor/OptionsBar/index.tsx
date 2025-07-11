@@ -1,12 +1,11 @@
 'use client'
 
-import { useService } from '@/lib/core/AppInitializer'
-import { EventToolStore } from '@/lib/store/tools/EventToolStore'
+import { useEventToolStore } from '@/lib/store/tools/EventToolStore'
 import { ToolOptions } from '../ToolOptions'
 
 export function OptionsBar() {
-  const toolStore = useService<EventToolStore>('ToolStore')
-  const activeTool = toolStore.getActiveTool()
+  const toolState = useEventToolStore() // Subscribe to store changes
+  const activeTool = toolState.activeTool // Use reactive state
   
   return (
     <div className="h-10 bg-background border-b border-foreground/10 flex items-center px-4 gap-4">

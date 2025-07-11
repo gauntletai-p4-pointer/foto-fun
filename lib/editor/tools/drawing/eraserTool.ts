@@ -1,6 +1,6 @@
 import { Eraser } from 'lucide-react'
 import { BasePixelTool } from '../base/BasePixelTool'
-import type { ToolEvent, Point } from '@/lib/editor/canvas/types'
+import type { Point } from '@/lib/editor/canvas/types'
 import { TOOL_IDS } from '@/constants'
 
 /**
@@ -48,7 +48,7 @@ export class EraserTool extends BasePixelTool {
   /**
    * Get tool-specific options
    */
-  getToolOptions(): Record<string, any> {
+  getToolOptions(): Record<string, unknown> {
     return {
       mode: {
         type: 'select',
@@ -317,7 +317,7 @@ export class EraserTool extends BasePixelTool {
   /**
    * Begin eraser stroke
    */
-  protected beginStroke(_event: ToolEvent): void {
+  protected beginStroke(): void {
     const dimensions = this.pixelBuffer?.getDimensions()
     if (!dimensions) return
     

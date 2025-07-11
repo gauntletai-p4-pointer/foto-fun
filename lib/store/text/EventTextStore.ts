@@ -209,8 +209,8 @@ export class EventTextStore extends BaseStore<TextStoreState> {
             {
               id: `preset-${Date.now()}`,
               name: data.name,
-              style: data.style,
-              effects: data.effects
+              style: data.style as Record<string, string | number | boolean>,
+              effects: data.effects as TextEffects | undefined
             }
           ]
         }))
@@ -221,7 +221,7 @@ export class EventTextStore extends BaseStore<TextStoreState> {
   /**
    * Clean up subscriptions
    */
-  dispose(): void {
+  override dispose(): void {
     // Unsubscribe from typed events
     this.typedSubscriptions.forEach(unsubscribe => unsubscribe())
     this.typedSubscriptions = []

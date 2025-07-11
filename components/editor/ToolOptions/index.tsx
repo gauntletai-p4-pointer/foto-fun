@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useService } from '@/lib/core/AppInitializer'
-import { EventToolStore, ToolOption } from '@/lib/store/tools/EventToolStore'
+import { EventToolStore, ToolOption, useEventToolStore } from '@/lib/store/tools/EventToolStore'
 import { OptionCheckbox } from './OptionCheckbox'
 import { OptionNumber } from './OptionNumber'
 import { OptionButtonGroup } from './OptionButtonGroup'
@@ -16,7 +16,8 @@ import { vintageEffectsTool } from '@/lib/editor/tools/filters/vintageEffectsToo
 
 export function ToolOptions() {
   const toolStore = useService<EventToolStore>('ToolStore')
-  const activeTool = toolStore.getActiveTool()
+  const toolState = useEventToolStore() // Subscribe to store changes
+  const activeTool = toolState.activeTool // Use reactive state
   const [modifiers, setModifiers] = useState({ shift: false, alt: false })
   
   // Register default options on mount

@@ -5,6 +5,7 @@ import { TypedEventBus } from '@/lib/events/core/TypedEventBus'
 import { nanoid } from 'nanoid'
 import { SelectionOperations } from './SelectionOperations'
 import { SelectionRenderer } from './SelectionRenderer'
+import type { SelectionSnapshot } from '@/lib/ai/execution/SelectionSnapshot'
 
 export interface SelectionBounds {
   x: number
@@ -729,6 +730,84 @@ export class SelectionManager {
   dispose(): void {
     this.stopMarchingAnts()
     this.renderer.destroy()
-    this.selection = null
+  }
+  
+  /**
+   * Create a snapshot of the current selection state
+   * Used for preserving selection across operations
+   */
+  createSnapshot(): SelectionSnapshot | null {
+    if (!this.selection) return null
+    
+    // Create a snapshot-compatible representation
+    const snapshotData = {
+      id: this.selectionId || nanoid(),
+      type: 'selection' as const,
+      bounds: { ...this.selection.bounds },
+      mask: this.selection.mask,
+      timestamp: Date.now()
+    }
+    
+    return snapshotData as unknown as SelectionSnapshot
+  }
+  
+  /**
+   * Restore selection from a snapshot
+   * Used for maintaining selection context in AI workflows
+   */
+  restoreFromSnapshot(snapshot: SelectionSnapshot): boolean {
+    try {
+      // Extract selection data from snapshot
+      const snapshotData = snapshot as unknown as {
+        bounds: SelectionBounds
+        mask: ImageData
+      }
+      
+      if (!snapshotData.bounds || !snapshotData.mask) {
+        console.warn('[SelectionManager] Invalid snapshot format')
+        return false
+      }
+      
+      // Restore the selection
+      this.restoreSelection(snapshotData.mask, snapshotData.bounds)
+      return true
+      
+    } catch (error) {
+      console.error('[SelectionManager] Failed to restore from snapshot:', error)
+      return false
+    }
+  }
+  
+  /**
+   * Get selection metadata for tracking
+   */
+  getSelectionMetadata(): Record<string, unknown> {
+    if (!this.selection) {
+      return { hasSelection: false }
+    }
+    
+    return {
+      hasSelection: true,
+      selectionId: this.selectionId,
+      bounds: { ...this.selection.bounds },
+      pixelCount: this.countSelectedPixels(),
+      type: 'pixel'
+    }
+  }
+  
+  /**
+   * Count the number of selected pixels
+   */
+  private countSelectedPixels(): number {
+    if (!this.selection) return 0
+    
+    let count = 0
+    const data = this.selection.mask.data
+    
+    for (let i = 3; i < data.length; i += 4) {
+      if (data[i] > 0) count++
+    }
+    
+    return count
   }
 } 

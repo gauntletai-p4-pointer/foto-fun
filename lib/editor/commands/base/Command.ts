@@ -1,4 +1,19 @@
 import { nanoid } from 'nanoid'
+import type { ExecutionContext } from '@/lib/events/execution/ExecutionContext'
+import type { SelectionSnapshot } from '@/lib/ai/execution/SelectionSnapshot'
+import { ServiceContainer } from '@/lib/core/ServiceContainer'
+import type { TypedEventBus } from '@/lib/events/core/TypedEventBus'
+
+/**
+ * Command metadata for tracking and workflow support
+ */
+export interface CommandMetadata {
+  source: 'user' | 'ai' | 'system'
+  workflowId?: string
+  parentCommandId?: string
+  canMerge: boolean
+  affectsSelection: boolean
+}
 
 /**
  * Base interface for all commands in the application
@@ -19,6 +34,11 @@ export interface ICommand {
    * Human-readable description of what this command does
    */
   readonly description: string
+  
+  /**
+   * Command metadata for tracking
+   */
+  readonly metadata: CommandMetadata
   
   /**
    * Execute the command
@@ -65,16 +85,89 @@ export abstract class Command implements ICommand {
   readonly timestamp: number
   readonly description: string
   
-  constructor(description: string) {
+  // NEW: Execution context for AI workflows
+  protected executionContext?: ExecutionContext
+  protected selectionSnapshot?: SelectionSnapshot
+  
+  // NEW: Command metadata for better tracking
+  readonly metadata: CommandMetadata
+  
+  constructor(description: string, metadata?: Partial<CommandMetadata>) {
     this.id = nanoid()
     this.timestamp = Date.now()
     this.description = description
+    this.metadata = {
+      source: 'user',
+      canMerge: false,
+      affectsSelection: true,
+      ...metadata
+    }
   }
   
   /**
-   * Execute the command for the first time
+   * Set execution context for AI operations
    */
-  abstract execute(): Promise<void>
+  setExecutionContext(context: ExecutionContext): void {
+    this.executionContext = context
+  }
+  
+  /**
+   * Set selection snapshot for consistent targeting
+   */
+  setSelectionSnapshot(snapshot: SelectionSnapshot): void {
+    this.selectionSnapshot = snapshot
+  }
+  
+  /**
+   * Enhanced execute with automatic event emission
+   */
+  async execute(): Promise<void> {
+    const eventBus = ServiceContainer.getInstance().getSync<TypedEventBus>('TypedEventBus')
+    
+    try {
+      // Emit command started event
+      eventBus.emit('command.started', {
+        commandId: this.id,
+        description: this.description,
+        metadata: this.metadata as unknown as Record<string, unknown>
+      })
+      
+      // Execute with snapshot if available
+      if (this.selectionSnapshot) {
+        await this.executeWithSnapshot()
+      } else {
+        await this.doExecute()
+      }
+      
+      // Emit command completed event
+      eventBus.emit('command.completed', {
+        commandId: this.id,
+        success: true
+      })
+      
+    } catch (error) {
+      // Emit command failed event
+      eventBus.emit('command.failed', {
+        commandId: this.id,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      })
+      throw error
+    }
+  }
+  
+  /**
+   * Execute with selection snapshot
+   * Default implementation - subclasses can override
+   */
+  protected async executeWithSnapshot(): Promise<void> {
+    await this.doExecute()
+  }
+  
+  /**
+   * The actual command implementation
+   * Subclasses implement this instead of execute()
+   */
+  protected abstract doExecute(): Promise<void>
   
   /**
    * Undo the command

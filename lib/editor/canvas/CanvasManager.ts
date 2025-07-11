@@ -1637,8 +1637,13 @@ export class CanvasManager implements ICanvasManager {
         width: this._state.width,
         height: this._state.height
       })
+      // Redraw the layer after updating clipping
+      layer.konvaLayer.batchDraw()
     })
     
     this.backgroundLayer.draw()
+    
+    // Also redraw the entire stage to ensure everything is updated
+    this.stage.batchDraw()
   }
 } 

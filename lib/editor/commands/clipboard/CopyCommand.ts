@@ -16,7 +16,7 @@ export class CopyCommand extends Command {
     this.objectsToCopy = objectsToCopy
   }
   
-  async execute(): Promise<void> {
+  protected async doExecute(): Promise<void> {
     await this.clipboardManager.copy(this.objectsToCopy)
   }
   

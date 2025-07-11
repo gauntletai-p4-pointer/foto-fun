@@ -119,9 +119,10 @@ export class EventToolStore extends BaseStore<ToolState> {
       this.typedEventBus.on('tool.option.changed', (data) => {
         this.setState(state => {
           const options = state.toolOptions.get(data.toolId) || {}
+          const optionKey = data.optionKey || data.optionId || 'value'
           const newOptions = {
             ...options,
-            [data.optionKey]: data.value
+            [optionKey]: data.value as string | number | boolean
           }
           
           const newToolOptions = new Map(state.toolOptions)
@@ -133,7 +134,7 @@ export class EventToolStore extends BaseStore<ToolState> {
             const updatedConfig = {
               ...config,
               options: config.options.map(opt => 
-                opt.id === data.optionKey 
+                opt.id === optionKey 
                   ? { ...opt, value: data.value as string | number | boolean }
                   : opt
               )
@@ -307,15 +308,11 @@ export class EventToolStore extends BaseStore<ToolState> {
    * Update a tool option
    */
   updateOption(toolId: string, optionId: string, value: unknown): void {
-    const currentOptions = this.getState().toolOptions.get(toolId) || {}
-    const previousValue = currentOptions[optionId]
-    
     this.typedEventBus.emit('tool.option.changed', {
       toolId,
       optionId,
       optionKey: optionId,
-      value,
-      previousValue
+      value
     })
   }
   

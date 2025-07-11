@@ -258,6 +258,23 @@ export interface EventRegistry {
     toolId: string
     options: Record<string, unknown>
   }
+  'tool.option.changed': {
+    toolId: string
+    optionId?: string
+    optionKey?: string
+    value: unknown
+  }
+  'tool.preset.saved': {
+    toolId: string
+    name: string
+    values: Record<string, unknown>
+  }
+  'tool.preset.applied': {
+    toolId: string
+    presetId: string
+  }
+  'tool.locked': Record<string, never>
+  'tool.unlocked': Record<string, never>
   
   // History events
   'history.snapshot.created': {
@@ -303,6 +320,27 @@ export interface EventRegistry {
   'workflow.failed': {
     workflowId: string
     error: string
+  }
+  
+  // Command events
+  'command.started': {
+    commandId: string
+    description: string
+    metadata: Record<string, unknown>
+  }
+  'command.completed': {
+    commandId: string
+    success: boolean
+  }
+  'command.failed': {
+    commandId: string
+    error: string
+  }
+  'command.undone': {
+    commandId: string
+  }
+  'command.redone': {
+    commandId: string
   }
 }
 

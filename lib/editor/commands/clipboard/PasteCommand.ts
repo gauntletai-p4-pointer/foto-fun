@@ -20,7 +20,7 @@ export class PasteCommand extends Command {
     this.typedEventBus = ServiceContainer.getInstance().getSync<TypedEventBus>('TypedEventBus')
   }
   
-  async execute(): Promise<void> {
+  protected async doExecute(): Promise<void> {
     // Paste objects from clipboard
     this.pastedObjects = await this.clipboard.paste(this.canvasManager)
     

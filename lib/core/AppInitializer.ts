@@ -65,10 +65,15 @@ export class AppInitializer {
     )
     
     container.registerSingleton('ToolStore', () => {
-      return new EventToolStore(
+      const store = new EventToolStore(
         container.getSync('EventStore'),
         container.getSync('TypedEventBus')
       )
+      // Activate default tool after a short delay to ensure everything is initialized
+      setTimeout(() => {
+        store.activateTool('move')
+      }, 100)
+      return store
     })
     
     container.registerSingleton('LayerStore', () => {
@@ -142,14 +147,16 @@ export class AppInitializer {
     // History services
     container.registerSingleton('SnapshotManager', async () => {
       const { SnapshotManager } = await import('@/lib/events/history/SnapshotManager')
-      return new SnapshotManager(container.getSync('TypedEventBus'))
+      return new SnapshotManager(
+        container.getSync('EventStore'),
+        container.getSync('TypedEventBus')
+      )
     })
     
     // Export services
     container.registerSingleton('ExportManager', async () => {
       const { ExportManager } = await import('@/lib/editor/export/ExportManager')
-      const { CanvasManager } = await import('@/lib/editor/canvas/CanvasManager')
-      const canvasManager = container.getSync<CanvasManager>('CanvasManager')
+      const canvasManager = container.getSync<any>('CanvasManager') // Using any since CanvasManager can be null
       if (!canvasManager) {
         throw new Error('CanvasManager not initialized')
       }
@@ -171,8 +178,7 @@ export class AppInitializer {
     
     container.registerSingleton('AutoSaveManager', async () => {
       const { AutoSaveManager } = await import('@/lib/editor/autosave/AutoSaveManager')
-      const { DocumentSerializer } = await import('@/lib/editor/persistence/DocumentSerializer')
-      const documentSerializer = await container.get<InstanceType<typeof DocumentSerializer>>('DocumentSerializer')
+      const documentSerializer = await container.get<any>('DocumentSerializer')
       return new AutoSaveManager(
         documentSerializer,
         container.getSync('DocumentStore'),
@@ -187,10 +193,8 @@ export class AppInitializer {
     
     container.registerSingleton('ShortcutManager', async () => {
       const { ShortcutManager } = await import('@/lib/editor/shortcuts/ShortcutManager')
-      const { ExportManager } = await import('@/lib/editor/export/ExportManager')
-      const { DocumentSerializer } = await import('@/lib/editor/persistence/DocumentSerializer')
-      const exportManager = await container.get<InstanceType<typeof ExportManager>>('ExportManager')
-      const documentSerializer = await container.get<InstanceType<typeof DocumentSerializer>>('DocumentSerializer')
+      const exportManager = await container.get<any>('ExportManager')
+      const documentSerializer = await container.get<any>('DocumentSerializer')
       return new ShortcutManager(
         container.getSync('DocumentStore'),
         container.getSync('ToolStore'),
