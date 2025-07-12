@@ -96,7 +96,10 @@ export class SelectionContextManager {
     // Emit context created event
     this.typedEventBus.emit('workflow.started', {
       workflowId,
-      name: `Selection Context ${workflowId.slice(0, 8)}`
+      type: 'selection-context',
+      metadata: {
+        name: `Selection Context ${workflowId.slice(0, 8)}`
+      }
     })
     
     return context

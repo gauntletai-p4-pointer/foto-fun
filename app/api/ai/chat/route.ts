@@ -1,7 +1,7 @@
 import { streamText, convertToModelMessages, tool, type UIMessage } from 'ai'
 import { z } from 'zod'
 import { openai } from '@/lib/ai/providers'
-import { adapterRegistry, autoDiscoverAdapters } from '@/lib/ai/adapters/registry'
+import { autoDiscoverAdapters } from '@/lib/ai/adapters/registry'
 import { MasterRoutingAgent } from '@/lib/ai/agents/MasterRoutingAgent'
 import { WorkflowMemory } from '@/lib/ai/agents/WorkflowMemory'
 import type { AgentContext } from '@/lib/ai/agents/types'
@@ -12,7 +12,7 @@ let adaptersInitialized = false
 
 async function initialize() {
   if (!adaptersInitialized) {
-    await autoDiscoverAdapters()
+    // Initialization will be handled by the service container
     adaptersInitialized = true
   }
 }
@@ -57,8 +57,8 @@ export async function POST(req: Request) {
     CanvasToolBridge.clearRequestSelectionSnapshot()
   }
   
-  // Get AI tools from adapter registry
-  const aiTools = adapterRegistry.getAITools()
+  // Get AI tools from adapter registry (temporarily disabled for foundation cleanup)
+  const aiTools: Record<string, any> = {}
   console.log('Available AI tools:', Object.keys(aiTools))
   
   // Check if this is an approval response with a plan to execute
@@ -315,8 +315,8 @@ IMPORTANT:
 Canvas: ${canvasContext?.dimensions?.width || 0}x${canvasContext?.dimensions?.height || 0}px, has content: ${canvasContext?.hasContent || false}
 
 Available tools:
-- Canvas editing: ${adapterRegistry.getToolNamesByCategory('canvas-editing').join(', ')}
-- AI-native: ${adapterRegistry.getToolNamesByCategory('ai-native').join(', ')}
+- Canvas editing: (temporarily disabled for foundation cleanup)
+- AI-native: (temporarily disabled for foundation cleanup)
 - Complex workflows: executeAgentWorkflow (ONLY for subjective/complex operations)
 
 When using tools, be direct and efficient. Only use executeAgentWorkflow when AI reasoning adds value.

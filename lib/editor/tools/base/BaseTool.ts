@@ -53,6 +53,11 @@ export abstract class BaseTool {
     this.dependencies = dependencies;
   }
   
+  // Public getters for external access
+  get toolId(): string {
+    return this.id;
+  }
+  
   // State management
   protected setState(newState: ToolState): void {
     const oldState = this.state;

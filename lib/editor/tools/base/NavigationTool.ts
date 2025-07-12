@@ -56,10 +56,10 @@ export abstract class NavigationTool extends BaseTool {
    * Handle mouse down - start navigation
    */
   protected handleMouseDown(event: ToolEvent): void {
-    if (!this.canHandleEvents()) return;
+    if (this.getState() !== ToolState.ACTIVE) return;
 
     try {
-      this.transitionTo(ToolState.WORKING);
+      this.setState(ToolState.WORKING);
       this.navigationStartTime = Date.now();
 
       // Create navigation data
@@ -124,7 +124,7 @@ export abstract class NavigationTool extends BaseTool {
   protected handleMouseUp(event: ToolEvent): void {
     if (this.getState() === ToolState.WORKING && this.currentNavigation) {
       try {
-        this.transitionTo(ToolState.ACTIVE);
+        this.setState(ToolState.ACTIVE);
 
         // Final navigation data
         const finalNavigation = {

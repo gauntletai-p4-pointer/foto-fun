@@ -3,6 +3,8 @@ import { TransformTool, type TransformData } from '../base/TransformTool';
 import type { ToolEvent } from '@/lib/events/canvas/ToolEvents';
 import type { CanvasObject } from '@/lib/editor/objects/types';
 import type { ToolMetadata } from '../base/ToolRegistry';
+import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager';
+import type { ToolDependencies } from '../base/BaseTool';
 
 /**
  * Move Tool - Object positioning and dragging
@@ -13,24 +15,47 @@ export class MoveTool extends TransformTool {
   name = 'Move Tool';
   cursor = 'move';
   
+  /**
+   * Required by BaseTool - called when tool is activated
+   */
+  async onActivate(canvas: CanvasManager): Promise<void> {
+    console.log('MoveTool: Activating move tool...');
+    this.cursor = 'move';
+    
+    // Setup tool resources
+    await this.setupTool();
+  }
+  
+  /**
+   * Required by BaseTool - called when tool is deactivated
+   */
+  async onDeactivate(canvas: CanvasManager): Promise<void> {
+    console.log('MoveTool: Deactivating move tool...');
+    
+    // Complete any active transform
+    if (this.currentTransform) {
+      await this.cleanupTool();
+    }
+    
+    this.cursor = 'move';
+  }
+
   // Tool icon component
   icon = () => React.createElement('div', { 
-    className: 'w-4 h-4 flex items-center justify-center',
-    children: React.createElement('svg', {
-      width: '16',
-      height: '16',
-      viewBox: '0 0 16 16',
-      fill: 'currentColor',
-      children: React.createElement('path', {
-        d: 'M8 2l2 2-2 2-2-2 2-2zm0 8l2 2-2 2-2-2 2-2zm-6-4l2-2 2 2-2 2-2-2zm8 0l2-2 2 2-2 2-2-2z'
-      })
-    })
-  });
+    className: 'w-4 h-4 flex items-center justify-center'
+  }, React.createElement('svg', {
+    width: '16',
+    height: '16',
+    viewBox: '0 0 16 16',
+    fill: 'currentColor'
+  }, React.createElement('path', {
+    d: 'M8 2l2 2-2 2-2-2 2-2zm0 8l2 2-2 2-2-2 2-2zm-6-4l2-2 2 2-2 2-2-2zm8 0l2-2 2 2-2 2-2-2z'
+  })));
 
   /**
    * State change handler
    */
-  protected onStateChange(from: any, to: any): void {
+  protected onStateChange(from: string, to: string): void {
     console.log(`MoveTool: ${from} → ${to}`);
     
     // Update cursor based on state

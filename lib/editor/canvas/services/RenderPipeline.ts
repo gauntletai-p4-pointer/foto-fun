@@ -1,4 +1,5 @@
-import type { CanvasManager, Layer } from '../types'
+import type { Layer } from '../types'
+import type { CanvasManager } from '../CanvasManager'
 import type { CanvasObject } from '@/lib/editor/objects/types'
 
 export interface RenderPlan {

@@ -23,8 +23,8 @@ export function SpacingControls({ textObject, textStyle, onChange }: SpacingCont
   const lineHeight = textStyle.lineHeight || 1.16
   
   // Paragraph spacing (custom properties from metadata)
-  const spaceBefore = getMetadataValue(textObject, 'spaceBefore', 0) as number
-  const spaceAfter = getMetadataValue(textObject, 'spaceAfter', 0) as number
+  const spaceBefore = getMetadataValue(textObject, 'spaceBefore') as number || 0
+  const spaceAfter = getMetadataValue(textObject, 'spaceAfter') as number || 0
   
   const handleLineHeightChange = (value: number) => {
     onChange('lineHeight', value)

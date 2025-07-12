@@ -62,10 +62,10 @@ export class EventSelectionStore extends BaseStore<SelectionStoreState> {
         let selectionBounds: Rect | null = null
         
         if (data.selection) {
-          if (data.selection.type === 'objects') {
+          if (data.selection.type === 'objects' && data.selection.objectIds) {
             data.selection.objectIds.forEach(id => selectedObjectIds.add(id))
-          } else if ('bounds' in data.selection) {
-            selectionBounds = data.selection.bounds
+          } else if (data.selection.type === 'pixels') {
+            selectionBounds = data.selection.bounds || null
           }
         }
         

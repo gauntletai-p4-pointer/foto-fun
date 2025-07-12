@@ -1,7 +1,7 @@
 import { Event } from '../core/Event'
-import type { FilterStack } from '@/lib/editor/canvas/types'
-// FilterInstance removed - using simplified Filter architecture
 import type { CanvasObject } from '@/lib/editor/objects/types'
+import type { FilterStack, Filter } from '@/types'
+// FilterInstance removed - using simplified Filter architecture
 
 /**
  * Base class for object events
@@ -359,7 +359,7 @@ export class FilterStackUpdatedEvent extends ObjectEvent {
 export class FilterAddedToObjectEvent extends ObjectEvent {
   constructor(
     public readonly objectId: string,
-    public readonly filter: import('@/lib/editor/canvas/types').Filter,
+    public readonly filter: Filter,
     public readonly position: number | undefined,
     metadata: Event['metadata']
   ) {
@@ -404,7 +404,7 @@ export class FilterRemovedFromObjectEvent extends ObjectEvent {
   constructor(
     public readonly objectId: string,
     public readonly filterId: string,
-    public readonly removedFilter: import('@/lib/editor/canvas/types').Filter,
+    public readonly removedFilter: Filter,
     metadata: Event['metadata']
   ) {
     super('FilterRemovedFromObjectEvent', objectId, metadata)

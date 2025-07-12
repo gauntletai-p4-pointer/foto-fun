@@ -182,7 +182,10 @@ export class FontManager {
       }
       
       // Emit font loaded event
-      this.typedEventBus.emit('text.font.used', { fontFamily })
+      this.typedEventBus.emit('text.font.used', { 
+        fontFamily,
+        timestamp: Date.now()
+      })
       
     } catch (error) {
       console.error(`Failed to load font: ${fontFamily}`, error)

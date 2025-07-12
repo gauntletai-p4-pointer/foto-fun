@@ -1,5 +1,5 @@
 import { nanoid } from 'nanoid'
-import type { CanvasManager } from '../types'
+import type { CanvasManager } from '../CanvasManager'
 import type { CanvasObject, ImageData, TextData, ShapeData, GroupData } from '@/lib/editor/objects/types'
 import type { TypedEventBus } from '@/lib/events/core/TypedEventBus'
 import type { EventStore } from '@/lib/events/core/EventStore'
@@ -390,7 +390,7 @@ export class ObjectManager {
     if (!this.canvasManager) return []
     
     const selectedIds = this.canvasManager.state.selectedObjectIds
-    return Array.from(selectedIds)
+    return selectedIds
       .map(id => this.getObject(id))
       .filter((obj): obj is CanvasObject => obj !== null)
   }
@@ -399,7 +399,8 @@ export class ObjectManager {
    * Get selected object IDs
    */
   getSelectedObjectIds(): Set<string> {
-    return this.canvasManager?.state.selectedObjectIds || new Set()
+    const selectedIds = this.canvasManager?.state.selectedObjectIds || []
+    return new Set(selectedIds)
   }
   
   // ================================

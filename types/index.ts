@@ -30,7 +30,7 @@ export type { ToolEvent } from '@/lib/events/canvas/ToolEvents'
 export type SelectionMode = 'replace' | 'add' | 'subtract' | 'intersect'
 
 export interface PixelSelection {
-  type: 'pixel'
+  type: 'pixels'
   mask: ImageData // Alpha channel represents selection (0-255)
   bounds: {
     x: number
@@ -106,4 +106,22 @@ export interface ExportOptions {
   width?: number
   height?: number
   includeMetadata?: boolean
+}
+
+// Unified Filter interfaces
+export interface Filter {
+  id: string
+  name: string
+  type: string
+  params: Record<string, string | number | boolean>
+  // Add index signature to make it compatible with Record<string, unknown>
+  [key: string]: unknown
+}
+
+export interface FilterStack {
+  filters: Filter[]
+  enabled?: boolean
+  opacity?: number
+  blendMode?: string
+  isDirty?: boolean
 }

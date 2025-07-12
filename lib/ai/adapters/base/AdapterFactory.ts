@@ -5,7 +5,8 @@ import type { UnifiedToolAdapter } from './UnifiedToolAdapter';
 /**
  * Factory for creating adapter instances with dependency injection
  * Ensures all adapters receive proper dependencies from ServiceContainer
- * All dependencies are mandatory and resolved synchronously
+
+* All dependencies are mandatory and resolved synchronously
  */
 export class AdapterFactory {
   constructor(private serviceContainer: ServiceContainer) {}

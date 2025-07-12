@@ -78,7 +78,7 @@ export abstract class TransformTool extends BaseTool {
    * Handle mouse down - start transform
    */
   protected handleMouseDown(event: ToolEvent): void {
-    if (!this.canHandleEvents()) return;
+    if (this.getState() !== ToolState.ACTIVE) return;
 
     try {
       const selectedObjects = this.getSelectedObjects();
@@ -95,7 +95,7 @@ export abstract class TransformTool extends BaseTool {
         }
       }
 
-      this.transitionTo(ToolState.WORKING);
+      this.setState(ToolState.WORKING);
       this.transformStartTime = Date.now();
 
       // Create transform data
@@ -161,7 +161,7 @@ export abstract class TransformTool extends BaseTool {
   protected handleMouseUp(event: ToolEvent): void {
     if (this.getState() === ToolState.WORKING && this.currentTransform) {
       try {
-        this.transitionTo(ToolState.ACTIVE);
+        this.setState(ToolState.ACTIVE);
 
         // Final transform data
         const finalTransform = {

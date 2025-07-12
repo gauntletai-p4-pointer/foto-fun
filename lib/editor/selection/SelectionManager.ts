@@ -1,4 +1,5 @@
-import type { CanvasManager, Selection } from '@/lib/editor/canvas/types'
+import type { Selection } from '@/lib/editor/canvas/types'
+import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
 import type { CanvasObject } from '@/lib/editor/objects/types'
 import { PixelSelection, SelectionMode } from '@/types'
 import Konva from 'konva'
@@ -56,16 +57,16 @@ export class SelectionManager {
    * Update the selection canvas size to match the viewport
    */
   private updateCanvasSize(): void {
-    const viewport = this.canvasManager.getViewport()
+    const viewport = this.canvasManager.getViewport();
     
-    this.selectionCanvas.width = viewport.width
-    this.selectionCanvas.height = viewport.height
+    this.selectionCanvas.width = viewport.width;
+    this.selectionCanvas.height = viewport.height;
     
     // Clear any existing selection if viewport size changed
     if (this.selection && 
         (this.selection.mask.width !== viewport.width || 
          this.selection.mask.height !== viewport.height)) {
-      this.clear()
+      this.clear();
     }
   }
   
@@ -76,7 +77,7 @@ export class SelectionManager {
   applySelection(mask: ImageData, mode: SelectionMode): void {
     const bounds = this.operations.findBounds(mask)
     const newSelection: PixelSelection = {
-      type: 'pixel',
+      type: 'pixels',
       mask,
       bounds
     }
@@ -104,15 +105,15 @@ export class SelectionManager {
       this.renderer.stopRendering()
     }
     
-    // Convert to canvas selection format
+        // Convert to canvas selection format
     const canvasSelection: Selection | null = selection ? {
-      type: 'pixel',
+      type: 'pixels',
       bounds: selection.bounds,
       mask: selection.mask
     } : null
-    
+
     const previousCanvasSelection: Selection | null = previousSelection ? {
-      type: 'pixel',
+      type: 'pixels',
       bounds: previousSelection.bounds,
       mask: previousSelection.mask
     } : null
@@ -263,12 +264,12 @@ export class SelectionManager {
    */
   private applySelectionMode(newMask: ImageData, bounds: SelectionBounds, mode: SelectionMode): void {
     if (mode === 'replace' || !this.selection) {
-      this.selection = { type: 'pixel', mask: newMask, bounds }
+      this.selection = { type: 'pixels', mask: newMask, bounds }
       this.selectionId = nanoid()
       
       // Convert to canvas selection format
       const canvasSelection: Selection = {
-        type: 'pixel',
+        type: 'pixels',
         bounds,
         mask: newMask
       }
@@ -303,15 +304,15 @@ export class SelectionManager {
       // Update bounds
       const newBounds = this.combineBounds(this.selection.bounds, bounds, mode)
       const previousCanvasSelection: Selection = {
-        type: 'pixel',
+        type: 'pixels',
         bounds: this.selection.bounds,
         mask: this.selection.mask
       }
       
-      this.selection = { type: 'pixel', mask: resultMask, bounds: newBounds }
+      this.selection = { type: 'pixels', mask: resultMask, bounds: newBounds }
       
       const newCanvasSelection: Selection = {
-        type: 'pixel',
+        type: 'pixels',
         bounds: newBounds,
         mask: resultMask
       }
@@ -405,7 +406,7 @@ export class SelectionManager {
     }
     
     const previousCanvasSelection: Selection = {
-      type: 'pixel',
+      type: 'pixels',
       bounds: previousBounds,
       mask: previousMask
     }
@@ -419,7 +420,7 @@ export class SelectionManager {
     }
     
     const newCanvasSelection: Selection = {
-      type: 'pixel',
+      type: 'pixels',
       bounds: this.selection.bounds,
       mask: newMask
     }
@@ -572,7 +573,7 @@ export class SelectionManager {
     }
     
     this.selection = {
-      type: 'pixel',
+      type: 'pixels',
       mask: imageData,
       bounds: { x: 0, y: 0, width, height }
     }
@@ -637,7 +638,7 @@ export class SelectionManager {
    * Restore selection from ImageData and bounds
    */
   restoreSelection(mask: ImageData, bounds: SelectionBounds): void {
-    this.selection = { type: 'pixel', mask, bounds }
+    this.selection = { type: 'pixels', mask, bounds }
   }
   
   /**
@@ -648,7 +649,7 @@ export class SelectionManager {
     
     if (hadSelection && this.selection) {
       const previousCanvasSelection: Selection = {
-        type: 'pixel',
+        type: 'pixels',
         bounds: this.selection.bounds,
         mask: this.selection.mask
       }
@@ -658,8 +659,10 @@ export class SelectionManager {
       this.stopMarchingAnts()
       this.renderer.stopRendering()
       
-      // Emit selection cleared event
+      // Emit selection cleared event with required properties
       this.typedEventBus.emit('selection.cleared', {
+        canvasId: this.canvasManager.id,
+        clearedSelection: previousCanvasSelection,
         previousSelection: previousCanvasSelection
       })
     } else {
@@ -791,7 +794,7 @@ export class SelectionManager {
       selectionId: this.selectionId,
       bounds: { ...this.selection.bounds },
       pixelCount: this.countSelectedPixels(),
-      type: 'pixel'
+      type: 'pixels'
     }
   }
   

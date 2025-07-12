@@ -3,7 +3,8 @@ import { ClientToolExecutor } from '@/lib/ai/client/tool-executor'
 import { useAsyncService } from '@/lib/core/AppInitializer'
 import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
 import type { CanvasManagerFactory } from '@/lib/editor/canvas/CanvasManagerFactory'
-import { adapterRegistry } from '@/lib/ai/adapters/registry'
+// Temporarily disabled for foundation cleanup
+// import { adapterRegistry } from '@/lib/ai/adapters/registry'
 
 interface ThinkingStep {
   id: string
@@ -448,17 +449,17 @@ export function useToolCallHandler({
         return input
       }
       
-      // Handle client-side tool execution
-      const adapter = adapterRegistry.get(toolName)
+      // Handle client-side tool execution (temporarily disabled for foundation cleanup)
+      const adapter = null // adapterRegistry.get(toolName)
       if (!adapter) {
         console.error('No adapter found for tool:', toolName)
-        return { error: `Tool ${toolName} not found` }
+        return { error: `Tool ${toolName} not found - adapters temporarily disabled for foundation cleanup` }
       }
       
       // SELECTION ENFORCEMENT: Check if tool requires selection
       // Note: During refactor, all adapters are stubs, so skip selection enforcement
-      const requiresSelection = adapter?.metadata?.category === 'canvas-editing' && 
-                              adapter?.metadata?.worksOn !== 'new-image'
+      const requiresSelection = false // adapter?.metadata?.category === 'canvas-editing' && 
+                              // adapter?.metadata?.worksOn !== 'new-image'
       
       if (requiresSelection) {
         // Check current selection state

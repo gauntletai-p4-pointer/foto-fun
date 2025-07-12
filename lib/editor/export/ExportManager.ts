@@ -104,8 +104,8 @@ export class ExportManager {
       
       // Emit export started event
       this.typedEventBus.emit('export.started', {
-        exportId,
         format: options.format,
+        filename: `export-${Date.now()}.${options.format}`,
         options: { ...options }
       })
       
@@ -114,8 +114,9 @@ export class ExportManager {
       
       // Emit export completed event
       this.typedEventBus.emit('export.completed', {
-        exportId,
-        blob,
+        format: options.format,
+        filename: `export-${Date.now()}.${options.format}`,
+        filepath: '', // Will be set by actual save operation
         size: blob.size
       })
       
@@ -123,7 +124,8 @@ export class ExportManager {
     } catch (error) {
       // Emit export failed event
       this.typedEventBus.emit('export.failed', {
-        exportId,
+        format: options.format,
+        filename: `export-${Date.now()}.${options.format}`,
         error: error instanceof Error ? error.message : 'Export failed'
       })
       throw error

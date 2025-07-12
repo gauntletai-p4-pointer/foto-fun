@@ -31,7 +31,10 @@ export interface Selection {
   type: 'objects' | 'pixels';
   objectIds?: string[];
   bounds?: Rect;
+  mask?: ImageData;
 }
+
+// Filter interface moved to types/index.ts for consistency
 
 export interface CanvasState {
   viewport: {
@@ -39,7 +42,7 @@ export interface CanvasState {
     height: number;
   };
   camera: { x: number; y: number; zoom: number };
-  objects: any[];
+  objects: unknown[];
   objectOrder: string[];
   selectedObjectIds: string[];
   pixelSelection?: Selection;
@@ -50,31 +53,30 @@ export interface CanvasState {
 }
 
 export interface CanvasManager {
-  getAllObjects(): any[];
-  getSelectedObjects(): any[];
-  stage: any;
+  getAllObjects(): unknown[];
+  getSelectedObjects(): unknown[];
+  addObject(objectData: Partial<unknown>): Promise<string>;
+  getObject(objectId: string): unknown | null;
+  stage: unknown;
 }
 
 export interface Layer {
   id: string;
   name: string;
   visible: boolean;
-}
-
-export interface Filter {
-  id: string;
-  name: string;
-  type: string;
-}
-
-export interface FilterStack {
-  filters: Filter[];
+  opacity: number;
+  blendMode: string;
+  konvaLayer: any; // Konva.Layer type
 }
 
 export type BlendMode = 'normal' | 'multiply' | 'screen' | 'overlay' | 'darken' | 'lighten' | 'color-dodge' | 'color-burn' | 'hard-light' | 'soft-light' | 'difference' | 'exclusion' | 'hue' | 'saturation' | 'color' | 'luminosity';
 
 // Helper function stubs
-export function getMetadataValue(obj: any, key: string): any {
+export function getMetadataValue(obj: unknown, key: string): unknown {
   console.warn('getMetadataValue disabled during refactor');
+  if (obj && typeof obj === 'object' && 'metadata' in obj) {
+    const metadata = (obj as { metadata?: Record<string, unknown> }).metadata;
+    return metadata?.[key];
+  }
   return null;
 }

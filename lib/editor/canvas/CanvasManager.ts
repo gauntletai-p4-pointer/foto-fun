@@ -6,9 +6,9 @@ import type {
   Point, 
   Rect,
   BlendMode,
-  Filter,
   CanvasManager as ICanvasManager
 } from './types'
+import type { Filter } from '@/types'
 import { TypedEventBus } from '@/lib/events/core/TypedEventBus'
 import { ObjectManager } from './services/ObjectManager'
 import { SelectionManager } from '@/lib/editor/selection/SelectionManager'
@@ -95,9 +95,9 @@ export class CanvasManager implements ICanvasManager {
         y: 0,
         zoom: 1
       },
-      objects: new Map(), // Legacy - will be removed
+      objects: [], // Legacy - will be removed
       objectOrder: [], // Legacy - will be removed
-      selectedObjectIds: new Set(),
+      selectedObjectIds: [],
       pixelSelection: undefined,
       backgroundColor: 'transparent',
       isLoading: false,
@@ -109,8 +109,8 @@ export class CanvasManager implements ICanvasManager {
     this.renderBackground()
     
     // Initialize selection system
-    this.selectionManager = new SelectionManager(this as unknown as ICanvasManager, this.typedEventBus)
-    this.selectionRenderer = new SelectionRenderer(this as unknown as ICanvasManager, this.selectionManager)
+    this.selectionManager = new SelectionManager(this, this.typedEventBus)
+    this.selectionRenderer = new SelectionRenderer(this, this.selectionManager)
     
     // Initialize filter system (will be injected via ServiceContainer)
     this.filterManager = null
@@ -160,7 +160,7 @@ export class CanvasManager implements ICanvasManager {
       if (data.selection?.type === 'objects' && 'objectIds' in data.selection) {
         selectedIds.push(...(data.selection.objectIds as string[]))
       }
-      this._state.selectedObjectIds = new Set(selectedIds)
+      this._state.selectedObjectIds = selectedIds
       this.renderSelection()
     })
   }
@@ -510,7 +510,7 @@ export class CanvasManager implements ICanvasManager {
   
   // Selection operations
   setSelection(selection: Selection | null): void {
-    if (selection?.type === 'objects') {
+    if (selection?.type === 'objects' && selection.objectIds) {
       this.objectManager.selectMultiple(selection.objectIds)
     } else {
       this.objectManager.selectMultiple([])

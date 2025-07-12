@@ -179,14 +179,14 @@ export class TypedCanvasStore extends BaseStore<TypedCanvasState> {
     // Selection events
     this.typedSubscriptions.push(
       this.typedEventBus.on('selection.changed', (data) => {
-        const selectedObjectIds = data.selection?.type === 'objects' ? data.selection.objectIds : []
+        const selectedObjectIds = data.selection?.type === 'objects' ? (data.selection.objectIds || []) : []
         const selectedObjects = selectedObjectIds
           .map(id => this.getState().objects.find(obj => obj.id === id))
           .filter((obj): obj is CanvasObject => obj !== undefined)
         
         this.setState(state => ({
           ...state,
-          selectedObjectIds,
+          selectedObjectIds: selectedObjectIds,
           selection: {
             count: selectedObjects.length,
             hasSelection: selectedObjects.length > 0,

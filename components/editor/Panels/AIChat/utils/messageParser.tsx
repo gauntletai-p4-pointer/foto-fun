@@ -1,19 +1,11 @@
 import { Wrench } from 'lucide-react'
-import { adapterRegistry } from '@/lib/ai/adapters/registry'
+// Temporarily disabled for foundation cleanup
+// import { adapterRegistry } from '@/lib/ai/adapters/registry'
 
-// Get all AI tool names for highlighting
+// Get all AI tool names for highlighting (temporarily disabled for foundation cleanup)
 export const getAIToolNames = () => {
-  try {
-    const adapters = Array.from(adapterRegistry.getAll())
-    // Handle stub registry that returns empty Map
-    if (adapters.length === 0) {
-      return []
-    }
-    return adapters.map(([key, adapter]) => adapter.aiName || key)
-  } catch {
-    // Return empty array if adapters not loaded yet
-    return []
-  }
+  // Temporarily return empty array during foundation cleanup
+  return []
 }
 
 // Function to parse text and highlight tool names

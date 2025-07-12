@@ -1,7 +1,8 @@
 import type { AgentContext, AgentStep, StepResult, AgentResult, Alternative } from './types'
 import { generateText, stepCountIs, convertToModelMessages, tool, generateObject } from 'ai'
 import { openai } from '@/lib/ai/providers'
-import { adapterRegistry } from '@/lib/ai/adapters/registry'
+// Temporarily disabled for foundation cleanup
+// import { adapterRegistry } from '@/lib/ai/adapters/registry'
 import { z } from 'zod'
 
 export abstract class BaseExecutionAgent {
@@ -107,7 +108,7 @@ export abstract class BaseExecutionAgent {
       system: `${systemPrompt}
       
 You are analyzing a photo editing workflow request. Consider:
-      - Available tools: ${Array.from(adapterRegistry.getAll()).map(([key, adapter]) => adapter && typeof adapter === 'object' && 'aiName' in adapter ? adapter.aiName : key).join(', ')}
+      - Available tools: (temporarily disabled for foundation cleanup)
 - Canvas state: ${this.context.canvasAnalysis.hasContent ? 'has content' : 'empty'}
 - Canvas size: ${this.context.canvasAnalysis.dimensions.width}x${this.context.canvasAnalysis.dimensions.height}
 
@@ -137,7 +138,8 @@ Analyze the complexity and confidence for this request.`,
     const availableTools = {
       ...this.getAgentTools(),
       ...tools,
-      ...adapterRegistry.getAITools()
+      // Temporarily disabled for foundation cleanup
+      // ...adapterRegistry.getAITools()
     } as Record<string, ReturnType<typeof tool>>
     
     // Execute with AI SDK v5 multi-step pattern

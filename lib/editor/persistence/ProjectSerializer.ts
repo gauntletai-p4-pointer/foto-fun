@@ -55,7 +55,9 @@ export class ProjectSerializer {
       
       this.typedEventBus.emit('project.exported', {
         projectId: project.id,
-        filename: finalFilename
+        format: 'fotofun',
+        filepath: finalFilename,
+        size: blob.size
       })
     } catch (error) {
       console.error('[ProjectSerializer] Save failed:', error)
@@ -76,13 +78,16 @@ export class ProjectSerializer {
       }
 
       // Create new project from loaded data
-      this.projectStore.createProject(projectData.project.name)
+      const project = projectData.project as { id: string; name: string }
+      this.projectStore.createProject(project.name)
       
       // Load objects would happen here via canvas manager
       
       this.typedEventBus.emit('project.imported', {
-        projectId: projectData.project.id,
-        filename: file.name
+        projectId: project.id,
+        format: 'fotofun',
+        filepath: file.name,
+        project: projectData.project as Record<string, unknown>
       })
     } catch (error) {
       console.error('[ProjectSerializer] Load failed:', error)
@@ -126,12 +131,12 @@ export class ProjectSerializer {
   /**
    * Validate project data structure
    */
-  private validateProjectData(data: unknown): boolean {
+  private validateProjectData(data: unknown): data is { project: { id: string; name: string }; objects: unknown[] } {
     if (!data || typeof data !== 'object') return false
     
     const projectData = data as Record<string, unknown>
     
-    return (
+    return Boolean(
       projectData.project &&
       typeof projectData.project === 'object' &&
       Array.isArray(projectData.objects)

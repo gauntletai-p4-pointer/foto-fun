@@ -5,7 +5,7 @@
  * Wraps the WebGLImageFilter library with a clean, type-safe API
  */
 
-import type { Filter } from '../canvas/types'
+import type { Filter } from '@/types'
 import type { EventStore } from '@/lib/events/core/EventStore'
 import type { TypedEventBus } from '@/lib/events/core/TypedEventBus'
 import type { ResourceManager } from '@/lib/core/ResourceManager'

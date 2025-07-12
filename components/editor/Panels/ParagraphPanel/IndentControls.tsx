@@ -24,9 +24,9 @@ export function IndentControls() {
   
   // Get current indentation values from first selected text object
   const firstTextObject = selectedTextObjects[0]
-  const leftIndent = firstTextObject ? getMetadataValue(firstTextObject, 'leftIndent', 0) : 0
-  const rightIndent = firstTextObject ? getMetadataValue(firstTextObject, 'rightIndent', 0) : 0
-  const firstLineIndent = firstTextObject ? getMetadataValue(firstTextObject, 'firstLineIndent', 0) : 0
+  const leftIndent = firstTextObject ? Number(getMetadataValue(firstTextObject, 'leftIndent')) || 0 : 0
+  const rightIndent = firstTextObject ? Number(getMetadataValue(firstTextObject, 'rightIndent')) || 0 : 0
+  const firstLineIndent = firstTextObject ? Number(getMetadataValue(firstTextObject, 'firstLineIndent')) || 0 : 0
   
   const handleIndentChange = (type: 'left' | 'right' | 'firstLine', value: number) => {
     selectedTextObjects.forEach(obj => {

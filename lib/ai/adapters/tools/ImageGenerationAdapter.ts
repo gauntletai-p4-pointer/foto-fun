@@ -54,10 +54,15 @@ export class ImageGenerationAdapter extends UnifiedToolAdapter<ImageGenerationIn
         width: params.width,
         height: params.height,
         data: {
-          imageData,
+          src: imageData,
+          naturalWidth: params.width,
+          naturalHeight: params.height,
+          element: new Image() // Will be populated by the actual image
+        },
+        metadata: {
           source: 'ai-generated',
           prompt: params.prompt,
-          style: params.style
+          style: params.style || 'default'
         }
       });
 
@@ -66,9 +71,12 @@ export class ImageGenerationAdapter extends UnifiedToolAdapter<ImageGenerationIn
 
       // Emit success event
       this.dependencies.eventBus.emit('ai.image.generated', {
-        objectId,
+        operationId: `img-gen-${Date.now()}`,
         prompt: params.prompt,
-        dimensions: { width: params.width, height: params.height }
+        result: {
+          objectId,
+          dimensions: { width: params.width, height: params.height }
+        }
       });
 
       return {
@@ -79,10 +87,15 @@ export class ImageGenerationAdapter extends UnifiedToolAdapter<ImageGenerationIn
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       
-      // Emit error event
-      this.dependencies.eventBus.emit('ai.image.generation.failed', {
-        prompt: params.prompt,
-        error: errorMessage
+      // Emit error event with correct event name
+      this.dependencies.eventBus.emit('ai.processing.failed', {
+        operationId: `img-gen-${Date.now()}`,
+        toolId: this.toolId,
+        error: errorMessage,
+        metadata: {
+          prompt: params.prompt,
+          operation: 'image-generation'
+        }
       });
 
       return {

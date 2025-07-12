@@ -3,7 +3,7 @@
  * Now uses dependency injection instead of singleton pattern
  */
 
-import type { Filter } from '@/lib/editor/canvas/types'
+import type { Filter } from '@/types'
 import type { CanvasObject, Adjustment } from '@/lib/editor/objects/types'
 import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
 import type { WebGLFilterEngine } from './WebGLFilterEngine'
@@ -150,19 +150,20 @@ export class ObjectFilterManager {
   }
   
   /**
-   * Apply adjustments to an image using WebGL
+   * Apply adjustments to an image (used for real-time preview)
    */
   private async applyAdjustmentsToImage(
     source: HTMLImageElement | HTMLCanvasElement,
     adjustments: Adjustment[]
   ): Promise<HTMLCanvasElement> {
-    // WebglEngine is already initialized in constructor
     await this.webglEngine.initializeWebGL()
     
     // Convert adjustments to filters for WebGL processing
     const filters: Filter[] = adjustments
       .filter(adj => adj.enabled)
-      .map(adj => ({
+      .map((adj, index) => ({
+        id: `adj-${adj.type}-${index}`,
+        name: `${adj.type} adjustment`,
         type: adj.type as Filter['type'],
         params: adj.params
       }))

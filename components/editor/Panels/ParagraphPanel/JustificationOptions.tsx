@@ -31,9 +31,9 @@ export function JustificationOptions() {
   
   // Get current values from first selected text object
   const firstTextObject = selectedTextObjects[0]
-  const justifyLastLine = firstTextObject ? getMetadataValue(firstTextObject, 'justifyLastLine', false) : false
-  const wordSpacing = firstTextObject ? getMetadataValue(firstTextObject, 'wordSpacing', 'normal') : 'normal'
-  const hyphenation = firstTextObject ? getMetadataValue(firstTextObject, 'hyphenation', false) : false
+  const justifyLastLine = firstTextObject ? getMetadataValue(firstTextObject, 'justifyLastLine') || false : false
+  const wordSpacing = firstTextObject ? getMetadataValue(firstTextObject, 'wordSpacing') || 'normal' : 'normal'
+  const hyphenation = firstTextObject ? getMetadataValue(firstTextObject, 'hyphenation') || false : false
   
   const handleJustifyLastLineChange = (checked: boolean) => {
     selectedTextObjects.forEach(obj => {

@@ -202,7 +202,7 @@ export class ServiceCommandFactory implements CommandFactory {
   createApplySelectionCommand(selectionMask: SelectionMask, mode: SelectionMode): CreateSelectionCommand {
     // Convert SelectionMask to PixelSelection format
     const pixelSelection: PixelSelection = {
-      type: 'pixel',
+      type: 'pixels',
       mask: new ImageData(selectionMask.bounds.width, selectionMask.bounds.height), // Placeholder
       bounds: selectionMask.bounds
     };

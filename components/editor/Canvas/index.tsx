@@ -9,8 +9,6 @@ import { TypedCanvasStore, useCanvasStore as useTypedCanvasStore } from '@/lib/s
 
 import { CanvasManagerFactory } from '@/lib/editor/canvas/CanvasManagerFactory'
 import type { ToolEvent } from '@/lib/events/canvas/ToolEvents'
-import { createToolEvent, createKeyboardToolEvent } from '@/lib/events/canvas/ToolEvents'
-import { TOOL_IDS } from '@/constants'
 import type { TypedEventBus } from '@/lib/events/core/TypedEventBus'
 
 export function Canvas() {
@@ -89,7 +87,7 @@ export function Canvas() {
     // Listen for option changes
     const unsubscribeOptions = typedEventBus.on('tool.option.changed', (data) => {
       const activeTool = toolStore.getActiveTool()
-      if (activeTool && activeTool.id === data.toolId) {
+      if (activeTool && activeTool.toolId === data.toolId) {
         // Tools now handle options internally through their options system
         // The tool will be notified through the event system
       }
@@ -364,7 +362,7 @@ export function Canvas() {
         e.preventDefault()
         // Store current tool
         const currentTool = toolStore.getActiveTool()
-        if (currentTool && currentTool.id !== 'hand') {
+        if (currentTool && currentTool.toolId !== 'hand') {
           // Temporarily enable dragging
           canvasManager.setDraggable(true)
           canvasManager.stage.container().style.cursor = 'grab'
@@ -429,7 +427,7 @@ export function Canvas() {
       // Release spacebar - restore previous tool
       if (e.code === 'Space') {
         const currentTool = toolStore.getActiveTool()
-        if (currentTool && currentTool.id !== 'hand') {
+        if (currentTool && currentTool.toolId !== 'hand') {
           // Disable dragging if not hand tool
           canvasManager.setDraggable(false)
           canvasManager.stage.container().style.cursor = currentTool.cursor || 'default'

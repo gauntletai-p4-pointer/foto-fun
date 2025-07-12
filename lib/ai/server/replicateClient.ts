@@ -144,23 +144,20 @@ class ServerReplicateClient {
       
       // Parse common error types
       if (errorMessage.includes('rate limit')) {
-        throw new AIQuotaExceededError('replicate', errorMessage)
+        throw new AIQuotaExceededError('replicate')
       }
       
       if (errorMessage.includes('payment') || errorMessage.includes('credits')) {
-        throw new AIQuotaExceededError('replicate', errorMessage)
+        throw new AIQuotaExceededError('replicate')
       }
       
       if (errorMessage.includes('unavailable') || errorMessage.includes('timeout')) {
-        throw new AIServiceUnavailableError('replicate', errorMessage)
+        throw new AIServiceUnavailableError('replicate')
       }
       
       // Generic AI service error
       throw new AIServiceError(
-        errorMessage || 'Unknown error from Replicate API',
-        'replicate',
-        errorCode,
-        error
+        errorMessage || 'Unknown error from Replicate API'
       )
     }
   }
@@ -180,10 +177,7 @@ class ServerReplicateClient {
       const errorCode = error instanceof Error && 'code' in error ? (error as { code?: string }).code : undefined
       
       throw new AIServiceError(
-        `Failed to get model info: ${errorMessage}`,
-        'replicate',
-        errorCode,
-        error
+        `Failed to get model info: ${errorMessage}`
       )
     }
   }

@@ -36,12 +36,9 @@ export class SelectionChangedEvent extends Event {
     if (this.selection) {
       switch (this.selection.type) {
         case 'objects':
-          return `Selected ${this.selection.objectIds.length} objects`
-        case 'pixel':
-          return `Selected pixels in ${this.selection.bounds.width}x${this.selection.bounds.height} area`
-        case 'rectangle':
-        case 'ellipse':
-          return `Created ${this.selection.type} selection`
+          return `Selected ${this.selection.objectIds?.length || 0} objects`
+        case 'pixels':
+          return `Selected pixels in ${this.selection.bounds?.width || 0}x${this.selection.bounds?.height || 0} area`
         default:
           return 'Changed selection'
       }

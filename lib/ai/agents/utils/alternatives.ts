@@ -44,11 +44,6 @@ export async function generateAlternatives(
     const adapter = await adapterRegistry.getAdapterByAiName(toolName)
     if (!adapter) return []
     
-    // Handle stub adapter that may not have description property
-    const description = adapter && typeof adapter === 'object' && 'description' in adapter 
-      ? adapter.description 
-      : `Tool: ${toolName}`;
-    
     // Generate alternatives using AI
     const { object } = await generateObject({
       model: openai('gpt-4o'),
@@ -56,7 +51,7 @@ export async function generateAlternatives(
       prompt: `Generate 2-3 alternative parameter sets for the ${toolName} tool.
       
       Original parameters: ${JSON.stringify(originalParams, null, 2)}
-      Tool description: ${adapter.description}
+      Tool description: ${adapter.description || `Tool: ${toolName}`}
       
       Canvas state:
       - Dimensions: ${context.canvasAnalysis.dimensions.width}x${context.canvasAnalysis.dimensions.height}

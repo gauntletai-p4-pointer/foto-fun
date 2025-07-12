@@ -1,4 +1,5 @@
-import type { BlendMode, Filter } from '@/lib/editor/canvas/types'
+import type { BlendMode } from '@/lib/editor/canvas/types'
+import type { Filter } from '@/types'
 import type Konva from 'konva'
 
 export interface Adjustment {

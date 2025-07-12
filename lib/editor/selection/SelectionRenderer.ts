@@ -1,5 +1,5 @@
 import Konva from 'konva'
-import type { CanvasManager } from '@/lib/editor/canvas/types'
+import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
 import type { SelectionManager } from './SelectionManager'
 import type { PixelSelection } from '@/types'
 
@@ -28,7 +28,7 @@ export class SelectionRenderer {
    * Initialize or get the overlay layer for selection rendering
    */
   private initializeOverlayLayer(): void {
-    const stage = this.canvasManager.stage
+    const stage = this.canvasManager.stage as Konva.Stage
     
     // Use the existing selection layer (index 1 after background layer)
     this.overlayLayer = stage.children[1] as Konva.Layer

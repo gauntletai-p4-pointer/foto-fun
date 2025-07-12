@@ -5,7 +5,7 @@
  */
 
 // nanoid import removed - using simplified filter architecture
-import type { Filter } from '@/lib/editor/canvas/types'
+import type { Filter } from '@/types'
 import type { Selection } from '@/lib/editor/canvas/types'
 import type { ExecutionContext } from '@/lib/events/execution/ExecutionContext'
 import type { EventStore } from '@/lib/events/core/EventStore'
@@ -251,7 +251,9 @@ export class FilterManager {
   private async applyFilterToCanvas(canvas: HTMLCanvasElement, filter: Filter): Promise<HTMLCanvasElement> {
     // Use existing filter application logic
     if (this.isWebGLFilter(filter.type)) {
-      return await this.webglFilterManager.processWithWebGL(canvas, filter.type, filter.params)
+      // Cast params to expected type for WebGL filters
+      const webglParams = filter.params as Record<string, string | number | boolean>
+      return await this.webglFilterManager.processWithWebGL(canvas, filter.type, webglParams)
     } else {
       return await this.applyKonvaFilterToCanvas(canvas, filter)
     }

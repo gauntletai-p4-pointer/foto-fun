@@ -1,4 +1,4 @@
-import type { CanvasManager } from '@/lib/editor/canvas/types'
+import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
 import type { CanvasObject } from '@/lib/editor/objects/types'
 import type { EventStore } from '@/lib/events/core/EventStore'
 import type { TypedEventBus } from '@/lib/events/core/TypedEventBus'

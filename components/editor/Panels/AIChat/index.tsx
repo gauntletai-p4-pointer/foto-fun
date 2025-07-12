@@ -98,13 +98,13 @@ export function AIChat() {
     }
   })
   
-  // Initialize adapter registry and get tool names
+  // Initialize adapter registry and get tool names (temporarily disabled for foundation cleanup)
   useEffect(() => {
     const loadAdapters = async () => {
       try {
-        const { autoDiscoverAdapters } = await import('@/lib/ai/adapters/registry')
-        // Auto-discover adapters (stub implementation)
-        await autoDiscoverAdapters()
+        // Temporarily disabled for foundation cleanup
+        // const { autoDiscoverAdapters } = await import('@/lib/ai/adapters/registry')
+        // await autoDiscoverAdapters()
         const names = getAIToolNames()
         setToolNames(names)
       } catch (error) {
@@ -192,7 +192,7 @@ export function AIChat() {
       selection: {
         count: selectedObjects.length,
         hasSelection: selectedObjects.length > 0,
-        types: [...new Set(selectedObjects.map((obj: CanvasObject) => obj.type))]
+        types: [...new Set(selectedObjects.map((obj: CanvasObject) => obj.type))] as string[]
       },
       canvasType: 'konva',
       isReady: true

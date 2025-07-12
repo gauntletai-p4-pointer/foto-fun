@@ -4,25 +4,23 @@ import { textToPathConverter } from '../services/TextToPathConverter'
 import type { PathData, TextOptions } from '../services/TextToPathConverter'
 import { TypedEventBus } from '@/lib/events/core/TypedEventBus'
 import { nanoid } from 'nanoid'
-import { Point } from '@/lib/editor/canvas/types'
 
 // Type for text objects in our system
 interface TextObject extends CanvasObject {
   type: 'text'
-  text: string
-  fontFamily: string
-  fontSize: number
-  fontStyle: string
-  fontWeight: string
-  fill: string
-  stroke?: string
-  strokeWidth?: number
-  textAlign: string
-  verticalAlign: string
-  lineHeight: number
-  letterSpacing: number
-  textDecoration: string
-  textTransform: string
+  data: {
+    content: string
+    font: string
+    fontSize: number
+    color: string
+    align: 'left' | 'center' | 'right'
+    lineHeight?: number
+    letterSpacing?: number
+    direction?: 'horizontal' | 'vertical'
+    isWarped?: boolean
+    warpStyle?: string | null
+    bendAmount?: number
+  }
 }
 
 interface TextWarpConfig {
@@ -58,8 +56,9 @@ export interface WarpOptions {
 
 /**
  * Enhanced text warp effects with proper dependency injection
+ * No longer extends Effect - standalone service class
  */
-export class EnhancedTextWarp extends Effect {
+export class EnhancedTextWarp {
   private config: TextWarpConfig
   private typedEventBus: TypedEventBus
 
@@ -67,7 +66,6 @@ export class EnhancedTextWarp extends Effect {
     typedEventBus: TypedEventBus,
     config: TextWarpConfig = {}
   ) {
-    super()
     this.typedEventBus = typedEventBus
     this.config = {
       intensity: 1.0,
@@ -86,56 +84,46 @@ export class EnhancedTextWarp extends Effect {
     warpStyle: WarpStyle,
     options: WarpOptions
   ): Promise<Konva.Path> {
-    const textNode = textObject.node
+    // Get text properties from the object data
+    const textData = textObject.data
     
     // Convert text to path with proper font metrics
     const textOptions: TextOptions = {
-      fontFamily: textNode.fontFamily(),
-      fontSize: textNode.fontSize(),
-      letterSpacing: textNode.letterSpacing(),
-      textAlign: textNode.align() as 'left' | 'center' | 'right'
+      fontFamily: textData.font,
+      fontSize: textData.fontSize,
+      letterSpacing: 0,
+      textAlign: textData.align as 'left' | 'center' | 'right'
     }
     
     const pathData = await textToPathConverter.convert(
-      textNode.text(),
+      textData.content,
       textOptions
     )
     
     // Apply warp transformation
-    const warpedPath = this.applyWarpTransform(pathData, warpStyle, options, textNode)
+    const warpedPath = this.applyWarpTransform(pathData, warpStyle, options, textObject)
     
     // Create Konva path
     const path = new Konva.Path({
       data: warpedPath,
-      fill: textNode.fill(),
-      stroke: textNode.stroke(),
-      strokeWidth: textNode.strokeWidth(),
-      x: textNode.x(),
-      y: textNode.y(),
-      draggable: textNode.draggable(),
-      opacity: textNode.opacity(),
-      scaleX: textNode.scaleX(),
-      scaleY: textNode.scaleY(),
-      rotation: textNode.rotation(),
+      fill: textData.color,
+      x: textObject.x,
+      y: textObject.y,
+      draggable: true,
+      opacity: textObject.opacity,
+      scaleX: textObject.scaleX,
+      scaleY: textObject.scaleY,
+      rotation: textObject.rotation,
       // Store reference to original text
       name: `warped-text-${textObject.id}`,
       id: `warped-${nanoid()}`
     })
     
-    // Copy other text attributes
-    if (textNode.shadowColor()) {
-      path.shadowColor(textNode.shadowColor())
-      path.shadowBlur(textNode.shadowBlur())
-      path.shadowOffsetX(textNode.shadowOffsetX())
-      path.shadowOffsetY(textNode.shadowOffsetY())
-      path.shadowOpacity(textNode.shadowOpacity())
-    }
-    
     // Emit event
     this.typedEventBus.emit('text.warped', {
       textId: textObject.id,
-      warpStyle,
-      warpOptions: { ...options }
+      warpType: warpStyle,
+      parameters: { ...options }
     })
     
     return path
@@ -148,12 +136,12 @@ export class EnhancedTextWarp extends Effect {
     pathData: PathData,
     style: WarpStyle,
     options: WarpOptions,
-    textNode: Konva.Text
+    textObject: TextObject
   ): string {
     const { bend } = options
     const bounds = pathData.bounds
-    const width = bounds.width || textNode.width()
-    const height = bounds.height || textNode.height()
+    const width = bounds.width || textObject.width
+    const height = bounds.height || textObject.height
     
     // Parse SVG path data and apply transformation
     const transformedPath = this.transformPath(
@@ -294,8 +282,7 @@ export class EnhancedTextWarp extends Effect {
     return commands
   }
   
-  // Warp transformation functions
-  
+  // Warp point calculation methods
   private warpArcPoint(
     normalizedX: number,
     normalizedY: number,
@@ -304,11 +291,12 @@ export class EnhancedTextWarp extends Effect {
     height: number
   ): { x: number; y: number } {
     // Arc warp - bend text along an arc
-    const angle = (normalizedX - 0.5) * Math.PI * bendAmount
-    const radius = width / (2 * Math.sin(Math.abs(bendAmount * Math.PI / 2)))
+    const centerX = 0.5
+    const distanceFromCenter = normalizedX - centerX
+    const arcOffset = bendAmount * distanceFromCenter * distanceFromCenter
     
     const x = width * normalizedX
-    const y = height * normalizedY - radius + radius * Math.cos(angle)
+    const y = height * (normalizedY + arcOffset)
     
     return { x, y }
   }
@@ -321,11 +309,10 @@ export class EnhancedTextWarp extends Effect {
     height: number
   ): { x: number; y: number } {
     // Wave warp - create sine wave effect
-    const waveCount = 2
-    const amplitude = bendAmount * height * 0.2
+    const waveOffset = bendAmount * Math.sin(normalizedX * Math.PI * 2) * 0.1
     
     const x = width * normalizedX
-    const y = height * normalizedY + amplitude * Math.sin(normalizedX * waveCount * Math.PI * 2)
+    const y = height * (normalizedY + waveOffset)
     
     return { x, y }
   }
@@ -360,15 +347,22 @@ export class EnhancedTextWarp extends Effect {
     width: number,
     height: number
   ): { x: number; y: number } {
-    // Twist warp - rotate based on vertical position
-    const angle = normalizedY * bendAmount * Math.PI
+    // Twist warp - rotate based on distance from center
     const centerX = 0.5
+    const centerY = 0.5
+    const distX = normalizedX - centerX
+    const distY = normalizedY - centerY
+    const dist = Math.sqrt(distX * distX + distY * distY)
     
-    const relX = normalizedX - centerX
-    const newRelX = relX * Math.cos(angle)
+    const angle = bendAmount * dist * Math.PI
+    const cos = Math.cos(angle)
+    const sin = Math.sin(angle)
     
-    const x = width * (centerX + newRelX)
-    const y = height * normalizedY
+    const rotatedX = distX * cos - distY * sin
+    const rotatedY = distX * sin + distY * cos
+    
+    const x = width * (centerX + rotatedX)
+    const y = height * (centerY + rotatedY)
     
     return { x, y }
   }
@@ -404,13 +398,6 @@ export class EnhancedTextWarp extends Effect {
     bendAmount: number
   ): Promise<string> {
     // Create temporary text object
-    const tempText = new Konva.Text({
-      text,
-      fontFamily,
-      fontSize,
-      fill: '#000'
-    })
-    
     const tempObject: TextObject = {
       id: 'preview',
       type: 'text',
@@ -430,13 +417,12 @@ export class EnhancedTextWarp extends Effect {
       filters: [],
       adjustments: [],
       data: {
-        content: '',
-        fontSize: 16,
-        font: 'Arial',
+        content: text,
+        fontSize: fontSize,
+        font: fontFamily,
         color: '#000000',
         align: 'left'
-      },
-      node: tempText
+      }
     }
     
     // Apply warp
@@ -461,7 +447,4 @@ export class EnhancedTextWarp extends Effect {
     
     return dataURL
   }
-}
-
-// Class is registered in ServiceContainer for dependency injection
-// No singleton export - use container.get<EnhancedTextWarp>('EnhancedTextWarp') 
+} 

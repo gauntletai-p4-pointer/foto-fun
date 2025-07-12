@@ -37,7 +37,7 @@ export function ImageGenerationDialog() {
   const [steps, setSteps] = useState(50)
   const [isGenerating, setIsGenerating] = useState(false)
   
-  const isOpen = activeTool?.id === 'ai-image-generation'
+  const isOpen = activeTool?.toolId === 'ai-image-generation'
   
   useEffect(() => {
     // Reset form when dialog opens
@@ -74,32 +74,11 @@ export function ImageGenerationDialog() {
       // Parse dimensions
       const [width, height] = dimension.split('x').map(Number)
       
-      // Create adapter instance
-      const adapter = new ImageGenerationAdapter()
-      
-      // Create proper canvas context
-      const context = CanvasContextProvider.fromClient(canvasManager)
-      
-      // Execute generation
-      const result = await adapter.execute(
-        {
-          prompt: prompt.trim(),
-          negativePrompt: negativePrompt.trim(),
-          width,
-          height,
-        },
-        context
-      )
-      
-      if (result.objectId) {
-        console.log('Image generated successfully with object ID:', result.objectId)
-        
-        // Close dialog after successful generation
-        toolStore.deactivateTool()
-      } else {
-        console.error('Generation Failed: No object ID returned')
-        alert('Failed to generate image: No object created')
-      }
+      // Create adapter instance (temporarily disabled for foundation cleanup)
+      // const adapter = new ImageGenerationAdapter()
+      console.log('Image generation temporarily disabled for foundation cleanup')
+      alert('Image generation temporarily disabled for foundation cleanup')
+      return
     } catch (error) {
       console.error('Image generation error:', error)
       alert(error instanceof Error ? error.message : 'Failed to generate image')

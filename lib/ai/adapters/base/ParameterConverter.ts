@@ -1,7 +1,7 @@
 /**
  * Parameter definition for type-safe conversion
  */
-export interface ParameterDefinition<T = any> {
+export interface ParameterDefinition<T = unknown> {
   type: 'number' | 'string' | 'boolean' | 'color' | 'enum' | 'object';
   required?: boolean;
   default?: T;
@@ -9,7 +9,7 @@ export interface ParameterDefinition<T = any> {
   max?: number;
   enum?: T[];
   validator?: (value: T) => boolean;
-  converter?: (value: any) => T;
+  converter?: (value: unknown) => T;
   description?: string;
 }
 
@@ -28,16 +28,16 @@ export class ParameterConverter {
   /**
    * Convert input parameters using schema
    */
-  convert<T extends Record<string, any>>(
-    input: any,
+  convert<T extends Record<string, unknown>>(
+    input: unknown,
     schema: ParameterSchema
   ): T {
     const result = {} as T;
     
     for (const [key, definition] of Object.entries(schema)) {
-      const value = this.convertParameter(input[key], definition);
+      const value = this.convertParameter((input as Record<string, unknown>)[key], definition);
       if (value !== undefined) {
-        result[key as keyof T] = value;
+        (result as Record<string, unknown>)[key] = value;
       }
     }
     
@@ -47,7 +47,7 @@ export class ParameterConverter {
   /**
    * Validate parameter constraints
    */
-  validateConstraints(params: unknown, constraints: any): boolean {
+  validateConstraints(params: unknown, constraints: Record<string, unknown>): boolean {
     try {
       // Basic validation - can be extended
       return typeof params === 'object' && params !== null;
@@ -59,7 +59,7 @@ export class ParameterConverter {
   /**
    * Convert a single parameter value
    */
-  private convertParameter(value: any, definition: ParameterDefinition): any {
+  private convertParameter(value: unknown, definition: ParameterDefinition): unknown {
     // Handle undefined/null values
     if (value === undefined || value === null) {
       if (definition.required) {
@@ -101,7 +101,7 @@ export class ParameterConverter {
   /**
    * Convert to number with validation
    */
-  private convertNumber(value: any, definition: ParameterDefinition): number {
+  private convertNumber(value: unknown, definition: ParameterDefinition): number {
     const num = typeof value === 'string' ? parseFloat(value) : Number(value);
     
     if (isNaN(num)) {
@@ -122,7 +122,7 @@ export class ParameterConverter {
   /**
    * Convert to boolean
    */
-  private convertBoolean(value: any): boolean {
+  private convertBoolean(value: unknown): boolean {
     if (typeof value === 'boolean') return value;
     if (typeof value === 'string') {
       return value.toLowerCase() === 'true' || value === '1';
@@ -133,7 +133,7 @@ export class ParameterConverter {
   /**
    * Convert color value
    */
-  private convertColor(value: any): string {
+  private convertColor(value: unknown): string {
     if (typeof value === 'string') {
       // Basic color validation - can be enhanced
       if (value.startsWith('#') || value.startsWith('rgb') || value.startsWith('hsl')) {
@@ -155,7 +155,7 @@ export class ParameterConverter {
   /**
    * Convert enum value
    */
-  private convertEnum(value: any, definition: ParameterDefinition): any {
+  private convertEnum(value: unknown, definition: ParameterDefinition): unknown {
     if (!definition.enum?.includes(value)) {
       throw new Error(`Invalid enum value: ${value}. Expected: ${definition.enum?.join(', ')}`);
     }

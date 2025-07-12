@@ -68,7 +68,7 @@ export class SelectionOperations {
         break
     }
     
-    return { type: 'pixel', mask, bounds }
+    return { type: 'pixels', mask, bounds }
   }
   
   /**
@@ -103,7 +103,7 @@ export class SelectionOperations {
     }
     
     return {
-      type: 'pixel',
+      type: 'pixels',
       mask,
       bounds: { x: 0, y: 0, width: canvasSize.width, height: canvasSize.height }
     }
@@ -149,7 +149,7 @@ export class SelectionOperations {
       }
     }
     
-    return { type: 'pixel', mask: newMask, bounds: newBounds }
+    return { type: 'pixels', mask: newMask, bounds: newBounds }
   }
   
   /**
@@ -190,7 +190,7 @@ export class SelectionOperations {
     // Recalculate bounds
     const newBounds = this.findBounds(newMask)
     
-    return { type: 'pixel', mask: newMask, bounds: newBounds }
+    return { type: 'pixels', mask: newMask, bounds: newBounds }
   }
   
   /**
@@ -202,7 +202,7 @@ export class SelectionOperations {
     const { mask } = selection
     const newMask = this.gaussianBlur(mask, radius)
     
-    return { type: 'pixel', mask: newMask, bounds: selection.bounds }
+    return { type: 'pixels', mask: newMask, bounds: selection.bounds }
   }
   
   /**
@@ -214,7 +214,7 @@ export class SelectionOperations {
     // Apply median filter for smoothing
     const smoothed = this.medianFilter(mask, radius)
     
-    return { type: 'pixel', mask: smoothed, bounds }
+    return { type: 'pixels', mask: smoothed, bounds }
   }
   
   /**
@@ -271,7 +271,7 @@ export class SelectionOperations {
       }
     }
     
-    return { type: 'pixel', mask: newMask, bounds: newBounds }
+    return { type: 'pixels', mask: newMask, bounds: newBounds }
   }
   
   // Helper methods
