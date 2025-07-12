@@ -156,18 +156,6 @@ class MagicWandTool extends BaseTool {
     bounds.minY = Math.max(0, y - size)
     bounds.maxY = Math.min(imageData.height, y + size)
     
-    // If in object mode, constrain bounds to object bounds
-    if (isObjectMode && targetObjectId) {
-      const objectRegistry = useObjectRegistryStore.getState()
-      const objectBounds = objectRegistry.objectBounds.get(targetObjectId)
-      if (objectBounds) {
-        bounds.minX = Math.max(bounds.minX, objectBounds.x)
-        bounds.maxX = Math.min(bounds.maxX, objectBounds.x + objectBounds.width)
-        bounds.minY = Math.max(bounds.minY, objectBounds.y)
-        bounds.maxY = Math.min(bounds.maxY, objectBounds.y + objectBounds.height)
-      }
-    }
-    
     // Create path for selection
     const pathData = `
       M ${bounds.minX} ${bounds.minY}

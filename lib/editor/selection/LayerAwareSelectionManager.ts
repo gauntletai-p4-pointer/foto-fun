@@ -117,36 +117,15 @@ export class LayerAwareSelectionManager extends SelectionManager {
    * Override createRectangle to respect object boundaries in object mode
    */
   override createRectangle(x: number, y: number, width: number, height: number, mode: BaseSelectionMode = 'replace'): void {
+    // Always create selection without clipping to object bounds
+    super.createRectangle(x, y, width, height, mode)
+    
+    // Store as object selection if in object mode
     if (this.selectionMode === 'object' && this.activeObjectId) {
-      // Get object bounds from registry
-      const objectRegistry = useObjectRegistryStore.getState()
-      const objectBounds = objectRegistry.objectBounds.get(this.activeObjectId)
-      
-      if (objectBounds) {
-        // Clip rectangle to object bounds
-        const clippedX = Math.max(x, objectBounds.x)
-        const clippedY = Math.max(y, objectBounds.y)
-        const clippedRight = Math.min(x + width, objectBounds.x + objectBounds.width)
-        const clippedBottom = Math.min(y + height, objectBounds.y + objectBounds.height)
-        
-        const clippedWidth = Math.max(0, clippedRight - clippedX)
-        const clippedHeight = Math.max(0, clippedBottom - clippedY)
-        
-        // Create selection within object bounds
-        super.createRectangle(clippedX, clippedY, clippedWidth, clippedHeight, mode)
-        
-        // Mask with object pixels
-        this.maskSelectionWithObject(this.activeObjectId)
-        
-        // Store as object selection
-        const currentSelection = this.getSelection()
-        if (currentSelection) {
-          this.objectSelections.set(this.activeObjectId, currentSelection)
-        }
+      const currentSelection = this.getSelection()
+      if (currentSelection) {
+        this.objectSelections.set(this.activeObjectId, currentSelection)
       }
-    } else {
-      // Global selection mode
-      super.createRectangle(x, y, width, height, mode)
     }
   }
   
@@ -154,21 +133,15 @@ export class LayerAwareSelectionManager extends SelectionManager {
    * Override createEllipse to respect object boundaries in object mode
    */
   override createEllipse(cx: number, cy: number, rx: number, ry: number, mode: BaseSelectionMode = 'replace'): void {
+    // Always create selection without masking to object bounds
+    super.createEllipse(cx, cy, rx, ry, mode)
+    
+    // Store as object selection if in object mode
     if (this.selectionMode === 'object' && this.activeObjectId) {
-      // Create ellipse normally first
-      super.createEllipse(cx, cy, rx, ry, mode)
-      
-      // Then mask with object pixels
-      this.maskSelectionWithObject(this.activeObjectId)
-      
-      // Store as object selection
       const currentSelection = this.getSelection()
       if (currentSelection) {
         this.objectSelections.set(this.activeObjectId, currentSelection)
       }
-    } else {
-      // Global selection mode
-      super.createEllipse(cx, cy, rx, ry, mode)
     }
   }
   
@@ -176,21 +149,15 @@ export class LayerAwareSelectionManager extends SelectionManager {
    * Override createFromPath to respect object boundaries in object mode
    */
   override createFromPath(path: Path | FabricObject, mode: BaseSelectionMode = 'replace'): void {
+    // Always create selection without masking to object bounds
+    super.createFromPath(path, mode)
+    
+    // Store as object selection if in object mode
     if (this.selectionMode === 'object' && this.activeObjectId) {
-      // Create path selection normally first
-      super.createFromPath(path, mode)
-      
-      // Then mask with object pixels
-      this.maskSelectionWithObject(this.activeObjectId)
-      
-      // Store as object selection
       const currentSelection = this.getSelection()
       if (currentSelection) {
         this.objectSelections.set(this.activeObjectId, currentSelection)
       }
-    } else {
-      // Global selection mode
-      super.createFromPath(path, mode)
     }
   }
   

@@ -52,16 +52,17 @@ export class SelectionManager {
    * Update the selection canvas size to match the main canvas
    */
   private updateCanvasSize(): void {
-    const width = this.canvas.getWidth()
-    const height = this.canvas.getHeight()
+    // Use a large fixed size for selections to allow selections anywhere
+    // This prevents selections from being limited by viewport or image dimensions
+    const SELECTION_CANVAS_SIZE = 10000
     
-    this.selectionCanvas.width = width
-    this.selectionCanvas.height = height
+    this.selectionCanvas.width = SELECTION_CANVAS_SIZE
+    this.selectionCanvas.height = SELECTION_CANVAS_SIZE
     
     // Clear any existing selection if canvas size changed
     if (this.selection && 
-        (this.selection.mask.width !== width || 
-         this.selection.mask.height !== height)) {
+        (this.selection.mask.width !== SELECTION_CANVAS_SIZE || 
+         this.selection.mask.height !== SELECTION_CANVAS_SIZE)) {
       this.clear()
     }
   }
@@ -188,10 +189,11 @@ export class SelectionManager {
     // Create image data for the rectangle
     const imageData = this.selectionContext.createImageData(this.selectionCanvas.width, this.selectionCanvas.height)
     
-    // Fill the rectangle area
+    // Fill the rectangle area - no bounds checking, allow selections anywhere
     for (let py = Math.floor(y); py < Math.ceil(y + height); py++) {
       for (let px = Math.floor(x); px < Math.ceil(x + width); px++) {
-        if (px >= 0 && px < imageData.width && py >= 0 && py < imageData.height) {
+        // Calculate the index in the image data array
+        if (px >= 0 && py >= 0 && px < imageData.width && py < imageData.height) {
           const index = (py * imageData.width + px) * 4
           imageData.data[index + 3] = 255 // Set alpha to fully selected
         }
@@ -220,14 +222,20 @@ export class SelectionManager {
     // Create image data for the ellipse
     const imageData = this.selectionContext.createImageData(this.selectionCanvas.width, this.selectionCanvas.height)
     
-    // Fill the ellipse area using the ellipse equation
-    for (let y = 0; y < imageData.height; y++) {
-      for (let x = 0; x < imageData.width; x++) {
-        const dx = (x - cx) / rx
-        const dy = (y - cy) / ry
+    // Fill the ellipse area - check a bounding box around the ellipse
+    const minX = Math.max(0, Math.floor(cx - rx))
+    const maxX = Math.min(imageData.width - 1, Math.ceil(cx + rx))
+    const minY = Math.max(0, Math.floor(cy - ry))
+    const maxY = Math.min(imageData.height - 1, Math.ceil(cy + ry))
+    
+    for (let py = minY; py <= maxY; py++) {
+      for (let px = minX; px <= maxX; px++) {
+        // Check if point is inside ellipse
+        const dx = (px - cx) / rx
+        const dy = (py - cy) / ry
         
         if (dx * dx + dy * dy <= 1) {
-          const index = (y * imageData.width + x) * 4
+          const index = (py * imageData.width + px) * 4
           imageData.data[index + 3] = 255 // Set alpha to fully selected
         }
       }

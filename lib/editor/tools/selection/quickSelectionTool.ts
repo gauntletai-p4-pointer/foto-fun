@@ -241,13 +241,6 @@ class QuickSelectionTool extends BaseTool {
     const minY = Math.max(0, Math.floor(y - brushSize))
     const maxY = Math.min(this.imageDataCache.height - 1, Math.ceil(y + brushSize))
     
-    // If in object mode, constrain to object bounds
-    let objectBounds: { x: number, y: number, width: number, height: number } | undefined
-    if (isObjectMode && targetObjectId) {
-      const objectRegistry = useObjectRegistryStore.getState()
-      objectBounds = objectRegistry.objectBounds.get(targetObjectId)
-    }
-    
     // Mark this region as processed
     const regionKey = `${Math.floor(x / brushSize)},${Math.floor(y / brushSize)}`
     if (this.state.get('processedRegions').has(regionKey)) {
@@ -267,14 +260,6 @@ class QuickSelectionTool extends BaseTool {
     
     for (let py = minY; py <= maxY; py++) {
       for (let px = minX; px <= maxX; px++) {
-        // Check if within object bounds if in object mode
-        if (objectBounds) {
-          if (px < objectBounds.x || px >= objectBounds.x + objectBounds.width ||
-              py < objectBounds.y || py >= objectBounds.y + objectBounds.height) {
-            continue // Skip pixels outside object
-          }
-        }
-        
         // Check if within brush circle
         const dx = px - x
         const dy = py - y
@@ -288,7 +273,7 @@ class QuickSelectionTool extends BaseTool {
     
     // Process pixels with flood fill if auto-expand is on
     if (autoExpand) {
-      this.floodFillSelect(pixelsToProcess, targetColor, tolerance, objectBounds)
+      this.floodFillSelect(pixelsToProcess, targetColor, tolerance)
     } else {
       // Just select pixels in brush area that match tolerance
       for (const pixel of pixelsToProcess) {
@@ -326,8 +311,7 @@ class QuickSelectionTool extends BaseTool {
   private floodFillSelect(
     seedPixels: Array<{x: number, y: number}>,
     targetColor: {r: number, g: number, b: number, a: number},
-    tolerance: number,
-    objectBounds?: { x: number, y: number, width: number, height: number }
+    tolerance: number
   ): void {
     if (!this.imageDataCache) return
     
@@ -369,13 +353,6 @@ class QuickSelectionTool extends BaseTool {
       for (const neighbor of neighbors) {
         if (neighbor.x >= 0 && neighbor.x < this.imageDataCache.width &&
             neighbor.y >= 0 && neighbor.y < this.imageDataCache.height) {
-          // Constrain neighbor to object bounds if in object mode
-          if (objectBounds) {
-            if (neighbor.x < objectBounds.x || neighbor.x >= objectBounds.x + objectBounds.width ||
-                neighbor.y < objectBounds.y || neighbor.y >= objectBounds.y + objectBounds.height) {
-              continue // Skip neighbors outside object
-            }
-          }
           queue.push(neighbor)
         }
       }
@@ -531,20 +508,21 @@ class QuickSelectionTool extends BaseTool {
       return
     }
     
+    // Use the same large canvas size as SelectionManager
+    const SELECTION_CANVAS_SIZE = 10000
+    
     // Create image data mask from selected pixels
-    const width = this.canvas.width!
-    const height = this.canvas.height!
-    const maskData = new ImageData(width, height)
+    const maskData = new ImageData(SELECTION_CANVAS_SIZE, SELECTION_CANVAS_SIZE)
     
     // Fill mask with selected pixels
     for (const key of selectedPixels) {
       const [x, y] = key.split(',').map(Number)
-      const index = (y * width + x) * 4
+      const index = (y * SELECTION_CANVAS_SIZE + x) * 4
       maskData.data[index + 3] = 255 // Set alpha to fully selected
     }
     
     // Find bounds
-    let minX = width, minY = height
+    let minX = SELECTION_CANVAS_SIZE, minY = SELECTION_CANVAS_SIZE
     let maxX = 0, maxY = 0
     
     for (const key of selectedPixels) {
