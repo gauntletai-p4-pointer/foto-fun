@@ -60,11 +60,8 @@ export const useLayerStore = create<LayerState>()(
     
     // Add a new layer
     addLayer: (layerData) => {
-      console.log('[LayerStore] ========== ADD LAYER START ==========')
-      console.log('[LayerStore] Adding layer with data:', layerData)
       
       const layers = get().layers
-      console.log('[LayerStore] Current layers before adding:', layers.length)
       
       // Extract id from layerData to ensure we never use it
       const { id: _, ...layerDataWithoutId } = layerData
@@ -81,16 +78,12 @@ export const useLayerStore = create<LayerState>()(
         ...layerDataWithoutId
       }
       
-      console.log('[LayerStore] Created new layer:', newLayer)
-      
       set((state) => ({
         layers: [...state.layers, newLayer],
         activeLayerId: newLayer.id
       }))
       
-      console.log('[LayerStore] Layer added to state, now calling syncLayersToCanvas...')
       get().syncLayersToCanvas()
-      console.log('[LayerStore] ========== ADD LAYER END ==========')
       return newLayer
     },
     
@@ -450,20 +443,16 @@ export const useLayerStore = create<LayerState>()(
     
     // Sync layers to canvas
     syncLayersToCanvas: () => {
-      console.log('[LayerStore] ========== SYNC LAYERS TO CANVAS START ==========')
       const canvas = useCanvasStore.getState().fabricCanvas
       if (!canvas) {
-        console.log('[LayerStore] No canvas available, returning')
         return
       }
-      
-      console.log('[LayerStore] Canvas objects before sync:', canvas.getObjects().length)
       
       // Get all objects and sort by layer position
       const layers = get().layers
       const allObjects = canvas.getObjects()
       
-      console.log('[LayerStore] Current layers:', layers.length)
+      
       layers.forEach((layer, i) => {
         console.log(`[LayerStore] Layer ${i}:`, {
           id: layer.id,
@@ -473,7 +462,7 @@ export const useLayerStore = create<LayerState>()(
         })
       })
       
-      console.log('[LayerStore] All canvas objects:')
+      
       allObjects.forEach((obj, i) => {
         const layerId = obj.get('layerId' as any) as string
         const objId = obj.get('id' as any) as string
@@ -503,7 +492,6 @@ export const useLayerStore = create<LayerState>()(
         }
       })
       
-      console.log('[LayerStore] Objects grouped by layer:')
       objectsByLayer.forEach((objects, layerId) => {
         console.log(`[LayerStore] Layer ${layerId}: ${objects.length} objects`)
       })
@@ -525,31 +513,20 @@ export const useLayerStore = create<LayerState>()(
         }
       })
       
-      console.log('[LayerStore] Total ordered objects to keep:', orderedObjects.length)
-      
       // Only manipulate canvas if order actually changed
       const currentOrder = canvas.getObjects()
       const orderChanged = orderedObjects.length !== currentOrder.length ||
         orderedObjects.some((obj, index) => obj !== currentOrder[index])
       
-      console.log('[LayerStore] Order changed:', orderChanged)
-      console.log('[LayerStore] Current objects:', currentOrder.length, 'vs ordered objects:', orderedObjects.length)
-      
       if (orderChanged) {
-        console.log('[LayerStore] Removing all current objects...')
         // Remove all objects without clearing (preserves background, etc)
         currentOrder.forEach(obj => canvas.remove(obj))
-        console.log('[LayerStore] Canvas objects after removal:', canvas.getObjects().length)
         
-        console.log('[LayerStore] Re-adding ordered objects...')
         // Re-add in correct order
         orderedObjects.forEach(obj => canvas.add(obj))
-        console.log('[LayerStore] Canvas objects after re-adding:', canvas.getObjects().length)
         
         canvas.renderAll()
       }
-      
-      console.log('[LayerStore] ========== SYNC LAYERS TO CANVAS END ==========')
     },
     
     // Update layer thumbnail

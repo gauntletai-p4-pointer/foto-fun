@@ -269,6 +269,7 @@ export abstract class SelectionTool extends BaseTool {
       // Use Fabric's getPointer method to get the correct transformed coordinates
       const pointer = this.canvas!.getPointer(e.e)
       const point = { x: pointer.x, y: pointer.y }
+
       
       // Determine if this is an object selection (layered workflow)
       const selectionTarget = this.selectionTarget
@@ -347,6 +348,8 @@ export abstract class SelectionTool extends BaseTool {
       // Use Fabric's getPointer method to get the correct transformed coordinates
       const pointer = this.canvas!.getPointer(e.e)
       const point = { x: pointer.x, y: pointer.y }
+      
+
       
       // Update state
       this.state.set('currentPoint', point)
@@ -448,6 +451,8 @@ export abstract class SelectionTool extends BaseTool {
     const startPoint = this.state.get('startPoint')
     const currentPoint = this.state.get('currentPoint')
     
+
+    
     if (!startPoint || !currentPoint) {
       return { x: 0, y: 0, width: 0, height: 0 }
     }
@@ -474,11 +479,13 @@ export abstract class SelectionTool extends BaseTool {
     }
     
     // Normal drawing
-    return {
+    const result = {
       x: Math.min(startPoint.x, startPoint.x + width),
       y: Math.min(startPoint.y, startPoint.y + height),
       width: Math.abs(width),
       height: Math.abs(height)
     }
+    
+    return result
   }
 } 

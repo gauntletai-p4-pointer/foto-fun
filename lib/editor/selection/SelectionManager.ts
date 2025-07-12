@@ -49,21 +49,146 @@ export class SelectionManager {
   }
   
   /**
-   * Update the selection canvas size to match the main canvas
+   * Update canvas size to match the current canvas
    */
   private updateCanvasSize(): void {
-    const width = this.canvas.getWidth()
-    const height = this.canvas.getHeight()
+    const canvasWidth = this.canvas.getWidth()
+    const canvasHeight = this.canvas.getHeight()
     
-    this.selectionCanvas.width = width
-    this.selectionCanvas.height = height
+    // Get actual image dimensions for mask creation (not zoomed canvas dimensions)
+    const imageInfo = this.getActualImageDimensions()
     
-    // Clear any existing selection if canvas size changed
-    if (this.selection && 
-        (this.selection.mask.width !== width || 
-         this.selection.mask.height !== height)) {
-      this.clear()
+    // Use actual image dimensions for mask creation
+    if (this.selectionCanvas.width !== imageInfo.width || this.selectionCanvas.height !== imageInfo.height) {
+      this.selectionCanvas.width = imageInfo.width
+      this.selectionCanvas.height = imageInfo.height
+      this.selectionContext.clearRect(0, 0, imageInfo.width, imageInfo.height)
+      console.log('[SelectionManager - CANVAS UPDATE] Updated mask canvas to image dimensions:', {
+        canvasDimensions: { width: canvasWidth, height: canvasHeight },
+        imageDimensions: { width: imageInfo.width, height: imageInfo.height },
+        zoom: this.canvas.getZoom()
+      })
     }
+  }
+
+  /**
+   * Get actual image dimensions and coordinate transformation info
+   */
+  private getActualImageDimensions(): { width: number; height: number; scaleX: number; scaleY: number } {
+    // Get all image objects from canvas
+    const objects = this.canvas.getObjects()
+    const imageObjects = objects.filter(obj => obj.type === 'image')
+    
+    if (imageObjects.length === 0) {
+      // Fallback to canvas dimensions if no images
+      console.warn('[SelectionManager] No image objects found, using canvas dimensions')
+      return { 
+        width: this.canvas.getWidth(), 
+        height: this.canvas.getHeight(),
+        scaleX: 1,
+        scaleY: 1
+      }
+    }
+    
+    // Use the first/largest image as reference
+    // In most cases there will be one main image
+    let referenceImage = imageObjects[0]
+    let maxArea = 0
+    
+    // Find the largest image object
+    for (const img of imageObjects) {
+      const bounds = img.getBoundingRect()
+      const area = bounds.width * bounds.height
+      if (area > maxArea) {
+        maxArea = area
+        referenceImage = img
+      }
+    }
+    
+    // Get the actual image dimensions (not scaled)
+    const imageElement = (referenceImage as any)._element
+    let actualWidth: number
+    let actualHeight: number
+    
+    if (imageElement && imageElement.naturalWidth && imageElement.naturalHeight) {
+      // Use natural dimensions
+      actualWidth = imageElement.naturalWidth
+      actualHeight = imageElement.naturalHeight
+    } else {
+      // Fallback to object's original dimensions
+      actualWidth = (referenceImage as any).width || this.canvas.getWidth()
+      actualHeight = (referenceImage as any).height || this.canvas.getHeight()
+    }
+    
+    // Calculate transformation from canvas space to image space
+    const imageBounds = referenceImage.getBoundingRect()
+    const scaleX = actualWidth / imageBounds.width
+    const scaleY = actualHeight / imageBounds.height
+    
+    console.log('[SelectionManager - IMAGE TRANSFORM] Image coordinate transformation:', {
+      canvasSize: { width: this.canvas.getWidth(), height: this.canvas.getHeight() },
+      imageBounds: imageBounds,
+      actualImageSize: { width: actualWidth, height: actualHeight },
+      transform: { scaleX, scaleY },
+      zoom: this.canvas.getZoom()
+    })
+    
+    return { 
+      width: actualWidth, 
+      height: actualHeight,
+      scaleX,
+      scaleY
+    }
+  }
+
+  /**
+   * Transform coordinates from canvas space to image space
+   */
+  private transformToImageSpace(canvasCoords: { x: number; y: number; width?: number; height?: number }) {
+    const imageInfo = this.getActualImageDimensions()
+    
+    // Get the reference image bounds to calculate offset
+    const objects = this.canvas.getObjects()
+    const imageObjects = objects.filter(obj => obj.type === 'image')
+    
+    if (imageObjects.length === 0) {
+      return canvasCoords // No transformation needed
+    }
+    
+    // Use the same reference image as in getActualImageDimensions
+    let referenceImage = imageObjects[0]
+    let maxArea = 0
+    
+    for (const img of imageObjects) {
+      const bounds = img.getBoundingRect()
+      const area = bounds.width * bounds.height
+      if (area > maxArea) {
+        maxArea = area
+        referenceImage = img
+      }
+    }
+    
+    const imageBounds = referenceImage.getBoundingRect()
+    
+    // Transform coordinates from canvas space to image space
+    const imageX = (canvasCoords.x - imageBounds.left) * imageInfo.scaleX
+    const imageY = (canvasCoords.y - imageBounds.top) * imageInfo.scaleY
+    
+    const result = {
+      x: imageX,
+      y: imageY,
+      width: canvasCoords.width ? canvasCoords.width * imageInfo.scaleX : undefined,
+      height: canvasCoords.height ? canvasCoords.height * imageInfo.scaleY : undefined
+    }
+    
+    console.log('[SelectionManager - COORDINATE TRANSFORM] Canvas to image space:', {
+      canvas: canvasCoords,
+      imageBounds: imageBounds,
+      imageSpace: result,
+      transform: { scaleX: imageInfo.scaleX, scaleY: imageInfo.scaleY }
+    })
+    
+    return result
   }
   
   /**
@@ -162,28 +287,48 @@ export class SelectionManager {
   createRectangle(x: number, y: number, width: number, height: number, mode: SelectionMode = 'replace'): void {
     this.updateCanvasSize()
     
-    const bounds: SelectionBounds = { x, y, width, height }
-    
-    // Create image data for the rectangle
-    const imageData = this.selectionContext.createImageData(this.selectionCanvas.width, this.selectionCanvas.height)
-    
-    console.log('[SelectionManager - MASK CONSTRUCTION] Input selection:', { x, y, width, height })
+    console.log('[SelectionManager - MASK CONSTRUCTION] Input selection (canvas space):', { x, y, width, height })
     console.log('[SelectionManager - MASK CONSTRUCTION] Canvas bounds:', { 
+      width: this.canvas.getWidth(), 
+      height: this.canvas.getHeight(),
+      zoom: this.canvas.getZoom()
+    })
+    
+    // Transform coordinates from canvas space to image space
+    const imageCoords = this.transformToImageSpace({ x, y, width, height })
+    const imageX = imageCoords.x
+    const imageY = imageCoords.y
+    const imageWidth = imageCoords.width!
+    const imageHeight = imageCoords.height!
+    
+    console.log('[SelectionManager - MASK CONSTRUCTION] Transformed to image space:', { 
+      x: imageX, 
+      y: imageY, 
+      width: imageWidth, 
+      height: imageHeight 
+    })
+    console.log('[SelectionManager - MASK CONSTRUCTION] Mask canvas dimensions:', { 
       width: this.selectionCanvas.width, 
       height: this.selectionCanvas.height 
     })
     
-    // Clip selection to canvas bounds for mask construction
-    const clippedLeft = Math.max(0, Math.floor(x))
-    const clippedTop = Math.max(0, Math.floor(y))
-    const clippedRight = Math.min(imageData.width, Math.ceil(x + width))
-    const clippedBottom = Math.min(imageData.height, Math.ceil(y + height))
+    // Keep original bounds for UI/shape data (in canvas space)
+    const bounds: SelectionBounds = { x, y, width, height }
+    
+    // Create image data for the rectangle in image space
+    const imageData = this.selectionContext.createImageData(this.selectionCanvas.width, this.selectionCanvas.height)
+    
+    // Clip selection to image bounds for mask construction
+    const clippedLeft = Math.max(0, Math.floor(imageX))
+    const clippedTop = Math.max(0, Math.floor(imageY))
+    const clippedRight = Math.min(imageData.width, Math.ceil(imageX + imageWidth))
+    const clippedBottom = Math.min(imageData.height, Math.ceil(imageY + imageHeight))
     
     // Calculate clipped dimensions
     const clippedWidth = Math.max(0, clippedRight - clippedLeft)
     const clippedHeight = Math.max(0, clippedBottom - clippedTop)
     
-    console.log('[SelectionManager - MASK CONSTRUCTION] Clipped to canvas:', { 
+    console.log('[SelectionManager - MASK CONSTRUCTION] Clipped to image canvas:', { 
       left: clippedLeft, 
       top: clippedTop, 
       right: clippedRight, 
@@ -195,7 +340,7 @@ export class SelectionManager {
     // Track how many pixels are being set
     let pixelsSet = 0
     
-    // Fill the clipped rectangle area
+    // Fill the clipped rectangle area in image space
     for (let py = clippedTop; py < clippedBottom; py++) {
       for (let px = clippedLeft; px < clippedRight; px++) {
         // Double check bounds (should always pass now)
@@ -210,7 +355,7 @@ export class SelectionManager {
     console.log('[SelectionManager - MASK CONSTRUCTION] Pixels set in mask:', pixelsSet)
     console.log('[SelectionManager - MASK CONSTRUCTION] Expected pixels (clipped):', clippedWidth * clippedHeight)
     
-    // Create shape information (keep original bounds for shape data)
+    // Create shape information (keep original bounds for shape data in canvas space)
     const shape: SelectionShape = { type: 'rectangle', x, y, width, height }
     
     this.applySelectionMode(imageData, bounds, mode, shape)
@@ -234,6 +379,40 @@ export class SelectionManager {
   createEllipse(cx: number, cy: number, rx: number, ry: number, mode: SelectionMode = 'replace'): void {
     this.updateCanvasSize()
     
+    // Safety check: ensure radii are positive
+    if (rx <= 0 || ry <= 0) {
+      console.warn('[SelectionManager - ELLIPSE MASK CONSTRUCTION] Invalid ellipse radii:', { rx, ry })
+      return
+    }
+
+    console.log('[SelectionManager - ELLIPSE MASK CONSTRUCTION] Input ellipse (canvas space):', { cx, cy, rx, ry })
+    console.log('[SelectionManager - ELLIPSE MASK CONSTRUCTION] Canvas bounds:', { 
+      width: this.canvas.getWidth(), 
+      height: this.canvas.getHeight(),
+      zoom: this.canvas.getZoom()
+    })
+    
+    // Transform coordinates from canvas space to image space
+    const imageCenterCoords = this.transformToImageSpace({ x: cx, y: cy })
+    const imageRadiiCoords = this.transformToImageSpace({ x: 0, y: 0, width: rx * 2, height: ry * 2 })
+    
+    const imageCx = imageCenterCoords.x
+    const imageCy = imageCenterCoords.y
+    const imageRx = imageRadiiCoords.width! / 2
+    const imageRy = imageRadiiCoords.height! / 2
+    
+    console.log('[SelectionManager - ELLIPSE MASK CONSTRUCTION] Transformed to image space:', { 
+      cx: imageCx, 
+      cy: imageCy, 
+      rx: imageRx, 
+      ry: imageRy 
+    })
+    console.log('[SelectionManager - ELLIPSE MASK CONSTRUCTION] Mask canvas dimensions:', { 
+      width: this.selectionCanvas.width, 
+      height: this.selectionCanvas.height 
+    })
+
+    // Keep original bounds for UI/shape data (in canvas space)
     const bounds: SelectionBounds = {
       x: cx - rx,
       y: cy - ry,
@@ -241,26 +420,138 @@ export class SelectionManager {
       height: ry * 2
     }
     
-    // Create image data for the ellipse
+    console.log('[SelectionManager - ELLIPSE MASK CONSTRUCTION] ===== ELLIPSE MASK CREATION =====')
+    console.log('[SelectionManager - ELLIPSE MASK CONSTRUCTION] Image ellipse params:', { cx: imageCx, cy: imageCy, rx: imageRx, ry: imageRy })
+    console.log('[SelectionManager - ELLIPSE MASK CONSTRUCTION] Calculated bounds (canvas space):', bounds)
+    
+    // Create image data for the ellipse in image space
     const imageData = this.selectionContext.createImageData(this.selectionCanvas.width, this.selectionCanvas.height)
     
-    // Fill the ellipse area using the ellipse equation
-    for (let y = 0; y < imageData.height; y++) {
-      for (let x = 0; x < imageData.width; x++) {
-        const dx = (x - cx) / rx
-        const dy = (y - cy) / ry
+    // Calculate the bounding box of the ellipse and clip it to image canvas bounds
+    const ellipseBounds = {
+      left: Math.max(0, Math.floor(imageCx - imageRx)),
+      top: Math.max(0, Math.floor(imageCy - imageRy)),
+      right: Math.min(imageData.width, Math.ceil(imageCx + imageRx)),
+      bottom: Math.min(imageData.height, Math.ceil(imageCy + imageRy))
+    }
+    
+    // Fix bounds when ellipse extends beyond canvas
+    if (ellipseBounds.bottom < ellipseBounds.top) {
+      ellipseBounds.bottom = ellipseBounds.top
+    }
+    if (ellipseBounds.right < ellipseBounds.left) {
+      ellipseBounds.right = ellipseBounds.left
+    }
+    
+    // If the ellipse center is above canvas but ellipse extends into canvas
+    if (imageCy < 0 && imageCy + imageRy > 0) {
+      ellipseBounds.top = 0
+      ellipseBounds.bottom = Math.min(imageData.height, Math.ceil(imageCy + imageRy))
+    }
+    
+    // If the ellipse center is below canvas but ellipse extends into canvas
+    if (imageCy >= imageData.height && imageCy - imageRy < imageData.height) {
+      ellipseBounds.top = Math.max(0, Math.floor(imageCy - imageRy))
+      ellipseBounds.bottom = imageData.height
+    }
+    
+    // If the ellipse center is left of canvas but ellipse extends into canvas
+    if (imageCx < 0 && imageCx + imageRx > 0) {
+      ellipseBounds.left = 0
+      ellipseBounds.right = Math.min(imageData.width, Math.ceil(imageCx + imageRx))
+    }
+    
+    // If the ellipse center is right of canvas but ellipse extends into canvas
+    if (imageCx >= imageData.width && imageCx - imageRx < imageData.width) {
+      ellipseBounds.left = Math.max(0, Math.floor(imageCx - imageRx))
+      ellipseBounds.right = imageData.width
+    }
+    
+    // Calculate clipped dimensions
+    const clippedWidth = Math.max(0, ellipseBounds.right - ellipseBounds.left)
+    const clippedHeight = Math.max(0, ellipseBounds.bottom - ellipseBounds.top)
+    
+    console.log('[SelectionManager - ELLIPSE MASK CONSTRUCTION] Ellipse bounds clipped to image canvas:', ellipseBounds)
+    console.log('[SelectionManager - ELLIPSE MASK CONSTRUCTION] Clipped dimensions:', { 
+      width: clippedWidth, 
+      height: clippedHeight 
+    })
+    
+    // Debug ellipse intersection analysis
+    console.log('[SelectionManager - ELLIPSE MASK CONSTRUCTION] Ellipse intersection analysis:')
+    console.log('  - Ellipse Y range:', { min: imageCy - imageRy, max: imageCy + imageRy })
+    console.log('  - Canvas Y range:', { min: 0, max: imageData.height - 1 })
+    console.log('  - Ellipse X range:', { min: imageCx - imageRx, max: imageCx + imageRx })
+    console.log('  - Canvas X range:', { min: 0, max: imageData.width - 1 })
+    console.log('  - Should intersect Y:', imageCy - imageRy < imageData.height && imageCy + imageRy >= 0)
+    console.log('  - Should intersect X:', imageCx - imageRx < imageData.width && imageCx + imageRx >= 0)
+    
+    // Track how many pixels are being set
+    let pixelsSet = 0
+    
+    // Fill the ellipse area using the ellipse equation - only iterate through clipped bounds in image space
+    for (let y = ellipseBounds.top; y < ellipseBounds.bottom; y++) {
+      for (let x = ellipseBounds.left; x < ellipseBounds.right; x++) {
+        // Calculate distance from ellipse center (not normalized)
+        const dx = x - imageCx
+        const dy = y - imageCy
         
-        if (dx * dx + dy * dy <= 1) {
-          const index = (y * imageData.width + x) * 4
-          imageData.data[index + 3] = 255 // Set alpha to fully selected
+        // Check if point is inside ellipse using standard ellipse equation
+        const ellipseValue = (dx * dx) / (imageRx * imageRx) + (dy * dy) / (imageRy * imageRy)
+        
+        if (ellipseValue <= 1) {
+          // Double check bounds (should always pass now)
+          if (x >= 0 && x < imageData.width && y >= 0 && y < imageData.height) {
+            const index = (y * imageData.width + x) * 4
+            imageData.data[index + 3] = 255 // Set alpha to fully selected
+            pixelsSet++
+          }
         }
       }
     }
     
-    // Create shape information
+    console.log('[SelectionManager - ELLIPSE MASK CONSTRUCTION] Pixels set in mask:', pixelsSet)
+    console.log('[SelectionManager - ELLIPSE MASK CONSTRUCTION] Estimated pixels in ellipse:', Math.PI * imageRx * imageRy)
+    
+    // Debug calculation for clipped area
+    let expectedPixelsInClippedArea = 0
+    for (let y = ellipseBounds.top; y < ellipseBounds.bottom; y++) {
+      for (let x = ellipseBounds.left; x < ellipseBounds.right; x++) {
+        const dx = x - imageCx
+        const dy = y - imageCy
+        const ellipseValue = (dx * dx) / (imageRx * imageRx) + (dy * dy) / (imageRy * imageRy)
+        if (ellipseValue <= 1) {
+          expectedPixelsInClippedArea++
+        }
+      }
+    }
+    console.log('[SelectionManager - ELLIPSE MASK CONSTRUCTION] Expected pixels in clipped region:', expectedPixelsInClippedArea)
+    
+    // Test specific point for debugging
+    const testX = Math.floor((ellipseBounds.left + ellipseBounds.right) / 2)
+    const testY = Math.floor((ellipseBounds.top + ellipseBounds.bottom) / 2)
+    const testDx = testX - imageCx
+    const testDy = testY - imageCy
+    const testEllipseValue = (testDx * testDx) / (imageRx * imageRx) + (testDy * testDy) / (imageRy * imageRy)
+    console.log('[SelectionManager - ELLIPSE MASK CONSTRUCTION] Test point:', { testX, testY, testDx, testDy, testEllipseValue, shouldBeSelected: testEllipseValue <= 1 })
+    
+    // Create shape information (keep original parameters for shape data in canvas space)
     const shape: SelectionShape = { type: 'ellipse', cx, cy, rx, ry }
     
     this.applySelectionMode(imageData, bounds, mode, shape)
+    
+    const finalSelection = this.getSelection()
+    if (finalSelection) {
+      // Count non-zero pixels in final mask for verification
+      let finalPixelsSet = 0
+      for (let i = 3; i < finalSelection.mask.data.length; i += 4) {
+        if (finalSelection.mask.data[i] > 0) {
+          finalPixelsSet++
+        }
+      }
+      console.log('[SelectionManager - ELLIPSE MASK CONSTRUCTION] Final mask verification - pixels set:', finalPixelsSet)
+      console.log('[SelectionManager - ELLIPSE MASK CONSTRUCTION] ===== END ELLIPSE MASK CREATION =====')
+    }
   }
   
   /**

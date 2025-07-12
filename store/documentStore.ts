@@ -100,7 +100,6 @@ export const useDocumentStore = create<DocumentStore>((set, get) => ({
           // Load image into canvas
           const canvasStore = useCanvasStore.getState()
           if (canvasStore.fabricCanvas) {
-            console.log('[DocumentStore] Loading image into canvas...')
             // Don't resize canvas to image dimensions - keep current canvas size
             // canvasStore.resize(newDocument.width, newDocument.height)
             
@@ -190,8 +189,6 @@ export const useDocumentStore = create<DocumentStore>((set, get) => ({
           // Insert image into existing canvas
           const canvasStore = useCanvasStore.getState()
           if (canvasStore.fabricCanvas) {
-            console.log('[DocumentStore] Inserting image into existing canvas...')
-            console.log('[DocumentStore] Canvas objects BEFORE insertion:', canvasStore.fabricCanvas.getObjects().length)
             
             // Log existing objects
             canvasStore.fabricCanvas.getObjects().forEach((obj, i) => {
@@ -217,18 +214,14 @@ export const useDocumentStore = create<DocumentStore>((set, get) => ({
               })
               
               const imageName = file.name.replace(/\.[^/.]+$/, '') // Remove extension
-              console.log('[DocumentStore] Creating layer with name:', imageName)
+              
               
               const insertedLayer = layerStore.addLayer({
                 name: imageName,
                 type: 'image'
               })
               
-              console.log('[DocumentStore] Layer created:', insertedLayer)
-              console.log('[DocumentStore] Canvas objects AFTER layer creation:', canvasStore.fabricCanvas!.getObjects().length)
-              
               const imageId = `image_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
-              console.log('[DocumentStore] Generated image ID:', imageId)
               
               // Center the image in the viewport
               const viewportCenter = canvasStore.fabricCanvas!.getVpCenter()
@@ -242,24 +235,17 @@ export const useDocumentStore = create<DocumentStore>((set, get) => ({
                 centeredRotation: true  // Ensure rotation happens around center
               })
               
-              console.log('[DocumentStore] Adding fabricImg to canvas...')
               canvasStore.fabricCanvas!.add(fabricImg)
-              console.log('[DocumentStore] Canvas objects AFTER adding fabricImg:', canvasStore.fabricCanvas!.getObjects().length)
               
               canvasStore.fabricCanvas!.setActiveObject(fabricImg)
               
               // Update layer with object ID
-              console.log('[DocumentStore] Updating layer with object ID...')
               layerStore.updateLayer(insertedLayer.id, {
                 objectIds: [imageId]
               })
               
-              console.log('[DocumentStore] Canvas objects AFTER layer update:', canvasStore.fabricCanvas!.getObjects().length)
-              
               canvasStore.fabricCanvas!.renderAll()
               
-              console.log('[DocumentStore] Final canvas objects:', canvasStore.fabricCanvas!.getObjects().length)
-              console.log('[DocumentStore] Image inserted successfully with layer association')
               console.log('[DocumentStore] ========== INSERT IMAGE END ==========')
               
               // Mark document as modified
@@ -267,7 +253,6 @@ export const useDocumentStore = create<DocumentStore>((set, get) => ({
             })
           } else {
             // If no canvas exists, create a new document with the image
-            console.log('[DocumentStore] No canvas exists, calling openDocument instead')
             get().openDocument(file)
           }
           

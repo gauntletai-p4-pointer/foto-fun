@@ -209,18 +209,6 @@ class CropTool extends BaseTool {
       // Update the object's coordinates
       cropRect.setCoords()
       
-      // Debug the actual values being set
-      if (finalWidth > 10 && finalHeight > 10) {
-        console.log('[CropTool] Setting crop rect:', {
-          left,
-          top,
-          width: finalWidth,
-          height: finalHeight,
-          scaleX: cropRect.scaleX,
-          scaleY: cropRect.scaleY
-        })
-      }
-      
       this.canvas!.renderAll()
     })
   }

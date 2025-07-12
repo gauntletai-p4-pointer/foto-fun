@@ -105,20 +105,11 @@ class MarqueeEllipseTool extends SelectionTool {
     const rx = dimensions.width / 2
     const ry = dimensions.height / 2
     
-    // Debug logging
-    console.log('[MarqueeEllipseTool] finalizeSelection:', {
-      dimensions,
-      willCreate: true,
-      ellipseParams: { cx, cy, rx, ry },
-      feedbackBounds: this.feedbackEllipse ? this.feedbackEllipse.getBoundingRect() : null
-    })
-    
     // Get selection manager
     const canvasStore = useCanvasStore.getState()
     const selectionManager = canvasStore.selectionManager
     
     if (!selectionManager) {
-      console.error('Selection system not initialized')
       if (this.feedbackEllipse) {
         this.canvas.remove(this.feedbackEllipse)
       }
