@@ -11,6 +11,7 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         type: 'checkbox',
         label: 'Auto-Select',
         value: true,
+        defaultValue: true,
         props: {
           tooltip: 'Automatically select layers when clicking'
         }
@@ -20,6 +21,7 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         type: 'dropdown',
         label: 'Auto-Select Type',
         value: 'layer',
+        defaultValue: 'layer',
         props: {
           options: [
             { value: 'layer', label: 'Layer' },
@@ -33,6 +35,7 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         type: 'checkbox',
         label: 'Show Transform Controls',
         value: true,
+        defaultValue: true,
         props: {
           tooltip: 'Display bounding box with transform handles'
         }
@@ -42,6 +45,7 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         type: 'checkbox',
         label: 'Show Smart Guides',
         value: true,
+        defaultValue: true,
         props: {
           tooltip: 'Show alignment guides when moving objects'
         }
@@ -51,6 +55,7 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         type: 'checkbox',
         label: 'Show Alignment Guides',
         value: false,
+        defaultValue: false,
         props: {
           tooltip: 'Show persistent alignment guides'
         }
@@ -66,6 +71,7 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         type: 'button-group',
         label: 'Selection Mode',
         value: 'new',
+        defaultValue: 'new',
         props: {
           options: [
             { value: 'new', label: 'New Selection', icon: 'Square' },
@@ -80,6 +86,7 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         type: 'number',
         label: 'Feather',
         value: 0,
+        defaultValue: 0,
         props: {
           min: 0,
           max: 250,
@@ -90,7 +97,8 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         id: 'antiAlias',
         type: 'checkbox',
         label: 'Anti-alias',
-        value: true
+        value: true,
+        defaultValue: true
       }
     ]
   },
@@ -103,6 +111,7 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         type: 'dropdown',
         label: 'Aspect Ratio',
         value: 'free',
+        defaultValue: 'free',
         props: {
           options: [
             { value: 'free', label: 'Free' },
@@ -121,6 +130,7 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         type: 'dropdown',
         label: 'Overlay',
         value: 'thirds',
+        defaultValue: 'thirds',
         props: {
           options: [
             { value: 'none', label: 'None' },
@@ -135,6 +145,7 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         type: 'checkbox',
         label: 'Delete Cropped Pixels',
         value: false,
+        defaultValue: false,
         props: {
           tooltip: 'Make crop destructive (cannot be undone)'
         }
@@ -144,6 +155,7 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         type: 'slider',
         label: 'Shield Opacity',
         value: 50,
+        defaultValue: 50,
         props: {
           min: 0,
           max: 100,
@@ -161,13 +173,15 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         id: 'color',
         type: 'color',
         label: 'Color',
-        value: '#000000'
+        value: '#000000',
+        defaultValue: '#000000'
       },
       {
         id: 'size',
         type: 'slider',
         label: 'Size',
         value: 10,
+        defaultValue: 10,
         props: {
           min: 1,
           max: 100,
@@ -180,6 +194,7 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         type: 'slider',
         label: 'Opacity',
         value: 100,
+        defaultValue: 100,
         props: {
           min: 0,
           max: 100,
@@ -192,6 +207,7 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         type: 'slider',
         label: 'Hardness',
         value: 100,
+        defaultValue: 100,
         props: {
           min: 0,
           max: 100,
@@ -203,7 +219,8 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         id: 'smoothing',
         type: 'checkbox',
         label: 'Smoothing',
-        value: true
+        value: true,
+        defaultValue: true
       }
     ]
   },
@@ -216,6 +233,7 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         type: 'slider',
         label: 'Brightness',
         value: 0,
+        defaultValue: 0,
         props: {
           min: -100,
           max: 100,
@@ -235,6 +253,7 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         type: 'slider',
         label: 'Contrast',
         value: 0,
+        defaultValue: 0,
         props: {
           min: -100,
           max: 100,
@@ -254,6 +273,7 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         type: 'slider',
         label: 'Saturation',
         value: 0,
+        defaultValue: 0,
         props: {
           min: -100,
           max: 100,
@@ -273,6 +293,7 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         type: 'slider',
         label: 'Hue',
         value: 0,
+        defaultValue: 0,
         props: {
           min: -180,
           max: 180,
@@ -292,6 +313,7 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         type: 'slider',
         label: 'Exposure',
         value: 0,
+        defaultValue: 0,
         props: {
           min: -3,
           max: 3,
@@ -312,6 +334,7 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         type: 'number',
         label: 'Angle',
         value: 0,
+        defaultValue: 0,
         props: {
           min: -360,
           max: 360,
@@ -324,6 +347,7 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         type: 'button-group',
         label: 'Rotate',
         value: '',
+        defaultValue: '',
         props: {
           options: [
             { value: '90', label: '90° CW', icon: 'RotateCw' },
@@ -342,6 +366,7 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         type: 'button-group',
         label: 'Flip',
         value: 'horizontal',
+        defaultValue: 'horizontal',
         props: {
           options: [
             { value: 'horizontal', label: 'Horizontal', icon: 'FlipHorizontal' },
@@ -359,6 +384,7 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         type: 'number',
         label: 'Width',
         value: 100,
+        defaultValue: 100,
         props: {
           min: 1,
           max: 10000,
@@ -371,6 +397,7 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         type: 'number',
         label: 'Height',
         value: 100,
+        defaultValue: 100,
         props: {
           min: 1,
           max: 10000,
@@ -382,13 +409,15 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         id: 'maintainAspectRatio',
         type: 'checkbox',
         label: 'Maintain Aspect Ratio',
-        value: true
+        value: true,
+        defaultValue: true
       },
       {
         id: 'unit',
         type: 'dropdown',
         label: 'Unit',
         value: 'pixels',
+        defaultValue: 'pixels',
         props: {
           options: [
             { value: 'pixels', label: 'Pixels' },
@@ -408,6 +437,7 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         type: 'slider',
         label: 'Blur Radius',
         value: 0,
+        defaultValue: 0,
         props: {
           min: 0,
           max: 50,
@@ -427,6 +457,7 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         type: 'slider',
         label: 'Sharpen Amount',
         value: 0,
+        defaultValue: 0,
         props: {
           min: 0,
           max: 100,
@@ -446,6 +477,7 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         type: 'button-group',
         label: 'Grayscale',
         value: 'toggle',
+        defaultValue: 'toggle',
         props: {
           options: [
             { value: 'toggle', label: 'Toggle On/Off' }
@@ -463,6 +495,7 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         type: 'button-group',
         label: 'Invert',
         value: 'toggle',
+        defaultValue: 'toggle',
         props: {
           options: [
             { value: 'toggle', label: 'Toggle On/Off' }
@@ -480,6 +513,7 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         type: 'dropdown',
         label: 'Effect',
         value: 'brownie',
+        defaultValue: 'brownie',
         props: {
           options: [
             { value: 'brownie', label: 'Brownie' },
@@ -502,6 +536,7 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         type: 'dropdown',
         label: 'Mode',
         value: 'brush',
+        defaultValue: 'brush',
         props: {
           options: [
             { value: 'brush', label: 'Brush' },
@@ -516,6 +551,7 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         type: 'slider',
         label: 'Size',
         value: 20,
+        defaultValue: 20,
         props: {
           min: 1,
           max: 200,
@@ -528,6 +564,7 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         type: 'slider',
         label: 'Tolerance',
         value: 32,
+        defaultValue: 32,
         props: {
           min: 0,
           max: 255,
@@ -546,6 +583,7 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         type: 'slider',
         label: 'Size',
         value: 50,
+        defaultValue: 50,
         props: {
           min: 10,
           max: 300,
@@ -558,6 +596,7 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         type: 'slider',
         label: 'Opacity',
         value: 100,
+        defaultValue: 100,
         props: {
           min: 0,
           max: 100,
@@ -570,6 +609,7 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         type: 'checkbox',
         label: 'Aligned',
         value: true,
+        defaultValue: true,
         props: {
           tooltip: 'Keep source point aligned with cursor'
         }
@@ -578,7 +618,8 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         id: 'sampleAllLayers',
         type: 'checkbox',
         label: 'Sample All Layers',
-        value: false
+        value: false,
+        defaultValue: false
       }
     ]
   },
@@ -591,6 +632,7 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         type: 'dropdown',
         label: 'Mode',
         value: 'normal',
+        defaultValue: 'normal',
         props: {
           options: [
             { value: 'normal', label: 'Normal' },
@@ -603,6 +645,7 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         type: 'slider',
         label: 'Size',
         value: 30,
+        defaultValue: 30,
         props: {
           min: 5,
           max: 200,
@@ -615,6 +658,7 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         type: 'slider',
         label: 'Hardness',
         value: 50,
+        defaultValue: 50,
         props: {
           min: 0,
           max: 100,
@@ -633,6 +677,7 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         type: 'dropdown',
         label: 'Type',
         value: 'linear',
+        defaultValue: 'linear',
         props: {
           options: [
             { value: 'linear', label: 'Linear' },
@@ -648,6 +693,7 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         type: 'slider',
         label: 'Opacity',
         value: 100,
+        defaultValue: 100,
         props: {
           min: 0,
           max: 100,
@@ -659,13 +705,15 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         id: 'reverse',
         type: 'checkbox',
         label: 'Reverse',
-        value: false
+        value: false,
+        defaultValue: false
       },
       {
         id: 'dither',
         type: 'checkbox',
         label: 'Dither',
         value: false,
+        defaultValue: false,
         props: {
           tooltip: 'Reduce banding in gradients'
         }
@@ -682,6 +730,7 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         type: 'dropdown',
         label: 'Model',
         value: 'stable-diffusion',
+        defaultValue: 'stable-diffusion',
         props: {
           options: [
             { value: 'stable-diffusion', label: 'Stable Diffusion' },
@@ -695,6 +744,7 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         type: 'number',
         label: 'Width',
         value: 512,
+        defaultValue: 512,
         props: {
           min: 256,
           max: 1024,
@@ -707,6 +757,7 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         type: 'number',
         label: 'Height',
         value: 512,
+        defaultValue: 512,
         props: {
           min: 256,
           max: 1024,
@@ -719,6 +770,7 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         type: 'slider',
         label: 'Steps',
         value: 50,
+        defaultValue: 50,
         props: {
           min: 10,
           max: 150,
@@ -730,6 +782,7 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         type: 'slider',
         label: 'Guidance Scale',
         value: 7.5,
+        defaultValue: 7.5,
         props: {
           min: 1,
           max: 20,
@@ -748,6 +801,7 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         type: 'button-group',
         label: 'Selection Mode',
         value: 'new',
+        defaultValue: 'new',
         props: {
           options: [
             { value: 'new', label: 'New Selection', icon: 'Circle' },
@@ -762,6 +816,7 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         type: 'number',
         label: 'Feather',
         value: 0,
+        defaultValue: 0,
         props: {
           min: 0,
           max: 250,
@@ -772,7 +827,8 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         id: 'antiAlias',
         type: 'checkbox',
         label: 'Anti-alias',
-        value: true
+        value: true,
+        defaultValue: true
       }
     ]
   },
@@ -785,6 +841,7 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         type: 'button-group',
         label: 'Selection Mode',
         value: 'new',
+        defaultValue: 'new',
         props: {
           options: [
             { value: 'new', label: 'New Selection', icon: 'Lasso' },
@@ -799,6 +856,7 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         type: 'number',
         label: 'Feather',
         value: 0,
+        defaultValue: 0,
         props: {
           min: 0,
           max: 250,
@@ -809,7 +867,8 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         id: 'antiAlias',
         type: 'checkbox',
         label: 'Anti-alias',
-        value: true
+        value: true,
+        defaultValue: true
       }
     ]
   },
@@ -822,6 +881,7 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         type: 'slider',
         label: 'Tolerance',
         value: 32,
+        defaultValue: 32,
         props: {
           min: 0,
           max: 255,
@@ -833,6 +893,7 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         type: 'button-group',
         label: 'Selection Mode',
         value: 'new',
+        defaultValue: 'new',
         props: {
           options: [
             { value: 'new', label: 'New Selection', icon: 'Wand2' },
@@ -846,13 +907,15 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         id: 'sampleAllLayers',
         type: 'checkbox',
         label: 'Sample All Layers',
-        value: false
+        value: false,
+        defaultValue: false
       },
       {
         id: 'contiguous',
         type: 'checkbox',
         label: 'Contiguous',
-        value: true
+        value: true,
+        defaultValue: true
       }
     ]
   },
@@ -865,6 +928,7 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         type: 'slider',
         label: 'Size',
         value: 30,
+        defaultValue: 30,
         props: {
           min: 1,
           max: 200,
@@ -877,6 +941,7 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         type: 'button-group',
         label: 'Selection Mode',
         value: 'new',
+        defaultValue: 'new',
         props: {
           options: [
             { value: 'new', label: 'New Selection', icon: 'Wand2' },
@@ -889,7 +954,8 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         id: 'sampleAllLayers',
         type: 'checkbox',
         label: 'Sample All Layers',
-        value: false
+        value: false,
+        defaultValue: false
       }
     ]
   },
@@ -902,7 +968,8 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         id: 'scrollAllWindows',
         type: 'checkbox',
         label: 'Scroll All Windows',
-        value: false
+        value: false,
+        defaultValue: false
       }
     ]
   },
@@ -915,6 +982,7 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         type: 'button-group',
         label: 'Zoom Mode',
         value: 'in',
+        defaultValue: 'in',
         props: {
           options: [
             { value: 'in', label: 'Zoom In', icon: 'Plus' },
@@ -926,13 +994,15 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         id: 'resizeWindowToFit',
         type: 'checkbox',
         label: 'Resize Window To Fit',
-        value: false
+        value: false,
+        defaultValue: false
       },
       {
         id: 'zoomAllWindows',
         type: 'checkbox',
         label: 'Zoom All Windows',
-        value: false
+        value: false,
+        defaultValue: false
       }
     ]
   },
@@ -946,6 +1016,7 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         type: 'dropdown',
         label: 'Sample Size',
         value: 'point',
+        defaultValue: 'point',
         props: {
           options: [
             { value: 'point', label: 'Point Sample' },
@@ -960,13 +1031,15 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         id: 'sampleAllLayers',
         type: 'checkbox',
         label: 'Sample All Layers',
-        value: true
+        value: true,
+        defaultValue: true
       },
       {
         id: 'showSamplingRing',
         type: 'checkbox',
         label: 'Show Sampling Ring',
-        value: true
+        value: true,
+        defaultValue: true
       }
     ]
   },
@@ -980,6 +1053,7 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         type: 'dropdown',
         label: 'Font',
         value: 'Arial',
+        defaultValue: 'Arial',
         props: {
           options: [
             { value: 'Arial', label: 'Arial' },
@@ -996,6 +1070,7 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         type: 'number',
         label: 'Size',
         value: 60,
+        defaultValue: 60,
         props: {
           min: 6,
           max: 1296,
@@ -1007,7 +1082,8 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         id: 'color',
         type: 'color',
         label: 'Color',
-        value: '#000000'
+        value: '#000000',
+        defaultValue: '#000000'
       }
     ]
   },
@@ -1020,6 +1096,7 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         type: 'dropdown',
         label: 'Font',
         value: 'Arial',
+        defaultValue: 'Arial',
         props: {
           options: [
             { value: 'Arial', label: 'Arial' },
@@ -1036,6 +1113,7 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         type: 'number',
         label: 'Size',
         value: 60,
+        defaultValue: 60,
         props: {
           min: 6,
           max: 1296,
@@ -1047,7 +1125,8 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         id: 'color',
         type: 'color',
         label: 'Color',
-        value: '#000000'
+        value: '#000000',
+        defaultValue: '#000000'
       }
     ]
   },
@@ -1060,6 +1139,7 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         type: 'dropdown',
         label: 'Font',
         value: 'Arial',
+        defaultValue: 'Arial',
         props: {
           options: [
             { value: 'Arial', label: 'Arial' },
@@ -1076,6 +1156,7 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         type: 'number',
         label: 'Size',
         value: 60,
+        defaultValue: 60,
         props: {
           min: 6,
           max: 1296,
@@ -1094,6 +1175,7 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         type: 'dropdown',
         label: 'Font',
         value: 'Arial',
+        defaultValue: 'Arial',
         props: {
           options: [
             { value: 'Arial', label: 'Arial' },
@@ -1110,6 +1192,7 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         type: 'number',
         label: 'Size',
         value: 60,
+        defaultValue: 60,
         props: {
           min: 6,
           max: 1296,
@@ -1121,13 +1204,15 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         id: 'color',
         type: 'color',
         label: 'Color',
-        value: '#000000'
+        value: '#000000',
+        defaultValue: '#000000'
       },
       {
         id: 'pathOffset',
         type: 'slider',
         label: 'Path Offset',
         value: 0,
+        defaultValue: 0,
         props: {
           min: -100,
           max: 100,
@@ -1147,6 +1232,7 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         type: 'model-quality',
         label: 'Quality',
         value: 'best',
+        defaultValue: 'best',
         props: {
           tiers: {
             best: {
@@ -1169,6 +1255,7 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         type: 'checkbox',
         label: 'Create New Object',
         value: false,
+        defaultValue: false,
         props: {
           tooltip: 'Create a new object instead of modifying the original'
         }
@@ -1184,6 +1271,7 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         type: 'model-quality',
         label: 'Quality',
         value: 'best',
+        defaultValue: 'best',
         props: {
           tiers: {
             best: {
@@ -1212,6 +1300,7 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         type: 'model-quality',
         label: 'Quality',
         value: 'best',
+        defaultValue: 'best',
         props: {
           tiers: {
             best: {
@@ -1234,6 +1323,7 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         type: 'slider',
         label: 'Style Strength',
         value: 0.8,
+        defaultValue: 0.8,
         props: {
           min: 0.1,
           max: 1.0,
@@ -1244,7 +1334,8 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         id: 'preserveColors',
         type: 'checkbox',
         label: 'Preserve Colors',
-        value: false
+        value: false,
+        defaultValue: false
       }
     ]
   },
@@ -1257,6 +1348,7 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         type: 'model-quality',
         label: 'Quality',
         value: 'best',
+        defaultValue: 'best',
         props: {
           tiers: {
             best: {
@@ -1279,6 +1371,7 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         type: 'slider',
         label: 'Variation Strength',
         value: 0.7,
+        defaultValue: 0.7,
         props: {
           min: 0.1,
           max: 1.0,
@@ -1290,6 +1383,7 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         type: 'number',
         label: 'Count',
         value: 2,
+        defaultValue: 2,
         props: {
           min: 1,
           max: 4,
@@ -1307,6 +1401,7 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         type: 'model-quality',
         label: 'Quality',
         value: 'best',
+        defaultValue: 'best',
         props: {
           tiers: {
             best: {
@@ -1329,6 +1424,7 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         type: 'slider',
         label: 'Light Intensity',
         value: 1.0,
+        defaultValue: 1.0,
         props: {
           min: 0.1,
           max: 2.0,
@@ -1340,6 +1436,7 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         type: 'slider',
         label: 'Light Softness',
         value: 0.5,
+        defaultValue: 0.5,
         props: {
           min: 0.0,
           max: 1.0,
@@ -1351,6 +1448,7 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         type: 'dropdown',
         label: 'Color Temperature',
         value: 'neutral',
+        defaultValue: 'neutral',
         props: {
           options: [
             { value: 'warm', label: 'Warm' },
@@ -1370,6 +1468,7 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         type: 'model-quality',
         label: 'Quality',
         value: 'best',
+        defaultValue: 'best',
         props: {
           tiers: {
             best: {
@@ -1392,6 +1491,7 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         type: 'dropdown',
         label: 'Scale Factor',
         value: 4,
+        defaultValue: 4,
         props: {
           options: [
             { value: 2, label: '2x' },
@@ -1404,13 +1504,15 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         id: 'enhanceDetails',
         type: 'checkbox',
         label: 'Enhance Details',
-        value: true
+        value: true,
+        defaultValue: true
       },
       {
         id: 'preserveSharpness',
         type: 'checkbox',
         label: 'Preserve Sharpness',
-        value: true
+        value: true,
+        defaultValue: true
       }
     ]
   },
@@ -1423,6 +1525,7 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         type: 'model-quality',
         label: 'Quality',
         value: 'best',
+        defaultValue: 'best',
         props: {
           tiers: {
             best: {
@@ -1445,6 +1548,7 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         type: 'slider',
         label: 'Enhancement Scale',
         value: 2,
+        defaultValue: 2,
         props: {
           min: 1,
           max: 4,
@@ -1455,7 +1559,8 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         id: 'autoDetect',
         type: 'checkbox',
         label: 'Auto Detect Faces',
-        value: true
+        value: true,
+        defaultValue: true
       }
     ]
   },
@@ -1468,6 +1573,7 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         type: 'model-quality',
         label: 'Quality',
         value: 'best',
+        defaultValue: 'best',
         props: {
           tiers: {
             best: {
@@ -1490,6 +1596,7 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         type: 'slider',
         label: 'Brush Size',
         value: 20,
+        defaultValue: 20,
         props: {
           min: 5,
           max: 100,
@@ -1508,6 +1615,7 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         type: 'model-quality',
         label: 'Quality',
         value: 'best',
+        defaultValue: 'best',
         props: {
           tiers: {
             best: {
@@ -1530,6 +1638,7 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         type: 'number',
         label: 'Expand Size',
         value: 256,
+        defaultValue: 256,
         props: {
           min: 32,
           max: 512,
@@ -1542,6 +1651,7 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         type: 'dropdown',
         label: 'Direction',
         value: 'all',
+        defaultValue: 'all',
         props: {
           options: [
             { value: 'all', label: 'All Directions' },
@@ -1556,7 +1666,8 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         id: 'seamlessBlend',
         type: 'checkbox',
         label: 'Seamless Blend',
-        value: true
+        value: true,
+        defaultValue: true
       }
     ]
   },
@@ -1569,6 +1680,7 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         type: 'model-quality',
         label: 'Quality',
         value: 'best',
+        defaultValue: 'best',
         props: {
           tiers: {
             best: {
@@ -1591,6 +1703,7 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         type: 'slider',
         label: 'Confidence Threshold',
         value: 0.3,
+        defaultValue: 0.3,
         props: {
           min: 0.1,
           max: 1.0,
@@ -1602,6 +1715,7 @@ export const defaultToolOptions: Record<string, ToolOptionsConfig> = {
         type: 'dropdown',
         label: 'Selection Mode',
         value: 'new',
+        defaultValue: 'new',
         props: {
           options: [
             { value: 'new', label: 'New Selection' },

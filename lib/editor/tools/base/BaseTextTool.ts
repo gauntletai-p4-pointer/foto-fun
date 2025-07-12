@@ -1,9 +1,21 @@
-import { BaseTool } from './BaseTool'
+import { BaseTool, type ToolDependencies, type ToolOptions, type ToolOptionDefinition } from './BaseTool'
 import Konva from 'konva'
 import { createToolState } from '../utils/toolState'
 import type { ToolEvent, Point } from '@/lib/editor/canvas/types'
 import type { CanvasObject } from '@/lib/editor/objects/types'
 import { ObjectAddedEvent, ObjectModifiedEvent } from '@/lib/events/canvas/CanvasEvents'
+
+interface BaseTextToolOptions extends ToolOptions {
+  fontFamily: ToolOptionDefinition<string>
+  fontSize: ToolOptionDefinition<number>
+  color: ToolOptionDefinition<string>
+  alignment: ToolOptionDefinition<'left' | 'center' | 'right'>
+  bold: ToolOptionDefinition<boolean>
+  italic: ToolOptionDefinition<boolean>
+  underline: ToolOptionDefinition<boolean>
+  letterSpacing: ToolOptionDefinition<number>
+  lineHeight: ToolOptionDefinition<number>
+}
 
 // Extend TextToolState to satisfy Record constraint
 interface ExtendedTextToolState extends Record<string, unknown> {
@@ -20,7 +32,10 @@ interface ExtendedTextToolState extends Record<string, unknown> {
  * Provides common text editing functionality and state management
  * Konva implementation with inline editing support
  */
-export abstract class BaseTextTool extends BaseTool {
+export abstract class BaseTextTool extends BaseTool<BaseTextToolOptions> {
+  constructor(dependencies: ToolDependencies) {
+    super(dependencies)
+  }
   // Encapsulated state using ToolStateManager
   protected state = createToolState<ExtendedTextToolState>({
     currentText: null,

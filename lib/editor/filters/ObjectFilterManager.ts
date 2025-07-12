@@ -21,11 +21,13 @@ import Konva from 'konva'
  */
 export class ObjectFilterManager {
   private webglEngine: WebGLFilterEngine
+  private canvasManager: CanvasManager
   private activeFilters = new Map<string, Filter[]>()
   private filterCache = new Map<string, HTMLCanvasElement>()
   
   constructor(serviceContainer: ServiceContainer) {
     this.webglEngine = serviceContainer.getSync<WebGLFilterEngine>('WebGLFilterEngine')
+    this.canvasManager = serviceContainer.getSync<CanvasManager>('CanvasManager')
   }
   
   /**
@@ -36,7 +38,7 @@ export class ObjectFilterManager {
     filter: Filter,
     executionContext?: ExecutionContext
   ): Promise<void> {
-    const object = this.canvas.getObject(objectId)
+    const object = this.canvasManager.getObject(objectId)
     if (!object) return
     
     // Determine engine type
@@ -57,7 +59,7 @@ export class ObjectFilterManager {
     adjustment: Adjustment,
     executionContext?: ExecutionContext
   ): Promise<void> {
-    const object = this.canvas.getObject(objectId)
+    const object = this.canvasManager.getObject(objectId)
     if (!object || object.type !== 'image') return
     
     // Add or update adjustment in object's adjustments array
@@ -71,7 +73,7 @@ export class ObjectFilterManager {
     }
     
     // Update object
-    await this.canvas.updateObject(objectId, { adjustments })
+    await this.canvasManager.updateObject(objectId, { adjustments })
     
     // Apply all adjustments and filters
     await this.renderObjectWithEffects(object, executionContext)
@@ -85,11 +87,11 @@ export class ObjectFilterManager {
     filterId: string,
     executionContext?: ExecutionContext
   ): Promise<void> {
-    const object = this.canvas.getObject(objectId)
+    const object = this.canvasManager.getObject(objectId)
     if (!object) return
     
-    const filters = object.filters.filter(f => f.id !== filterId)
-    await this.canvas.updateObject(objectId, { filters })
+    const filters = object.filters.filter((f: Filter) => f.id !== filterId)
+    await this.canvasManager.updateObject(objectId, { filters })
     
     // Re-render with remaining filters
     await this.renderObjectWithEffects(object, executionContext)
@@ -103,11 +105,11 @@ export class ObjectFilterManager {
     adjustmentId: string,
     executionContext?: ExecutionContext
   ): Promise<void> {
-    const object = this.canvas.getObject(objectId)
+    const object = this.canvasManager.getObject(objectId)
     if (!object) return
     
-    const adjustments = object.adjustments.filter(a => a.id !== adjustmentId)
-    await this.canvas.updateObject(objectId, { adjustments })
+    const adjustments = object.adjustments.filter((a: Adjustment) => a.id !== adjustmentId)
+    await this.canvasManager.updateObject(objectId, { adjustments })
     
     // Re-render with remaining adjustments
     await this.renderObjectWithEffects(object, executionContext)
@@ -136,7 +138,7 @@ export class ObjectFilterManager {
     }
     
     // Update the object's image element
-    await this.canvas.updateObject(object.id, {
+    await this.canvasManager.updateObject(object.id, {
       data: {
         ...imageData,
         element: processedImage
@@ -155,7 +157,7 @@ export class ObjectFilterManager {
     adjustments: Adjustment[]
   ): Promise<HTMLCanvasElement> {
     // WebglEngine is already initialized in constructor
-    await this.webglEngine.initialize()
+    await this.webglEngine.initializeWebGL()
     
     // Convert adjustments to filters for WebGL processing
     const filters: Filter[] = adjustments
@@ -208,7 +210,7 @@ export class ObjectFilterManager {
     
     // Add filter to object
     const filters = [...object.filters, filter]
-    await this.canvas.updateObject(object.id, { filters })
+    await this.canvasManager.updateObject(object.id, { filters })
     
     // Render with all effects
     await this.renderObjectWithEffects(object, executionContext)
@@ -228,7 +230,7 @@ export class ObjectFilterManager {
     
     // Add filter to object
     const filters = [...object.filters, filter]
-    await this.canvas.updateObject(object.id, { filters })
+    await this.canvasManager.updateObject(object.id, { filters })
     
     // Render with all effects
     await this.renderObjectWithEffects(object, executionContext)
@@ -331,7 +333,7 @@ export class ObjectFilterManager {
     objectId: string,
     filter: Filter
   ): Promise<HTMLCanvasElement | null> {
-    const object = this.canvas.getObject(objectId)
+    const object = this.canvasManager.getObject(objectId)
     if (!object || object.type !== 'image') return null
     
     const imageData = object.data as import('@/lib/editor/objects/types').ImageData
@@ -361,10 +363,9 @@ export class ObjectFilterManager {
   /**
    * Initialize the filter system
    */
-  async initialize(): Promise<void> {
-    await this.webglFilterManager.initialize()
-    await this.webglEngine.initialize()
-  }
+      async initialize(): Promise<void> {
+      await this.webglEngine.initializeWebGL()
+    }
   
   /**
    * Cleanup resources

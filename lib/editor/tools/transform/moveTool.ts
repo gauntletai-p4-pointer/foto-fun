@@ -4,12 +4,24 @@ import { TOOL_IDS } from '@/constants'
 import { ObjectTool } from '../base/ObjectTool'
 import type { ToolEvent, Point } from '@/lib/editor/canvas/types'
 import type { CanvasObject } from '@/lib/editor/objects/types'
+import type { ToolOptions, ToolDependencies } from '../base/BaseTool'
+import { UpdateObjectCommand } from '@/lib/editor/commands/object/UpdateObjectCommand'
+import { AddObjectCommand } from '@/lib/editor/commands/object/AddObjectCommand'
+import { RemoveObjectCommand } from '@/lib/editor/commands/object/RemoveObjectCommand'
+
+interface MoveToolOptions extends ToolOptions {
+  autoSelect: { type: 'boolean'; default: boolean }
+  showTransform: { type: 'boolean'; default: boolean }
+  showSmartGuides: { type: 'boolean'; default: boolean }
+  nudgeAmount: { type: 'number'; default: number; min: 1; max: 50 }
+  largeNudgeAmount: { type: 'number'; default: number; min: 1; max: 100 }
+}
 
 /**
  * Move Tool - Object manipulation with Smart Guides and Constraints
  * Features: Auto-select, Smart Guides, Constraints, Duplication, Nudging
  */
-export class MoveTool extends ObjectTool {
+export class MoveTool extends ObjectTool<MoveToolOptions> {
   // Tool identification
   id = TOOL_IDS.MOVE
   name = 'Move Tool'
@@ -35,13 +47,42 @@ export class MoveTool extends ObjectTool {
     vertical: Konva.Line[]
     horizontal: Konva.Line[]
   } = { vertical: [], horizontal: [] }
-  
-  // Nudge state
-  private nudgeAmount = 1 // pixels
-  private largeNudgeAmount = 10 // pixels with Shift
-  
-  protected setupTool(): void {
-    const canvas = this.getCanvas()
+
+  constructor(dependencies: ToolDependencies) {
+    super(dependencies)
+  }
+
+  protected getOptionDefinitions(): MoveToolOptions {
+    return {
+      autoSelect: {
+        type: 'boolean',
+        default: true
+      },
+      showTransform: {
+        type: 'boolean',
+        default: true
+      },
+      showSmartGuides: {
+        type: 'boolean',
+        default: true
+      },
+      nudgeAmount: {
+        type: 'number',
+        default: 1,
+        min: 1,
+        max: 50
+      },
+      largeNudgeAmount: {
+        type: 'number',
+        default: 10,
+        min: 1,
+        max: 100
+      }
+    }
+  }
+
+  protected async setupTool(): Promise<void> {
+    const canvas = this.dependencies.canvasManager
     const stage = canvas.stage
     
     // Get overlay layer
@@ -64,17 +105,21 @@ export class MoveTool extends ObjectTool {
       this.overlayLayer.add(this.selectionTransformer)
     }
     
-    // Set default options
-    this.setOption('autoSelect', true)
-    this.setOption('showTransform', true)
-    this.setOption('showSmartGuides', true)
-    
     // Update transformer based on current selection
     this.updateTransformer()
+    
+    // Emit tool activation event
+    this.dependencies.eventBus.emit('tool.activated', {
+      toolId: this.id,
+      previousToolId: null
+    })
   }
-  
-  protected cleanupTool(): void {
-    // Clean up transformer
+
+  protected async cleanupTool(): Promise<void> {
+    // Clear drag state
+    this.dragState = null
+    
+    // Remove transformer
     if (this.selectionTransformer) {
       this.selectionTransformer.destroy()
       this.selectionTransformer = null
@@ -83,15 +128,18 @@ export class MoveTool extends ObjectTool {
     // Clear smart guides
     this.clearSmartGuides()
     
-    // Reset drag state
-    this.dragState = null
+    // Reset cursor
+    const canvas = this.dependencies.canvasManager
+    canvas.stage.container().style.cursor = 'default'
     
-    // Clear reference
-    this.overlayLayer = null
+    // Emit tool deactivation event
+    this.dependencies.eventBus.emit('tool.deactivated', {
+      toolId: this.id
+    })
   }
-  
-  async onMouseDown(event: ToolEvent): Promise<void> {
-    const canvas = this.getCanvas()
+
+  protected handleMouseDown(event: ToolEvent): void {
+    const canvas = this.dependencies.canvasManager
     const stage = canvas.stage
     
     // Check for Alt key (duplication)
@@ -105,35 +153,25 @@ export class MoveTool extends ObjectTool {
       
       // Handle duplication
       if (isDuplicating) {
-        const duplicated = await this.duplicateObject(targetObject)
-        if (!duplicated) return
-        targetObject = duplicated
+        this.duplicateObject(targetObject).then(duplicated => {
+          if (duplicated) {
+            targetObject = duplicated
+            this.startDrag(targetObject, event.point, isDuplicating)
+          }
+        })
+        return
       }
       
-      // Start drag operation
-      this.dragState = {
-        target: targetObject,
-        startPos: event.point,
-        originalPosition: { x: targetObject.x, y: targetObject.y },
-        isDragging: false,
-        isDuplicating
-      }
-      
-      // Select the object
-      canvas.selectObject(targetObject.id)
-      this.updateTransformer()
-      
-      // Change cursor
-      stage.container().style.cursor = 'move'
+      this.startDrag(targetObject, event.point, isDuplicating)
     } else {
       // Clicked on empty space - deselect
       canvas.deselectAll()
       this.updateTransformer()
     }
   }
-  
-  onMouseMove(event: ToolEvent): void {
-    const canvas = this.getCanvas()
+
+  protected handleMouseMove(event: ToolEvent): void {
+    const canvas = this.dependencies.canvasManager
     const stage = canvas.stage
     
     // Update cursor based on hover
@@ -146,7 +184,7 @@ export class MoveTool extends ObjectTool {
       }
       return
     }
-    
+
     if (!this.dragState.target) return
     
     // Mark as dragging after first move
@@ -191,14 +229,14 @@ export class MoveTool extends ObjectTool {
     // Redraw
     stage.batchDraw()
   }
-  
-  async onMouseUp(event: ToolEvent): Promise<void> {
+
+  protected handleMouseUp(event: ToolEvent): void {
     if (!this.dragState || !this.dragState.target || !this.dragState.isDragging) {
       this.dragState = null
       return
     }
     
-    const canvas = this.getCanvas()
+    const canvas = this.dependencies.canvasManager
     
     // Calculate final position
     let dx = event.point.x - this.dragState.startPos.x
@@ -216,11 +254,17 @@ export class MoveTool extends ObjectTool {
     const finalX = this.dragState.originalPosition.x + dx
     const finalY = this.dragState.originalPosition.y + dy
     
-    // Update the object's final position
-    await canvas.updateObject(this.dragState.target.id, {
-      x: finalX,
-      y: finalY
-    })
+    // Execute move command for undo/redo support
+    const moveCommand = new UpdateObjectCommand(
+      `Move ${this.dragState.target.name}`,
+      this.getCommandContext(),
+      {
+        objectId: this.dragState.target.id,
+        updates: { x: finalX, y: finalY }
+      }
+    )
+    
+    this.executeCommand(moveCommand)
     
     // Clear smart guides
     this.clearSmartGuides()
@@ -231,12 +275,12 @@ export class MoveTool extends ObjectTool {
     // Clear drag state
     this.dragState = null
   }
-  
+
   onKeyDown(event: KeyboardEvent): void {
     // Arrow key nudging
     if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key)) {
       event.preventDefault()
-      const amount = event.shiftKey ? this.largeNudgeAmount : this.nudgeAmount
+      const amount = event.shiftKey ? this.getOption('largeNudgeAmount') : this.getOption('nudgeAmount')
       this.nudgeSelection(event.key, amount)
       return
     }
@@ -262,23 +306,33 @@ export class MoveTool extends ObjectTool {
       return
     }
   }
-  
-  protected onOptionChange(key: string, value: unknown): void {
-    if (key === 'showTransform' && this.selectionTransformer) {
-      // Show/hide transformer handles
-      this.selectionTransformer.visible(value as boolean)
-      const canvas = this.getCanvas()
-      canvas.stage.batchDraw()
+
+  private startDrag(target: CanvasObject, startPos: Point, isDuplicating: boolean): void {
+    // Start drag operation
+    this.dragState = {
+      target,
+      startPos,
+      originalPosition: { x: target.x, y: target.y },
+      isDragging: false,
+      isDuplicating
     }
+    
+    // Select the object
+    const canvas = this.dependencies.canvasManager
+    canvas.selectObject(target.id)
+    this.updateTransformer()
+    
+    // Change cursor
+    canvas.stage.container().style.cursor = 'move'
   }
-  
+
   /**
    * Update transformer based on current selection
    */
   private updateTransformer(): void {
     if (!this.selectionTransformer) return
     
-    const canvas = this.getCanvas()
+    const canvas = this.dependencies.canvasManager
     const selectedObjects = this.getTargetObjects()
     
     if (selectedObjects.length === 0) {
@@ -304,7 +358,7 @@ export class MoveTool extends ObjectTool {
     
     canvas.stage.batchDraw()
   }
-  
+
   /**
    * Nudge selected objects with arrow keys
    */
@@ -320,14 +374,20 @@ export class MoveTool extends ObjectTool {
       case 'ArrowRight': dx = amount; break
     }
     
-    const canvas = this.getCanvas()
+    const canvas = this.dependencies.canvasManager
     
-    // Apply nudge to all selected objects
+    // Create move commands for each selected object
     for (const obj of selectedObjects) {
-      await canvas.updateObject(obj.id, {
-        x: obj.x + dx,
-        y: obj.y + dy
-      })
+      const moveCommand = new UpdateObjectCommand(
+        `Nudge ${obj.name}`,
+        this.getCommandContext(),
+        {
+          objectId: obj.id,
+          updates: { x: obj.x + dx, y: obj.y + dy }
+        }
+      )
+      
+      await this.executeCommand(moveCommand)
     }
     
     // Update transformer
@@ -338,37 +398,39 @@ export class MoveTool extends ObjectTool {
     // Redraw
     canvas.stage.batchDraw()
   }
-  
+
   /**
    * Duplicate an object
    */
   private async duplicateObject(original: CanvasObject): Promise<CanvasObject | null> {
-    const canvas = this.getCanvas()
+    const canvas = this.dependencies.canvasManager
     
-    // Create new object with offset position
-    const objectId = await canvas.addObject({
-      type: original.type,
-      name: `${original.name} copy`,
-      x: original.x + 20,
-      y: original.y + 20,
-      width: original.width,
-      height: original.height,
-      rotation: original.rotation,
-      scaleX: original.scaleX,
-      scaleY: original.scaleY,
-      opacity: original.opacity,
-      blendMode: original.blendMode,
-      visible: original.visible,
-      locked: false,
-      filters: [...original.filters],
-      adjustments: [...original.adjustments],
-      data: original.data,
-      metadata: { ...original.metadata }
-    })
+    // Create duplicate command using proper context
     
-    return canvas.getObject(objectId)
+    const duplicateCommand = new AddObjectCommand(
+      `Duplicate ${original.name}`,
+      this.getCommandContext(),
+      {
+        object: {
+          ...original,
+          id: undefined, // Let the system generate a new ID
+          name: `${original.name} copy`,
+          x: original.x + 20,
+          y: original.y + 20
+        }
+      }
+    )
+    
+    await this.executeCommand(duplicateCommand)
+    
+    const newObjectId = duplicateCommand.getObjectId()
+    if (newObjectId) {
+      return canvas.getObject(newObjectId)
+    }
+    
+    return null
   }
-  
+
   /**
    * Duplicate selected objects
    */
@@ -376,7 +438,7 @@ export class MoveTool extends ObjectTool {
     const selectedObjects = this.getTargetObjects()
     if (selectedObjects.length === 0) return
     
-    const canvas = this.getCanvas()
+    const canvas = this.dependencies.canvasManager
     const duplicatedIds: string[] = []
     
     for (const obj of selectedObjects) {
@@ -392,7 +454,33 @@ export class MoveTool extends ObjectTool {
       this.updateTransformer()
     }
   }
-  
+
+  /**
+   * Delete selected objects
+   */
+  private async deleteSelectedObjects(): Promise<void> {
+    const selectedObjects = this.getTargetObjects()
+    if (selectedObjects.length === 0) return
+    
+    const canvas = this.dependencies.canvasManager
+    
+    // Create remove commands for each selected object
+    for (const obj of selectedObjects) {
+      const removeCommand = new RemoveObjectCommand(
+        `Delete ${obj.name}`,
+        this.getCommandContext(),
+        {
+          objectId: obj.id
+        }
+      )
+      
+      await this.executeCommand(removeCommand)
+    }
+    
+    // Update transformer
+    this.updateTransformer()
+  }
+
   /**
    * Update smart guides based on object position
    */
@@ -401,7 +489,7 @@ export class MoveTool extends ObjectTool {
     
     this.clearSmartGuides()
     
-    const canvas = this.getCanvas()
+    const canvas = this.dependencies.canvasManager
     const threshold = 5 // pixels
     
     // Get object bounds
@@ -459,73 +547,64 @@ export class MoveTool extends ObjectTool {
         }
       }
     }
-    
-    this.overlayLayer.batchDraw()
   }
-  
+
   /**
-   * Add a vertical guide line
+   * Add vertical guide line
    */
   private addVerticalGuide(x: number): void {
     if (!this.overlayLayer) return
     
-    const canvas = this.getCanvas()
-    const stage = canvas.stage
-    
-    const guide = new Konva.Line({
+    const stage = this.dependencies.canvasManager.stage
+    const line = new Konva.Line({
       points: [x, 0, x, stage.height()],
       stroke: '#00ff00',
       strokeWidth: 1,
-      dash: [4, 4],
+      dash: [5, 5],
       listening: false
     })
     
-    this.overlayLayer.add(guide)
-    this.smartGuides.vertical.push(guide)
+    this.smartGuides.vertical.push(line)
+    this.overlayLayer.add(line)
   }
-  
+
   /**
-   * Add a horizontal guide line
+   * Add horizontal guide line
    */
   private addHorizontalGuide(y: number): void {
     if (!this.overlayLayer) return
     
-    const canvas = this.getCanvas()
-    const stage = canvas.stage
-    
-    const guide = new Konva.Line({
+    const stage = this.dependencies.canvasManager.stage
+    const line = new Konva.Line({
       points: [0, y, stage.width(), y],
       stroke: '#00ff00',
       strokeWidth: 1,
-      dash: [4, 4],
+      dash: [5, 5],
       listening: false
     })
     
-    this.overlayLayer.add(guide)
-    this.smartGuides.horizontal.push(guide)
+    this.smartGuides.horizontal.push(line)
+    this.overlayLayer.add(line)
   }
-  
+
   /**
    * Clear all smart guides
    */
   private clearSmartGuides(): void {
-    [...this.smartGuides.vertical, ...this.smartGuides.horizontal].forEach(guide => {
-      guide.destroy()
-    })
-    
+    // Remove vertical guides
+    this.smartGuides.vertical.forEach(line => line.destroy())
     this.smartGuides.vertical = []
-    this.smartGuides.horizontal = []
     
-    if (this.overlayLayer) {
-      this.overlayLayer.batchDraw()
-    }
+    // Remove horizontal guides
+    this.smartGuides.horizontal.forEach(line => line.destroy())
+    this.smartGuides.horizontal = []
   }
-  
+
   /**
    * Select all objects
    */
   private selectAll(): void {
-    const canvas = this.getCanvas()
+    const canvas = this.dependencies.canvasManager
     const allObjects = canvas.getAllObjects()
     
     // Select all unlocked, visible objects
@@ -538,21 +617,4 @@ export class MoveTool extends ObjectTool {
       this.updateTransformer()
     }
   }
-  
-  /**
-   * Delete selected objects
-   */
-  private async deleteSelectedObjects(): Promise<void> {
-    const canvas = this.getCanvas()
-    const selectedObjects = this.getTargetObjects()
-    
-    for (const obj of selectedObjects) {
-      await canvas.removeObject(obj.id)
-    }
-    
-    this.updateTransformer()
-  }
-}
-
-// Export singleton instance
-export const moveTool = new MoveTool() 
+} 

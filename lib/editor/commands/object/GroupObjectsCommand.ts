@@ -1,5 +1,6 @@
 import type { CanvasObject } from '@/lib/editor/objects/types'
 import { Command, type CommandContext } from '../base/Command'
+import { success, failure, ExecutionError, type CommandResult } from '../base/CommandResult'
 
 export interface GroupObjectsOptions {
   objectIds: string[]
@@ -75,16 +76,34 @@ export class GroupObjectsCommand extends Command {
     this.context.canvasManager.selectObject(this.groupId)
   }
 
-  async undo(): Promise<void> {
-    if (!this.groupId) return
+  async undo(): Promise<CommandResult<void>> {
+    try {
+      if (!this.groupId) {
+        return failure(
+          new ExecutionError('Cannot undo: group ID not available', { commandId: this.id })
+        )
+      }
 
-    // Remove the group
-    await this.context.canvasManager.removeObject(this.groupId)
+      // Remove the group
+      await this.context.canvasManager.removeObject(this.groupId)
 
-    // Select the original objects
-    this.context.canvasManager.selectMultiple(this.options.objectIds)
+      // Select the original objects
+      this.context.canvasManager.selectMultiple(this.options.objectIds)
 
-    this.groupId = null
+      this.groupId = null
+      
+      return success(undefined, [], {
+        executionTime: 0,
+        affectedObjects: this.options.objectIds
+      })
+    } catch (error) {
+      return failure(
+        new ExecutionError(
+          `Failed to undo group objects: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          { commandId: this.id }
+        )
+      )
+    }
   }
 
   canExecute(): boolean {

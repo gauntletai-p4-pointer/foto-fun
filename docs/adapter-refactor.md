@@ -1,14 +1,18 @@
 # Comprehensive AI Adapter Architecture Refactor
 
-## Overview
+## 🎯 **EXECUTIVE SUMMARY**
 
-**Primary Goal:** Implement senior-level architectural patterns across all 31+ AI adapters that bridge canvas tools with AI agents/chat.
+**Primary Goal:** Implement senior-level architectural patterns across all AI adapters that bridge canvas tools with AI agents/chat.
 
 **Foundation:** This refactor builds on the [Tool Architecture Refactor](./tool-refactor.md) and assumes all tools follow the new senior-level patterns.
 
 **Core Problem:** Current adapters have significant architectural debt including code duplication, inconsistent patterns, manual parameter conversion, and tight coupling between AI SDK and tool implementations.
 
 **Comprehensive Solution:** Implement dependency injection, type-safe parameter conversion, event-driven communication, composition patterns, and intelligent error handling across all adapters.
+
+**Status:** 📋 **READY FOR IMPLEMENTATION** - Comprehensive plan with all 34 adapters identified and prioritized
+
+---
 
 ## 🚨 **CRITICAL: Domain Model Migration Required**
 
@@ -58,37 +62,330 @@ interface ObjectInput {
 }
 ```
 
-## Current Adapter Architecture Analysis
+---
 
-### **Adapter Categories (31+ Adapters)**
+## 📊 **COMPLETE ADAPTER INVENTORY & MIGRATION CHECKLIST**
 
-#### **1. Canvas Tool Adapters (16 adapters)**
-- **Core:** `frame.ts` (first tool - document creation)
-- **Transform:** `move.ts`, `crop.ts`, `rotate.ts`, `flip.ts`, `resize.ts`
-- **Adjustment:** `brightness.ts`, `contrast.ts`, `saturation.ts`, `hue.ts`, `exposure.ts`
-- **Filter:** `blur.ts`, `sharpen.ts`, `grayscale.ts`, `invert.ts`, `vintageEffects.ts`
+### **🎯 TOTAL: 34 ADAPTERS TO MIGRATE**
 
-#### **2. AI Service Adapters (11 adapters)**
-- **Generation:** `ImageGenerationAdapter.ts`, `VariationAdapter.ts`
-- **Enhancement:** `FaceEnhancementAdapter.ts`, `UpscalingAdapter.ts`, `StyleTransferAdapter.ts`
-- **Editing:** `InpaintingAdapter.ts`, `OutpaintingAdapter.ts`, `ObjectRemovalAdapter.ts`
-- **Selection:** `SemanticSelectionAdapter.ts`
-- **Advanced:** `DepthEstimationAdapter.ts`, `InstructionEditingAdapter.ts`
+| **Category** | **Count** | **Status** | **Priority** |
+|--------------|-----------|------------|--------------|
+| **Canvas Tool Adapters** | 21 | ❌ Need Migration | P1-P3 |
+| **AI Service Adapters** | 11 | ❌ Need Migration | P1-P3 |
+| **Utility Adapters** | 2 | ❌ Need Migration | P2 |
+| **TOTAL** | **34** | **0% Complete** | **Mixed** |
 
-#### **3. Utility Adapters (4 adapters)**
-- **Canvas:** `analyzeCanvas.ts`, `canvasSelectionManager.ts`
-- **Execution:** `ChainAdapter.ts`
-- **Enhancement:** `PromptEnhancementAdapter.ts`
+---
 
-### **Current Base Classes**
-- `BaseToolAdapter` (legacy, being phased out)
-- `UnifiedToolAdapter` (current standard)
-- `CanvasToolAdapter` (specialized for canvas ops)
-- `FilterToolAdapter` (specialized for filters)
+## 🔧 **PHASE 1: CANVAS TOOL ADAPTERS (21 ADAPTERS)**
 
-## Critical Architectural Issues
+### **Priority 1: Core Canvas Tools (6 adapters)**
+*Essential tools that must work perfectly*
 
-### **🚨 Issue 1: Code Duplication Across Adapters (60%+ duplicate code)**
+#### **✅ FRAME ADAPTER - MISSING (CRITICAL)**
+- [ ] **File:** `lib/ai/adapters/tools/frame.ts` **[CREATE NEW]**
+- [ ] **Tool ID:** `frame`
+- [ ] **AI Name:** `createFrame`
+- [ ] **Description:** Create document frames with presets (Instagram, A4, etc.)
+- [ ] **Category:** Object Creation Tool
+- [ ] **Status:** ❌ **MISSING** - Must be created first
+- [ ] **Dependencies:** FrameTool, CreateFrameCommand, FramePresetManager
+- [ ] **Parameter Schema:** `{ preset: string, width?: number, height?: number, position?: Point }`
+- [ ] **Response Format:** `{ frameId: string, dimensions: Size, preset?: string }`
+
+#### **✅ MOVE ADAPTER - EXISTS**
+- [x] **File:** `lib/ai/adapters/tools/move.ts` **[EXISTS]**
+- [ ] **Migration Status:** ❌ Needs DI migration
+- [ ] **Issues:** Mock dependencies, no proper error handling
+- [ ] **Tool ID:** `move`
+- [ ] **AI Name:** `moveObjects`
+- [ ] **Category:** Transform Tool
+- [ ] **Dependencies:** MoveTool, MoveCommand, alignment helpers
+
+#### **✅ CROP ADAPTER - EXISTS**
+- [x] **File:** `lib/ai/adapters/tools/crop.ts` **[EXISTS]**
+- [ ] **Migration Status:** ❌ Needs DI migration
+- [ ] **Issues:** Complex parameter handling, no proper validation
+- [ ] **Tool ID:** `crop`
+- [ ] **AI Name:** `cropObjects`
+- [ ] **Category:** Transform Tool
+- [ ] **Dependencies:** CropTool, CropCommand
+
+#### **✅ BRUSH ADAPTER - EXISTS**
+- [x] **File:** `lib/ai/adapters/tools/brush.ts` **[EXISTS]**
+- [ ] **Migration Status:** ❌ Needs DI migration
+- [ ] **Issues:** Complex stroke handling, performance issues
+- [ ] **Tool ID:** `brush`
+- [ ] **AI Name:** `paintWithBrush`
+- [ ] **Category:** Pixel Manipulation Tool
+- [ ] **Dependencies:** BrushTool, drawing commands
+
+#### **✅ ERASER ADAPTER - EXISTS**
+- [x] **File:** `lib/ai/adapters/tools/eraser.ts` **[EXISTS]**
+- [ ] **Migration Status:** ❌ Needs DI migration
+- [ ] **Issues:** Background eraser complexity, mode handling
+- [ ] **Tool ID:** `eraser`
+- [ ] **AI Name:** `eraseArea`
+- [ ] **Category:** Pixel Manipulation Tool
+- [ ] **Dependencies:** EraserTool, erase commands
+
+#### **✅ ADD TEXT ADAPTER - EXISTS**
+- [x] **File:** `lib/ai/adapters/tools/addText.ts` **[EXISTS]**
+- [ ] **Migration Status:** ❌ Needs DI migration
+- [ ] **Issues:** Style preset handling, positioning logic
+- [ ] **Tool ID:** `text`
+- [ ] **AI Name:** `addText`
+- [ ] **Category:** Object Creation Tool
+- [ ] **Dependencies:** TextTool, AddTextCommand
+
+### **Priority 2: Essential Tools (9 adapters)**
+*Important tools for core functionality*
+
+#### **✅ BRIGHTNESS ADAPTER - EXISTS**
+- [x] **File:** `lib/ai/adapters/tools/brightness.ts` **[EXISTS]**
+- [ ] **Migration Status:** ❌ Needs DI migration
+- [ ] **Tool ID:** `brightness`
+- [ ] **AI Name:** `adjustBrightness`
+- [ ] **Category:** Adjustment Tool
+
+#### **✅ CONTRAST ADAPTER - EXISTS**
+- [x] **File:** `lib/ai/adapters/tools/contrast.ts` **[EXISTS]**
+- [ ] **Migration Status:** ❌ Needs DI migration
+- [ ] **Tool ID:** `contrast`
+- [ ] **AI Name:** `adjustContrast`
+- [ ] **Category:** Adjustment Tool
+
+#### **✅ SATURATION ADAPTER - EXISTS**
+- [x] **File:** `lib/ai/adapters/tools/saturation.ts` **[EXISTS]**
+- [ ] **Migration Status:** ❌ Needs DI migration
+- [ ] **Tool ID:** `saturation`
+- [ ] **AI Name:** `adjustSaturation`
+- [ ] **Category:** Adjustment Tool
+
+#### **✅ BLUR ADAPTER - EXISTS**
+- [x] **File:** `lib/ai/adapters/tools/blur.ts` **[EXISTS]**
+- [ ] **Migration Status:** ❌ Needs DI migration
+- [ ] **Tool ID:** `blur`
+- [ ] **AI Name:** `applyBlur`
+- [ ] **Category:** Filter Tool
+
+#### **✅ RESIZE ADAPTER - EXISTS**
+- [x] **File:** `lib/ai/adapters/tools/resize.ts` **[EXISTS]**
+- [ ] **Migration Status:** ❌ Needs DI migration
+- [ ] **Tool ID:** `resize`
+- [ ] **AI Name:** `resizeObjects`
+- [ ] **Category:** Transform Tool
+
+#### **✅ FLIP ADAPTER - EXISTS**
+- [x] **File:** `lib/ai/adapters/tools/flip.ts` **[EXISTS]**
+- [ ] **Migration Status:** ❌ Needs DI migration
+- [ ] **Tool ID:** `flip`
+- [ ] **AI Name:** `flipObjects`
+- [ ] **Category:** Transform Tool
+
+#### **✅ ROTATE ADAPTER - EXISTS**
+- [x] **File:** `lib/ai/adapters/tools/rotate.ts` **[EXISTS]**
+- [ ] **Migration Status:** ❌ Needs DI migration
+- [ ] **Tool ID:** `rotate`
+- [ ] **AI Name:** `rotateObjects`
+- [ ] **Category:** Transform Tool
+
+#### **✅ SHARPEN ADAPTER - EXISTS**
+- [x] **File:** `lib/ai/adapters/tools/sharpen.ts` **[EXISTS]**
+- [ ] **Migration Status:** ❌ Needs DI migration
+- [ ] **Tool ID:** `sharpen`
+- [ ] **AI Name:** `applySharpen`
+- [ ] **Category:** Filter Tool
+
+#### **✅ GRAYSCALE ADAPTER - EXISTS**
+- [x] **File:** `lib/ai/adapters/tools/grayscale.ts` **[EXISTS]**
+- [ ] **Migration Status:** ❌ Needs DI migration
+- [ ] **Tool ID:** `grayscale`
+- [ ] **AI Name:** `applyGrayscale`
+- [ ] **Category:** Filter Tool
+
+### **Priority 3: Secondary Tools (6 adapters)**
+*Nice-to-have tools for advanced functionality*
+
+#### **✅ GRADIENT ADAPTER - EXISTS**
+- [x] **File:** `lib/ai/adapters/tools/gradient.ts` **[EXISTS]**
+- [ ] **Migration Status:** ❌ Needs DI migration
+- [ ] **Tool ID:** `gradient`
+- [ ] **AI Name:** `applyGradient`
+- [ ] **Category:** Drawing Tool
+
+#### **✅ HUE ADAPTER - EXISTS**
+- [x] **File:** `lib/ai/adapters/tools/hue.ts` **[EXISTS]**
+- [ ] **Migration Status:** ❌ Needs DI migration
+- [ ] **Tool ID:** `hue`
+- [ ] **AI Name:** `adjustHue`
+- [ ] **Category:** Adjustment Tool
+
+#### **✅ EXPOSURE ADAPTER - EXISTS**
+- [x] **File:** `lib/ai/adapters/tools/exposure.ts` **[EXISTS]**
+- [ ] **Migration Status:** ❌ Needs DI migration
+- [ ] **Tool ID:** `exposure`
+- [ ] **AI Name:** `adjustExposure`
+- [ ] **Category:** Adjustment Tool
+
+#### **✅ INVERT ADAPTER - EXISTS**
+- [x] **File:** `lib/ai/adapters/tools/invert.ts` **[EXISTS]**
+- [ ] **Migration Status:** ❌ Needs DI migration
+- [ ] **Tool ID:** `invert`
+- [ ] **AI Name:** `invertColors`
+- [ ] **Category:** Filter Tool
+
+#### **✅ VINTAGE EFFECTS ADAPTER - EXISTS**
+- [x] **File:** `lib/ai/adapters/tools/vintageEffects.ts` **[EXISTS]**
+- [ ] **Migration Status:** ❌ Needs DI migration
+- [ ] **Tool ID:** `vintage-effects`
+- [ ] **AI Name:** `applyVintageEffect`
+- [ ] **Category:** Filter Tool
+
+#### **✅ CANVAS SELECTION MANAGER - EXISTS**
+- [x] **File:** `lib/ai/adapters/tools/canvasSelectionManager.ts` **[EXISTS]**
+- [ ] **Migration Status:** ❌ Needs DI migration
+- [ ] **Tool ID:** `canvas-selection-manager`
+- [ ] **AI Name:** `manageSelection`
+- [ ] **Category:** Selection Tool
+
+---
+
+## 🤖 **PHASE 2: AI SERVICE ADAPTERS (11 ADAPTERS)**
+
+### **Priority 1: Core AI Tools (4 adapters)**
+*Essential AI functionality*
+
+#### **✅ IMAGE GENERATION ADAPTER - EXISTS**
+- [x] **File:** `lib/ai/adapters/tools/ImageGenerationAdapter.ts` **[EXISTS]**
+- [ ] **Migration Status:** ❌ Needs DI migration
+- [ ] **Issues:** Mock dependencies, no proper error handling
+- [ ] **Tool ID:** `ai-image-generation`
+- [ ] **AI Name:** `generateImage`
+- [ ] **Category:** AI-Enhanced Tool (Object Creation)
+- [ ] **Dependencies:** ImageGenerationTool, ModelPreferencesManager
+
+#### **✅ OBJECT REMOVAL ADAPTER - EXISTS**
+- [x] **File:** `lib/ai/adapters/tools/ObjectRemovalAdapter.ts` **[EXISTS]**
+- [ ] **Migration Status:** ❌ Needs DI migration
+- [ ] **Tool ID:** `ai-object-removal`
+- [ ] **AI Name:** `removeObject`
+- [ ] **Category:** AI-Enhanced Tool (Pixel Manipulation)
+- [ ] **Dependencies:** ObjectRemovalTool, ReplicateClient
+
+#### **✅ FACE ENHANCEMENT ADAPTER - EXISTS**
+- [x] **File:** `lib/ai/adapters/tools/FaceEnhancementAdapter.ts` **[EXISTS]**
+- [ ] **Migration Status:** ❌ Needs DI migration
+- [ ] **Tool ID:** `face-enhancement`
+- [ ] **AI Name:** `enhanceFaces`
+- [ ] **Category:** AI-Enhanced Tool (Pixel Manipulation)
+- [ ] **Dependencies:** FaceEnhancementTool, ReplicateClient
+
+#### **✅ UPSCALING ADAPTER - EXISTS**
+- [x] **File:** `lib/ai/adapters/tools/UpscalingAdapter.ts` **[EXISTS]**
+- [ ] **Migration Status:** ❌ Needs DI migration
+- [ ] **Tool ID:** `ai-upscaling`
+- [ ] **AI Name:** `upscaleImage`
+- [ ] **Category:** AI-Enhanced Tool (Pixel Manipulation)
+- [ ] **Dependencies:** UpscalingTool, ReplicateClient
+
+### **Priority 2: Advanced AI Tools (4 adapters)**
+*Advanced AI functionality*
+
+#### **✅ STYLE TRANSFER ADAPTER - EXISTS**
+- [x] **File:** `lib/ai/adapters/tools/StyleTransferAdapter.ts` **[EXISTS]**
+- [ ] **Migration Status:** ❌ Needs DI migration
+- [ ] **Tool ID:** `ai-style-transfer`
+- [ ] **AI Name:** `applyStyle`
+- [ ] **Category:** AI-Enhanced Tool (Pixel Manipulation)
+- [ ] **Dependencies:** StyleTransferTool, ReplicateClient
+
+#### **✅ VARIATION ADAPTER - EXISTS**
+- [x] **File:** `lib/ai/adapters/tools/VariationAdapter.ts` **[EXISTS]**
+- [ ] **Migration Status:** ❌ Needs DI migration
+- [ ] **Tool ID:** `ai-variation`
+- [ ] **AI Name:** `createVariation`
+- [ ] **Category:** AI-Enhanced Tool (Object Creation)
+- [ ] **Dependencies:** VariationTool, ReplicateClient
+
+#### **✅ INPAINTING ADAPTER - EXISTS**
+- [x] **File:** `lib/ai/adapters/tools/InpaintingAdapter.ts` **[EXISTS]**
+- [ ] **Migration Status:** ❌ Needs DI migration
+- [ ] **Tool ID:** `inpainting`
+- [ ] **AI Name:** `inpaintArea`
+- [ ] **Category:** AI-Enhanced Tool (Pixel Manipulation)
+- [ ] **Dependencies:** InpaintingTool, ReplicateClient
+
+#### **✅ OUTPAINTING ADAPTER - EXISTS**
+- [x] **File:** `lib/ai/adapters/tools/OutpaintingAdapter.ts` **[EXISTS]**
+- [ ] **Migration Status:** ❌ Needs DI migration
+- [ ] **Tool ID:** `outpainting`
+- [ ] **AI Name:** `outpaintArea`
+- [ ] **Category:** AI-Enhanced Tool (Object Creation)
+- [ ] **Dependencies:** OutpaintingTool, ReplicateClient
+
+### **Priority 3: Specialized AI Tools (3 adapters)**
+*Specialized AI functionality*
+
+#### **✅ SEMANTIC SELECTION ADAPTER - EXISTS**
+- [x] **File:** `lib/ai/adapters/tools/SemanticSelectionAdapter.ts` **[EXISTS]**
+- [ ] **Migration Status:** ❌ Needs DI migration
+- [ ] **Tool ID:** `ai-semantic-selection`
+- [ ] **AI Name:** `selectBySemantic`
+- [ ] **Category:** AI-Enhanced Tool (Selection)
+- [ ] **Dependencies:** SemanticSelectionTool, ReplicateClient
+
+#### **✅ DEPTH ESTIMATION ADAPTER - EXISTS**
+- [x] **File:** `lib/ai/adapters/tools/DepthEstimationAdapter.ts` **[EXISTS]**
+- [ ] **Migration Status:** ❌ Needs DI migration
+- [ ] **Tool ID:** `ai-depth-estimation`
+- [ ] **AI Name:** `estimateDepth`
+- [ ] **Category:** AI-Enhanced Tool (Analysis)
+- [ ] **Dependencies:** DepthEstimationTool, ReplicateClient
+
+#### **✅ RELIGHTING ADAPTER - EXISTS**
+- [x] **File:** `lib/ai/adapters/tools/RelightingAdapter.ts` **[EXISTS]**
+- [ ] **Migration Status:** ❌ Needs DI migration
+- [ ] **Tool ID:** `ai-relighting`
+- [ ] **AI Name:** `relightImage`
+- [ ] **Category:** AI-Enhanced Tool (Pixel Manipulation)
+- [ ] **Dependencies:** RelightingTool, ReplicateClient
+
+---
+
+## 🛠️ **PHASE 3: UTILITY ADAPTERS (2 ADAPTERS)**
+
+### **Priority 2: Analysis & Enhancement Tools**
+
+#### **✅ ANALYZE CANVAS ADAPTER - EXISTS**
+- [x] **File:** `lib/ai/adapters/tools/analyzeCanvas.ts` **[EXISTS]**
+- [ ] **Migration Status:** ❌ Needs DI migration
+- [ ] **Tool ID:** `analyze-canvas`
+- [ ] **AI Name:** `analyzeCanvas`
+- [ ] **Category:** Analysis Tool
+- [ ] **Dependencies:** CanvasAnalyzer, vision models
+
+#### **✅ INSTRUCTION EDITING ADAPTER - EXISTS**
+- [x] **File:** `lib/ai/adapters/tools/InstructionEditingAdapter.ts` **[EXISTS]**
+- [ ] **Migration Status:** ❌ Needs DI migration
+- [ ] **Tool ID:** `ai-instruction-editing`
+- [ ] **AI Name:** `editWithInstructions`
+- [ ] **Category:** AI-Enhanced Tool (Pixel Manipulation)
+- [ ] **Dependencies:** InstructionEditingTool, ReplicateClient
+
+#### **✅ PROMPT ENHANCEMENT ADAPTER - EXISTS**
+- [x] **File:** `lib/ai/adapters/tools/PromptEnhancementAdapter.ts` **[EXISTS]**
+- [ ] **Migration Status:** ❌ Needs DI migration
+- [ ] **Tool ID:** `prompt-enhancement`
+- [ ] **AI Name:** `enhancePrompt`
+- [ ] **Category:** Utility Tool
+- [ ] **Dependencies:** PromptEnhancementService, language models
+
+---
+
+## 🚨 **CRITICAL ARCHITECTURAL ISSUES TO FIX**
+
+### **1. Code Duplication Across Adapters (60%+ duplicate code)**
 
 **Examples of Duplication:**
 ```typescript
@@ -111,7 +408,7 @@ if (typeof brightness !== 'number') {
 }
 ```
 
-### **🚨 Issue 2: Inconsistent Parameter Conversion Patterns**
+### **2. Inconsistent Parameter Conversion Patterns**
 
 **Current Problems:**
 ```typescript
@@ -130,27 +427,33 @@ if (contrast < -100 || contrast > 100) {
 const hueShift = Math.max(-180, Math.min(180, input.hue || 0));
 ```
 
-### **🚨 Issue 3: Tight Coupling Between AI SDK and Tools**
+### **3. Mock Dependencies & Singleton Patterns**
 
 **Problem:**
 ```typescript
-// Adapters directly manipulate tool internals
-const tool = this.serviceContainer.get<BrightnessTool>('brightnessTool');
-tool.brightness = brightnessValue; // Direct property access
-tool.apply(); // Direct method call
+// Current anti-pattern in multiple adapters
+const mockPreferencesManager = {
+  getToolModelTier: () => 'balanced',
+  setToolModelTier: () => {}
+} as any
+
+const mockEventBus = {
+  emit: () => {}
+} as any
 ```
 
 **Should Be:**
 ```typescript
-// Proper abstraction with commands and Object-based targets
-const command = this.commandFactory.createBrightnessCommand({
-  brightness: brightnessValue,
-  targetObjects: selectedObjects // Object-based targeting
-});
-await this.commandManager.execute(command);
+// Proper dependency injection
+constructor(
+  private modelPreferences: ModelPreferencesManager,
+  private eventBus: TypedEventBus,
+  private canvasManager: CanvasManager,
+  private commandManager: CommandManager
+) {}
 ```
 
-### **🚨 Issue 4: Manual Error Handling and Formatting**
+### **4. Manual Error Handling and Formatting**
 
 **Current Pattern (repeated 30+ times):**
 ```typescript
@@ -167,7 +470,7 @@ try {
 }
 ```
 
-### **🚨 Issue 5: No Type Safety for AI SDK v5 Integration**
+### **5. No Type Safety for AI SDK v5 Integration**
 
 **Current Issues:**
 - Manual `inputSchema` definitions (inconsistent)
@@ -175,26 +478,9 @@ try {
 - Runtime type conversion scattered across adapters
 - No standardized response formats
 
-### **🚨 Issue 6: Singleton Service Access Pattern**
+---
 
-**Current Anti-Pattern:**
-```typescript
-// Direct singleton access in adapters
-const canvas = this.serviceContainer.get<CanvasManager>('canvasManager');
-const toolStore = this.serviceContainer.get<ToolStore>('toolStore');
-```
-
-**Should Be:**
-```typescript
-// Dependency injection
-constructor(
-  private canvasManager: CanvasManager,
-  private toolStore: ToolStore,
-  private commandManager: CommandManager
-) {}
-```
-
-## Senior-Level Architecture Solutions
+## 🏗️ **SENIOR-LEVEL ARCHITECTURE SOLUTION**
 
 ### **1. 🏗️ Adapter Factory with Dependency Injection**
 
@@ -208,6 +494,8 @@ interface AdapterDependencies {
   parameterConverter: ParameterConverter;
   responseFormatter: ResponseFormatter;
   errorHandler: ErrorHandler;
+  modelPreferences: ModelPreferencesManager;
+  replicateClient: ReplicateClient;
 }
 
 class AdapterFactory {
@@ -734,298 +1022,13 @@ class CachingPlugin implements AdapterPlugin {
 }
 ```
 
-## Enhanced Base Adapter Architecture
+---
 
-### **1. Universal Base Adapter**
+## 🚀 **IMPLEMENTATION PLAN**
 
-```typescript
-export abstract class BaseAdapter<TInput = any, TOutput = any> {
-  abstract id: string;
-  abstract name: string;
-  abstract description: string;
-  abstract version: string;
-  
-  // Dependencies (injected, not imported)
-  protected dependencies!: AdapterDependencies;
-  
-  // Behaviors and plugins
-  private behaviors = new Map<string, AdapterBehavior>();
-  private plugins = new Map<string, AdapterPlugin>();
-  
-  // Performance optimization
-  private performanceOptimizer: PerformanceOptimizer;
-  
-  constructor(dependencies?: AdapterDependencies) {
-    if (dependencies) {
-      this.setDependencies(dependencies);
-    }
-    this.performanceOptimizer = new PerformanceOptimizer();
-  }
-  
-  // Dependency injection
-  setDependencies(dependencies: AdapterDependencies): void {
-    this.dependencies = dependencies;
-    this.initializeAdapter();
-  }
-  
-  // Abstract methods for subclasses
-  protected abstract getParameterSchema(): ParameterSchema;
-  protected abstract getInputSchema(): any; // AI SDK v5 schema
-  protected abstract executeOperation(input: TInput): Promise<TOutput>;
-  
-  // Optional methods
-  protected setupAdapter(): void {}
-  protected cleanupAdapter(): void {}
-  protected validateInput(input: TInput): void {}
-  protected formatOutput(result: TOutput): any { return result; }
-  
-  // Main execution method
-  async execute(rawInput: any): Promise<any> {
-    const context: ErrorContext = {
-      adapterId: this.id,
-      operation: 'execute',
-      input: rawInput,
-      timestamp: Date.now(),
-      stackTrace: new Error().stack || '',
-      canvasState: this.dependencies.canvasManager.getState(),
-      toolState: this.dependencies.toolStore.getState()
-    };
-    
-    try {
-      // 1. Parameter conversion with type safety
-      const convertedInput = this.dependencies.parameterConverter.convert<TInput>(
-        rawInput,
-        this.getParameterSchema()
-      );
-      
-      // 2. Input validation
-      this.validateInput(convertedInput);
-      
-      // 3. Execute behaviors (beforeExecute)
-      await this.executeBehaviors('beforeExecute', convertedInput);
-      
-      // 4. Main operation with performance tracking
-      const result = await this.executeWithEvents(
-        () => this.executeOperation(convertedInput),
-        'main-operation'
-      );
-      
-      // 5. Execute behaviors (afterExecute)
-      await this.executeBehaviors('afterExecute', result);
-      
-      // 6. Format output
-      const formattedResult = this.formatOutput(result);
-      
-      // 7. Return standardized response
-      return this.dependencies.responseFormatter.success(formattedResult);
-      
-    } catch (error) {
-      // Execute error behaviors
-      await this.executeBehaviors('onError', error);
-      
-      // Handle error with intelligent strategies
-      const errorResult = await this.dependencies.errorHandler.handleError(
-        error as Error,
-        context
-      );
-      
-      return this.dependencies.responseFormatter.error(errorResult);
-    }
-  }
-  
-  // Behavior management
-  addBehavior(behavior: AdapterBehavior): void {
-    this.behaviors.set(behavior.id, behavior);
-  }
-  
-  private async executeBehaviors(method: keyof AdapterBehavior, ...args: any[]): Promise<void> {
-    for (const behavior of this.behaviors.values()) {
-      const fn = behavior[method];
-      if (fn) await fn(this, ...args);
-    }
-  }
-  
-  // Plugin management
-  addPlugin(plugin: AdapterPlugin): void {
-    if (plugin.isCompatible(this)) {
-      this.plugins.set(plugin.id, plugin);
-      plugin.apply(this);
-    }
-  }
-  
-  // Event emission
-  protected emitEvent(type: string, data: any): void {
-    const event: AdapterEvent = {
-      type,
-      adapterId: this.id,
-      data,
-      timestamp: Date.now()
-    };
-    this.dependencies.eventBus.emit('adapter.event', event);
-  }
-  
-  // Performance helpers
-  protected async memoize<T>(
-    key: string,
-    operation: () => Promise<T>,
-    ttl?: number
-  ): Promise<T> {
-    return this.performanceOptimizer.memoize(key, operation, ttl);
-  }
-  
-  protected async batchOperation<T>(
-    batchKey: string,
-    operation: BatchOperation<T>,
-    delay?: number
-  ): Promise<T> {
-    return this.performanceOptimizer.batchOperation(batchKey, operation, delay);
-  }
-  
-  // Lifecycle methods
-  private initializeAdapter(): void {
-    this.setupAdapter();
-    
-    // Add default behaviors
-    this.addBehavior(new ValidationBehavior());
-    this.addBehavior(new PerformanceBehavior());
-    this.addBehavior(new ErrorRecoveryBehavior());
-  }
-  
-  destroy(): void {
-    // Remove all plugins
-    for (const plugin of this.plugins.values()) {
-      plugin.remove(this);
-    }
-    this.plugins.clear();
-    
-    // Clear behaviors
-    this.behaviors.clear();
-    
-    // Cleanup adapter-specific resources
-    this.cleanupAdapter();
-  }
-  
-  // Utility methods
-  isReadOnly(): boolean {
-    return false; // Override in read-only adapters
-  }
-  
-  requiresSelection(): boolean {
-    return false; // Override in adapters that need selection
-  }
-  
-  getCapabilities(): string[] {
-    return []; // Override to specify adapter capabilities
-  }
-}
-```
+### **Phase 1: Core Adapter Infrastructure (Days 1-4)**
 
-### **2. Specialized Adapter Base Classes**
-
-```typescript
-// For canvas tool adapters
-export abstract class CanvasToolAdapter<TInput = any, TOutput = any> extends BaseAdapter<TInput, TOutput> {
-  protected abstract getToolId(): string;
-  
-  protected async executeOperation(input: TInput): Promise<TOutput> {
-    // Get the tool through dependency injection
-    const tool = await this.dependencies.toolStore.getTool(this.getToolId());
-    
-    if (!tool) {
-      throw new Error(`Tool ${this.getToolId()} not found`);
-    }
-    
-    // Ensure tool is active
-    if (tool.state !== ToolState.ACTIVE) {
-      await this.dependencies.toolStore.activateTool(this.getToolId());
-    }
-    
-    // Create and execute command
-    const command = this.createToolCommand(tool, input);
-    return await this.executeCommand(command);
-  }
-  
-  protected abstract createToolCommand(tool: BaseTool, input: TInput): AdapterCommand<TInput, TOutput>;
-}
-
-// For AI service adapters
-export abstract class AIServiceAdapter<TInput = any, TOutput = any> extends BaseAdapter<TInput, TOutput> {
-  protected abstract getServiceName(): string;
-  
-  protected async executeOperation(input: TInput): Promise<TOutput> {
-    const service = this.dependencies.aiServiceManager.getService(this.getServiceName());
-    
-    if (!service) {
-      throw new Error(`AI service ${this.getServiceName()} not available`);
-    }
-    
-    // Execute with retry and error recovery
-    return await this.executeWithRetry(
-      () => service.execute(input),
-      3, // max retries
-      1000 // base delay
-    );
-  }
-  
-  private async executeWithRetry<T>(
-    operation: () => Promise<T>,
-    maxRetries: number,
-    baseDelay: number
-  ): Promise<T> {
-    let lastError: Error;
-    
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-      try {
-        return await operation();
-      } catch (error) {
-        lastError = error as Error;
-        
-        if (attempt < maxRetries && this.shouldRetry(error)) {
-          await this.delay(baseDelay * Math.pow(2, attempt - 1));
-          continue;
-        }
-        
-        throw error;
-      }
-    }
-    
-    throw lastError!;
-  }
-  
-  private shouldRetry(error: Error): boolean {
-    return error.message.includes('rate limit') ||
-           error.message.includes('temporary') ||
-           error.message.includes('timeout');
-  }
-  
-  private delay(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms));
-  }
-}
-
-// For filter adapters
-export abstract class FilterToolAdapter<TInput = any> extends CanvasToolAdapter<TInput, ToolResult> {
-  protected requiresSelection(): boolean {
-    return true;
-  }
-  
-  protected validateInput(input: TInput): void {
-    super.validateInput(input);
-    
-    // Validate selection exists
-    const selection = this.dependencies.canvasManager.getSelection();
-    if (!selection || selection.isEmpty()) {
-      throw new Error('Filter operations require a selection');
-    }
-  }
-}
-```
-
-## Implementation Plan
-
-### Phase 1: Core Adapter Infrastructure (Days 1-4)
-
-#### Step 1.1: Domain Model Migration (CRITICAL FIRST STEP)
+#### **Step 1.1: Domain Model Migration (CRITICAL FIRST STEP)**
 - [ ] **Migrate Adapter Target Terminology**: Update all adapters to use Object-based terminology
   - [ ] Replace `affectedLayers` with `affectedObjects` in all adapter responses
   - [ ] Replace `layerId` with `objectId` in parameter schemas
@@ -1043,78 +1046,78 @@ export abstract class FilterToolAdapter<TInput = any> extends CanvasToolAdapter<
   - [ ] `updateLayer()` → `updateObject()`
   - [ ] `deleteLayer()` → `deleteObject()`
 
-#### Step 1.2: Create Core Adapter Types and Interfaces
+#### **Step 1.2: Create Core Adapter Types and Interfaces**
 - [ ] Define `AdapterDependencies` interface with Object-based services
 - [ ] Create `ParameterSchema` and `ParameterDefinition` types
 - [ ] Add `AdapterEvent` and `AdapterBehavior` interfaces
 - [ ] Define `AdapterCommand` and `ErrorStrategy` interfaces
 
-#### Step 1.2: Implement Parameter Conversion System
+#### **Step 1.3: Implement Parameter Conversion System**
 - [ ] Create `ParameterConverter` class with intelligent type conversion
 - [ ] Add support for all parameter types (number, string, boolean, color, enum)
 - [ ] Implement validation and constraint checking
 - [ ] Add custom converter support for complex types
 
-#### Step 1.3: Implement Error Handling System
+#### **Step 1.4: Implement Error Handling System**
 - [ ] Create `ErrorHandler` class with strategy pattern
 - [ ] Implement error strategies (tool-activation, canvas-not-ready, parameter-validation)
 - [ ] Add error context capture and reporting
 - [ ] Create `ResponseFormatter` for standardized responses
 
-#### Step 1.4: Create Behavior System
+#### **Step 1.5: Create Behavior System**
 - [ ] Implement `ValidationBehavior` for common validation logic
 - [ ] Create `PerformanceBehavior` for performance monitoring
 - [ ] Add `ErrorRecoveryBehavior` for intelligent error recovery
 - [ ] Create behavior composition system in BaseAdapter
 
-#### Step 1.5: Implement Performance Optimization System
+#### **Step 1.6: Implement Performance Optimization System**
 - [ ] Create `PerformanceOptimizer` with caching and batching
 - [ ] Add memoization for expensive operations
 - [ ] Implement batch operation queuing
 - [ ] Add performance monitoring and metrics
 
-#### Step 1.6: Create Plugin Architecture
+#### **Step 1.7: Create Plugin Architecture**
 - [ ] Define `AdapterPlugin` interface
 - [ ] Implement `RetryPlugin` for automatic retries
 - [ ] Create `CachingPlugin` for result caching
 - [ ] Add plugin management system to BaseAdapter
 
-#### Step 1.7: Implement Enhanced BaseAdapter
+#### **Step 1.8: Implement Enhanced BaseAdapter**
 - [ ] Create complete BaseAdapter with all patterns
 - [ ] Add dependency injection support
 - [ ] Implement event-driven communication
 - [ ] Add behavior and plugin composition
 
-#### Step 1.8: Create Specialized Base Classes
+#### **Step 1.9: Create Specialized Base Classes**
 - [ ] Implement `CanvasToolAdapter` for tool integration
 - [ ] Create `AIServiceAdapter` for AI service integration
 - [ ] Add `FilterToolAdapter` for filter-specific logic
 - [ ] Implement command pattern integration
 
-#### Step 1.9: Create Adapter Factory System
+#### **Step 1.10: Create Adapter Factory System**
 - [ ] Implement `AdapterFactory` with dependency injection
 - [ ] Add auto-registration for all adapters
 - [ ] Create factory methods for each adapter type
 - [ ] Add plugin and behavior auto-application
 
-#### Step 1.10: Update Service Container
+#### **Step 1.11: Update Service Container**
 - [ ] Add `resolveAdapterDependencies()` method
 - [ ] Register all adapter-related services
 - [ ] Add lifecycle management for adapter dependencies
 - [ ] Update dependency injection patterns
 
-### Phase 2: Canvas Tool Adapter Migration (Days 5-8)
+### **Phase 2: Canvas Tool Adapter Migration (Days 5-8)**
 
-#### Step 2.1: Core Tool Adapters (Priority 1)
-**Adapters:** `frame.ts`, `move.ts`, `crop.ts`, `rotate.ts`, `flip.ts`, `resize.ts`
+#### **Step 2.1: Core Tool Adapters (Priority 1)**
+**Adapters:** `frame.ts` (CREATE), `move.ts`, `crop.ts`, `brush.ts`, `eraser.ts`, `addText.ts`
 
 - [ ] **Frame Adapter** - `lib/ai/adapters/tools/frame.ts` (FIRST ADAPTER - Document Creation)
+  - [ ] **CREATE NEW FILE** - This adapter doesn't exist yet
   - [ ] **Domain Migration**: Implement as reference Object-based adapter
-    - [ ] Replace any layer references with object terminology
+    - [ ] Use `createFrameObject()` instead of any layer-based operations
     - [ ] Update parameter schema to use `targetObjects` instead of `selectedLayers`
     - [ ] Change response format to include `affectedObjects` and `objectCount`
-    - [ ] Use `createFrameObject()` instead of any layer-based operations
-  - [ ] **Dependency Injection**: Replace serviceContainer access with constructor injection
+  - [ ] **Dependency Injection**: Use constructor injection for all dependencies
   - [ ] **Parameter Schema**: Define comprehensive frame creation parameters
     ```typescript
     getParameterSchema(): ParameterSchema {
@@ -1145,16 +1148,6 @@ export abstract class FilterToolAdapter<TInput = any> extends CanvasToolAdapter<
     - [ ] Change method calls from `moveLayer()` to `moveObject()`
   - [ ] **Dependency Injection**: Replace serviceContainer access with constructor injection
   - [ ] **Parameter Schema**: Define MoveTool parameter schema with Object-based constraints
-    ```typescript
-    getParameterSchema(): ParameterSchema {
-      return {
-        deltaX: { type: 'number', required: true, description: 'Horizontal movement in pixels' },
-        deltaY: { type: 'number', required: true, description: 'Vertical movement in pixels' },
-        targetObjects: { type: 'object', required: false, description: 'Canvas objects to move' },
-        objectIds: { type: 'array', required: false, description: 'Specific object IDs to move' }
-      };
-    }
-    ```
   - [ ] **Type-Safe Input**: Convert manual parameter handling to type-safe conversion
   - [ ] **Command Pattern**: Create MoveObjectCommand instead of direct tool manipulation
   - [ ] **Event-Driven**: Replace direct calls with object-based event emissions
@@ -1166,104 +1159,42 @@ export abstract class FilterToolAdapter<TInput = any> extends CanvasToolAdapter<
 - [ ] **Crop Adapter** - `lib/ai/adapters/tools/crop.ts`
   - [ ] **Dependency Injection**: Inject CropTool and CropCommand factory
   - [ ] **Parameter Schema**: Define crop parameters with aspect ratio constraints
-    ```typescript
-    getParameterSchema(): ParameterSchema {
-      return {
-        x: { type: 'number', required: true, min: 0 },
-        y: { type: 'number', required: true, min: 0 },
-        width: { type: 'number', required: true, min: 1 },
-        height: { type: 'number', required: true, min: 1 },
-        maintainAspectRatio: { type: 'boolean', default: false }
-      };
-    }
-    ```
   - [ ] **Command Pattern**: CropCommand with proper undo/redo support
   - [ ] **Validation**: Ensure crop bounds are within canvas dimensions
   - [ ] **Event-Driven**: Emit crop events for UI updates
   - [ ] **Performance**: Optimize crop preview calculations
   - [ ] **Testing**: Test crop operations with various aspect ratios
 
-- [ ] **Rotate Adapter** - `lib/ai/adapters/tools/rotate.ts`
-  - [ ] **Dependency Injection**: Inject RotateTool and angle calculation services
-  - [ ] **Parameter Schema**: Define rotation parameters with angle constraints
-    ```typescript
-    getParameterSchema(): ParameterSchema {
-      return {
-        angle: { type: 'number', required: true, min: -360, max: 360 },
-        center: { type: 'object', required: false, description: 'Rotation center point' },
-        snapToAngles: { type: 'boolean', default: false }
-      };
-    }
-    ```
-  - [ ] **Command Pattern**: RotateCommand with angle preservation
-  - [ ] **Smart Conversion**: Convert angle descriptions to degrees
-  - [ ] **Event-Driven**: Real-time rotation feedback
-  - [ ] **Performance**: Memoize rotation calculations
-  - [ ] **Testing**: Test rotation with various angles and snap modes
+- [ ] **Brush Adapter** - `lib/ai/adapters/tools/brush.ts`
+  - [ ] **Dependency Injection**: Inject BrushTool and drawing services
+  - [ ] **Parameter Schema**: Define brush parameters with stroke handling
+  - [ ] **Command Pattern**: BrushStrokeCommand with proper state management
+  - [ ] **Performance**: Optimize stroke rendering and batching
+  - [ ] **Event-Driven**: Real-time brush feedback
+  - [ ] **Testing**: Test brush operations with various sizes and modes
 
-- [ ] **Flip Adapter** - `lib/ai/adapters/tools/flip.ts`
-  - [ ] **Dependency Injection**: Inject FlipTool and transformation services
-  - [ ] **Parameter Schema**: Define flip direction with enum validation
-    ```typescript
-    getParameterSchema(): ParameterSchema {
-      return {
-        direction: { 
-          type: 'enum', 
-          required: true, 
-          enum: ['horizontal', 'vertical', 'both'],
-          description: 'Flip direction'
-        },
-        targetObjects: { type: 'object', required: false }
-      };
-    }
-    ```
-  - [ ] **Command Pattern**: FlipCommand with state preservation
-  - [ ] **Smart Conversion**: Convert direction descriptions to enum values
-  - [ ] **Event-Driven**: Flip completion notifications
-  - [ ] **Batch Operations**: Support flipping multiple objects
-  - [ ] **Testing**: Test all flip directions and combinations
+- [ ] **Eraser Adapter** - `lib/ai/adapters/tools/eraser.ts`
+  - [ ] **Dependency Injection**: Inject EraserTool and background eraser services
+  - [ ] **Parameter Schema**: Define eraser parameters with mode handling
+  - [ ] **Command Pattern**: EraseCommand with proper undo support
+  - [ ] **Smart Conversion**: Handle eraser mode descriptions
+  - [ ] **Event-Driven**: Erase operation feedback
+  - [ ] **Testing**: Test eraser operations with different modes
 
-- [ ] **Resize Adapter** - `lib/ai/adapters/tools/resize.ts`
-  - [ ] **Dependency Injection**: Inject ResizeTool and constraint managers
-  - [ ] **Parameter Schema**: Define resize parameters with proportion constraints
-    ```typescript
-    getParameterSchema(): ParameterSchema {
-      return {
-        width: { type: 'number', required: false, min: 1 },
-        height: { type: 'number', required: false, min: 1 },
-        scale: { type: 'number', required: false, min: 0.01, max: 10 },
-        maintainAspectRatio: { type: 'boolean', default: true },
-        resizeMode: { type: 'enum', enum: ['absolute', 'relative', 'scale'], default: 'absolute' }
-      };
-    }
-    ```
-  - [ ] **Command Pattern**: ResizeCommand with aspect ratio handling
-  - [ ] **Smart Conversion**: Support multiple resize modes and units
-  - [ ] **Validation**: Ensure resize constraints are met
-  - [ ] **Event-Driven**: Real-time resize feedback
-  - [ ] **Performance**: Optimize resize calculations
-  - [ ] **Testing**: Test all resize modes and constraint combinations
+- [ ] **Add Text Adapter** - `lib/ai/adapters/tools/addText.ts`
+  - [ ] **Dependency Injection**: Inject TextTool and font services
+  - [ ] **Parameter Schema**: Define text parameters with style presets
+  - [ ] **Command Pattern**: AddTextCommand with proper state management
+  - [ ] **Smart Conversion**: Handle text style descriptions
+  - [ ] **Event-Driven**: Text creation notifications
+  - [ ] **Testing**: Test text creation with various styles and positions
 
-#### Step 2.2: Adjustment Tool Adapters (Priority 2)
-**Adapters:** `brightness.ts`, `contrast.ts`, `saturation.ts`, `hue.ts`, `exposure.ts`
+#### **Step 2.2: Adjustment Tool Adapters (Priority 2)**
+**Adapters:** `brightness.ts`, `contrast.ts`, `saturation.ts`, `blur.ts`, `resize.ts`, `flip.ts`, `rotate.ts`, `sharpen.ts`, `grayscale.ts`
 
 - [ ] **Brightness Adapter** - `lib/ai/adapters/tools/brightness.ts`
   - [ ] **Dependency Injection**: Replace direct tool access with DI
   - [ ] **Parameter Schema**: Define brightness with intelligent range conversion
-    ```typescript
-    getParameterSchema(): ParameterSchema {
-      return {
-        brightness: { 
-          type: 'number', 
-          required: true, 
-          min: -100, 
-          max: 100,
-          converter: (value) => this.convertBrightnessValue(value),
-          description: 'Brightness adjustment (-100 to 100)'
-        }
-      };
-    }
-    ```
   - [ ] **Smart Conversion**: Handle percentage, decimal, and keyword values
   - [ ] **Command Pattern**: BrightnessCommand with proper undo
   - [ ] **Real-time Preview**: Debounced preview updates
@@ -1289,45 +1220,43 @@ export abstract class FilterToolAdapter<TInput = any> extends CanvasToolAdapter<
   - [ ] **Performance**: Optimize HSL calculations
   - [ ] **Testing**: Test saturation adjustments and color preservation
 
-- [ ] **Hue Adapter** - `lib/ai/adapters/tools/hue.ts`
-  - [ ] **Dependency Injection**: Inject HueTool and color wheel services
-  - [ ] **Parameter Schema**: Define hue with color wheel constraints
-  - [ ] **Smart Conversion**: Handle hue descriptions and color names
-  - [ ] **Command Pattern**: HueCommand with color mapping
-  - [ ] **Advanced Features**: Support hue range adjustments
-  - [ ] **Performance**: Memoize hue calculations
-  - [ ] **Testing**: Test hue shifts and color mapping
-
-- [ ] **Exposure Adapter** - `lib/ai/adapters/tools/exposure.ts`
-  - [ ] **Dependency Injection**: Inject ExposureTool and EV calculation services
-  - [ ] **Parameter Schema**: Define exposure with EV stop constraints
-  - [ ] **Smart Conversion**: Handle exposure descriptions and EV values
-  - [ ] **Command Pattern**: ExposureCommand with histogram preservation
-  - [ ] **Advanced Features**: Support highlight/shadow recovery
-  - [ ] **Performance**: Optimize exposure calculations
-  - [ ] **Testing**: Test exposure adjustments and EV conversions
-
-#### Step 2.3: Filter Tool Adapters (Priority 3)
-**Adapters:** `blur.ts`, `sharpen.ts`, `grayscale.ts`, `invert.ts`, `vintageEffects.ts`
-
 - [ ] **Blur Adapter** - `lib/ai/adapters/tools/blur.ts`
   - [ ] **Dependency Injection**: Inject BlurTool and WebGL filter services
   - [ ] **Parameter Schema**: Define blur with radius and type constraints
-    ```typescript
-    getParameterSchema(): ParameterSchema {
-      return {
-        radius: { type: 'number', required: true, min: 0, max: 100 },
-        blurType: { type: 'enum', enum: ['gaussian', 'motion', 'radial'], default: 'gaussian' },
-        quality: { type: 'enum', enum: ['low', 'medium', 'high'], default: 'medium' }
-      };
-    }
-    ```
   - [ ] **Smart Conversion**: Handle blur descriptions and quality settings
   - [ ] **Command Pattern**: BlurCommand with filter state preservation
   - [ ] **Real-time Preview**: Debounced blur preview with WebGL
   - [ ] **Performance**: Optimize blur algorithms for different radii
   - [ ] **Advanced Features**: Support different blur types
   - [ ] **Testing**: Test all blur types and radius values
+
+- [ ] **Resize Adapter** - `lib/ai/adapters/tools/resize.ts`
+  - [ ] **Dependency Injection**: Inject ResizeTool and constraint managers
+  - [ ] **Parameter Schema**: Define resize parameters with proportion constraints
+  - [ ] **Command Pattern**: ResizeCommand with aspect ratio handling
+  - [ ] **Smart Conversion**: Support multiple resize modes and units
+  - [ ] **Validation**: Ensure resize constraints are met
+  - [ ] **Event-Driven**: Real-time resize feedback
+  - [ ] **Performance**: Optimize resize calculations
+  - [ ] **Testing**: Test all resize modes and constraint combinations
+
+- [ ] **Flip Adapter** - `lib/ai/adapters/tools/flip.ts`
+  - [ ] **Dependency Injection**: Inject FlipTool and transformation services
+  - [ ] **Parameter Schema**: Define flip direction with enum validation
+  - [ ] **Command Pattern**: FlipCommand with state preservation
+  - [ ] **Smart Conversion**: Convert direction descriptions to enum values
+  - [ ] **Event-Driven**: Flip completion notifications
+  - [ ] **Batch Operations**: Support flipping multiple objects
+  - [ ] **Testing**: Test all flip directions and combinations
+
+- [ ] **Rotate Adapter** - `lib/ai/adapters/tools/rotate.ts`
+  - [ ] **Dependency Injection**: Inject RotateTool and angle calculation services
+  - [ ] **Parameter Schema**: Define rotation parameters with angle constraints
+  - [ ] **Command Pattern**: RotateCommand with angle preservation
+  - [ ] **Smart Conversion**: Convert angle descriptions to degrees
+  - [ ] **Event-Driven**: Real-time rotation feedback
+  - [ ] **Performance**: Memoize rotation calculations
+  - [ ] **Testing**: Test rotation with various angles and snap modes
 
 - [ ] **Sharpen Adapter** - `lib/ai/adapters/tools/sharpen.ts`
   - [ ] **Dependency Injection**: Inject SharpenTool and unsharp mask services
@@ -1347,6 +1276,36 @@ export abstract class FilterToolAdapter<TInput = any> extends CanvasToolAdapter<
   - [ ] **Performance**: Optimize color conversion algorithms
   - [ ] **Testing**: Test different grayscale conversion methods
 
+#### **Step 2.3: Secondary Tool Adapters (Priority 3)**
+**Adapters:** `gradient.ts`, `hue.ts`, `exposure.ts`, `invert.ts`, `vintageEffects.ts`, `canvasSelectionManager.ts`
+
+- [ ] **Gradient Adapter** - `lib/ai/adapters/tools/gradient.ts`
+  - [ ] **Dependency Injection**: Inject GradientTool and gradient services
+  - [ ] **Parameter Schema**: Define gradient with type and color constraints
+  - [ ] **Smart Conversion**: Handle gradient descriptions and color stops
+  - [ ] **Command Pattern**: GradientCommand with gradient state
+  - [ ] **Advanced Features**: Support custom gradient types
+  - [ ] **Performance**: Optimize gradient rendering
+  - [ ] **Testing**: Test gradient creation with various types
+
+- [ ] **Hue Adapter** - `lib/ai/adapters/tools/hue.ts`
+  - [ ] **Dependency Injection**: Inject HueTool and color wheel services
+  - [ ] **Parameter Schema**: Define hue with color wheel constraints
+  - [ ] **Smart Conversion**: Handle hue descriptions and color names
+  - [ ] **Command Pattern**: HueCommand with color mapping
+  - [ ] **Advanced Features**: Support hue range adjustments
+  - [ ] **Performance**: Memoize hue calculations
+  - [ ] **Testing**: Test hue shifts and color mapping
+
+- [ ] **Exposure Adapter** - `lib/ai/adapters/tools/exposure.ts`
+  - [ ] **Dependency Injection**: Inject ExposureTool and EV calculation services
+  - [ ] **Parameter Schema**: Define exposure with EV stop constraints
+  - [ ] **Smart Conversion**: Handle exposure descriptions and EV values
+  - [ ] **Command Pattern**: ExposureCommand with histogram preservation
+  - [ ] **Advanced Features**: Support highlight/shadow recovery
+  - [ ] **Performance**: Optimize exposure calculations
+  - [ ] **Testing**: Test exposure adjustments and EV conversions
+
 - [ ] **Invert Adapter** - `lib/ai/adapters/tools/invert.ts`
   - [ ] **Dependency Injection**: Inject InvertTool and color inversion services
   - [ ] **Parameter Schema**: Define inversion with channel selection
@@ -1365,26 +1324,23 @@ export abstract class FilterToolAdapter<TInput = any> extends CanvasToolAdapter<
   - [ ] **Performance**: Optimize multi-effect processing
   - [ ] **Testing**: Test all vintage effect presets
 
-### Phase 3: AI Service Adapter Migration (Days 9-12)
+- [ ] **Canvas Selection Manager** - `lib/ai/adapters/tools/canvasSelectionManager.ts`
+  - [ ] **Dependency Injection**: Inject selection management services
+  - [ ] **Parameter Schema**: Define selection operations with criteria
+  - [ ] **Smart Conversion**: Handle selection descriptions and operations
+  - [ ] **Command Pattern**: SelectionCommand with selection state management
+  - [ ] **Advanced Features**: Support complex selection operations
+  - [ ] **Performance**: Optimize selection algorithms
+  - [ ] **Testing**: Test selection operations with various criteria
 
-#### Step 3.1: Image Generation Adapters (Priority 1)
-**Adapters:** `ImageGenerationAdapter.ts`, `VariationAdapter.ts`
+### **Phase 3: AI Service Adapter Migration (Days 9-12)**
+
+#### **Step 3.1: Core AI Tools (Priority 1)**
+**Adapters:** `ImageGenerationAdapter.ts`, `ObjectRemovalAdapter.ts`, `FaceEnhancementAdapter.ts`, `UpscalingAdapter.ts`
 
 - [ ] **Image Generation Adapter** - `lib/ai/adapters/tools/ImageGenerationAdapter.ts`
   - [ ] **Dependency Injection**: Inject Replicate service and image management
   - [ ] **Parameter Schema**: Define comprehensive generation parameters
-    ```typescript
-    getParameterSchema(): ParameterSchema {
-      return {
-        prompt: { type: 'string', required: true, description: 'Image generation prompt' },
-        width: { type: 'number', default: 512, min: 64, max: 2048 },
-        height: { type: 'number', default: 512, min: 64, max: 2048 },
-        style: { type: 'enum', enum: ['photorealistic', 'artistic', 'cartoon', 'sketch'] },
-        quality: { type: 'enum', enum: ['draft', 'standard', 'high'], default: 'standard' },
-        seed: { type: 'number', required: false, description: 'Random seed for reproducibility' }
-      };
-    }
-    ```
   - [ ] **Smart Conversion**: Parse complex prompt descriptions and style preferences
   - [ ] **Command Pattern**: ImageGenerationCommand with proper state management
   - [ ] **Progress Tracking**: Real-time generation progress events
@@ -1392,17 +1348,14 @@ export abstract class FilterToolAdapter<TInput = any> extends CanvasToolAdapter<
   - [ ] **Caching**: Cache generated images for similar prompts
   - [ ] **Testing**: Test various prompts and generation parameters
 
-- [ ] **Variation Adapter** - `lib/ai/adapters/tools/VariationAdapter.ts`
-  - [ ] **Dependency Injection**: Inject variation service and image analysis
-  - [ ] **Parameter Schema**: Define variation parameters with source image
-  - [ ] **Smart Conversion**: Handle variation strength and style descriptions
-  - [ ] **Command Pattern**: VariationCommand with source image preservation
-  - [ ] **Advanced Features**: Support multiple variation techniques
-  - [ ] **Performance**: Optimize variation processing pipeline
-  - [ ] **Testing**: Test variations with different source images
-
-#### Step 3.2: Enhancement Adapters (Priority 2)
-**Adapters:** `FaceEnhancementAdapter.ts`, `UpscalingAdapter.ts`, `StyleTransferAdapter.ts`
+- [ ] **Object Removal Adapter** - `lib/ai/adapters/tools/ObjectRemovalAdapter.ts`
+  - [ ] **Dependency Injection**: Inject object removal service and selection management
+  - [ ] **Parameter Schema**: Define removal parameters with mask handling
+  - [ ] **Smart Conversion**: Handle object descriptions and removal preferences
+  - [ ] **Command Pattern**: ObjectRemovalCommand with mask state preservation
+  - [ ] **Advanced Features**: Support intelligent content-aware removal
+  - [ ] **Performance**: Optimize object detection and removal pipeline
+  - [ ] **Testing**: Test object removal with various object types
 
 - [ ] **Face Enhancement Adapter** - `lib/ai/adapters/tools/FaceEnhancementAdapter.ts`
   - [ ] **Dependency Injection**: Inject face detection and enhancement services
@@ -1422,6 +1375,9 @@ export abstract class FilterToolAdapter<TInput = any> extends CanvasToolAdapter<
   - [ ] **Performance**: Optimize upscaling for different image sizes
   - [ ] **Testing**: Test upscaling with various scale factors
 
+#### **Step 3.2: Advanced AI Tools (Priority 2)**
+**Adapters:** `StyleTransferAdapter.ts`, `VariationAdapter.ts`, `InpaintingAdapter.ts`, `OutpaintingAdapter.ts`
+
 - [ ] **Style Transfer Adapter** - `lib/ai/adapters/tools/StyleTransferAdapter.ts`
   - [ ] **Dependency Injection**: Inject style transfer service and style library
   - [ ] **Parameter Schema**: Define style transfer with style selection
@@ -1431,8 +1387,14 @@ export abstract class FilterToolAdapter<TInput = any> extends CanvasToolAdapter<
   - [ ] **Performance**: Optimize style transfer processing
   - [ ] **Testing**: Test style transfer with various styles and strengths
 
-#### Step 3.3: Editing Adapters (Priority 3)
-**Adapters:** `InpaintingAdapter.ts`, `OutpaintingAdapter.ts`, `ObjectRemovalAdapter.ts`
+- [ ] **Variation Adapter** - `lib/ai/adapters/tools/VariationAdapter.ts`
+  - [ ] **Dependency Injection**: Inject variation service and image analysis
+  - [ ] **Parameter Schema**: Define variation parameters with source image
+  - [ ] **Smart Conversion**: Handle variation strength and style descriptions
+  - [ ] **Command Pattern**: VariationCommand with source image preservation
+  - [ ] **Advanced Features**: Support multiple variation techniques
+  - [ ] **Performance**: Optimize variation processing pipeline
+  - [ ] **Testing**: Test variations with different source images
 
 - [ ] **Inpainting Adapter** - `lib/ai/adapters/tools/InpaintingAdapter.ts`
   - [ ] **Dependency Injection**: Inject inpainting service and mask management
@@ -1452,17 +1414,8 @@ export abstract class FilterToolAdapter<TInput = any> extends CanvasToolAdapter<
   - [ ] **Performance**: Optimize outpainting for large expansions
   - [ ] **Testing**: Test outpainting in all directions with various sizes
 
-- [ ] **Object Removal Adapter** - `lib/ai/adapters/tools/ObjectRemovalAdapter.ts`
-  - [ ] **Dependency Injection**: Inject object detection and removal services
-  - [ ] **Parameter Schema**: Define object removal with selection and method
-  - [ ] **Smart Conversion**: Handle object descriptions and removal preferences
-  - [ ] **Command Pattern**: ObjectRemovalCommand with object state tracking
-  - [ ] **Advanced Features**: Support intelligent content-aware removal
-  - [ ] **Performance**: Optimize object detection and removal pipeline
-  - [ ] **Testing**: Test object removal with various object types
-
-#### Step 3.4: Selection and Advanced Adapters (Priority 4)
-**Adapters:** `SemanticSelectionAdapter.ts`, `DepthEstimationAdapter.ts`, `InstructionEditingAdapter.ts`
+#### **Step 3.3: Specialized AI Tools (Priority 3)**
+**Adapters:** `SemanticSelectionAdapter.ts`, `DepthEstimationAdapter.ts`, `RelightingAdapter.ts`
 
 - [ ] **Semantic Selection Adapter** - `lib/ai/adapters/tools/SemanticSelectionAdapter.ts`
   - [ ] **Dependency Injection**: Inject semantic analysis and selection services
@@ -1482,19 +1435,19 @@ export abstract class FilterToolAdapter<TInput = any> extends CanvasToolAdapter<
   - [ ] **Performance**: Optimize depth estimation algorithms
   - [ ] **Testing**: Test depth estimation with various image types
 
-- [ ] **Instruction Editing Adapter** - `lib/ai/adapters/tools/InstructionEditingAdapter.ts`
-  - [ ] **Dependency Injection**: Inject instruction parsing and editing services
-  - [ ] **Parameter Schema**: Define instruction editing with natural language
-  - [ ] **Smart Conversion**: Parse complex editing instructions
-  - [ ] **Command Pattern**: InstructionEditingCommand with instruction history
-  - [ ] **Advanced Features**: Support multi-step instruction sequences
-  - [ ] **Performance**: Optimize instruction parsing and execution
-  - [ ] **Testing**: Test instruction editing with various command types
+- [ ] **Relighting Adapter** - `lib/ai/adapters/tools/RelightingAdapter.ts`
+  - [ ] **Dependency Injection**: Inject relighting service and lighting analysis
+  - [ ] **Parameter Schema**: Define relighting with lighting parameters
+  - [ ] **Smart Conversion**: Handle lighting descriptions and intensity values
+  - [ ] **Command Pattern**: RelightingCommand with lighting state preservation
+  - [ ] **Advanced Features**: Support multiple light sources
+  - [ ] **Performance**: Optimize relighting processing
+  - [ ] **Testing**: Test relighting with various lighting conditions
 
-### Phase 4: Utility Adapter Migration (Days 13-14)
+### **Phase 4: Utility Adapter Migration (Days 13-14)**
 
-#### Step 4.1: Canvas Utility Adapters
-**Adapters:** `analyzeCanvas.ts`, `canvasSelectionManager.ts`
+#### **Step 4.1: Analysis & Enhancement Tools**
+**Adapters:** `analyzeCanvas.ts`, `InstructionEditingAdapter.ts`, `PromptEnhancementAdapter.ts`
 
 - [ ] **Analyze Canvas Adapter** - `lib/ai/adapters/tools/analyzeCanvas.ts`
   - [ ] **Dependency Injection**: Inject canvas analysis and reporting services
@@ -1505,26 +1458,14 @@ export abstract class FilterToolAdapter<TInput = any> extends CanvasToolAdapter<
   - [ ] **Performance**: Cache analysis results for similar requests
   - [ ] **Testing**: Test analysis with various canvas states
 
-- [ ] **Canvas Selection Manager Adapter** - `lib/ai/adapters/tools/canvasSelectionManager.ts`
-  - [ ] **Dependency Injection**: Inject selection management services
-  - [ ] **Parameter Schema**: Define selection operations with criteria
-  - [ ] **Smart Conversion**: Handle selection descriptions and operations
-  - [ ] **Command Pattern**: SelectionCommand with selection state management
-  - [ ] **Advanced Features**: Support complex selection operations
-  - [ ] **Performance**: Optimize selection algorithms
-  - [ ] **Testing**: Test selection operations with various criteria
-
-#### Step 4.2: Execution and Enhancement Adapters
-**Adapters:** `ChainAdapter.ts`, `PromptEnhancementAdapter.ts`
-
-- [ ] **Chain Adapter** - `lib/ai/adapters/tools/ChainAdapter.ts`
-  - [ ] **Dependency Injection**: Inject chain execution and orchestration services
-  - [ ] **Parameter Schema**: Define chain parameters with step definitions
-  - [ ] **Smart Conversion**: Parse complex chain descriptions
-  - [ ] **Command Pattern**: ChainCommand with step-by-step execution
-  - [ ] **Advanced Features**: Support conditional and parallel execution
-  - [ ] **Performance**: Optimize chain execution pipeline
-  - [ ] **Testing**: Test chain execution with various step combinations
+- [ ] **Instruction Editing Adapter** - `lib/ai/adapters/tools/InstructionEditingAdapter.ts`
+  - [ ] **Dependency Injection**: Inject instruction parsing and editing services
+  - [ ] **Parameter Schema**: Define instruction editing with natural language
+  - [ ] **Smart Conversion**: Parse complex editing instructions
+  - [ ] **Command Pattern**: InstructionEditingCommand with instruction history
+  - [ ] **Advanced Features**: Support multi-step instruction sequences
+  - [ ] **Performance**: Optimize instruction parsing and execution
+  - [ ] **Testing**: Test instruction editing with various command types
 
 - [ ] **Prompt Enhancement Adapter** - `lib/ai/adapters/tools/PromptEnhancementAdapter.ts`
   - [ ] **Dependency Injection**: Inject prompt analysis and enhancement services
@@ -1535,100 +1476,160 @@ export abstract class FilterToolAdapter<TInput = any> extends CanvasToolAdapter<
   - [ ] **Performance**: Cache enhanced prompts for similar inputs
   - [ ] **Testing**: Test prompt enhancement with various input types
 
-### Phase 5: Integration & Validation (Days 15-16)
+### **Phase 5: Integration & Validation (Days 15-16)**
 
-#### Step 5.1: Adapter Registry and Auto-Discovery
+#### **Step 5.1: Adapter Registry and Auto-Discovery**
 - [ ] Update adapter registry to use new base classes
-- [ ] Implement auto-discovery for all 30+ adapters
+- [ ] Implement auto-discovery for all 34 adapters
 - [ ] Add adapter capability detection and routing
 - [ ] Test adapter registration and discovery
 
-#### Step 5.2: AI SDK v5 Integration
+#### **Step 5.2: AI SDK v5 Integration**
 - [ ] Update all adapters to use proper AI SDK v5 patterns
 - [ ] Ensure consistent `inputSchema` definitions
 - [ ] Validate tool call and result formats
 - [ ] Test AI SDK integration with new adapters
 
-#### Step 5.3: Performance Testing
+#### **Step 5.3: Performance Testing**
 - [ ] Benchmark adapter execution times
 - [ ] Test caching and batching performance
 - [ ] Validate memory usage patterns
 - [ ] Optimize bottlenecks identified
 
-#### Step 5.4: Integration Testing
-- [ ] Test all 30+ adapters with AI chat
+#### **Step 5.4: Integration Testing**
+- [ ] Test all 34 adapters with AI chat
 - [ ] Verify tool execution through adapters
 - [ ] Test error handling and recovery
 - [ ] Validate event-driven communication
 
-#### Step 5.5: Documentation and Examples
+#### **Step 5.5: Documentation and Examples**
 - [ ] Update adapter documentation
 - [ ] Create examples for each adapter pattern
 - [ ] Document parameter schemas and conversion
 - [ ] Add troubleshooting guides
 
-## Testing Strategy
+---
 
-### Unit Testing
-- [ ] **Parameter Conversion**: Test all parameter types and conversions
-- [ ] **Error Handling**: Test all error strategies and recovery
-- [ ] **Behavior Composition**: Test behavior execution and composition
-- [ ] **Plugin System**: Test plugin application and removal
-- [ ] **Command Pattern**: Test command creation and execution
+## 📊 **PROGRESS TRACKING**
 
-### Integration Testing
-- [ ] **Tool Integration**: Test adapter-tool communication
-- [ ] **AI Service Integration**: Test adapter-service communication
-- [ ] **Event System**: Test event emission and handling
-- [ ] **Dependency Injection**: Test service resolution and injection
-- [ ] **Performance**: Test caching, batching, and optimization
+### **Overall Progress: 0%** 🚀
+- [ ] Current state analysis completed
+- [ ] Migration plan documented
+- [ ] Phase 1: Core Infrastructure (0/11 tasks)
+- [ ] Phase 2: Canvas Tool Adapters (0/21 adapters)
+- [ ] Phase 3: AI Service Adapters (0/11 adapters)
+- [ ] Phase 4: Utility Adapters (0/2 adapters)
+- [ ] Phase 5: Integration & Validation (0/5 tasks)
 
-### End-to-End Testing
-- [ ] **AI Chat Integration**: Test complete chat-to-tool flow
-- [ ] **Error Scenarios**: Test error handling in real scenarios
-- [ ] **Performance**: Test under load with multiple adapters
-- [ ] **User Experience**: Test responsiveness and reliability
+### **Phase 1 Progress: 0%**
+- [ ] Task 1.1: Domain migration (0%)
+- [ ] Task 1.2: Core types (0%)
+- [ ] Task 1.3: Parameter conversion (0%)
+- [ ] Task 1.4: Error handling (0%)
+- [ ] Task 1.5: Behavior system (0%)
+- [ ] Task 1.6: Performance optimization (0%)
+- [ ] Task 1.7: Plugin architecture (0%)
+- [ ] Task 1.8: Enhanced BaseAdapter (0%)
+- [ ] Task 1.9: Specialized base classes (0%)
+- [ ] Task 1.10: Adapter factory (0%)
+- [ ] Task 1.11: Service container updates (0%)
 
-### Regression Testing
-- [ ] **Existing Functionality**: Ensure no breaking changes
-- [ ] **API Compatibility**: Maintain AI SDK compatibility
-- [ ] **Performance**: Ensure no performance regressions
-- [ ] **Memory Usage**: Validate memory usage patterns
+### **Phase 2 Progress: 0%**
+- **Priority 1 (6 adapters):** 0/6 complete (0%)
+- **Priority 2 (9 adapters):** 0/9 complete (0%)
+- **Priority 3 (6 adapters):** 0/6 complete (0%)
 
-## Success Criteria
+### **Phase 3 Progress: 0%**
+- **Priority 1 (4 adapters):** 0/4 complete (0%)
+- **Priority 2 (4 adapters):** 0/4 complete (0%)
+- **Priority 3 (3 adapters):** 0/3 complete (0%)
 
-### Primary Goals (Architectural Improvements)
+### **Phase 4 Progress: 0%**
+- **Utility Adapters (2 adapters):** 0/2 complete (0%)
+
+### **Phase 5 Progress: 0%**
+- [ ] Adapter registry updates (0%)
+- [ ] AI SDK v5 integration (0%)
+- [ ] Performance testing (0%)
+- [ ] Integration testing (0%)
+- [ ] Documentation (0%)
+
+### **Critical Metrics** 📈
+- **Total Adapters**: 34 adapters to migrate
+- **Completed**: 0/34 (0%)
+- **In Progress**: 0/34 (0%)
+- **Infrastructure Steps**: 0/11 (0%)
+- **Integration Steps**: 0/5 (0%)
+
+### **Success Criteria Checklist**
+- [ ] **Zero TypeScript errors** in adapter files
+- [ ] **Zero ESLint errors** in adapter files
+- [ ] **Zero `any` types** in adapter code
+- [ ] **100% test coverage** for new domain services
+
+### **Architecture Consistency (100% Required)**
+- [ ] **All adapters** use unified dependency injection pattern
+- [ ] **All parameter conversion** goes through ParameterConverter
+- [ ] **Zero code duplication** in adapter logic
+- [ ] **Consistent error handling** with intelligent strategies
+
+### **Domain Model Purity (100% Required)**
+- [ ] **Zero layer references** in TypeScript files (except CSS/styling)
+- [ ] **All parameter schemas** use object-based terminology
+- [ ] **All response formats** use object-based naming
+- [ ] **File structure** reflects object-based architecture
+
+### **Performance Standards (100% Required)**
+- [ ] **Adapter execution** < 50ms for simple operations
+- [ ] **Parameter conversion** < 5ms for typical inputs
+- [ ] **Memory usage** stable over 8+ hour sessions
+- [ ] **Zero memory leaks** in adapter system
+
+### **Senior-Level Patterns (100% Required)**
+- [ ] **Dependency injection** for all services (no singletons)
+- [ ] **Event-driven communication** (no direct method calls)
+- [ ] **Command pattern** for all state changes
+- [ ] **Factory pattern** for object creation
+- [ ] **Composition over inheritance** in adapter design
+
+---
+
+## 🎯 **SUCCESS CRITERIA**
+
+### **Primary Goals (Architectural Improvements)**
 - ✅ 100% dependency injection compliance (zero singleton access)
-- ✅ Type-safe parameter conversion across all 30+ adapters
+- ✅ Type-safe parameter conversion across all 34 adapters
 - ✅ Consistent error handling and recovery patterns
 - ✅ Event-driven communication throughout adapter system
 - ✅ Command pattern integration for all canvas operations
 
-### Secondary Goals (Code Quality)
+### **Secondary Goals (Code Quality)**
 - ✅ 60%+ reduction in code duplication across adapters
 - ✅ Consistent patterns and interfaces across all adapters
 - ✅ Comprehensive error handling with intelligent recovery
 - ✅ Performance optimization through caching and batching
 - ✅ Plugin architecture for extensibility
 
-### Integration Goals
+### **Integration Goals**
 - ✅ Seamless AI SDK v5 integration with type safety
 - ✅ Reliable tool execution through adapter layer
 - ✅ Proper event propagation and state management
 - ✅ Performance maintained or improved
 - ✅ Zero breaking changes to existing functionality
 
-### Developer Experience Goals
+### **Developer Experience Goals**
 - ✅ Easy to create new adapters following established patterns
 - ✅ Clear documentation and examples for all patterns
 - ✅ Predictable behavior and debugging capabilities
 - ✅ Comprehensive testing and validation tools
 - ✅ Hot-reload friendly architecture
 
-## Risk Mitigation
+---
 
-### High-Risk Changes
-1. **BaseAdapter Complete Refactor** - Affects all 30+ adapters
+## 🚨 **RISK MITIGATION**
+
+### **High-Risk Changes**
+1. **BaseAdapter Complete Refactor** - Affects all 34 adapters
    - **Mitigation**: 
      - Parallel development with feature flags
      - Adapter-by-adapter migration with validation
@@ -1656,90 +1657,62 @@ export abstract class FilterToolAdapter<TInput = any> extends CanvasToolAdapter<
      - Rollback capability for SDK integration
      - User acceptance testing
 
-### Medium-Risk Changes
+### **Medium-Risk Changes**
 1. **Error Handling System** - New error strategies
 2. **Event-Driven Communication** - New communication patterns
 3. **Performance Optimization** - Caching and batching systems
 4. **Plugin Architecture** - Additional complexity
 
-### Rollback Plan
+### **Rollback Plan**
 - **Feature Flags**: All major systems can be toggled
 - **Adapter-Level Rollback**: Individual adapter reversion
 - **System-Level Rollback**: Complete architecture rollback
 - **Gradual Migration**: Mix old and new systems during transition
 - **Git Strategy**: Maintain working branches for each phase
 
-### Monitoring and Validation
+### **Monitoring and Validation**
 - **Performance Monitoring**: Adapter execution times, memory usage
 - **Error Tracking**: Conversion failures, dependency issues
 - **Integration Monitoring**: AI SDK communication, tool execution
 - **Code Quality**: Test coverage, type safety, pattern compliance
 
-## Progress Tracking
+---
 
-### Phase 1: Core Infrastructure (Days 1-4)
-**Progress:** 0/10 steps complete (0%)
-- [ ] Core types and interfaces (0%)
-- [ ] Parameter conversion system (0%)
-- [ ] Error handling system (0%)
-- [ ] Behavior system (0%)
-- [ ] Performance optimization (0%)
-- [ ] Plugin architecture (0%)
-- [ ] Enhanced BaseAdapter (0%)
-- [ ] Specialized base classes (0%)
-- [ ] Adapter factory system (0%)
-- [ ] Service container updates (0%)
+## 🎯 **DEFINITION OF DONE**
 
-### Phase 2: Canvas Tool Adapters (Days 5-8)
-**Progress:** 0/16 adapters migrated (0%)
-- **Core Adapters (6):** 0/6 complete (0%)
-- **Adjustment Adapters (5):** 0/5 complete (0%)
-- **Filter Adapters (5):** 0/5 complete (0%)
+The migration is ONLY complete when:
 
-### Phase 3: AI Service Adapters (Days 9-12)
-**Progress:** 0/11 adapters migrated (0%)
-- **Generation Adapters (2):** 0/2 complete (0%)
-- **Enhancement Adapters (3):** 0/3 complete (0%)
-- **Editing Adapters (3):** 0/3 complete (0%)
-- **Advanced Adapters (3):** 0/3 complete (0%)
+### **Code Quality (100% Required)**
+- [ ] **Zero TypeScript errors** in adapter files
+- [ ] **Zero ESLint errors** in adapter files
+- [ ] **Zero `any` types** in adapter code
+- [ ] **100% test coverage** for new domain services
 
-### Phase 4: Utility Adapters (Days 13-14)
-**Progress:** 0/4 adapters migrated (0%)
-- **Canvas Utilities (2):** 0/2 complete (0%)
-- **Execution Utilities (2):** 0/2 complete (0%)
+### **Architecture Consistency (100% Required)**
+- [ ] **All adapters** use unified dependency injection pattern
+- [ ] **All parameter conversion** goes through ParameterConverter
+- [ ] **Zero code duplication** in adapter logic
+- [ ] **Consistent error handling** with intelligent strategies
 
-### Phase 5: Integration & Validation (Days 15-16)
-**Progress:** 0/5 steps complete (0%)
-- [ ] Adapter registry updates (0%)
-- [ ] AI SDK v5 integration (0%)
-- [ ] Performance testing (0%)
-- [ ] Integration testing (0%)
-- [ ] Documentation (0%)
+### **Domain Model Purity (100% Required)**
+- [ ] **Zero layer references** in TypeScript files (except CSS/styling)
+- [ ] **All parameter schemas** use object-based terminology
+- [ ] **All response formats** use object-based naming
+- [ ] **File structure** reflects object-based architecture
 
-### Overall Progress Metrics
-- **Total Adapters:** 31 adapters to migrate
-- **Completed:** 0/31 (0%)
-- **In Progress:** 0/31 (0%)
-- **Infrastructure Steps:** 0/10 (0%)
-- **Integration Steps:** 0/5 (0%)
+### **Performance Standards (100% Required)**
+- [ ] **Adapter execution** < 50ms for simple operations
+- [ ] **Parameter conversion** < 5ms for typical inputs
+- [ ] **Memory usage** stable over 8+ hour sessions
+- [ ] **Zero memory leaks** in adapter system
 
-### Quality Gates
-- [ ] **Gate 1:** Core infrastructure compiles and passes tests
-- [ ] **Gate 2:** First 5 adapters migrated and functional
-- [ ] **Gate 3:** All canvas tool adapters (including Frame Adapter) working with new architecture
-- [ ] **Gate 4:** All AI service adapters integrated and tested
-- [ ] **Gate 5:** Performance benchmarks met or exceeded
-- [ ] **Gate 6:** Full integration testing passed
-- [ ] **Gate 7:** Production deployment ready
-
-### Success Metrics
-- **Code Duplication Reduction:** 60%+ reduction in duplicate code
-- **Type Safety:** 100% type-safe parameter conversion
-- **Performance:** Adapter execution time < 50ms, memory usage stable
-- **Error Handling:** 95%+ error recovery success rate
-- **Developer Experience:** New adapter creation time reduced by 70%
+### **Senior-Level Patterns (100% Required)**
+- [ ] **Dependency injection** for all services (no singletons)
+- [ ] **Event-driven communication** (no direct method calls)
+- [ ] **Command pattern** for all state changes
+- [ ] **Factory pattern** for object creation
+- [ ] **Composition over inheritance** in adapter design
 
 ---
 
-*Last Updated: [Date]*
-*Next Review: [Date]* 
+*This document will be updated in real-time as implementation progresses.* 

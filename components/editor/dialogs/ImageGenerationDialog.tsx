@@ -28,7 +28,7 @@ const COMMON_DIMENSIONS = [
 export function ImageGenerationDialog() {
   const toolStore = useService<EventToolStore>('ToolStore')
   const toolState = useStore(toolStore)
-  const activeTool = toolState.activeTool
+  const activeTool = toolStore.getActiveTool()
   const canvasManager = useService<CanvasManager>('CanvasManager')
   
   const [prompt, setPrompt] = useState('')

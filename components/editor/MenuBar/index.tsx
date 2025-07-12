@@ -5,7 +5,7 @@ import { useService } from '@/lib/core/AppInitializer'
 import { useStore } from '@/lib/store/base/BaseStore'
 import { EventSelectionStore } from '@/lib/store/selection/EventSelectionStore'
 import { EventToolStore } from '@/lib/store/tools/EventToolStore'
-import { ObjectManager } from '@/lib/editor/objects/ObjectManager'
+import { ObjectManager } from '@/lib/editor/canvas/services/ObjectManager'
 import { useEventHistoryStore } from '@/lib/events/history/EventBasedHistoryStore'
 import { useFileHandler } from '@/hooks/useFileHandler'
 

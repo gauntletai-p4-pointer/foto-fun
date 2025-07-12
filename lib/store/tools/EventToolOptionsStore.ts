@@ -20,6 +20,42 @@ export interface ToolOptionsConfig {
   options: ToolOption[]
 }
 
+/**
+ * Tool options configuration registered event
+ */
+export class ToolOptionsConfigRegisteredEvent extends Event {
+  constructor(
+    public readonly toolId: string,
+    public readonly optionCount: number,
+    metadata: Event['metadata']
+  ) {
+    super('ToolOptionsConfigRegisteredEvent', toolId, 'tool', metadata)
+  }
+  
+  apply(currentState: unknown): unknown {
+    return currentState
+  }
+  
+  reverse(): Event | null {
+    return null
+  }
+  
+  canApply(_context: unknown): boolean {
+    return true
+  }
+  
+  getDescription(): string {
+    return `Registered options config for tool: ${this.toolId}`
+  }
+  
+  protected getEventData(): Record<string, unknown> {
+    return {
+      toolId: this.toolId,
+      optionCount: this.optionCount
+    }
+  }
+}
+
 // Tool options store state
 export interface ToolOptionsState {
   // Option configurations by tool
@@ -46,6 +82,7 @@ export interface ToolOptionsState {
  */
 export class EventToolOptionsStore extends BaseStore<ToolOptionsState> {
   private typedEventBus: TypedEventBus
+  private _eventStore: EventStore
   private typedSubscriptions: Array<() => void> = []
   
   constructor(eventStore: EventStore, typedEventBus: TypedEventBus) {
@@ -60,12 +97,20 @@ export class EventToolOptionsStore extends BaseStore<ToolOptionsState> {
       eventStore
     )
     this.typedEventBus = typedEventBus
+    this._eventStore = eventStore
     this.initializeTypedSubscriptions()
   }
   
   protected getEventHandlers(): Map<string, (event: Event) => void> {
-    // We use TypedEventBus for most events
-    return new Map()
+    return new Map([
+      ['ToolOptionsConfigRegisteredEvent', this.handleToolOptionsConfigRegistered.bind(this)]
+    ])
+  }
+  
+  private handleToolOptionsConfigRegistered(event: Event): void {
+    const e = event as ToolOptionsConfigRegisteredEvent
+    // Tool options config registration is handled by the method that creates the event
+    // This handler is for consistency with event sourcing pattern
   }
   
   /**
@@ -165,7 +210,7 @@ export class EventToolOptionsStore extends BaseStore<ToolOptionsState> {
   /**
    * Register tool options configuration
    */
-  registerToolOptions(config: ToolOptionsConfig): void {
+  async registerToolOptions(config: ToolOptionsConfig): Promise<void> {
     this.setState(state => {
       const newConfigs = new Map(state.optionConfigs)
       newConfigs.set(config.toolId, config)
@@ -175,6 +220,13 @@ export class EventToolOptionsStore extends BaseStore<ToolOptionsState> {
         optionConfigs: newConfigs
       }
     })
+    
+    // Emit event for audit trail
+    await this._eventStore.append(new ToolOptionsConfigRegisteredEvent(
+      config.toolId,
+      config.options.length,
+      { source: 'system' }
+    ))
     
     // Emit event for tool options registration
     this.typedEventBus.emit('tool.options.registered', {

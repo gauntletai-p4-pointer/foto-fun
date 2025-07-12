@@ -4,7 +4,7 @@ import { useService } from '@/lib/core/AppInitializer'
 import { useStore } from '@/lib/store/base/BaseStore'
 import { EventSelectionStore } from '@/lib/store/selection/EventSelectionStore'
 import { TypedCanvasStore, useCanvasStore } from '@/lib/store/canvas/TypedCanvasStore'
-import { ObjectManager } from '@/lib/editor/objects/ObjectManager'
+import { ObjectManager } from '@/lib/editor/canvas/services/ObjectManager'
 import { useEffect, useState } from 'react'
 
 export function StatusBar() {

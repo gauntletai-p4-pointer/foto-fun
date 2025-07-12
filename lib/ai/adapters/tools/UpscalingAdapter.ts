@@ -18,6 +18,11 @@ interface Output {
   scaleFactor: number
 }
 
+interface AIToolDependencies {
+  eventBus: import('@/lib/events/core/TypedEventBus').TypedEventBus
+  modelPreferencesManager: import('@/lib/settings/ModelPreferences').ModelPreferencesManager
+}
+
 /**
  * AI Adapter for Image Upscaling
  * Increases image resolution using AI super-resolution
@@ -29,14 +34,31 @@ export class UpscalingAdapter extends UnifiedToolAdapter<Input, Output> {
   inputSchema = inputSchema
   
   private tool: UpscalingTool | null = null
+  private dependencies: AIToolDependencies | null = null
+
+  /**
+   * Set dependencies for proper dependency injection
+   */
+  setDependencies(dependencies: AIToolDependencies): void {
+    this.dependencies = dependencies
+  }
 
   private async initializeTool() {
     if (!this.tool) {
-      const { ModelPreferencesManager } = await import('@/lib/settings/ModelPreferences')
-      const { TypedEventBus } = await import('@/lib/events/core/TypedEventBus')
-      const preferencesManager = new ModelPreferencesManager()
-      const eventBus = new TypedEventBus()
-      this.tool = new (await import('@/lib/ai/tools/UpscalingTool')).UpscalingTool(preferencesManager, eventBus)
+      if (this.dependencies) {
+        // Use injected dependencies
+        this.tool = new (await import('@/lib/ai/tools/UpscalingTool')).UpscalingTool(
+          this.dependencies.modelPreferencesManager,
+          this.dependencies.eventBus
+        )
+      } else {
+        // Fallback to direct instantiation (for backward compatibility)
+        const { ModelPreferencesManager } = await import('@/lib/settings/ModelPreferences')
+        const { TypedEventBus } = await import('@/lib/events/core/TypedEventBus')
+        const preferencesManager = new ModelPreferencesManager()
+        const eventBus = new TypedEventBus()
+        this.tool = new (await import('@/lib/ai/tools/UpscalingTool')).UpscalingTool(preferencesManager, eventBus)
+      }
     }
   }
   

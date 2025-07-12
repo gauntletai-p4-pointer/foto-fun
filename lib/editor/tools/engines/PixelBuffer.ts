@@ -20,25 +20,33 @@ export class PixelBuffer {
    * Initialize the pixel buffer from the layer
    */
   private initializeBuffer(): void {
+    if (!this.canvas || !this.context) {
+      throw new Error('Canvas not initialized')
+    }
+    
     const stage = this.canvas
-    const stageSize = stage.size()
+    // Fix: Use canvas dimensions instead of stage.size()
+    const stageWidth = this.canvas.width
+    const stageHeight = this.canvas.height
     
     // Set working canvas size
-    this.canvas.width = stageSize.width
-    this.canvas.height = stageSize.height
+    this.canvas.width = stageWidth
+    this.canvas.height = stageHeight
     
     // Clear the canvas
-    this.context.clearRect(0, 0, stageSize.width, stageSize.height)
+    this.context.clearRect(0, 0, stageWidth, stageHeight)
     
-    // Draw the layer to the working canvas
-    const layerCanvas = this.layer.konvaLayer.toCanvas()
-    this.context.drawImage(layerCanvas, 0, 0)
+    // Draw the layer to the working canvas - only if layer exists
+    if (this.layer && this.layer.konvaLayer) {
+      const layerCanvas = this.layer.konvaLayer.toCanvas()
+      this.context.drawImage(layerCanvas, 0, 0)
+    }
     
     // Get pixel data
     this.buffer = this.context.getImageData(
       0, 0, 
-      stageSize.width, 
-      stageSize.height
+      stageWidth, 
+      stageHeight
     )
   }
   
@@ -48,6 +56,10 @@ export class PixelBuffer {
   getPixelData(): ImageData
   getPixelData(x: number, y: number, width: number, height: number): ImageData
   getPixelData(x?: number, y?: number, width?: number, height?: number): ImageData {
+    if (!this.context || !this.canvas) {
+      throw new Error('Canvas not initialized')
+    }
+    
     if (x === undefined || y === undefined || width === undefined || height === undefined) {
       // Return entire canvas data
       return this.context.getImageData(
@@ -79,6 +91,10 @@ export class PixelBuffer {
    * Update pixels with new image data
    */
   updatePixels(imageData: ImageData): void {
+    if (!this.context || !this.canvas) {
+      throw new Error('Canvas not initialized')
+    }
+    
     this.context.putImageData(imageData, 0, 0)
     
     // Update our cached pixel data
@@ -93,6 +109,10 @@ export class PixelBuffer {
    * Set pixel data for a specific region
    */
   setPixelData(imageData: ImageData, x: number, y: number): void {
+    if (!this.context || !this.canvas) {
+      throw new Error('Canvas not initialized')
+    }
+    
     this.context.putImageData(imageData, Math.floor(x), Math.floor(y))
     
     // Update our cached pixel data
@@ -219,6 +239,10 @@ export class PixelBuffer {
    * Clear the pixel buffer
    */
   clear(): void {
+    if (!this.context || !this.canvas) {
+      throw new Error('Canvas not initialized')
+    }
+    
     this.context.clearRect(
       0, 0,
       this.canvas.width,
@@ -244,6 +268,9 @@ export class PixelBuffer {
    * Get canvas dimensions
    */
   getDimensions(): { width: number; height: number } {
+    if (!this.canvas) {
+      throw new Error('Canvas not initialized')
+    }
     return {
       width: this.canvas.width,
       height: this.canvas.height

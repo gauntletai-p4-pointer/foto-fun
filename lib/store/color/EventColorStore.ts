@@ -40,6 +40,212 @@ export class ColorSelectedEvent extends Event {
 }
 
 /**
+ * Secondary color changed event
+ */
+export class SecondaryColorChangedEvent extends Event {
+  constructor(
+    public readonly color: string,
+    metadata: Event['metadata']
+  ) {
+    super('SecondaryColorChangedEvent', color, 'tool', metadata)
+  }
+  
+  apply(currentState: unknown): unknown {
+    return currentState
+  }
+  
+  reverse(): Event | null {
+    return null
+  }
+  
+  canApply(_context: unknown): boolean {
+    return true
+  }
+  
+  getDescription(): string {
+    return `Changed secondary color to: ${this.color}`
+  }
+  
+  protected getEventData(): Record<string, unknown> {
+    return {
+      color: this.color
+    }
+  }
+}
+
+/**
+ * Colors swapped event
+ */
+export class ColorsSwappedEvent extends Event {
+  constructor(
+    public readonly primaryColor: string,
+    public readonly secondaryColor: string,
+    metadata: Event['metadata']
+  ) {
+    super('ColorsSwappedEvent', `${primaryColor}-${secondaryColor}`, 'tool', metadata)
+  }
+  
+  apply(currentState: unknown): unknown {
+    return currentState
+  }
+  
+  reverse(): Event | null {
+    return new ColorsSwappedEvent(this.secondaryColor, this.primaryColor, this.metadata)
+  }
+  
+  canApply(_context: unknown): boolean {
+    return true
+  }
+  
+  getDescription(): string {
+    return 'Swapped primary and secondary colors'
+  }
+  
+  protected getEventData(): Record<string, unknown> {
+    return {
+      primaryColor: this.primaryColor,
+      secondaryColor: this.secondaryColor
+    }
+  }
+}
+
+/**
+ * Color added to favorites event
+ */
+export class ColorAddedToFavoritesEvent extends Event {
+  constructor(
+    public readonly color: string,
+    metadata: Event['metadata']
+  ) {
+    super('ColorAddedToFavoritesEvent', color, 'tool', metadata)
+  }
+  
+  apply(currentState: unknown): unknown {
+    return currentState
+  }
+  
+  reverse(): Event | null {
+    return new ColorRemovedFromFavoritesEvent(this.color, this.metadata)
+  }
+  
+  canApply(_context: unknown): boolean {
+    return true
+  }
+  
+  getDescription(): string {
+    return `Added ${this.color} to favorites`
+  }
+  
+  protected getEventData(): Record<string, unknown> {
+    return {
+      color: this.color
+    }
+  }
+}
+
+/**
+ * Color removed from favorites event
+ */
+export class ColorRemovedFromFavoritesEvent extends Event {
+  constructor(
+    public readonly color: string,
+    metadata: Event['metadata']
+  ) {
+    super('ColorRemovedFromFavoritesEvent', color, 'tool', metadata)
+  }
+  
+  apply(currentState: unknown): unknown {
+    return currentState
+  }
+  
+  reverse(): Event | null {
+    return new ColorAddedToFavoritesEvent(this.color, this.metadata)
+  }
+  
+  canApply(_context: unknown): boolean {
+    return true
+  }
+  
+  getDescription(): string {
+    return `Removed ${this.color} from favorites`
+  }
+  
+  protected getEventData(): Record<string, unknown> {
+    return {
+      color: this.color
+    }
+  }
+}
+
+/**
+ * Recent colors cleared event
+ */
+export class RecentColorsClearedEvent extends Event {
+  constructor(
+    public readonly previousColors: string[],
+    metadata: Event['metadata']
+  ) {
+    super('RecentColorsClearedEvent', previousColors.join(','), 'tool', metadata)
+  }
+  
+  apply(currentState: unknown): unknown {
+    return currentState
+  }
+  
+  reverse(): Event | null {
+    return null // Cannot reverse clearing
+  }
+  
+  canApply(_context: unknown): boolean {
+    return true
+  }
+  
+  getDescription(): string {
+    return 'Cleared recent colors'
+  }
+  
+  protected getEventData(): Record<string, unknown> {
+    return {
+      previousColors: this.previousColors
+    }
+  }
+}
+
+/**
+ * Color mode changed event
+ */
+export class ColorModeChangedEvent extends Event {
+  constructor(
+    public readonly mode: 'RGB' | 'HSL' | 'HEX',
+    metadata: Event['metadata']
+  ) {
+    super('ColorModeChangedEvent', mode, 'tool', metadata)
+  }
+  
+  apply(currentState: unknown): unknown {
+    return currentState
+  }
+  
+  reverse(): Event | null {
+    return null // Cannot reverse mode change without previous mode
+  }
+  
+  canApply(_context: unknown): boolean {
+    return true
+  }
+  
+  getDescription(): string {
+    return `Changed color mode to ${this.mode}`
+  }
+  
+  protected getEventData(): Record<string, unknown> {
+    return {
+      mode: this.mode
+    }
+  }
+}
+
+/**
  * Color store state
  */
 export interface ColorStoreState {
@@ -81,7 +287,13 @@ export class EventColorStore extends BaseStore<ColorStoreState> {
   
   protected getEventHandlers(): Map<string, (event: Event) => void> {
     return new Map([
-      ['ColorSelectedEvent', this.handleColorSelected.bind(this)]
+      ['ColorSelectedEvent', this.handleColorSelected.bind(this)],
+      ['SecondaryColorChangedEvent', this.handleSecondaryColorChanged.bind(this)],
+      ['ColorsSwappedEvent', this.handleColorsSwapped.bind(this)],
+      ['ColorAddedToFavoritesEvent', this.handleColorAddedToFavorites.bind(this)],
+      ['ColorRemovedFromFavoritesEvent', this.handleColorRemovedFromFavorites.bind(this)],
+      ['RecentColorsClearedEvent', this.handleRecentColorsCleared.bind(this)],
+      ['ColorModeChangedEvent', this.handleColorModeChanged.bind(this)]
     ])
   }
   
@@ -98,6 +310,63 @@ export class EventColorStore extends BaseStore<ColorStoreState> {
         recentColors
       }
     })
+  }
+  
+  private handleSecondaryColorChanged(event: Event): void {
+    const e = event as SecondaryColorChangedEvent
+    
+    this.setState(state => ({
+      ...state,
+      secondaryColor: e.color
+    }))
+  }
+  
+  private handleColorsSwapped(event: Event): void {
+    const e = event as ColorsSwappedEvent
+    
+    this.setState(state => ({
+      ...state,
+      primaryColor: e.primaryColor,
+      secondaryColor: e.secondaryColor
+    }))
+  }
+  
+  private handleColorAddedToFavorites(event: Event): void {
+    const e = event as ColorAddedToFavoritesEvent
+    
+    this.setState(state => {
+      if (state.favoriteColors.includes(e.color)) return state
+      
+      return {
+        ...state,
+        favoriteColors: [...state.favoriteColors, e.color]
+      }
+    })
+  }
+  
+  private handleColorRemovedFromFavorites(event: Event): void {
+    const e = event as ColorRemovedFromFavoritesEvent
+    
+    this.setState(state => ({
+      ...state,
+      favoriteColors: state.favoriteColors.filter(c => c !== e.color)
+    }))
+  }
+  
+  private handleRecentColorsCleared(event: Event): void {
+    this.setState(state => ({
+      ...state,
+      recentColors: []
+    }))
+  }
+  
+  private handleColorModeChanged(event: Event): void {
+    const e = event as ColorModeChangedEvent
+    
+    this.setState(state => ({
+      ...state,
+      colorMode: e.mode
+    }))
   }
   
   private addToRecentColors(colors: string[], newColor: string, maxColors: number): string[] {
@@ -127,66 +396,64 @@ export class EventColorStore extends BaseStore<ColorStoreState> {
   /**
    * Set secondary color
    */
-  setSecondaryColor(color: string): void {
-    this.setState(state => ({
-      ...state,
-      secondaryColor: color
-    }))
+  async setSecondaryColor(color: string): Promise<void> {
+    await this._eventStore.append(new SecondaryColorChangedEvent(
+      color,
+      { source: 'user' }
+    ))
   }
   
   /**
    * Swap primary and secondary colors
    */
-  swapColors(): void {
-    this.setState(state => ({
-      ...state,
-      primaryColor: state.secondaryColor,
-      secondaryColor: state.primaryColor
-    }))
+  async swapColors(): Promise<void> {
+    const state = this.getState()
+    await this._eventStore.append(new ColorsSwappedEvent(
+      state.secondaryColor,
+      state.primaryColor,
+      { source: 'user' }
+    ))
   }
   
   /**
    * Add color to favorites
    */
-  addToFavorites(color: string): void {
-    this.setState(state => {
-      if (state.favoriteColors.includes(color)) return state
-      
-      return {
-        ...state,
-        favoriteColors: [...state.favoriteColors, color]
-      }
-    })
+  async addToFavorites(color: string): Promise<void> {
+    await this._eventStore.append(new ColorAddedToFavoritesEvent(
+      color,
+      { source: 'user' }
+    ))
   }
   
   /**
    * Remove color from favorites
    */
-  removeFromFavorites(color: string): void {
-    this.setState(state => ({
-      ...state,
-      favoriteColors: state.favoriteColors.filter(c => c !== color)
-    }))
+  async removeFromFavorites(color: string): Promise<void> {
+    await this._eventStore.append(new ColorRemovedFromFavoritesEvent(
+      color,
+      { source: 'user' }
+    ))
   }
   
   /**
    * Clear recent colors
    */
-  clearRecentColors(): void {
-    this.setState(state => ({
-      ...state,
-      recentColors: []
-    }))
+  async clearRecentColors(): Promise<void> {
+    const state = this.getState()
+    await this._eventStore.append(new RecentColorsClearedEvent(
+      state.recentColors,
+      { source: 'user' }
+    ))
   }
   
   /**
    * Set color mode
    */
-  setColorMode(mode: ColorStoreState['colorMode']): void {
-    this.setState(state => ({
-      ...state,
-      colorMode: mode
-    }))
+  async setColorMode(mode: ColorStoreState['colorMode']): Promise<void> {
+    await this._eventStore.append(new ColorModeChangedEvent(
+      mode,
+      { source: 'user' }
+    ))
   }
   
   // Getters

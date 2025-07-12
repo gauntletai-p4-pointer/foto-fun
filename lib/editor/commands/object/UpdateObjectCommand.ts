@@ -1,5 +1,6 @@
 import type { CanvasObject } from '@/lib/editor/objects/types'
 import { Command, type CommandContext } from '../base/Command'
+import { success, failure, ExecutionError, type CommandResult } from '../base/CommandResult'
 
 export interface UpdateObjectOptions {
   objectId: string
@@ -42,9 +43,28 @@ export class UpdateObjectCommand extends Command {
     await this.context.canvasManager.updateObject(this.options.objectId, this.options.updates)
   }
 
-  async undo(): Promise<void> {
-    if (this.previousState) {
+  async undo(): Promise<CommandResult<void>> {
+    try {
+      if (!this.previousState) {
+        return failure(
+          new ExecutionError('Cannot undo: previous state not available', { commandId: this.id })
+        )
+      }
+
+      // Restore the previous state
       await this.context.canvasManager.updateObject(this.options.objectId, this.previousState)
+
+      return success(undefined, [], {
+        executionTime: 0,
+        affectedObjects: [this.options.objectId]
+      })
+    } catch (error) {
+      return failure(
+        new ExecutionError(
+          `Failed to undo update object: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          { commandId: this.id }
+        )
+      )
     }
   }
 

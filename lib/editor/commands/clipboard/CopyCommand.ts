@@ -1,6 +1,7 @@
 import type { CanvasObject } from '@/lib/editor/objects/types'
 import { ClipboardManager } from '@/lib/editor/clipboard/ClipboardManager'
 import { Command, type CommandContext } from '../base/Command'
+import { CommandResult } from '../base/CommandResult'
 
 export interface CopyOptions {
   objects?: CanvasObject[]
@@ -42,9 +43,17 @@ export class CopyCommand extends Command {
     await this.clipboardManager.copy(objectsToCopy)
   }
 
-  async undo(): Promise<void> {
-    // Copy operation cannot be undone
-    // The clipboard state is not tracked for undo
+  async undo(): Promise<CommandResult<void>> {
+    // Copy operations can't be undone - they don't change canvas state
+    return {
+      success: true,
+      data: undefined,
+      events: [],
+      metadata: {
+        executionTime: 0,
+        affectedObjects: []
+      }
+    }
   }
 
   canExecute(): boolean {

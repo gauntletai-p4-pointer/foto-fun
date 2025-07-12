@@ -1,53 +1,59 @@
 import { ObjectTool } from '../base/ObjectTool'
-import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
 import type { ToolEvent } from '@/lib/editor/canvas/types'
 import type { CanvasObject } from '@/lib/editor/objects/types'
 import { ReplicateService } from '@/lib/ai/services/replicate'
-import { TypedEventBus } from '@/lib/events/core/TypedEventBus'
+import type { ToolDependencies, ToolOptions } from '@/lib/editor/tools/base/BaseTool'
 import { isImageObject } from '@/lib/editor/objects/types'
 import { MagicEraserIcon } from '@/components/editor/icons/AIToolIcons'
 
-export interface MagicEraserOptions {
-  mode: 'object' | 'brush' | 'lasso'
-  brushSize: number // For brush mode
-  autoFill: boolean // Automatically fill after erasing
-  fillQuality: 'fast' | 'balanced' | 'best'
+export interface MagicEraserOptions extends ToolOptions {
+  mode: { type: 'enum'; default: string; enum: string[] }
+  brushSize: { type: 'number'; default: number; min: 1; max: 200 }
+  autoFill: { type: 'boolean'; default: boolean }
+  fillQuality: { type: 'enum'; default: string; enum: string[] }
 }
 
-
 /**
- * AI-powered eraser that intelligently removes objects and fills the background
- * Uses scene understanding to generate realistic fill content
+ * Magic Eraser Tool - AI-powered intelligent erasing
+ * Modes: object (click to remove), brush (paint to erase), lasso (draw selection)
  */
-export class MagicEraserTool extends ObjectTool {
+export class MagicEraserTool extends ObjectTool<MagicEraserOptions> {
   id = 'ai-magic-eraser'
   name = 'Magic Eraser'
   icon = MagicEraserIcon
   cursor = 'crosshair'
   
   private replicateService: ReplicateService
-  private eventBus: TypedEventBus
   private isErasing = false
   private erasureCanvas: HTMLCanvasElement | null = null
   private erasureCtx: CanvasRenderingContext2D | null = null
   private currentObject: CanvasObject | null = null
   private lassoPoints: Array<{ x: number; y: number }> = []
   
-  constructor() {
-    super()
+  constructor(dependencies: ToolDependencies) {
+    super(dependencies)
     this.replicateService = new ReplicateService()
-    this.eventBus = new TypedEventBus()
+  }
+  
+  protected getOptionDefinitions(): MagicEraserOptions {
+    return {
+      mode: { type: 'enum', default: 'object', enum: ['object', 'brush', 'lasso'] },
+      brushSize: { type: 'number', default: 50, min: 1, max: 200 },
+      autoFill: { type: 'boolean', default: true },
+      fillQuality: { type: 'enum', default: 'balanced', enum: ['fast', 'balanced', 'best'] }
+    }
   }
 
-  protected setupTool(): void {
-    // Set default options
-    this.setOption('mode', 'object')
-    this.setOption('brushSize', 50)
-    this.setOption('autoFill', true)
-    this.setOption('fillQuality', 'balanced')
+  protected async setupTool(): Promise<void> {
+    const mode = this.getOption('mode') as string
+    this.dependencies.eventBus.emit('tool.message', {
+      toolId: this.id,
+      type: 'info',
+      message: `Magic Eraser (${mode} mode): Click to remove objects intelligently`
+    })
   }
 
-  protected cleanupTool(): void {
+  protected async cleanupTool(): Promise<void> {
     // Clean up any ongoing erasure state
     this.isErasing = false
     this.erasureCanvas = null
@@ -55,46 +61,24 @@ export class MagicEraserTool extends ObjectTool {
     this.currentObject = null
     this.lassoPoints = []
   }
-  
-  getOptions(): MagicEraserOptions {
-    return {
-      mode: 'object',
-      brushSize: 50,
-      autoFill: true,
-      fillQuality: 'balanced'
-    }
-  }
-  
-  async onActivate(canvas: CanvasManager): Promise<void> {
-    await super.onActivate(canvas)
+
+  protected handleMouseDown(event: ToolEvent): void {
+    const canvas = this.dependencies.canvasManager
+    const mode = this.getOption('mode') as string
     
-    const options = this.getOptions()
-    this.eventBus.emit('tool.message', {
-      toolId: this.id,
-      type: 'info',
-      message: `Magic Eraser (${options.mode} mode): Click to remove objects intelligently`
-    })
-  }
-  
-  async onMouseDown(event: ToolEvent): Promise<void> {
-    const canvas = this.getCanvas()
-    if (!canvas) return
-    
-    const options = this.getOptions()
-    
-    if (options.mode === 'object') {
+    if (mode === 'object') {
       // Object mode - click to select and remove entire objects
       const targetObject = canvas.getObjectAtPoint(event.point)
       if (targetObject) {
-        await this.eraseObject(targetObject)
+        this.eraseObject(targetObject)
       }
-    } else if (options.mode === 'brush') {
+    } else if (mode === 'brush') {
       // Brush mode - paint areas to erase
       const targetObject = canvas.getObjectAtPoint(event.point)
       if (targetObject && isImageObject(targetObject)) {
         this.startBrushErasure(targetObject, event.point)
       }
-    } else if (options.mode === 'lasso') {
+    } else if (mode === 'lasso') {
       // Lasso mode - draw selection to erase
       const targetObject = canvas.getObjectAtPoint(event.point)
       if (targetObject && isImageObject(targetObject)) {
@@ -102,29 +86,29 @@ export class MagicEraserTool extends ObjectTool {
       }
     }
   }
-  
-  async onMouseMove(event: ToolEvent): Promise<void> {
+
+  protected handleMouseMove(event: ToolEvent): void {
     if (!this.isErasing) return
     
-    const options = this.getOptions()
+    const mode = this.getOption('mode') as string
     
-    if (options.mode === 'brush' && this.erasureCtx && this.currentObject) {
+    if (mode === 'brush' && this.erasureCtx && this.currentObject) {
       this.continueBrushErasure(event.point)
-    } else if (options.mode === 'lasso') {
+    } else if (mode === 'lasso') {
       this.continueLassoErasure(event.point)
     }
   }
-  
-  async onMouseUp(_event: ToolEvent): Promise<void> {
+
+  protected handleMouseUp(_event: ToolEvent): void {
     if (!this.isErasing) return
     
     this.isErasing = false
-    const options = this.getOptions()
+    const mode = this.getOption('mode') as string
     
-    if (options.mode === 'brush' && this.erasureCanvas && this.currentObject) {
-      await this.finishBrushErasure()
-    } else if (options.mode === 'lasso' && this.lassoPoints.length > 2 && this.currentObject) {
-      await this.finishLassoErasure()
+    if (mode === 'brush' && this.erasureCanvas && this.currentObject) {
+      this.finishBrushErasure()
+    } else if (mode === 'lasso' && this.lassoPoints.length > 2 && this.currentObject) {
+      this.finishLassoErasure()
     }
     
     // Clean up
@@ -133,20 +117,18 @@ export class MagicEraserTool extends ObjectTool {
     this.currentObject = null
     this.lassoPoints = []
   }
-  
+
   private async eraseObject(object: CanvasObject): Promise<void> {
-    const canvas = this.getCanvas()
-    if (!canvas) return
-    
-    const options = this.getOptions()
+    const canvas = this.dependencies.canvasManager
+    const autoFill = this.getOption('autoFill') as boolean
     
     try {
       const taskId = `${this.id}-${Date.now()}`
-      this.eventBus.emit('ai.processing.started', {
+      this.dependencies.eventBus.emit('ai.processing.started', {
         operationId: taskId,
         type: 'object-removal',
-        toolId: this.id,
         metadata: {
+          toolId: this.id,
           description: 'Removing object with AI',
           targetObjectIds: [object.id]
         }
@@ -154,7 +136,7 @@ export class MagicEraserTool extends ObjectTool {
       
       if (isImageObject(object)) {
         // For image objects, use AI to fill the space
-        if (options.autoFill) {
+        if (autoFill) {
           await this.fillRemovedArea(object)
         }
       }
@@ -162,26 +144,29 @@ export class MagicEraserTool extends ObjectTool {
       // Remove the object
       await canvas.removeObject(object.id)
       
-      this.eventBus.emit('ai.processing.completed', {
+      this.dependencies.eventBus.emit('ai.processing.completed', {
         operationId: taskId,
-        toolId: this.id,
         result: {
           success: true,
           affectedObjectIds: [object.id]
+        },
+        metadata: {
+          toolId: this.id
         }
       })
       
     } catch (error) {
       console.error('Magic eraser failed:', error)
-      const errorTaskId = `${this.id}-${Date.now()}`
-      this.eventBus.emit('ai.processing.failed', {
-        operationId: errorTaskId,
-        toolId: this.id,
-        error: error instanceof Error ? error.message : 'Unknown error'
+      this.dependencies.eventBus.emit('ai.processing.failed', {
+        operationId: `${this.id}-${Date.now()}`,
+        error: error instanceof Error ? error.message : 'Magic eraser failed',
+        metadata: {
+          toolId: this.id
+        }
       })
     }
   }
-  
+
   private startBrushErasure(object: CanvasObject, point: { x: number; y: number }): void {
     this.isErasing = true
     this.currentObject = object
@@ -198,16 +183,16 @@ export class MagicEraserTool extends ObjectTool {
     // Draw first point
     this.drawErasurePoint(point)
   }
-  
+
   private continueBrushErasure(point: { x: number; y: number }): void {
     if (!this.erasureCtx || !this.currentObject) return
     this.drawErasurePoint(point)
   }
-  
+
   private drawErasurePoint(point: { x: number; y: number }): void {
     if (!this.erasureCtx || !this.currentObject) return
     
-    const options = this.getOptions()
+    const brushSize = this.getOption('brushSize') as number
     const relativeX = point.x - this.currentObject.x
     const relativeY = point.y - this.currentObject.y
     
@@ -215,10 +200,10 @@ export class MagicEraserTool extends ObjectTool {
     this.erasureCtx.globalCompositeOperation = 'source-over'
     this.erasureCtx.fillStyle = 'white'
     this.erasureCtx.beginPath()
-    this.erasureCtx.arc(relativeX, relativeY, options.brushSize / 2, 0, Math.PI * 2)
+    this.erasureCtx.arc(relativeX, relativeY, brushSize / 2, 0, Math.PI * 2)
     this.erasureCtx.fill()
   }
-  
+
   private async finishBrushErasure(): Promise<void> {
     if (!this.erasureCanvas || !this.currentObject || !isImageObject(this.currentObject)) return
     
@@ -231,18 +216,17 @@ export class MagicEraserTool extends ObjectTool {
       height: this.erasureCanvas.height
     })
   }
-  
+
   private startLassoErasure(object: CanvasObject, point: { x: number; y: number }): void {
     this.isErasing = true
     this.currentObject = object
     this.lassoPoints = [point]
   }
-  
+
   private continueLassoErasure(point: { x: number; y: number }): void {
     this.lassoPoints.push(point)
-    // Could show preview of lasso path
   }
-  
+
   private async finishLassoErasure(): Promise<void> {
     if (!this.currentObject || !isImageObject(this.currentObject)) return
     
@@ -252,13 +236,12 @@ export class MagicEraserTool extends ObjectTool {
     maskCanvas.height = this.currentObject.height
     const maskCtx = maskCanvas.getContext('2d')!
     
-    // Draw lasso path
+    // Draw lasso selection
     maskCtx.fillStyle = 'white'
     maskCtx.beginPath()
     this.lassoPoints.forEach((point, index) => {
       const relativeX = point.x - this.currentObject!.x
       const relativeY = point.y - this.currentObject!.y
-      
       if (index === 0) {
         maskCtx.moveTo(relativeX, relativeY)
       } else {
@@ -277,243 +260,242 @@ export class MagicEraserTool extends ObjectTool {
       height: maskCanvas.height
     })
   }
-  
+
   private async applyErasure(
     object: CanvasObject & { data: import('@/lib/editor/objects/types').ImageData },
     maskData: ImageData,
     _bounds: { x: number; y: number; width: number; height: number }
   ): Promise<void> {
-    const canvas = this.getCanvas()
-    if (!canvas) return
-    
-    const options = this.getOptions()
+    const canvas = this.dependencies.canvasManager
+    const autoFill = this.getOption('autoFill') as boolean
+    const fillQuality = this.getOption('fillQuality') as string
     
     try {
-      const taskId = `${this.id}-fill-${Date.now()}`
-      this.eventBus.emit('ai.processing.started', {
+      const taskId = `${this.id}-${Date.now()}`
+      this.dependencies.eventBus.emit('ai.processing.started', {
         operationId: taskId,
-        type: 'content-aware-fill',
-        toolId: this.id,
+        type: 'ai-erasure',
         metadata: {
-          description: 'Content-aware fill'
+          toolId: this.id,
+          description: 'Erasing area with AI',
+          targetObjectIds: [object.id]
         }
       })
       
-      // Get the original image
+      // Get the original image data
       const originalCanvas = document.createElement('canvas')
       originalCanvas.width = object.width
       originalCanvas.height = object.height
       const originalCtx = originalCanvas.getContext('2d')!
       
+      // Draw the original image
       if (object.data.element instanceof HTMLImageElement) {
         originalCtx.drawImage(object.data.element, 0, 0, object.width, object.height)
       } else {
         originalCtx.drawImage(object.data.element, 0, 0)
       }
       
-      // In a real implementation, this would:
-      // 1. Send the image and mask to an AI inpainting model
-      // 2. Get back the filled result
+      let resultCanvas: HTMLCanvasElement
       
-      // For now, simulate content-aware fill
-      const filledCanvas = await this.simulateContentAwareFill(
-        originalCanvas,
-        maskData,
-        options
-      )
-      
-      // Create a new image object with the result
-      const blob = await new Promise<Blob>((resolve) => {
-        filledCanvas.toBlob((blob) => resolve(blob!), 'image/png')
-      })
-      
-      const url = URL.createObjectURL(blob)
-      const img = new Image()
-      
-      img.onload = async () => {
-        // Update the object with the new image
-        await canvas.updateObject(object.id, {
-          data: {
-            src: url,
-            naturalWidth: img.naturalWidth,
-            naturalHeight: img.naturalHeight,
-            element: img
-          },
-          metadata: {
-            ...object.metadata,
-            lastMagicErase: new Date().toISOString()
-          }
+      if (autoFill) {
+        // Use AI to fill the erased area
+        resultCanvas = await this.simulateContentAwareFill(originalCanvas, maskData, {
+          fillQuality
         })
+      } else {
+        // Just erase (make transparent)
+        resultCanvas = document.createElement('canvas')
+        resultCanvas.width = object.width
+        resultCanvas.height = object.height
+        const resultCtx = resultCanvas.getContext('2d')!
         
-        this.eventBus.emit('ai.processing.completed', {
-          operationId: taskId,
-          toolId: this.id,
-          result: {
-            success: true
+        // Copy original
+        resultCtx.drawImage(originalCanvas, 0, 0)
+        
+        // Apply mask to make areas transparent
+        const imageData = resultCtx.getImageData(0, 0, resultCanvas.width, resultCanvas.height)
+        const data = imageData.data
+        const maskPixels = maskData.data
+        
+        for (let i = 0; i < data.length; i += 4) {
+          const maskAlpha = maskPixels[i + 3] / 255
+          if (maskAlpha > 0) {
+            data[i + 3] = 0 // Make transparent
           }
-        })
+        }
+        
+        resultCtx.putImageData(imageData, 0, 0)
       }
       
-      img.src = url
+      // Update the object with the result
+      await canvas.updateObject(object.id, {
+        data: {
+          element: resultCanvas,
+          naturalWidth: resultCanvas.width,
+          naturalHeight: resultCanvas.height
+        } as import('@/lib/editor/objects/types').ImageData
+      })
+      
+      this.dependencies.eventBus.emit('ai.processing.completed', {
+        operationId: taskId,
+        result: {
+          success: true,
+          affectedObjectIds: [object.id]
+        },
+        metadata: {
+          toolId: this.id
+        }
+      })
       
     } catch (error) {
-      console.error('Content-aware fill failed:', error)
-      const errorTaskId = `${this.id}-fill-${Date.now()}`
-      this.eventBus.emit('ai.processing.failed', {
-        operationId: errorTaskId,
-        toolId: this.id,
-        error: error instanceof Error ? error.message : 'Unknown error'
+      console.error('AI erasure failed:', error)
+      this.dependencies.eventBus.emit('ai.processing.failed', {
+        operationId: `${this.id}-${Date.now()}`,
+        error: error instanceof Error ? error.message : 'AI erasure failed',
+        metadata: {
+          toolId: this.id
+        }
       })
     }
   }
-  
+
   private async fillRemovedArea(object: CanvasObject): Promise<void> {
-    // This would analyze surrounding objects and generate appropriate fill
-    // For now, we'll skip this as it requires complex scene understanding
-    console.log('Would fill area where object was removed:', object.id)
+    // Simulate content-aware fill for removed objects
+    console.log('Filling removed area for object:', object.id)
   }
-  
+
   private async simulateContentAwareFill(
     originalCanvas: HTMLCanvasElement,
     maskData: ImageData,
-    options: MagicEraserOptions
+    options: { fillQuality: string }
   ): Promise<HTMLCanvasElement> {
-    const width = originalCanvas.width
-    const height = originalCanvas.height
-    
+    // This is a simplified simulation of content-aware fill
+    // In a real implementation, this would use AI inpainting models
     const resultCanvas = document.createElement('canvas')
-    resultCanvas.width = width
-    resultCanvas.height = height
-    const resultCtx = resultCanvas.getContext('2d')!
+    resultCanvas.width = originalCanvas.width
+    resultCanvas.height = originalCanvas.height
+    const ctx = resultCanvas.getContext('2d')!
     
-    // Draw original
-    resultCtx.drawImage(originalCanvas, 0, 0)
+    // Copy original image
+    ctx.drawImage(originalCanvas, 0, 0)
     
-    // Get image data
-    const imageData = resultCtx.getImageData(0, 0, width, height)
+    // Apply content-aware fill simulation
+    const imageData = ctx.getImageData(0, 0, resultCanvas.width, resultCanvas.height)
     const data = imageData.data
     const maskPixels = maskData.data
+    const width = resultCanvas.width
+    const height = resultCanvas.height
     
-    // Simple content-aware fill simulation
-    // In reality, this would use AI to understand and fill the scene
-    
+    // Simple content-aware fill: sample from surrounding pixels
     for (let y = 0; y < height; y++) {
       for (let x = 0; x < width; x++) {
-        const idx = (y * width + x) * 4
+        const i = (y * width + x) * 4
+        const maskAlpha = maskPixels[i + 3] / 255
         
-        // Check if this pixel should be filled
-        if (maskPixels[idx + 3] > 128) {
-          // Find nearby pixels that aren't masked
-          const samples: Array<{ r: number; g: number; b: number }> = []
-          const sampleRadius = options.fillQuality === 'best' ? 20 : 
-                               options.fillQuality === 'balanced' ? 10 : 5
-          
-          for (let dy = -sampleRadius; dy <= sampleRadius; dy++) {
-            for (let dx = -sampleRadius; dx <= sampleRadius; dx++) {
-              const nx = x + dx
-              const ny = y + dy
-              
-              if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
-                const nidx = (ny * width + nx) * 4
-                
-                // Only sample non-masked pixels
-                if (maskPixels[nidx + 3] < 128) {
-                  samples.push({
-                    r: data[nidx],
-                    g: data[nidx + 1],
-                    b: data[nidx + 2]
-                  })
-                }
-              }
-            }
-          }
-          
+        if (maskAlpha > 0) {
+          // This pixel needs to be filled
+          const samples = this.sampleSurroundingPixels(data, x, y, width, height, maskPixels)
           if (samples.length > 0) {
-            // Use weighted average based on distance
-            let totalR = 0, totalG = 0, totalB = 0
-            let totalWeight = 0
+            // Average the samples
+            let r = 0, g = 0, b = 0
+            for (const sample of samples) {
+              r += sample.r
+              g += sample.g
+              b += sample.b
+            }
             
-            samples.forEach((sample, i) => {
-              const weight = 1 / (i + 1) // Simple distance weighting
-              totalR += sample.r * weight
-              totalG += sample.g * weight
-              totalB += sample.b * weight
-              totalWeight += weight
-            })
-            
-            data[idx] = Math.round(totalR / totalWeight)
-            data[idx + 1] = Math.round(totalG / totalWeight)
-            data[idx + 2] = Math.round(totalB / totalWeight)
-            
-            // Add slight noise for realism
-            data[idx] += (Math.random() - 0.5) * 5
-            data[idx + 1] += (Math.random() - 0.5) * 5
-            data[idx + 2] += (Math.random() - 0.5) * 5
-            
-            // Clamp values
-            data[idx] = Math.max(0, Math.min(255, data[idx]))
-            data[idx + 1] = Math.max(0, Math.min(255, data[idx + 1]))
-            data[idx + 2] = Math.max(0, Math.min(255, data[idx + 2]))
+            data[i] = r / samples.length
+            data[i + 1] = g / samples.length
+            data[i + 2] = b / samples.length
+            data[i + 3] = 255 // Full opacity
           }
         }
       }
     }
     
-    // Apply smoothing pass for better quality
-    if (options.fillQuality !== 'fast') {
+    // Apply quality-based smoothing
+    if (options.fillQuality === 'best') {
       this.smoothFillEdges(data, maskPixels, width, height)
     }
     
-    resultCtx.putImageData(imageData, 0, 0)
+    ctx.putImageData(imageData, 0, 0)
     return resultCanvas
   }
-  
+
+  private sampleSurroundingPixels(
+    data: Uint8ClampedArray,
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    maskPixels: Uint8ClampedArray
+  ): Array<{ r: number; g: number; b: number }> {
+    const samples: Array<{ r: number; g: number; b: number }> = []
+    const radius = 5
+    
+    for (let dy = -radius; dy <= radius; dy++) {
+      for (let dx = -radius; dx <= radius; dx++) {
+        const nx = x + dx
+        const ny = y + dy
+        
+        if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
+          const idx = (ny * width + nx) * 4
+          const maskAlpha = maskPixels[idx + 3] / 255
+          
+          // Only sample from non-masked pixels
+          if (maskAlpha === 0) {
+            samples.push({
+              r: data[idx],
+              g: data[idx + 1],
+              b: data[idx + 2]
+            })
+          }
+        }
+      }
+    }
+    
+    return samples
+  }
+
   private smoothFillEdges(
     data: Uint8ClampedArray,
     maskPixels: Uint8ClampedArray,
     width: number,
     height: number
   ): void {
-    // Smooth the edges between filled and original areas
+    // Apply Gaussian blur to edges of filled areas
+    const blurRadius = 2
     const tempData = new Uint8ClampedArray(data)
     
-    for (let y = 1; y < height - 1; y++) {
-      for (let x = 1; x < width - 1; x++) {
-        const idx = (y * width + x) * 4
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const i = (y * width + x) * 4
+        const maskAlpha = maskPixels[i + 3] / 255
         
-        // Check if this is near a fill edge
-        const isFilled = maskPixels[idx + 3] > 128
-        let hasUnfilledNeighbor = false
-        
-        for (let dy = -1; dy <= 1; dy++) {
-          for (let dx = -1; dx <= 1; dx++) {
-            if (dx === 0 && dy === 0) continue
-            
-            const nidx = ((y + dy) * width + (x + dx)) * 4
-            if (maskPixels[nidx + 3] < 128) {
-              hasUnfilledNeighbor = true
-              break
-            }
-          }
-        }
-        
-        // Smooth edge pixels
-        if (isFilled && hasUnfilledNeighbor) {
+        if (maskAlpha > 0) {
+          // This is a filled pixel, apply blur
           let r = 0, g = 0, b = 0, count = 0
           
-          for (let dy = -1; dy <= 1; dy++) {
-            for (let dx = -1; dx <= 1; dx++) {
-              const nidx = ((y + dy) * width + (x + dx)) * 4
-              r += tempData[nidx]
-              g += tempData[nidx + 1]
-              b += tempData[nidx + 2]
-              count++
+          for (let dy = -blurRadius; dy <= blurRadius; dy++) {
+            for (let dx = -blurRadius; dx <= blurRadius; dx++) {
+              const nx = x + dx
+              const ny = y + dy
+              
+              if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
+                const idx = (ny * width + nx) * 4
+                r += tempData[idx]
+                g += tempData[idx + 1]
+                b += tempData[idx + 2]
+                count++
+              }
             }
           }
           
-          data[idx] = Math.round(r / count)
-          data[idx + 1] = Math.round(g / count)
-          data[idx + 2] = Math.round(b / count)
+          if (count > 0) {
+            data[i] = r / count
+            data[i + 1] = g / count
+            data[i + 2] = b / count
+          }
         }
       }
     }

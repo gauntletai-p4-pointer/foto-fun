@@ -9,7 +9,7 @@ import type { CommandResult } from './CommandResult'
 /**
  * Object data union type for snapshots
  */
-export type SnapshotObjectData = ImageData | TextData | ShapeData | import('@/lib/editor/objects/types').GroupData
+export type SnapshotObjectData = ImageData | TextData | ShapeData | import('@/lib/editor/objects/types').GroupData | import('@/lib/editor/objects/types').FrameData
 
 /**
  * Canvas state snapshot for rollback
@@ -17,7 +17,7 @@ export type SnapshotObjectData = ImageData | TextData | ShapeData | import('@/li
 export interface CanvasStateSnapshot {
   objects: Array<{
     id: string
-    type: 'image' | 'text' | 'shape' | 'group' | 'verticalText'
+    type: 'image' | 'text' | 'shape' | 'group' | 'verticalText' | 'frame'
     name: string
     x: number
     y: number

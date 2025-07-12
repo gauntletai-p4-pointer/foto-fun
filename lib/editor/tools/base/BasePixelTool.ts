@@ -1,15 +1,25 @@
-import { BaseTool } from './BaseTool'
+import { BaseTool, type ToolDependencies, type ToolOptions, type ToolOptionDefinition } from './BaseTool'
 import type { ToolEvent, Point } from '@/lib/editor/canvas/types'
 import { BrushEngine } from '../engines/BrushEngine'
 import { BlendingEngine } from '../engines/BlendingEngine'
 import { PixelBuffer } from '../engines/PixelBuffer'
 import type { BrushDynamics, BrushSettings } from '../types/brush-types'
 
+interface BasePixelToolOptions extends ToolOptions {
+  size: ToolOptionDefinition<number>
+  hardness: ToolOptionDefinition<number>
+  opacity: ToolOptionDefinition<number>
+  flow: ToolOptionDefinition<number>
+  spacing: ToolOptionDefinition<number>
+  smoothing: ToolOptionDefinition<number>
+  pressureSensitivity: ToolOptionDefinition<Partial<BrushDynamics['pressureSensitivity']>>
+}
+
 /**
  * Base class for pixel-based painting tools
  * Provides common functionality for brush, eraser, clone stamp, healing brush, etc.
  */
-export abstract class BasePixelTool extends BaseTool {
+export abstract class BasePixelTool extends BaseTool<BasePixelToolOptions> {
   protected brushEngine: BrushEngine
   protected blendingEngine: BlendingEngine
   protected pixelBuffer: PixelBuffer | null = null
@@ -35,13 +45,13 @@ export abstract class BasePixelTool extends BaseTool {
     }
   }
   
-  constructor() {
-    super()
+  constructor(dependencies: ToolDependencies) {
+    super(dependencies)
     this.brushEngine = new BrushEngine()
     this.blendingEngine = new BlendingEngine()
   }
   
-  protected setupTool(): void {
+  protected async setupTool(): Promise<void> {
     // Initialize pixel buffer for the canvas (object-based architecture)
     const canvas = this.getCanvas()
     if (canvas) {
@@ -64,16 +74,32 @@ export abstract class BasePixelTool extends BaseTool {
     this.loadBrushSettings()
   }
   
-  protected cleanupTool(): void {
+  protected async cleanupTool(): Promise<void> {
     // Commit any pending changes
     if (this.isPainting && this.pixelBuffer) {
-      this.finishStroke()
+      await this.finishStroke()
     }
     
     // Clean up pixel buffer
     if (this.pixelBuffer) {
       this.pixelBuffer.dispose()
       this.pixelBuffer = null
+    }
+  }
+
+  protected getOptionDefinitions(): BasePixelToolOptions {
+    return {
+      size: { type: 'number', default: 10, min: 1, max: 100, description: 'Brush size' },
+      hardness: { type: 'number', default: 100, min: 0, max: 100, description: 'Brush hardness' },
+      opacity: { type: 'number', default: 100, min: 0, max: 100, description: 'Brush opacity' },
+      flow: { type: 'number', default: 100, min: 0, max: 100, description: 'Brush flow' },
+      spacing: { type: 'number', default: 25, min: 1, max: 100, description: 'Brush spacing' },
+      smoothing: { type: 'number', default: 0, min: 0, max: 100, description: 'Stroke smoothing' },
+      pressureSensitivity: { 
+        type: 'boolean', 
+        default: { size: true, opacity: false, flow: false }, 
+        description: 'Pressure sensitivity settings' 
+      }
     }
   }
   
@@ -150,10 +176,12 @@ export abstract class BasePixelTool extends BaseTool {
     // Commit the stroke to the layer
     await this.pixelBuffer.commitStroke()
     
-    // Emit paint event
-    if (this.executionContext) {
-      // Event emission will be handled by pixel buffer
-    }
+    // Emit paint event through event bus
+    this.dependencies.eventBus.emit('tool.message', {
+      toolId: this.id,
+      message: 'Paint stroke completed',
+      type: 'info'
+    })
     
     // Reset stroke data
     this.currentStroke = null

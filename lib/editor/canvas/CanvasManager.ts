@@ -268,6 +268,80 @@ export class CanvasManager implements ICanvasManager {
         break
       }
         
+      case 'frame': {
+        const frameData = object.data as import('@/lib/editor/objects/types').FrameData
+        
+        // Create a group to hold frame components
+        const frameGroup = new Konva.Group({
+          id: objectId,
+          x: object.x,
+          y: object.y,
+          scaleX: object.scaleX,
+          scaleY: object.scaleY,
+          rotation: object.rotation,
+          draggable: !object.locked,
+          visible: object.visible,
+          opacity: object.opacity
+        })
+        
+        // Create background rectangle if fill is not transparent
+        if (frameData.style.fill !== 'transparent') {
+          const backgroundRect = new Konva.Rect({
+            x: 0,
+            y: 0,
+            width: object.width,
+            height: object.height,
+            fill: frameData.style.fill,
+            listening: false // Background doesn't handle events
+          })
+          frameGroup.add(backgroundRect)
+        }
+        
+        // Create optional colored background
+        if (frameData.style.background) {
+          const coloredBackground = new Konva.Rect({
+            x: 0,
+            y: 0,
+            width: object.width,
+            height: object.height,
+            fill: frameData.style.background.color,
+            opacity: frameData.style.background.opacity,
+            listening: false
+          })
+          frameGroup.add(coloredBackground)
+        }
+        
+        // Create border stroke
+        const borderRect = new Konva.Rect({
+          x: 0,
+          y: 0,
+          width: object.width,
+          height: object.height,
+          stroke: frameData.style.stroke.color,
+          strokeWidth: frameData.style.stroke.width,
+          dash: frameData.style.stroke.style === 'dashed' ? [5, 5] : [],
+          fill: undefined, // No fill for border
+          listening: true // Border handles events for frame selection
+        })
+        frameGroup.add(borderRect)
+        
+        // Add frame label if needed (for debugging or UI)
+        if (object.name && object.name !== `Frame ${objectId.slice(-6)}`) {
+          const label = new Konva.Text({
+            x: 5,
+            y: 5,
+            text: object.name,
+            fontSize: 12,
+            fill: frameData.style.stroke.color,
+            listening: false
+          })
+          frameGroup.add(label)
+        }
+        
+        node = frameGroup
+        break
+      }
+        
       case 'group':
         node = new Konva.Group({
           id: objectId,

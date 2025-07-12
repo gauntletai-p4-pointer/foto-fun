@@ -1,5 +1,6 @@
 import type { CanvasObject } from '@/lib/editor/objects/types'
 import { Command, type CommandContext } from '../base/Command'
+import { success, failure, ExecutionError, type CommandResult } from '../base/CommandResult'
 
 export type ReorderDirection = 'forward' | 'backward' | 'front' | 'back'
 
@@ -50,10 +51,28 @@ export class ReorderObjectsCommand extends Command {
     }
   }
 
-  async undo(): Promise<void> {
-    if (this.previousOrder.length > 0) {
-      // Restore the previous order
-      this.context.canvasManager.setObjectOrder(this.previousOrder)
+  async undo(): Promise<CommandResult<void>> {
+    try {
+      if (!this.previousOrder) {
+        return failure(
+          new ExecutionError('Cannot undo: previous order not available', { commandId: this.id })
+        )
+      }
+
+             // Restore the previous order
+       this.context.canvasManager.setObjectOrder(this.previousOrder)
+
+      return success(undefined, [], {
+        executionTime: 0,
+        affectedObjects: this.options.objectIds
+      })
+    } catch (error) {
+      return failure(
+        new ExecutionError(
+          `Failed to undo reorder objects: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          { commandId: this.id }
+        )
+      )
     }
   }
 

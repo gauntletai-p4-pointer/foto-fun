@@ -1,31 +1,28 @@
-import { Command } from '../base'
-import type { SelectionManager, SelectionModification, PixelSelection } from '@/lib/editor/selection'
-import type { TypedEventBus } from '@/lib/events/core/TypedEventBus'
+import { Command, type CommandContext } from '../base/Command'
+import { success, failure, ExecutionError, type CommandResult } from '../base/CommandResult'
+import type { SelectionModification, PixelSelection } from '@/lib/editor/selection'
 
 /**
  * Command to modify an existing selection
  */
 export class ModifySelectionCommand extends Command {
-  private selectionManager: SelectionManager
   private modification: SelectionModification
   private amount: number
   private previousSelection: PixelSelection | null = null
   
   constructor(
-    eventBus: TypedEventBus,
-    selectionManager: SelectionManager,
     modification: SelectionModification,
-    amount: number = 0
+    amount: number = 0,
+    context: CommandContext
   ) {
-    super(`${modification} selection${amount > 0 ? ` by ${amount}px` : ''}`, eventBus)
-    this.selectionManager = selectionManager
+    super(`${modification} selection${amount > 0 ? ` by ${amount}px` : ''}`, context)
     this.modification = modification
     this.amount = amount
   }
   
   protected async doExecute(): Promise<void> {
     // Save current selection
-    const current = this.selectionManager.getSelection()
+    const current = this.context.selectionManager.getSelection()
     if (!current) {
       throw new Error('No selection to modify')
     }
@@ -47,50 +44,78 @@ export class ModifySelectionCommand extends Command {
     // Apply modification
     switch (this.modification) {
       case 'expand':
-        this.selectionManager.expand(this.amount)
+        this.context.selectionManager.expand(this.amount)
         break
       case 'contract':
-        this.selectionManager.contract(this.amount)
+        this.context.selectionManager.contract(this.amount)
         break
       case 'feather':
-        this.selectionManager.feather(this.amount)
+        this.context.selectionManager.feather(this.amount)
         break
       case 'invert':
-        this.selectionManager.invert()
+        this.context.selectionManager.invert()
         break
     }
   }
   
-  async undo(): Promise<void> {
-    if (this.previousSelection) {
-      this.selectionManager.restoreSelection(this.previousSelection.mask, this.previousSelection.bounds)
+  async undo(): Promise<CommandResult<void>> {
+    try {
+      if (this.previousSelection) {
+        this.context.selectionManager.restoreSelection(this.previousSelection.mask, this.previousSelection.bounds)
+      }
+      
+      return success(undefined, [], {
+        executionTime: 0,
+        affectedObjects: []
+      })
+    } catch (error) {
+      return failure(
+        new ExecutionError(
+          `Failed to undo selection modification: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          { commandId: this.id }
+        )
+      )
     }
   }
   
-  async redo(): Promise<void> {
-    // We need to re-execute from the saved state
-    if (this.previousSelection) {
-      // First restore the previous state
-      this.selectionManager.restoreSelection(this.previousSelection.mask, this.previousSelection.bounds)
-      // Then apply the modification again
-      switch (this.modification) {
-        case 'expand':
-          this.selectionManager.expand(this.amount)
-          break
-        case 'contract':
-          this.selectionManager.contract(this.amount)
-          break
-        case 'feather':
-          this.selectionManager.feather(this.amount)
-          break
-        case 'invert':
-          this.selectionManager.invert()
-          break
+  async redo(): Promise<CommandResult<void>> {
+    try {
+      // We need to re-execute from the saved state
+      if (this.previousSelection) {
+        // First restore the previous state
+        this.context.selectionManager.restoreSelection(this.previousSelection.mask, this.previousSelection.bounds)
+        // Then apply the modification again
+        switch (this.modification) {
+          case 'expand':
+            this.context.selectionManager.expand(this.amount)
+            break
+          case 'contract':
+            this.context.selectionManager.contract(this.amount)
+            break
+          case 'feather':
+            this.context.selectionManager.feather(this.amount)
+            break
+          case 'invert':
+            this.context.selectionManager.invert()
+            break
+        }
       }
+      
+      return success(undefined, [], {
+        executionTime: 0,
+        affectedObjects: []
+      })
+    } catch (error) {
+      return failure(
+        new ExecutionError(
+          `Failed to redo selection modification: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          { commandId: this.id }
+        )
+      )
     }
   }
   
   canExecute(): boolean {
-    return this.selectionManager.hasSelection()
+    return this.context.selectionManager.hasSelection()
   }
 } 

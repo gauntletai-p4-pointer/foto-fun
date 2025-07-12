@@ -1,49 +1,63 @@
-import type { CanvasManager } from '@/lib/editor/canvas/types'
 import type { CanvasObject } from '@/lib/editor/objects/types'
-import { Command } from '../base'
-import type { TypedEventBus } from '@/lib/events/core/TypedEventBus'
+import { Command, type CommandContext } from '../base/Command'
+import { success, failure, ExecutionError, type CommandResult } from '../base/CommandResult'
 
 export class RemoveObjectCommand extends Command {
-  private canvasManager: CanvasManager
   private object: CanvasObject | null = null
   private objectId: string
   
   constructor(
-    canvasManager: CanvasManager, 
     objectId: string,
-    eventBus: TypedEventBus
+    context: CommandContext
   ) {
-    super('Remove object', eventBus)
-    this.canvasManager = canvasManager
+    super('Remove object', context)
     this.objectId = objectId
     this.object = null! // Will be set during execution
   }
   
   protected async doExecute(): Promise<void> {
     // Store object for undo
-    this.object = this.canvasManager.getObject(this.objectId)
+    this.object = this.context.canvasManager.getObject(this.objectId)
     if (!this.object) {
       throw new Error(`Object with id ${this.objectId} not found`)
     }
     
-    await this.canvasManager.removeObject(this.objectId)
+    await this.context.canvasManager.removeObject(this.objectId)
     
-    // Emit event using inherited eventBus
-    this.eventBus.emit('canvas.object.removed', {
-      canvasId: this.canvasManager.stage.id() || 'main',
+    // Emit event through context
+    this.context.eventBus.emit('canvas.object.removed', {
+      canvasId: this.context.canvasManager.id,
       objectId: this.objectId
     })
   }
   
-  async undo(): Promise<void> {
-    if (!this.object) return
-    
-    await this.canvasManager.addObject(this.object)
-    
-    // Emit event using inherited eventBus
-    this.eventBus.emit('canvas.object.added', {
-      canvasId: this.canvasManager.stage.id() || 'main',
-      object: this.object
-    })
+  async undo(): Promise<CommandResult<void>> {
+    try {
+      if (!this.object) {
+        return failure(
+          new ExecutionError('Cannot undo: object data not available', { commandId: this.id })
+        )
+      }
+      
+      await this.context.canvasManager.addObject(this.object)
+      
+      // Emit event through context
+      this.context.eventBus.emit('canvas.object.added', {
+        canvasId: this.context.canvasManager.id,
+        object: this.object
+      })
+      
+      return success(undefined, [], {
+        executionTime: 0,
+        affectedObjects: [this.objectId]
+      })
+    } catch (error) {
+      return failure(
+        new ExecutionError(
+          `Failed to undo remove object: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          { commandId: this.id, objectId: this.objectId }
+        )
+      )
+    }
   }
 } 

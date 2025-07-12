@@ -1,12 +1,16 @@
 import { ObjectTool } from './ObjectTool'
 import type { CanvasObject } from '@/lib/editor/objects/types'
 import type { ToolEvent } from '@/lib/editor/canvas/types'
+import type { ToolDependencies } from './BaseTool'
 
 /**
  * Base class for object-based drawing tools
  * Handles creating new image objects or drawing on existing ones
  */
 export abstract class ObjectDrawingTool extends ObjectTool {
+  constructor(dependencies: ToolDependencies) {
+    super(dependencies)
+  }
   protected currentDrawingObject: string | null = null
   protected isDrawing = false
   
@@ -48,7 +52,7 @@ export abstract class ObjectDrawingTool extends ObjectTool {
    */
   protected getDrawingObject(): CanvasObject | null {
     if (!this.currentDrawingObject) return null
-    return this.getCanvas().getObject(this.currentDrawingObject)
+    return this.dependencies.canvasManager.getObject(this.currentDrawingObject)
   }
   
   /**
@@ -98,11 +102,11 @@ export abstract class ObjectDrawingTool extends ObjectTool {
     ctx.restore()
     
     // Trigger canvas update
-    this.getCanvas().render()
+    this.dependencies.canvasManager.render()
   }
   
-  // Common event handlers
-  onMouseDown(event: ToolEvent): void {
+  // Common event handlers - these will be called by BaseTool's event handling
+  protected handleMouseDown(event: ToolEvent): void {
     // Update last mouse position
     this.lastMousePosition = event.point
     
@@ -110,11 +114,11 @@ export abstract class ObjectDrawingTool extends ObjectTool {
     this.startDrawing(event.point.x, event.point.y)
   }
   
-  onMouseUp(_event: ToolEvent): void {
+  protected handleMouseUp(_event: ToolEvent): void {
     this.stopDrawing()
   }
   
-  onMouseMove(event: ToolEvent): void {
+  protected handleMouseMove(event: ToolEvent): void {
     // Update last mouse position
     this.lastMousePosition = event.point
   }

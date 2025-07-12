@@ -1,12 +1,19 @@
 import type { Filter } from '@/lib/editor/canvas/types'
 import type { FilterTarget } from '@/lib/editor/filters/FilterManager'
-import { BaseTool } from './BaseTool'
+import { BaseTool, type ToolDependencies, type ToolOptions, type ToolOptionDefinition } from './BaseTool'
+
+interface WebGLFilterToolOptions extends ToolOptions {
+  [key: string]: ToolOptionDefinition
+}
 
 /**
  * Base class for tools that apply WebGL filters
- * Now uses the new layer-based filter system exclusively
+ * Now uses the new object-based filter system exclusively
  */
-export abstract class WebGLFilterTool extends BaseTool {
+export abstract class WebGLFilterTool extends BaseTool<WebGLFilterToolOptions> {
+  constructor(dependencies: ToolDependencies) {
+    super(dependencies)
+  }
   // Default filter type - must be overridden by subclasses
   protected abstract filterType: string
   
@@ -22,7 +29,7 @@ export abstract class WebGLFilterTool extends BaseTool {
     this.isApplying = true
     
     try {
-      const canvas = this.getCanvas()
+      const canvas = this.dependencies.canvasManager
       const filterManager = canvas.getFilterManager?.()
       
       if (!filterManager) {
@@ -45,7 +52,7 @@ export abstract class WebGLFilterTool extends BaseTool {
       }
       
       // Apply filter through FilterManager
-      await (filterManager as unknown as { applyFilter: (filter: Filter, target: FilterTarget, context: unknown) => Promise<void> }).applyFilter(filter, target, this.executionContext)
+      await (filterManager as unknown as { applyFilter: (filter: Filter, target: FilterTarget, context: unknown) => Promise<void> }).applyFilter(filter, target, { toolId: this.id, timestamp: Date.now() })
       
     } finally {
       this.isApplying = false
@@ -56,7 +63,7 @@ export abstract class WebGLFilterTool extends BaseTool {
    * Determine the filter target based on current selection
    */
   protected determineFilterTarget(): FilterTarget | null {
-    const canvas = this.getCanvas()
+    const canvas = this.dependencies.canvasManager
     const selectedObjects = canvas.getSelectedObjects()
     
     if (selectedObjects.length === 0) {

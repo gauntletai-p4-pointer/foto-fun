@@ -1,5 +1,6 @@
 import type { PixelSelection } from '@/types'
 import { Command, type CommandContext } from '../base/Command'
+import { success, failure, ExecutionError, type CommandResult } from '../base/CommandResult'
 
 export class ClearSelectionCommand extends Command {
   private previousSelection: PixelSelection | null = null
@@ -23,12 +24,26 @@ export class ClearSelectionCommand extends Command {
     this.context.selectionManager.clear()
   }
 
-  async undo(): Promise<void> {
-    if (this.previousSelection) {
-      // Restore the previous selection
-      this.context.selectionManager.restoreSelection(
-        this.previousSelection.mask,
-        this.previousSelection.bounds
+  async undo(): Promise<CommandResult<void>> {
+    try {
+             if (this.previousSelection) {
+         // Restore the previous selection
+         this.context.selectionManager.restoreSelection(
+           this.previousSelection.mask,
+           this.previousSelection.bounds
+         )
+       }
+
+      return success(undefined, [], {
+        executionTime: 0,
+        affectedObjects: []
+      })
+    } catch (error) {
+      return failure(
+        new ExecutionError(
+          `Failed to undo clear selection: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          { commandId: this.id }
+        )
       )
     }
   }

@@ -1,6 +1,7 @@
 import type { CanvasObject } from '@/lib/editor/objects/types'
 import { ClipboardManager } from '@/lib/editor/clipboard/ClipboardManager'
 import { Command, type CommandContext } from '../base/Command'
+import { CommandResult, success, failure, ExecutionError } from '../base/CommandResult'
 
 export interface CutOptions {
   objects?: CanvasObject[]
@@ -54,15 +55,22 @@ export class CutCommand extends Command {
     this.context.canvasManager.deselectAll()
   }
 
-  async undo(): Promise<void> {
-    // Restore the cut objects
-    for (const obj of this.cutObjects) {
-      await this.context.canvasManager.addObject(obj)
-    }
+  async undo(): Promise<CommandResult<void>> {
+    try {
+      // Restore objects to canvas
+      for (const object of this.cutObjects) {
+        await this.context.canvasManager.addObject(object)
+      }
 
-    // Select the restored objects
-    const objectIds = this.cutObjects.map(obj => obj.id)
-    this.context.canvasManager.selectMultiple(objectIds)
+      return success(undefined, [], {
+        executionTime: 0,
+        affectedObjects: this.cutObjects.map(obj => obj.id)
+      })
+    } catch (error) {
+      return failure(
+        new ExecutionError('Failed to undo cut operation', { commandId: this.id })
+      )
+    }
   }
 
   canExecute(): boolean {

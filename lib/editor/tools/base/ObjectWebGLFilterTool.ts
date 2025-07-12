@@ -1,19 +1,27 @@
 import { ObjectTool } from './ObjectTool'
 import type { Filter } from '@/lib/editor/canvas/types'
+import type { ToolDependencies, ToolOptions, ToolOptionDefinition } from './BaseTool'
 // import type { CanvasObject } from '@/lib/editor/objects/types'
+
+interface ObjectWebGLFilterToolOptions extends ToolOptions {
+  [key: string]: ToolOptionDefinition
+}
 
 /**
  * Base class for WebGL-accelerated filter tools
  * Provides real-time preview and high-performance filtering
  */
-export abstract class ObjectWebGLFilterTool extends ObjectTool {
+export abstract class ObjectWebGLFilterTool extends ObjectTool<ObjectWebGLFilterToolOptions> {
+  constructor(dependencies: ToolDependencies) {
+    super(dependencies)
+  }
   protected abstract getFilterType(): string
   protected abstract getDefaultParams(): Record<string, number | string | boolean>
   
   // Debounce timer for real-time preview
   private previewDebounce: NodeJS.Timeout | null = null
   
-  protected setupTool(): void {
+  protected async setupTool(): Promise<void> {
     // Initialize with default parameters
     const defaultParams = this.getDefaultParams()
     Object.entries(defaultParams).forEach(([key, value]) => {
@@ -21,7 +29,7 @@ export abstract class ObjectWebGLFilterTool extends ObjectTool {
     })
   }
   
-  protected cleanupTool(): void {
+  protected async cleanupTool(): Promise<void> {
     // Clear any pending preview
     if (this.previewDebounce) {
       clearTimeout(this.previewDebounce)
@@ -43,8 +51,8 @@ export abstract class ObjectWebGLFilterTool extends ObjectTool {
         params
       }
       
-      // @ts-expect-error - applyFilterToObject exists on our CanvasManager implementation
-      await this.getCanvas().applyFilterToObject(target.id, filter)
+      // applyFilterToObject exists on our CanvasManager implementation
+      await (this.dependencies.canvasManager as any).applyFilterToObject(target.id, filter)
     }
   }
   

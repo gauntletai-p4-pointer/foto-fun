@@ -1,6 +1,7 @@
 import type { CanvasObject } from '@/lib/editor/objects/types'
 import { ClipboardManager } from '@/lib/editor/clipboard/ClipboardManager'
 import { Command, type CommandContext } from '../base/Command'
+import { CommandResult, success, failure, ExecutionError } from '../base/CommandResult'
 
 export interface PasteOptions {
   position?: { x: number; y: number }
@@ -58,12 +59,22 @@ export class PasteCommand extends Command {
     this.context.canvasManager.selectMultiple(objectIds)
   }
 
-  async undo(): Promise<void> {
-    // Remove the pasted objects
-    for (const obj of this.pastedObjects) {
-      await this.context.canvasManager.removeObject(obj.id)
+  async undo(): Promise<CommandResult<void>> {
+    try {
+      // Remove the pasted objects
+      for (const object of this.pastedObjects) {
+        await this.context.canvasManager.removeObject(object.id)
+      }
+
+      return success(undefined, [], {
+        executionTime: 0,
+        affectedObjects: this.pastedObjects.map(obj => obj.id)
+      })
+    } catch (error) {
+      return failure(
+        new ExecutionError('Failed to undo paste operation', { commandId: this.id })
+      )
     }
-    this.pastedObjects = []
   }
 
   canExecute(): boolean {

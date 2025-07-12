@@ -1,8 +1,9 @@
 import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
 import type { TypedEventBus } from '@/lib/events/core/TypedEventBus'
-import type { TextData } from '@/lib/editor/objects/types'
+import type { CanvasObject, TextData } from '@/lib/editor/objects/types'
 import type { Point } from '@/types'
 import { Command, type CommandContext } from '../base/Command'
+import { success, failure, ExecutionError, type CommandResult } from '../base/CommandResult'
 
 export interface AddTextOptions {
   text: string
@@ -73,10 +74,25 @@ export class AddTextCommand extends Command {
     this.context.canvasManager.selectObject(this.objectId)
   }
 
-  async undo(): Promise<void> {
-    if (this.objectId) {
-      await this.context.canvasManager.removeObject(this.objectId)
-      this.objectId = null
+  async undo(): Promise<CommandResult<void>> {
+    try {
+      if (this.objectId) {
+        // Remove the text object
+        await this.context.canvasManager.removeObject(this.objectId)
+        this.objectId = null
+      }
+
+      return success(undefined, [], {
+        executionTime: 0,
+        affectedObjects: this.objectId ? [this.objectId] : []
+      })
+    } catch (error) {
+      return failure(
+        new ExecutionError(
+          `Failed to undo add text: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          { commandId: this.id }
+        )
+      )
     }
   }
 

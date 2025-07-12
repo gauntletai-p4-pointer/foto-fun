@@ -1,4 +1,4 @@
-import { moveTool } from './transform/moveTool'
+// import { MoveTool } from './transform/moveTool' // TODO: Migrate to dependency injection
 import { marqueeRectTool } from './selection/marqueeRectTool'
 import { marqueeEllipseTool } from './selection/marqueeEllipseTool'
 import { lassoTool } from './selection/lassoTool'
@@ -28,6 +28,7 @@ import { vintageEffectsTool } from './filters/vintageEffectsTool'
 import { imageGenerationTool } from './ai-native/imageGenerationCanvasTool'
 import { EraserTool } from './drawing/eraserTool'
 import { GradientTool } from './drawing/gradientTool'
+import { FrameTool } from './drawing/frameTool'
 
 // AI Tools - Temporarily commented out until tool migration is complete
 // import { BackgroundRemovalTool } from '@/lib/ai/tools/BackgroundRemovalTool'
@@ -42,9 +43,10 @@ import { GradientTool } from './drawing/gradientTool'
 // import { MagicEraserTool } from './ai-native/magicEraserTool'
 // import { PromptAdjustmentTool } from './ai-native/promptAdjustmentTool'
 
-// Create instances
-const eraserTool = new EraserTool()
-const gradientTool = new GradientTool()
+// Create instances - TODO: Migrate to dependency injection via ToolFactory
+// const eraserTool = new EraserTool()
+// const gradientTool = new GradientTool()
+// const frameTool = new FrameTool()
 
 // Create AI tool instances
 // TODO: These will be properly instantiated via ServiceContainer after tool migration
@@ -88,7 +90,7 @@ export const tools: Tool[] = [
   adaptTool(quickSelectionTool),
   
   // Transform tools
-  adaptTool(moveTool),
+  // adaptTool(moveTool), // TODO: Migrate to dependency injection
   adaptTool(cropTool),
   adaptTool(rotateTool),
   adaptTool(flipTool),
@@ -159,7 +161,7 @@ export {
   quickSelectionTool,
   
   // Transform tools
-  moveTool,
+  // moveTool, // TODO: Migrate to dependency injection
   cropTool,
   rotateTool,
   flipTool,

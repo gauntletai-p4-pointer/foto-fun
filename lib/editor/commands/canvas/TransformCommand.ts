@@ -1,6 +1,5 @@
-import { Command } from '../base/Command'
-import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
-import type { TypedEventBus } from '@/lib/events/core/TypedEventBus'
+import { Command, type CommandContext } from '../base/Command'
+import { success, failure, ExecutionError, type CommandResult } from '../base/CommandResult'
 
 interface Transform {
   x: number
@@ -13,69 +12,98 @@ interface Transform {
 }
 
 export class TransformCommand extends Command {
-  private canvasManager: CanvasManager
   private objectId: string
   private newTransform: Transform
   private oldTransform: Transform | null = null
   
   constructor(
-    canvasManager: CanvasManager,
     objectId: string,
     newTransform: Transform,
-    eventBus: TypedEventBus
+    context: CommandContext
   ) {
-    super('Transform object', eventBus)
-    this.canvasManager = canvasManager
+    super('Transform object', context)
     this.objectId = objectId
     this.newTransform = newTransform
   }
   
   protected async doExecute(): Promise<void> {
-    const object = this.canvasManager.getObject(this.objectId)
+    const object = this.context.canvasManager.getObject(this.objectId)
     if (!object) {
       throw new Error(`Object with id ${this.objectId} not found`)
     }
     
     // Store old transform for undo
     this.oldTransform = {
-      x: object.transform?.x ?? object.x,
-      y: object.transform?.y ?? object.y,
-      scaleX: object.transform?.scaleX ?? object.scaleX,
-      scaleY: object.transform?.scaleY ?? object.scaleY,
-      rotation: object.transform?.rotation ?? object.rotation,
-      skewX: object.transform?.skewX ?? 0,
-      skewY: object.transform?.skewY ?? 0
+      x: object.x,
+      y: object.y,
+      scaleX: object.scaleX,
+      scaleY: object.scaleY,
+      rotation: object.rotation,
+      skewX: 0, // CanvasObject doesn't have skew properties
+      skewY: 0
     }
     
     // Apply new transform
-    object.transform = { ...this.newTransform }
-    await this.canvasManager.updateObject(this.objectId, { transform: this.newTransform })
+    await this.context.canvasManager.updateObject(this.objectId, {
+      x: this.newTransform.x,
+      y: this.newTransform.y,
+      scaleX: this.newTransform.scaleX,
+      scaleY: this.newTransform.scaleY,
+      rotation: this.newTransform.rotation
+    })
     
-    // Emit event using inherited eventBus
-    this.eventBus.emit('canvas.object.modified', {
-      canvasId: this.canvasManager.stage.id() || 'main',
+    // Emit event through context
+    this.context.eventBus.emit('canvas.object.modified', {
+      canvasId: this.context.canvasManager.id,
       objectId: this.objectId,
-      previousState: { transform: this.oldTransform },
-      newState: { transform: this.newTransform }
+      previousState: this.oldTransform as unknown as Record<string, unknown>,
+      newState: this.newTransform as unknown as Record<string, unknown>
     })
   }
   
-  async undo(): Promise<void> {
-    if (!this.oldTransform) return
-    
-    const object = this.canvasManager.getObject(this.objectId)
-    if (!object) return
-    
-    // Restore old transform
-    object.transform = { ...this.oldTransform }
-    await this.canvasManager.updateObject(this.objectId, { transform: this.oldTransform })
-    
-    // Emit event using inherited eventBus
-    this.eventBus.emit('canvas.object.modified', {
-      canvasId: this.canvasManager.stage.id() || 'main',
-      objectId: this.objectId,
-      previousState: { transform: this.newTransform },
-      newState: { transform: this.oldTransform }
-    })
+  async undo(): Promise<CommandResult<void>> {
+    try {
+      if (!this.oldTransform) {
+        return failure(
+          new ExecutionError('Cannot undo: transform data not available', { commandId: this.id })
+        )
+      }
+      
+      const object = this.context.canvasManager.getObject(this.objectId)
+      if (!object) {
+        return failure(
+          new ExecutionError(`Object with id ${this.objectId} not found`, { commandId: this.id })
+        )
+      }
+      
+      // Restore old transform
+      await this.context.canvasManager.updateObject(this.objectId, {
+        x: this.oldTransform.x,
+        y: this.oldTransform.y,
+        scaleX: this.oldTransform.scaleX,
+        scaleY: this.oldTransform.scaleY,
+        rotation: this.oldTransform.rotation
+      })
+      
+      // Emit event through context
+      this.context.eventBus.emit('canvas.object.modified', {
+        canvasId: this.context.canvasManager.id,
+        objectId: this.objectId,
+        previousState: this.newTransform as unknown as Record<string, unknown>,
+        newState: this.oldTransform as unknown as Record<string, unknown>
+      })
+      
+      return success(undefined, [], {
+        executionTime: 0,
+        affectedObjects: [this.objectId]
+      })
+    } catch (error) {
+      return failure(
+        new ExecutionError(
+          `Failed to undo transform: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          { commandId: this.id, objectId: this.objectId }
+        )
+      )
+    }
   }
 } 

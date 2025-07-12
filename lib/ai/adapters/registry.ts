@@ -1,22 +1,48 @@
-import type { ToolAdapter } from './base'
-import type { UnifiedToolAdapter } from './base/UnifiedToolAdapter'
 import type { Tool } from 'ai'
 import type { ServiceContainer } from '@/lib/core/ServiceContainer'
+import type { ToolAdapter } from './base'
+import type { UnifiedToolAdapter } from './base/UnifiedToolAdapter'
 
 /**
- * Registry for tool adapters - singleton pattern
- * Maps canvas tools to AI-compatible tool adapters
+ * Dependency resolver for AI tools
+ * Provides proper dependency injection when ServiceContainer is available
  */
+interface AIToolDependencies {
+  eventBus: import('@/lib/events/core/TypedEventBus').TypedEventBus
+  modelPreferencesManager: import('@/lib/settings/ModelPreferences').ModelPreferencesManager
+}
+
+async function resolveAIToolDependencies(serviceContainer?: ServiceContainer): Promise<AIToolDependencies> {
+  if (serviceContainer) {
+    // Use proper dependency injection when available
+    try {
+      const eventBus = await serviceContainer.get<import('@/lib/events/core/TypedEventBus').TypedEventBus>('TypedEventBus')
+      const modelPreferencesManager = await serviceContainer.get<import('@/lib/settings/ModelPreferences').ModelPreferencesManager>('ModelPreferencesManager')
+      
+      return { eventBus, modelPreferencesManager }
+    } catch (error) {
+      console.warn('[AdapterRegistry] Failed to resolve dependencies from ServiceContainer, falling back to direct instantiation:', error)
+    }
+  }
+  
+  // Fallback to direct instantiation (for backward compatibility)
+  const { TypedEventBus } = await import('@/lib/events/core/TypedEventBus')
+  const { ModelPreferencesManager } = await import('@/lib/settings/ModelPreferences')
+  
+  return {
+    eventBus: new TypedEventBus(),
+    modelPreferencesManager: new ModelPreferencesManager()
+  }
+}
+
 class AdapterRegistry {
   private adapters = new Map<string, ToolAdapter | UnifiedToolAdapter<unknown, unknown>>()
   
   /**
-   * Register a tool adapter
+   * Register an adapter
    */
   register(adapter: ToolAdapter | UnifiedToolAdapter<unknown, unknown>): void {
     this.adapters.set(adapter.aiName, adapter)
-    // console.log(`[AdapterRegistry] Registered AI adapter: ${adapter.aiName}`)
-    // console.log(`[AdapterRegistry] Adapter description: ${adapter.description}`)
   }
   
   /**
@@ -186,8 +212,10 @@ export async function autoDiscoverAdapters(serviceContainer?: ServiceContainer):
       new GradientToolAdapter()
     ]
     
-    // Register all AI tool adapters
-    // TODO: Implement proper dependency injection for AI tools that require ModelPreferencesManager and TypedEventBus
+    // Resolve dependencies for AI tools
+    const aiDependencies = await resolveAIToolDependencies(serviceContainer)
+    
+    // Register all AI tool adapters with proper dependencies
     const aiAdapters = [
       new ImageGenerationAdapter(),
       new ObjectRemovalAdapter(),
@@ -204,6 +232,13 @@ export async function autoDiscoverAdapters(serviceContainer?: ServiceContainer):
       new PromptEnhancementAdapter()
     ]
     
+    // Set dependencies on AI adapters that support it
+    aiAdapters.forEach(adapter => {
+      if ('setDependencies' in adapter && typeof adapter.setDependencies === 'function') {
+        adapter.setDependencies(aiDependencies)
+      }
+    })
+    
     // Register all adapters
     adapterRegistry.registerMany([...canvasAdapters, ...aiAdapters])
     
@@ -214,7 +249,7 @@ export async function autoDiscoverAdapters(serviceContainer?: ServiceContainer):
       console.warn('[AdapterRegistry] ServiceContainer not provided, skipping chain adapter registration')
     }
     
-    // console.log('[AdapterRegistry] Registered tool adapters including chain execution')
+    // console.log('[AdapterRegistry] Registered tool adapters with proper dependency injection')
   } catch (error) {
     console.error('[AdapterRegistry] Error during auto-discovery:', error)
   }

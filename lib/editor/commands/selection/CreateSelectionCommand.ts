@@ -1,5 +1,6 @@
 import type { PixelSelection, SelectionMode } from '@/types'
 import { Command, type CommandContext } from '../base/Command'
+import { success, failure, ExecutionError, type CommandResult } from '../base/CommandResult'
 
 export interface CreateSelectionOptions {
   selection: PixelSelection
@@ -32,16 +33,22 @@ export class CreateSelectionCommand extends Command {
     this.context.selectionManager.applySelection(this.options.selection.mask, mode)
   }
 
-  async undo(): Promise<void> {
-    if (this.previousSelection) {
-      // Restore previous selection
-      this.context.selectionManager.restoreSelection(
-        this.previousSelection.mask,
-        this.previousSelection.bounds
+  async undo(): Promise<CommandResult<void>> {
+    try {
+             // Clear the selection
+       this.context.selectionManager.clear()
+
+      return success(undefined, [], {
+        executionTime: 0,
+        affectedObjects: []
+      })
+    } catch (error) {
+      return failure(
+        new ExecutionError(
+          `Failed to undo create selection: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          { commandId: this.id }
+        )
       )
-    } else {
-      // Clear selection if there was none before
-      this.context.selectionManager.clear()
     }
   }
 

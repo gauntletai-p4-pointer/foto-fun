@@ -222,9 +222,11 @@ export class EventBasedHistoryStore extends BaseStore<HistoryState> {
     
     // Emit navigation event
     this.typedEventBus.emit('history.navigated', {
+      eventId: targetEventId,
+      timestamp: Date.now(),
+      direction: steps > 0 ? 'undo' : 'redo',
       fromEventId: state.currentEventId,
-      toEventId: targetEventId,
-      method: 'jump'
+      toEventId: targetEventId
     })
   }
   

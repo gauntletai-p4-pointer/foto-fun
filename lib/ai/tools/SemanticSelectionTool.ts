@@ -3,7 +3,13 @@ import { ObjectTool } from '@/lib/editor/tools/base/ObjectTool'
 import type { CanvasObject } from '@/lib/editor/objects/types'
 import type { ToolEvent } from '@/lib/editor/canvas/types'
 import { ReplicateService } from '@/lib/ai/services/replicate'
-import { TypedEventBus } from '@/lib/events/core/TypedEventBus'
+import type { ToolDependencies, ToolOptions } from '@/lib/editor/tools/base/BaseTool'
+
+interface SemanticSelectionOptions extends ToolOptions {
+  query: { type: 'string'; default: string }
+  threshold: { type: 'number'; default: number; min: 0; max: 1 }
+  mode: { type: 'enum'; default: string; enum: string[] }
+}
 
 /**
  * Semantic Selection Tool - Natural language object selection
@@ -19,316 +25,131 @@ export class SemanticSelectionTool extends ObjectTool {
   // Service
   private replicateService: ReplicateService | null = null
   private isProcessing = false
-  private eventBus = new TypedEventBus()
   
-  protected setupTool(): void {
+  constructor(dependencies: ToolDependencies) {
+    super(dependencies)
+  }
+
+  protected getOptionDefinitions(): SemanticSelectionOptions {
+    return {
+      query: { type: 'string', default: '' },
+      threshold: { type: 'number', default: 0.3, min: 0, max: 1 },
+      mode: { type: 'enum', default: 'new', enum: ['new', 'add', 'subtract', 'intersect'] }
+    }
+  }
+
+  protected async setupTool(): Promise<void> {
     // Initialize Replicate service (automatically handles server/client routing)
     try {
       this.replicateService = new ReplicateService()
     } catch (error) {
       console.error('[SemanticSelectionTool] Failed to initialize Replicate service:', error)
     }
-    
-    // Set default options
-    this.setOption('query', '') // Natural language query
-    this.setOption('threshold', 0.3) // Detection confidence threshold
-    this.setOption('mode', 'new') // Selection mode: new, add, subtract, intersect
   }
-  
-  protected cleanupTool(): void {
+
+  protected async cleanupTool(): Promise<void> {
     this.replicateService = null
     this.isProcessing = false
   }
-  
-  /**
-   * Execute semantic selection
-   */
-  async executeSelection(query?: string): Promise<void> {
-    if (!this.replicateService || this.isProcessing) return
-    
-    const searchQuery = query || (this.getOption('query') as string)
-    if (!searchQuery) {
-      console.error('[SemanticSelectionTool] No search query provided')
+
+  protected handleMouseDown(event: ToolEvent): void {
+    const query = this.getOption('query')
+    if (!query) {
+      this.dependencies.eventBus.emit('tool.message', {
+        toolId: this.id,
+        message: 'Please enter a search query first',
+        type: 'warning'
+      })
       return
     }
     
-    this.isProcessing = true
-    const canvas = this.getCanvas()
-    const taskId = `${this.id}-${Date.now()}`
+    this.performSemanticSelection(query)
+  }
+
+  protected handleMouseMove(_event: ToolEvent): void {
+    // No mouse move handling for semantic selection
+  }
+
+  protected handleMouseUp(_event: ToolEvent): void {
+    // No mouse up handling for semantic selection
+  }
+
+  private async performSemanticSelection(query: string): Promise<void> {
+    if (this.isProcessing) return
     
-    this.eventBus.emit('ai.processing.started', {
-      operationId: taskId,
-      type: 'semantic-selection',
-      taskId,
-      toolId: this.id,
-      metadata: {
-        description: `Semantic selection: ${searchQuery}`,
-        targetObjectIds: []
-      }
-    })
+    this.isProcessing = true
+    const threshold = this.getOption('threshold')
+    const mode = this.getOption('mode')
     
     try {
-      // Get all visible objects
-      const objects = canvas.getAllObjects().filter(obj => obj.visible && !obj.locked)
-      const imageObjects = objects.filter(obj => obj.type === 'image')
-      
-      if (imageObjects.length === 0) {
-        console.warn('[SemanticSelectionTool] No image objects to search')
-        return
-      }
-      
-      const threshold = this.getOption('threshold') as number
-      const mode = this.getOption('mode') as string
-      const matchedObjectIds: string[] = []
-      
-      // Process each image object
-      for (const obj of imageObjects) {
-        // Show processing state
-        await canvas.updateObject(obj.id, {
-          metadata: {
-            ...obj.metadata,
-            isProcessing: true,
-            processingType: 'semantic-search'
-          }
-        })
-        
-        try {
-          // Get image data
-          const imageData = await this.getObjectImageDataForReplicate(obj)
-          if (!imageData) continue
-          
-          // Use GroundingDINO or similar for open vocabulary detection
-          const detections = await this.detectObjects(imageData, searchQuery, threshold)
-          
-          // If any detections found, add object to selection
-          if (detections && detections.length > 0) {
-            matchedObjectIds.push(obj.id)
-            
-            // Store detection info in metadata
-            await canvas.updateObject(obj.id, {
-              metadata: {
-                ...obj.metadata,
-                isProcessing: false,
-                lastSemanticSearch: {
-                  query: searchQuery,
-                  detections: detections,
-                  timestamp: new Date().toISOString()
-                }
-              }
-            })
-          } else {
-            // Clear processing state
-            await canvas.updateObject(obj.id, {
-              metadata: {
-                ...obj.metadata,
-                isProcessing: false
-              }
-            })
-          }
-        } catch (error) {
-          console.error(`[SemanticSelectionTool] Error processing object ${obj.id}:`, error)
-          await canvas.updateObject(obj.id, {
-            metadata: {
-              ...obj.metadata,
-              isProcessing: false
-            }
-          })
+      this.dependencies.eventBus.emit('ai.processing.started', {
+        operationId: `${this.id}-${Date.now()}`,
+        type: 'semantic-selection',
+        metadata: {
+          toolId: this.id,
+          description: `Selecting objects: ${query}`,
+          targetObjectIds: []
         }
-      }
+      })
+      
+      // Get all visible objects
+      const visibleObjects = this.getVisibleObjects()
+      
+      // For now, implement a simple text-based matching
+      // In a real implementation, this would use AI vision models
+      const matchingObjects = visibleObjects.filter((obj: CanvasObject) => {
+        const searchText = query.toLowerCase()
+        const objName = obj.name?.toLowerCase() || ''
+        const objType = obj.type.toLowerCase()
+        
+        return objName.includes(searchText) || objType.includes(searchText)
+      })
       
       // Apply selection based on mode
-      this.applySelection(matchedObjectIds, mode)
+      const canvas = this.dependencies.canvasManager
+      const currentSelection = new Set(canvas.state.selectedObjectIds)
       
-      // Emit tool-specific completion event
-      this.eventBus.emit('ai.semantic.selection', {
-        operationId: taskId,
-        imageId: 'canvas-composite',
-        selectionData: {
-          query: searchQuery,
-          matchedCount: matchedObjectIds.length,
-          objectIds: matchedObjectIds,
-          confidence: 0.85 // Mock confidence score for now - TODO: implement real confidence scoring
-        }
-      })
+      switch (mode) {
+        case 'new':
+          canvas.clearSelection()
+          matchingObjects.forEach((obj: CanvasObject) => canvas.selectObject(obj.id))
+          break
+        case 'add':
+          matchingObjects.forEach((obj: CanvasObject) => canvas.selectObject(obj.id))
+          break
+        case 'subtract':
+          matchingObjects.forEach((obj: CanvasObject) => canvas.deselectObject(obj.id))
+          break
+        case 'intersect':
+          const intersection = matchingObjects.filter((obj: CanvasObject) => currentSelection.has(obj.id))
+          canvas.clearSelection()
+          intersection.forEach((obj: CanvasObject) => canvas.selectObject(obj.id))
+          break
+      }
       
-      // Emit general completion event
-      this.eventBus.emit('ai.processing.completed', {
-        operationId: taskId,
-        taskId,
-        toolId: this.id,
+      this.dependencies.eventBus.emit('ai.processing.completed', {
+        operationId: `${this.id}-${Date.now()}`,
         result: {
-          affectedObjectIds: matchedObjectIds
+          toolId: this.id,
+          success: true,
+          affectedObjectIds: matchingObjects.map((obj: CanvasObject) => obj.id)
+        },
+        metadata: {
+          toolId: this.id
         }
       })
-      
-      console.log(`[SemanticSelectionTool] Found ${matchedObjectIds.length} objects matching "${searchQuery}"`)
       
     } catch (error) {
       console.error('[SemanticSelectionTool] Selection failed:', error)
-      this.eventBus.emit('ai.processing.failed', {
-        operationId: taskId,
-        taskId,
-        toolId: this.id,
-        error: error instanceof Error ? error.message : 'Semantic selection failed'
+      this.dependencies.eventBus.emit('ai.processing.failed', {
+        operationId: `${this.id}-${Date.now()}`,
+        error: error instanceof Error ? error.message : 'Selection failed',
+        metadata: {
+          toolId: this.id
+        }
       })
-      throw error
     } finally {
       this.isProcessing = false
     }
   }
-  
-  /**
-   * Detect objects in image using AI
-   */
-  private async detectObjects(
-    imageData: import('@/lib/ai/services/replicate').ImageData,
-    query: string,
-    threshold: number
-  ): Promise<Array<{ objectId: string; confidence: number }>> {
-    // In a real implementation, this would use GroundingDINO or similar
-    // For now, we'll use a mock detection based on the query
-    
-    // Mock implementation - in production, use actual AI model
-    console.log('[SemanticSelectionTool] Mock detection for:', query)
-    
-    // Simulate detection based on common queries
-    const mockDetections = []
-    const lowerQuery = query.toLowerCase()
-    
-    if (lowerQuery.includes('face') || lowerQuery.includes('person') || lowerQuery.includes('people')) {
-      mockDetections.push({
-        bbox: [0.2, 0.1, 0.6, 0.7], // Normalized coordinates
-        confidence: 0.9,
-        label: 'person'
-      })
-    }
-    
-    if (lowerQuery.includes('car') || lowerQuery.includes('vehicle')) {
-      mockDetections.push({
-        bbox: [0.3, 0.4, 0.7, 0.6],
-        confidence: 0.85,
-        label: 'car'
-      })
-    }
-    
-    if (lowerQuery.includes('sky')) {
-      mockDetections.push({
-        bbox: [0, 0, 1, 0.4],
-        confidence: 0.95,
-        label: 'sky'
-      })
-    }
-    
-    // Filter by confidence threshold and convert to expected format
-    return mockDetections
-      .filter(d => d.confidence >= threshold)
-      .map(d => ({
-        objectId: `mock-${d.label}-${Math.random().toString(36).substr(2, 9)}`,
-        confidence: d.confidence
-      }))
-    
-    /* Real implementation would be:
-    const output = await this.replicateService.run(
-      "idea-research/grounding-dino",
-      {
-        input: {
-          image: imageData,
-          prompt: query,
-          box_threshold: threshold
-        }
-      }
-    )
-    return output.detections
-    */
-  }
-  
-  /**
-   * Apply selection based on mode
-   */
-  private applySelection(objectIds: string[], mode: string): void {
-    const canvas = this.getCanvas()
-    const currentSelection = Array.from(canvas.state.selectedObjectIds)
-    let finalSelection: string[] = []
-    
-    switch (mode) {
-      case 'new':
-        finalSelection = objectIds
-        break
-      case 'add':
-        finalSelection = [...new Set([...currentSelection, ...objectIds])]
-        break
-      case 'subtract':
-        finalSelection = currentSelection.filter(id => !objectIds.includes(id))
-        break
-      case 'intersect':
-        finalSelection = currentSelection.filter(id => objectIds.includes(id))
-        break
-    }
-    
-    // Update selection
-    if (finalSelection.length === 0) {
-      canvas.deselectAll()
-    } else if (finalSelection.length === 1) {
-      canvas.selectObject(finalSelection[0])
-    } else {
-      canvas.selectMultiple(finalSelection)
-    }
-  }
-  
-  /**
-   * Get image data for Replicate
-   */
-  private async getObjectImageDataForReplicate(object: CanvasObject): Promise<import('@/lib/ai/services/replicate').ImageData | null> {
-    if (object.type !== 'image') return null
-    
-    const imageData = object.data as unknown as import('@/lib/editor/objects/types').ImageData
-    if (!imageData || !imageData.element) return null
-    
-    return {
-      element: imageData.element,
-      naturalWidth: imageData.naturalWidth,
-      naturalHeight: imageData.naturalHeight
-    }
-  }
-  
-  async onMouseDown(_event: ToolEvent): Promise<void> {
-    // Could show a search dialog on click
-    const _canvas = this.getCanvas()
-    
-    // For now, use the query from options
-    const query = this.getOption('query') as string
-    if (query) {
-      await this.executeSelection(query)
-    }
-  }
-  
-  /**
-   * Apply semantic selection for AI operations
-   */
-  async applyWithContext(
-    query: string,
-    options?: {
-      threshold?: number
-      mode?: 'new' | 'add' | 'subtract' | 'intersect'
-    }
-  ): Promise<void> {
-    if (!this.replicateService) {
-      throw new Error('Replicate service not initialized')
-    }
-    
-    // Set options
-    this.setOption('query', query)
-    if (options?.threshold !== undefined) {
-      this.setOption('threshold', options.threshold)
-    }
-    if (options?.mode !== undefined) {
-      this.setOption('mode', options.mode)
-    }
-    
-    // Execute selection
-    await this.executeSelection(query)
-  }
-}
-
-// Export singleton instance
-export const semanticSelectionTool = new SemanticSelectionTool() 
+} 

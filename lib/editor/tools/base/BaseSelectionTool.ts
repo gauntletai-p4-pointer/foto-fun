@@ -1,22 +1,31 @@
-import { BaseTool } from './BaseTool'
+import { BaseTool, type ToolDependencies, type ToolOptions, type ToolOptionDefinition } from './BaseTool'
 import { ToolEvent, SelectionMode, Point } from '@/types'
 import { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
 import { SelectionManager } from '@/lib/editor/selection/SelectionManager'
 import Konva from 'konva'
 
+interface BaseSelectionToolOptions extends ToolOptions {
+  tolerance: ToolOptionDefinition<number>
+  feather: ToolOptionDefinition<number>
+  antiAlias: ToolOptionDefinition<boolean>
+}
+
 /**
  * Base class for all selection tools
  * Provides common functionality for pixel-based selections
  */
-export abstract class BaseSelectionTool extends BaseTool {
+export abstract class BaseSelectionTool extends BaseTool<BaseSelectionToolOptions> {
+  constructor(dependencies: ToolDependencies) {
+    super(dependencies)
+  }
   protected selectionManager!: SelectionManager
   protected overlayLayer!: Konva.Layer
   protected isCreating = false
   protected startPoint: Point | null = null
   protected visualFeedback: Konva.Node | null = null
   
-  onActivate(canvas: CanvasManager): void {
-    super.onActivate(canvas)
+  protected async setupTool(): Promise<void> {
+    const canvas = this.dependencies.canvasManager
     this.selectionManager = canvas.getSelectionManager()
     this.overlayLayer = canvas.stage.findOne('.overlay') as Konva.Layer || new Konva.Layer({ name: 'overlay' })
     
@@ -24,10 +33,31 @@ export abstract class BaseSelectionTool extends BaseTool {
     this.showModifierHints()
   }
   
-  onDeactivate(): void {
+  protected async cleanupTool(): Promise<void> {
     this.cleanup()
-    if (this.canvas) {
-      super.onDeactivate(this.canvas)
+  }
+  
+  protected getOptionDefinitions(): BaseSelectionToolOptions {
+    return {
+      tolerance: {
+        type: 'number',
+        default: 10,
+        min: 0,
+        max: 100,
+        description: 'Selection tolerance'
+      },
+      feather: {
+        type: 'number',
+        default: 0,
+        min: 0,
+        max: 50,
+        description: 'Selection feather amount'
+      },
+      antiAlias: {
+        type: 'boolean',
+        default: true,
+        description: 'Enable anti-aliasing'
+      }
     }
   }
   
@@ -91,7 +121,8 @@ export abstract class BaseSelectionTool extends BaseTool {
    * Show visual hints for available modifiers
    */
   protected showModifierHints(): void {
-    if (!this.canvas) return
+    const canvas = this.dependencies.canvasManager
+    if (!canvas) return
     
     // TODO: Implement status bar hints through proper event system
     // For now, just log the hints

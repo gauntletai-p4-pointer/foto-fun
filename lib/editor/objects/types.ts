@@ -10,7 +10,7 @@ export interface Adjustment {
 
 export interface CanvasObject {
   id: string
-  type: 'image' | 'text' | 'shape' | 'group' | 'verticalText'
+  type: 'image' | 'text' | 'shape' | 'group' | 'verticalText' | 'frame'
   name: string
   
   // Position & Transform
@@ -43,7 +43,7 @@ export interface CanvasObject {
   parent?: string // Parent object ID (for hierarchical objects)
   
   // Type-specific data
-  data: ImageData | TextData | ShapeData | GroupData
+  data: ImageData | TextData | ShapeData | GroupData | FrameData
   
   // Konva node reference (managed by CanvasManager)
   node?: Konva.Node
@@ -56,6 +56,8 @@ export interface CanvasObject {
       mask?: ImageData
       bounds?: { x: number; y: number; width: number; height: number }
     }
+    // Frame-specific metadata
+    isAutoFrame?: boolean
     [key: string]: unknown
   }
 }
@@ -98,6 +100,67 @@ export interface GroupData {
   children?: string[] // Object IDs in the group
 }
 
+/**
+ * Frame-specific data interface
+ * Frames are visual boundaries that define export regions
+ */
+export interface FrameData {
+  type: 'frame'
+  
+  // Frame preset information
+  preset?: string // 'instagram-post', 'business-card', 'a4-portrait', etc.
+  exportName?: string // Custom name for exports
+  
+  // Visual styling
+  style: {
+    fill: string | 'transparent'
+    stroke: {
+      color: string
+      width: number
+      style: 'solid' | 'dashed'
+    }
+    background?: {
+      color: string
+      opacity: number
+    }
+  }
+  
+  // Export configuration
+  export: {
+    format: 'png' | 'jpeg' | 'webp'
+    quality: number
+    dpi: number
+  }
+  
+  // Frame behavior settings
+  clipping: {
+    enabled: boolean // Whether frame clips content
+    showOverflow: boolean // Show content outside frame on canvas
+    exportClipped: boolean // Export only clipped content
+  }
+}
+
+/**
+ * Frame preset definition
+ */
+export interface FramePreset {
+  id: string
+  name: string
+  width: number
+  height: number
+  category: 'social' | 'print' | 'web' | 'document'
+  dpi?: number
+  description?: string
+}
+
+/**
+ * Frame object type - extends CanvasObject with frame-specific properties
+ */
+export interface FrameObject extends CanvasObject {
+  type: 'frame'
+  data: FrameData
+}
+
 // Helper type for effect groups
 export interface EffectGroup extends CanvasObject {
   type: 'group'
@@ -126,6 +189,10 @@ export function isShapeObject(obj: CanvasObject): obj is CanvasObject & { data: 
 
 export function isGroupObject(obj: CanvasObject): obj is CanvasObject & { type: 'group' } {
   return obj.type === 'group'
+}
+
+export function isFrameObject(obj: CanvasObject): obj is FrameObject {
+  return obj.type === 'frame'
 }
 
 export function isEffectGroup(obj: CanvasObject): obj is EffectGroup {

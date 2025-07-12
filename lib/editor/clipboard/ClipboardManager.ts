@@ -250,7 +250,7 @@ export class ClipboardManager {
   /**
    * Clone object data based on type
    */
-  private cloneData(data: import('@/lib/editor/objects/types').ImageData | import('@/lib/editor/objects/types').TextData | import('@/lib/editor/objects/types').ShapeData | import('@/lib/editor/objects/types').GroupData): import('@/lib/editor/objects/types').ImageData | import('@/lib/editor/objects/types').TextData | import('@/lib/editor/objects/types').ShapeData | import('@/lib/editor/objects/types').GroupData {
+  private cloneData(data: import('@/lib/editor/objects/types').ImageData | import('@/lib/editor/objects/types').TextData | import('@/lib/editor/objects/types').ShapeData | import('@/lib/editor/objects/types').GroupData | import('@/lib/editor/objects/types').FrameData): import('@/lib/editor/objects/types').ImageData | import('@/lib/editor/objects/types').TextData | import('@/lib/editor/objects/types').ShapeData | import('@/lib/editor/objects/types').GroupData | import('@/lib/editor/objects/types').FrameData {
     // Clone based on the actual data type
     if ('element' in data) {
       // ImageData
@@ -260,11 +260,24 @@ export class ClipboardManager {
       // TextData
       return { ...data }
     }
-    if ('type' in data && data.type !== 'group') {
-      // ShapeData
+    if ('preset' in data) {
+      // FrameData
       return {
         ...data,
-        points: (data as any).points ? [...(data as any).points] : undefined
+        style: {
+          ...data.style,
+          stroke: data.style.stroke ? { ...data.style.stroke } : data.style.stroke,
+          background: data.style.background ? { ...data.style.background } : data.style.background
+        },
+        export: { ...data.export }
+      }
+    }
+    if ('type' in data && data.type !== 'group') {
+      // ShapeData
+      const shapeData = data as import('@/lib/editor/objects/types').ShapeData
+      return {
+        ...shapeData,
+        points: shapeData.points ? [...shapeData.points] : shapeData.points
       }
     }
     if ('children' in data) {

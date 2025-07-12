@@ -1,18 +1,17 @@
-import { ObjectDrawingTool } from '../base/ObjectDrawingTool'
-import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
+import { ObjectTool } from '../base/ObjectTool'
 import type { ToolEvent } from '@/lib/editor/canvas/types'
 import type { CanvasObject } from '@/lib/editor/objects/types'
 import { ReplicateService } from '@/lib/ai/services/replicate'
-import { TypedEventBus } from '@/lib/events/core/TypedEventBus'
+import type { ToolDependencies, ToolOptions } from '@/lib/editor/tools/base/BaseTool'
 import { isImageObject } from '@/lib/editor/objects/types'
 import { StyleTransferBrushIcon } from '@/components/editor/icons/AIToolIcons'
 
-export interface StyleTransferBrushOptions {
-  brushSize: number
-  style: 'oil-painting' | 'watercolor' | 'pencil-sketch' | 'anime' | 'impressionist' | 'abstract'
-  strength: number // 0-1, how much style to apply
-  preserveContent: number // 0-1, how much to preserve original content
-  feather: number // Edge softness
+export interface StyleTransferBrushOptions extends ToolOptions {
+  brushSize: { type: 'number'; default: number; min: 1; max: 200 }
+  style: { type: 'enum'; default: string; enum: string[] }
+  strength: { type: 'number'; default: number; min: 0; max: 1 }
+  preserveContent: { type: 'number'; default: number; min: 0; max: 1 }
+  feather: { type: 'number'; default: number; min: 0; max: 50 }
 }
 
 interface BrushStroke {
@@ -22,77 +21,63 @@ interface BrushStroke {
 }
 
 /**
- * AI brush that selectively applies artistic styles to painted areas
- * Like a magic brush that turns photos into paintings where you paint
+ * Style Transfer Brush - Apply artistic styles to painted areas
+ * Supports oil painting, watercolor, pencil sketch, anime, impressionist, and abstract styles
  */
-export class StyleTransferBrush extends ObjectDrawingTool {
+export class StyleTransferBrush extends ObjectTool<StyleTransferBrushOptions> {
   id = 'ai-style-transfer'
   name = 'Style Transfer Brush'
   icon = StyleTransferBrushIcon
   cursor = 'crosshair'
   
   private replicateService: ReplicateService
-  private eventBus: TypedEventBus
   protected isDrawing = false
   private currentStroke: BrushStroke | null = null
   private strokeCanvas: HTMLCanvasElement | null = null
   private strokeCtx: CanvasRenderingContext2D | null = null
   
-  constructor() {
-    super()
+  constructor(dependencies: ToolDependencies) {
+    super(dependencies)
     this.replicateService = new ReplicateService()
-    this.eventBus = new TypedEventBus()
   }
   
-  async setupTool(): Promise<void> {
-    // Initialize tool-specific resources
-    // No special setup needed for style transfer brush
+  protected getOptionDefinitions(): StyleTransferBrushOptions {
+    return {
+      brushSize: { type: 'number', default: 75, min: 1, max: 200 },
+      style: { 
+        type: 'enum', 
+        default: 'oil-painting', 
+        enum: ['oil-painting', 'watercolor', 'pencil-sketch', 'anime', 'impressionist', 'abstract'] 
+      },
+      strength: { type: 'number', default: 0.7, min: 0, max: 1 },
+      preserveContent: { type: 'number', default: 0.6, min: 0, max: 1 },
+      feather: { type: 'number', default: 15, min: 0, max: 50 }
+    }
   }
-  
-  async cleanupTool(): Promise<void> {
+
+  protected async setupTool(): Promise<void> {
+    this.dependencies.eventBus.emit('tool.message', {
+      toolId: this.id,
+      type: 'info',
+      message: 'Paint on images to apply artistic styles to specific areas'
+    })
+  }
+
+  protected async cleanupTool(): Promise<void> {
     // Clean up any active strokes
     this.isDrawing = false
     this.currentStroke = null
     this.strokeCanvas = null
     this.strokeCtx = null
   }
-  
-  getOptions(): StyleTransferBrushOptions {
-    return {
-      brushSize: 75,
-      style: 'oil-painting',
-      strength: 0.7,
-      preserveContent: 0.6,
-      feather: 15
-    }
-  }
-  
-  protected createEmptyImageData(width: number, height: number): ImageData {
-    const canvas = document.createElement('canvas')
-    canvas.width = width
-    canvas.height = height
-    const ctx = canvas.getContext('2d')!
-    return ctx.createImageData(width, height)
-  }
-  
-  async onActivate(canvas: CanvasManager): Promise<void> {
-    await super.onActivate(canvas)
-    
-    this.eventBus.emit('tool.message', {
-      toolId: this.id,
-      type: 'info',
-      message: 'Paint on images to apply artistic styles to specific areas'
-    })
-  }
-  
-  async onMouseDown(event: ToolEvent): Promise<void> {
-    const canvas = this.getCanvas()
-    if (!canvas) return
+
+  protected handleMouseDown(event: ToolEvent): void {
+    const canvas = this.dependencies.canvasManager
     
     // Find the object under the cursor
     const targetObject = canvas.getObjectAtPoint(event.point)
     if (!targetObject || !isImageObject(targetObject)) {
-      this.eventBus.emit('tool.message', {
+      this.dependencies.eventBus.emit('tool.message', {
         toolId: this.id,
         type: 'info',
         message: 'Click and drag on an image to apply artistic style'
@@ -104,7 +89,7 @@ export class StyleTransferBrush extends ObjectDrawingTool {
     this.isDrawing = true
     this.currentStroke = {
       points: [event.point],
-      size: this.getOptions().brushSize,
+      size: this.getOption('brushSize') as number,
       objectId: targetObject.id
     }
     
@@ -117,13 +102,11 @@ export class StyleTransferBrush extends ObjectDrawingTool {
     // Start drawing the stroke
     this.drawStrokePoint(event.point, targetObject)
   }
-  
-  async onMouseMove(event: ToolEvent): Promise<void> {
+
+  protected handleMouseMove(event: ToolEvent): void {
     if (!this.isDrawing || !this.currentStroke || !this.strokeCtx) return
     
-    const canvas = this.getCanvas()
-    if (!canvas) return
-    
+    const canvas = this.dependencies.canvasManager
     const targetObject = canvas.getObject(this.currentStroke.objectId)
     if (!targetObject) return
     
@@ -136,74 +119,72 @@ export class StyleTransferBrush extends ObjectDrawingTool {
     // Show preview overlay
     this.updatePreview(targetObject)
   }
-  
-  async onMouseUp(_event: ToolEvent): Promise<void> {
+
+  protected handleMouseUp(_event: ToolEvent): void {
     if (!this.isDrawing || !this.currentStroke || !this.strokeCanvas) return
     
     this.isDrawing = false
     
-    const canvas = this.getCanvas()
-    if (!canvas) return
-    
+    const canvas = this.dependencies.canvasManager
     const targetObject = canvas.getObject(this.currentStroke.objectId)
     if (!targetObject || !isImageObject(targetObject)) return
     
     // Apply the style transfer to the painted area
-    await this.applyStyleToStroke(targetObject, this.strokeCanvas)
+    this.applyStyleToStroke(targetObject, this.strokeCanvas)
     
     // Clean up
     this.currentStroke = null
     this.strokeCanvas = null
     this.strokeCtx = null
   }
-  
+
   private drawStrokePoint(point: { x: number; y: number }, targetObject: CanvasObject): void {
     if (!this.strokeCtx) return
     
-    const options = this.getOptions()
+    const brushSize = this.getOption('brushSize') as number
+    const feather = this.getOption('feather') as number
     const relativeX = point.x - targetObject.x
     const relativeY = point.y - targetObject.y
     
     // Draw with feathered brush
     const gradient = this.strokeCtx.createRadialGradient(
       relativeX, relativeY, 0,
-      relativeX, relativeY, options.brushSize / 2
+      relativeX, relativeY, brushSize / 2
     )
     
     gradient.addColorStop(0, 'rgba(255, 255, 255, 1)')
-    gradient.addColorStop(1 - options.feather / options.brushSize, 'rgba(255, 255, 255, 1)')
+    gradient.addColorStop(1 - feather / brushSize, 'rgba(255, 255, 255, 1)')
     gradient.addColorStop(1, 'rgba(255, 255, 255, 0)')
     
     this.strokeCtx.globalCompositeOperation = 'source-over'
     this.strokeCtx.fillStyle = gradient
     this.strokeCtx.beginPath()
-    this.strokeCtx.arc(relativeX, relativeY, options.brushSize / 2, 0, Math.PI * 2)
+    this.strokeCtx.arc(relativeX, relativeY, brushSize / 2, 0, Math.PI * 2)
     this.strokeCtx.fill()
   }
-  
+
   private updatePreview(_targetObject: CanvasObject): void {
     // Could show a real-time preview overlay
     // For now, just visual feedback through the brush stroke
   }
-  
+
   private async applyStyleToStroke(
     targetObject: CanvasObject & { data: import('@/lib/editor/objects/types').ImageData },
     strokeCanvas: HTMLCanvasElement
   ): Promise<void> {
-    const canvas = this.getCanvas()
-    if (!canvas) return
-    
-    const options = this.getOptions()
+    const canvas = this.dependencies.canvasManager
+    const style = this.getOption('style') as string
     
     const taskId = `${this.id}-${Date.now()}`
     
     try {
-      this.eventBus.emit('ai.processing.started', {
+      this.dependencies.eventBus.emit('ai.processing.started', {
         operationId: taskId,
         type: 'style-transfer',
-        toolId: this.id,
         metadata: {
-          description: `Applying ${options.style} style transfer`
+          toolId: this.id,
+          description: `Applying ${style} style transfer`,
+          targetObjectIds: [targetObject.id]
         }
       })
       
@@ -223,224 +204,205 @@ export class StyleTransferBrush extends ObjectDrawingTool {
         originalCtx.drawImage(targetObject.data.element, 0, 0)
       }
       
-      // In a real implementation, this would:
-      // 1. Extract the masked region
-      // 2. Send to a style transfer AI model
-      // 3. Get back the stylized version
-      // 4. Blend with original based on mask and settings
-      
-      // For now, simulate the style effect
-      const styledCanvas = await this.simulateStyleTransfer(
-        originalCanvas,
-        maskData,
-        options
-      )
-      
-      // Create a new image object with the result
-      const blob = await new Promise<Blob>((resolve) => {
-        styledCanvas.toBlob((blob) => resolve(blob!), 'image/png')
+      // Apply style transfer (simulated for now)
+      const strength = this.getOption('strength') as number
+      const preserveContent = this.getOption('preserveContent') as number
+      const styledCanvas = await this.simulateStyleTransfer(originalCanvas, maskData, {
+        style,
+        strength,
+        preserveContent
       })
       
-      const url = URL.createObjectURL(blob)
-      const img = new Image()
+      // Update the object with the styled image
+      await canvas.updateObject(targetObject.id, {
+        data: {
+          element: styledCanvas,
+          naturalWidth: styledCanvas.width,
+          naturalHeight: styledCanvas.height
+        } as import('@/lib/editor/objects/types').ImageData
+      })
       
-      img.onload = async () => {
-        // Update the object with the new image
-        await canvas.updateObject(targetObject.id, {
-          data: {
-            src: url,
-            naturalWidth: img.naturalWidth,
-            naturalHeight: img.naturalHeight,
-            element: img
-          },
-          metadata: {
-            ...targetObject.metadata,
-            lastStyleTransfer: options.style,
-            lastStyleTransferDate: new Date().toISOString()
-          }
-        })
-        
-        this.eventBus.emit('ai.processing.completed', {
-          operationId: taskId,
-          toolId: this.id,
-          result: {
-            success: true
-          }
-        })
-      }
-      
-      img.src = url
+      this.dependencies.eventBus.emit('ai.processing.completed', {
+        operationId: taskId,
+        result: {
+          success: true,
+          affectedObjectIds: [targetObject.id]
+        },
+        metadata: {
+          toolId: this.id
+        }
+      })
       
     } catch (error) {
       console.error('Style transfer failed:', error)
-      this.eventBus.emit('ai.processing.failed', {
-        operationId: taskId,
-        toolId: this.id,
-        error: error instanceof Error ? error.message : 'Unknown error'
+      this.dependencies.eventBus.emit('ai.processing.failed', {
+        operationId: `${this.id}-${Date.now()}`,
+        error: error instanceof Error ? error.message : 'Style transfer failed',
+        metadata: {
+          toolId: this.id
+        }
       })
     }
   }
-  
+
   private createMaskFromStroke(strokeCanvas: HTMLCanvasElement): ImageData {
     const ctx = strokeCanvas.getContext('2d')!
     return ctx.getImageData(0, 0, strokeCanvas.width, strokeCanvas.height)
   }
-  
+
   private async simulateStyleTransfer(
     originalCanvas: HTMLCanvasElement,
     maskData: ImageData,
-    options: StyleTransferBrushOptions
+    options: { style: string; strength: number; preserveContent: number }
   ): Promise<HTMLCanvasElement> {
-    const width = originalCanvas.width
-    const height = originalCanvas.height
-    
+    // This is a simplified simulation of style transfer
+    // In a real implementation, this would use AI style transfer models
     const resultCanvas = document.createElement('canvas')
-    resultCanvas.width = width
-    resultCanvas.height = height
-    const resultCtx = resultCanvas.getContext('2d')!
+    resultCanvas.width = originalCanvas.width
+    resultCanvas.height = originalCanvas.height
+    const ctx = resultCanvas.getContext('2d')!
     
-    // Draw original
-    resultCtx.drawImage(originalCanvas, 0, 0)
+    // Copy original image
+    ctx.drawImage(originalCanvas, 0, 0)
     
-    // Get image data
-    const imageData = resultCtx.getImageData(0, 0, width, height)
+    // Apply style transformation based on style type
+    const imageData = ctx.getImageData(0, 0, resultCanvas.width, resultCanvas.height)
     const data = imageData.data
     const maskPixels = maskData.data
     
-    // Apply style effects based on selected style
     for (let i = 0; i < data.length; i += 4) {
       const maskAlpha = maskPixels[i + 3] / 255
-      if (maskAlpha === 0) continue
-      
-      const effectStrength = maskAlpha * options.strength
-      const contentPreservation = options.preserveContent
-      
-      const r = data[i]
-      const g = data[i + 1]
-      const b = data[i + 2]
-      
-      let newR = r, newG = g, newB = b
-      
-      switch (options.style) {
-        case 'oil-painting':
-          // Simulate oil painting with color quantization and texture
-          newR = Math.round(r / 32) * 32
-          newG = Math.round(g / 32) * 32
-          newB = Math.round(b / 32) * 32
-          
-          // Add slight color mixing
-          const avgColor = (newR + newG + newB) / 3
-          newR = newR * 0.8 + avgColor * 0.2
-          newG = newG * 0.8 + avgColor * 0.2
-          newB = newB * 0.8 + avgColor * 0.2
-          break
-          
-        case 'watercolor':
-          // Simulate watercolor with transparency and bleeding
-          const luminance = 0.299 * r + 0.587 * g + 0.114 * b
-          const _saturation = Math.max(r, g, b) - Math.min(r, g, b)
-          
-          // Reduce saturation and add transparency effect
-          newR = r * 0.7 + luminance * 0.3
-          newG = g * 0.7 + luminance * 0.3
-          newB = b * 0.7 + luminance * 0.3
-          
-          // Add slight color variation
-          newR += (Math.random() - 0.5) * 20
-          newG += (Math.random() - 0.5) * 20
-          newB += (Math.random() - 0.5) * 20
-          break
-          
-        case 'pencil-sketch':
-          // Convert to grayscale with edge emphasis
-          const gray = 0.299 * r + 0.587 * g + 0.114 * b
-          const edge = this.detectEdge(data, i, width, height)
-          const sketch = gray * (1 - edge * 0.5)
-          
-          newR = newG = newB = sketch
-          break
-          
-        case 'anime':
-          // Cel shading effect with bold colors
-          const levels = 4
-          newR = Math.round(r / 255 * levels) * (255 / levels)
-          newG = Math.round(g / 255 * levels) * (255 / levels)
-          newB = Math.round(b / 255 * levels) * (255 / levels)
-          
-          // Enhance saturation
-          const grayAnime = (newR + newG + newB) / 3
-          newR = grayAnime + (newR - grayAnime) * 1.5
-          newG = grayAnime + (newG - grayAnime) * 1.5
-          newB = grayAnime + (newB - grayAnime) * 1.5
-          break
-          
-        case 'impressionist':
-          // Dabs of color with variation
-          const offsetX = Math.sin(i * 0.01) * 5
-          const offsetY = Math.cos(i * 0.01) * 5
-          const offsetIndex = i + Math.round(offsetX) * 4 + Math.round(offsetY) * width * 4
-          
-          if (offsetIndex >= 0 && offsetIndex < data.length) {
-            newR = data[offsetIndex] * 0.7 + r * 0.3
-            newG = data[offsetIndex + 1] * 0.7 + g * 0.3
-            newB = data[offsetIndex + 2] * 0.7 + b * 0.3
-          }
-          
-          // Add color variation
-          newR += (Math.random() - 0.5) * 30
-          newG += (Math.random() - 0.5) * 30
-          newB += (Math.random() - 0.5) * 30
-          break
-          
-        case 'abstract':
-          // Extreme color shifts and distortion
-          const hue = Math.atan2(r - 128, g - 128)
-          const shift = Math.sin(hue + i * 0.001) * 100
-          
-          newR = r + shift
-          newG = g - shift * 0.5
-          newB = b + shift * 0.7
-          
-          // Add noise
-          newR += (Math.random() - 0.5) * 50
-          newG += (Math.random() - 0.5) * 50
-          newB += (Math.random() - 0.5) * 50
-          break
+      if (maskAlpha > 0) {
+        const effectStrength = maskAlpha * options.strength
+        
+        // Apply style-specific transformations
+        switch (options.style) {
+          case 'oil-painting':
+            this.applyOilPaintingEffect(data, i, effectStrength, options.preserveContent)
+            break
+          case 'watercolor':
+            this.applyWatercolorEffect(data, i, effectStrength, options.preserveContent)
+            break
+          case 'pencil-sketch':
+            this.applyPencilSketchEffect(data, i, effectStrength, options.preserveContent)
+            break
+          case 'anime':
+            this.applyAnimeEffect(data, i, effectStrength, options.preserveContent)
+            break
+          case 'impressionist':
+            this.applyImpressionistEffect(data, i, effectStrength, options.preserveContent)
+            break
+          case 'abstract':
+            this.applyAbstractEffect(data, i, effectStrength, options.preserveContent)
+            break
+        }
       }
-      
-      // Clamp values
-      newR = Math.max(0, Math.min(255, newR))
-      newG = Math.max(0, Math.min(255, newG))
-      newB = Math.max(0, Math.min(255, newB))
-      
-      // Blend with original based on content preservation
-      data[i] = r * contentPreservation + newR * (1 - contentPreservation) * effectStrength + r * (1 - effectStrength)
-      data[i + 1] = g * contentPreservation + newG * (1 - contentPreservation) * effectStrength + g * (1 - effectStrength)
-      data[i + 2] = b * contentPreservation + newB * (1 - contentPreservation) * effectStrength + b * (1 - effectStrength)
     }
     
-    resultCtx.putImageData(imageData, 0, 0)
+    ctx.putImageData(imageData, 0, 0)
     return resultCanvas
   }
-  
-  private detectEdge(data: Uint8ClampedArray, index: number, width: number, height: number): number {
-    const x = (index / 4) % width
-    const y = Math.floor((index / 4) / width)
+
+  private applyOilPaintingEffect(data: Uint8ClampedArray, i: number, strength: number, preserve: number): void {
+    // Oil painting: increase saturation and add texture
+    const r = data[i]
+    const g = data[i + 1]
+    const b = data[i + 2]
     
-    if (x === 0 || x === width - 1 || y === 0 || y === height - 1) {
-      return 0
-    }
+    // Increase saturation
+    const gray = 0.299 * r + 0.587 * g + 0.114 * b
+    const satBoost = 1 + strength * 0.5
     
-    // Simple edge detection using neighboring pixels
-    const _current = data[index]
-    const left = data[index - 4]
-    const right = data[index + 4]
-    const top = data[index - width * 4]
-    const bottom = data[index + width * 4]
+    data[i] = Math.min(255, gray + (r - gray) * satBoost * (1 - preserve) + r * preserve)
+    data[i + 1] = Math.min(255, gray + (g - gray) * satBoost * (1 - preserve) + g * preserve)
+    data[i + 2] = Math.min(255, gray + (b - gray) * satBoost * (1 - preserve) + b * preserve)
+  }
+
+  private applyWatercolorEffect(data: Uint8ClampedArray, i: number, strength: number, preserve: number): void {
+    // Watercolor: soften colors and reduce contrast
+    const r = data[i]
+    const g = data[i + 1]
+    const b = data[i + 2]
     
-    const horizontalEdge = Math.abs(left - right)
-    const verticalEdge = Math.abs(top - bottom)
+    // Soften towards lighter tones
+    const softR = r + (255 - r) * strength * 0.3
+    const softG = g + (255 - g) * strength * 0.3
+    const softB = b + (255 - b) * strength * 0.3
     
-    return Math.min(1, (horizontalEdge + verticalEdge) / 255)
+    data[i] = softR * (1 - preserve) + r * preserve
+    data[i + 1] = softG * (1 - preserve) + g * preserve
+    data[i + 2] = softB * (1 - preserve) + b * preserve
+  }
+
+  private applyPencilSketchEffect(data: Uint8ClampedArray, i: number, strength: number, preserve: number): void {
+    // Pencil sketch: convert to grayscale and enhance edges
+    const r = data[i]
+    const g = data[i + 1]
+    const b = data[i + 2]
+    
+    const gray = 0.299 * r + 0.587 * g + 0.114 * b
+    const contrast = 1 + strength * 0.5
+    const enhanced = Math.min(255, Math.max(0, (gray - 128) * contrast + 128))
+    
+    data[i] = enhanced * (1 - preserve) + r * preserve
+    data[i + 1] = enhanced * (1 - preserve) + g * preserve
+    data[i + 2] = enhanced * (1 - preserve) + b * preserve
+  }
+
+  private applyAnimeEffect(data: Uint8ClampedArray, i: number, strength: number, preserve: number): void {
+    // Anime: posterize colors and increase saturation
+    const r = data[i]
+    const g = data[i + 1]
+    const b = data[i + 2]
+    
+    // Posterize (reduce color levels)
+    const levels = 8
+    const factor = 255 / levels
+    const posterR = Math.round(r / factor) * factor
+    const posterG = Math.round(g / factor) * factor
+    const posterB = Math.round(b / factor) * factor
+    
+    data[i] = posterR * (1 - preserve) * strength + r * (preserve + (1 - strength))
+    data[i + 1] = posterG * (1 - preserve) * strength + g * (preserve + (1 - strength))
+    data[i + 2] = posterB * (1 - preserve) * strength + b * (preserve + (1 - strength))
+  }
+
+  private applyImpressionistEffect(data: Uint8ClampedArray, i: number, strength: number, preserve: number): void {
+    // Impressionist: soften and add color variation
+    const r = data[i]
+    const g = data[i + 1]
+    const b = data[i + 2]
+    
+    // Add subtle color variation
+    const variation = strength * 20
+    const newR = Math.min(255, Math.max(0, r + (Math.random() - 0.5) * variation))
+    const newG = Math.min(255, Math.max(0, g + (Math.random() - 0.5) * variation))
+    const newB = Math.min(255, Math.max(0, b + (Math.random() - 0.5) * variation))
+    
+    data[i] = newR * (1 - preserve) + r * preserve
+    data[i + 1] = newG * (1 - preserve) + g * preserve
+    data[i + 2] = newB * (1 - preserve) + b * preserve
+  }
+
+  private applyAbstractEffect(data: Uint8ClampedArray, i: number, strength: number, preserve: number): void {
+    // Abstract: high contrast and color shifts
+    const r = data[i]
+    const g = data[i + 1]
+    const b = data[i + 2]
+    
+    // High contrast
+    const contrast = 1 + strength * 2
+    const newR = Math.min(255, Math.max(0, (r - 128) * contrast + 128))
+    const newG = Math.min(255, Math.max(0, (g - 128) * contrast + 128))
+    const newB = Math.min(255, Math.max(0, (b - 128) * contrast + 128))
+    
+    // Color shift
+    const shiftR = (newR + newG * 0.3) % 255
+    const shiftG = (newG + newB * 0.3) % 255
+    const shiftB = (newB + newR * 0.3) % 255
+    
+    data[i] = shiftR * (1 - preserve) + r * preserve
+    data[i + 1] = shiftG * (1 - preserve) + g * preserve
+    data[i + 2] = shiftB * (1 - preserve) + b * preserve
   }
 } 

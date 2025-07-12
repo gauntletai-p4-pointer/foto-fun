@@ -1,5 +1,6 @@
 import type { CanvasObject } from '@/lib/editor/objects/types'
 import { Command, type CommandContext } from '../base/Command'
+import { success, failure, ExecutionError, type CommandResult } from '../base/CommandResult'
 
 export interface UngroupObjectsOptions {
   groupId: string
@@ -43,13 +44,31 @@ export class UngroupObjectsCommand extends Command {
     }
   }
 
-  async undo(): Promise<void> {
-    if (this.groupObject) {
+  async undo(): Promise<CommandResult<void>> {
+    try {
+      if (!this.groupObject) {
+        return failure(
+          new ExecutionError('Cannot undo: original group data not available', { commandId: this.id })
+        )
+      }
+
       // Re-create the group
       await this.context.canvasManager.addObject(this.groupObject)
-      
+
       // Select the group
       this.context.canvasManager.selectObject(this.groupObject.id)
+
+      return success(undefined, [], {
+        executionTime: 0,
+        affectedObjects: [this.groupObject.id]
+      })
+    } catch (error) {
+      return failure(
+        new ExecutionError(
+          `Failed to undo ungroup objects: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          { commandId: this.id }
+        )
+      )
     }
   }
 

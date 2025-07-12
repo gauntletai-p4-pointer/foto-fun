@@ -1,5 +1,6 @@
 import type { CanvasObject, TextData } from '@/lib/editor/objects/types'
 import { Command, type CommandContext } from '../base/Command'
+import { success, failure, ExecutionError, type CommandResult } from '../base/CommandResult'
 
 export interface EditTextOptions {
   objectId: string
@@ -55,15 +56,27 @@ export class EditTextCommand extends Command {
     await this.context.canvasManager.updateObject(this.options.objectId, updates)
   }
 
-  async undo(): Promise<void> {
-    if (!this.previousStyle) return
+  async undo(): Promise<CommandResult<void>> {
+    try {
+      if (this.previousStyle) {
+        // Restore the previous text data
+        await this.context.canvasManager.updateObject(this.options.objectId, {
+          data: this.previousStyle
+        })
+      }
 
-    // Restore previous text and style
-    const updates: Partial<CanvasObject> = {
-      data: this.previousStyle
+      return success(undefined, [], {
+        executionTime: 0,
+        affectedObjects: [this.options.objectId]
+      })
+    } catch (error) {
+      return failure(
+        new ExecutionError(
+          `Failed to undo edit text: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          { commandId: this.id }
+        )
+      )
     }
-
-    await this.context.canvasManager.updateObject(this.options.objectId, updates)
   }
 
   canExecute(): boolean {

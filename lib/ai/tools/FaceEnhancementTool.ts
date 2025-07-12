@@ -3,15 +3,19 @@ import { ObjectTool } from '@/lib/editor/tools/base/ObjectTool'
 import type { CanvasObject } from '@/lib/editor/objects/types'
 import type { ToolEvent } from '@/lib/editor/canvas/types'
 import { ReplicateService } from '@/lib/ai/services/replicate'
-import { TypedEventBus } from '@/lib/events/core/TypedEventBus'
 import { ModelRegistry } from '@/lib/ai/models/ModelRegistry'
-// import { TOOL_IDS } from '@/constants'
+import type { ToolDependencies, ToolOptions } from '@/lib/editor/tools/base/BaseTool'
+
+interface FaceEnhancementOptions extends ToolOptions {
+  enhancementScale: { type: 'number'; default: number; min: 1; max: 4 }
+  autoDetect: { type: 'boolean'; default: boolean }
+}
 
 /**
  * Face Enhancement Tool - AI-powered face enhancement
  * Uses Replicate's GFPGAN model to enhance faces in images
  */
-export class FaceEnhancementTool extends ObjectTool {
+export class FaceEnhancementTool extends ObjectTool<FaceEnhancementOptions> {
   // Tool identification
   id = 'face-enhancement'
   name = 'Face Enhancement'
@@ -21,27 +25,33 @@ export class FaceEnhancementTool extends ObjectTool {
   // Service
   private replicateService: ReplicateService | null = null
   private isProcessing = false
-  private eventBus = new TypedEventBus()
   
-  protected setupTool(): void {
+  constructor(dependencies: ToolDependencies) {
+    super(dependencies)
+  }
+
+  protected getOptionDefinitions(): FaceEnhancementOptions {
+    return {
+      enhancementScale: { type: 'number', default: 2, min: 1, max: 4 },
+      autoDetect: { type: 'boolean', default: true }
+    }
+  }
+
+  protected async setupTool(): Promise<void> {
     // Initialize Replicate service (automatically handles server/client routing)
     try {
       this.replicateService = new ReplicateService()
     } catch (error) {
       console.error('[FaceEnhancementTool] Failed to initialize Replicate service:', error)
     }
-    
-    // Set default options
-    this.setOption('enhancementScale', 2) // 1-4, higher = better quality but slower
-    this.setOption('autoDetect', true) // Automatically detect and enhance all faces
   }
   
-  protected cleanupTool(): void {
+  protected async cleanupTool(): Promise<void> {
     this.replicateService = null
     this.isProcessing = false
   }
-  
-  async onMouseDown(event: ToolEvent): Promise<void> {
+
+  protected handleMouseDown(event: ToolEvent): void {
     if (!this.replicateService) {
       console.error('[FaceEnhancementTool] Replicate service not initialized')
       return
@@ -56,20 +66,28 @@ export class FaceEnhancementTool extends ObjectTool {
     const point = event.point
     
     // Find which object was clicked
-    const clickedObject = await this.getObjectAtPoint(point)
-    
-    if (!clickedObject || clickedObject.type !== 'image') {
-      console.warn('[FaceEnhancementTool] Click on an image to enhance faces')
-      return
-    }
-    
-    // Select the object if not already selected
-    if (!canvas.state.selectedObjectIds.has(clickedObject.id)) {
-      canvas.selectObject(clickedObject.id)
-    }
-    
-    // Enhance the face
-    await this.enhanceFace(clickedObject)
+    this.getObjectAtPoint(point).then(clickedObject => {
+      if (!clickedObject || clickedObject.type !== 'image') {
+        console.warn('[FaceEnhancementTool] Click on an image to enhance faces')
+        return
+      }
+      
+      // Select the object if not already selected
+      if (!canvas.state.selectedObjectIds.has(clickedObject.id)) {
+        canvas.selectObject(clickedObject.id)
+      }
+      
+      // Enhance the face
+      this.enhanceFace(clickedObject)
+    })
+  }
+
+  protected handleMouseMove(_event: ToolEvent): void {
+    // No mouse move handling for face enhancement
+  }
+
+  protected handleMouseUp(_event: ToolEvent): void {
+    // No mouse up handling for face enhancement
   }
   
   /**
@@ -82,7 +100,7 @@ export class FaceEnhancementTool extends ObjectTool {
     const canvas = this.getCanvas()
     
     const taskId = `${this.id}-${Date.now()}`
-    this.eventBus.emit('ai.processing.started', {
+    this.dependencies.eventBus.emit('ai.processing.started', {
       operationId: taskId,
       type: 'face-enhancement',
       metadata: {
@@ -134,7 +152,7 @@ export class FaceEnhancementTool extends ObjectTool {
       })
       
       // Emit success events
-      this.eventBus.emit('ai.face.enhanced', {
+      this.dependencies.eventBus.emit('ai.face.enhanced', {
         operationId: taskId,
         imageId: object.id,
         enhancementType: 'face-enhancement',
@@ -144,7 +162,7 @@ export class FaceEnhancementTool extends ObjectTool {
         }
       })
       
-      this.eventBus.emit('ai.processing.completed', {
+      this.dependencies.eventBus.emit('ai.processing.completed', {
         operationId: taskId,
         result: {
           success: true,
@@ -168,7 +186,7 @@ export class FaceEnhancementTool extends ObjectTool {
       })
       
       // Emit error events
-      this.eventBus.emit('ai.face.error', {
+      this.dependencies.eventBus.emit('ai.face.error', {
         operationId: taskId,
         error: error instanceof Error ? error.message : 'Unknown error',
         metadata: {
@@ -178,7 +196,7 @@ export class FaceEnhancementTool extends ObjectTool {
         }
       })
       
-      this.eventBus.emit('ai.processing.failed', {
+      this.dependencies.eventBus.emit('ai.processing.failed', {
         operationId: taskId,
         error: error instanceof Error ? error.message : 'Face enhancement failed',
         metadata: {
@@ -200,10 +218,8 @@ export class FaceEnhancementTool extends ObjectTool {
     // Check objects in reverse order (top to bottom)
     for (let i = objects.length - 1; i >= 0; i--) {
       const obj = objects[i]
-      if (!obj.visible || obj.locked) continue
-      
-      // Check if point is within object bounds
-      if (point.x >= obj.x && point.x <= obj.x + obj.width &&
+      if (obj.type === 'image' && 
+          point.x >= obj.x && point.x <= obj.x + obj.width &&
           point.y >= obj.y && point.y <= obj.y + obj.height) {
         return obj
       }
@@ -213,14 +229,13 @@ export class FaceEnhancementTool extends ObjectTool {
   }
   
   /**
-   * Get image data from an object for Replicate
+   * Get image data for Replicate from a canvas object
    */
   private async getObjectImageDataForReplicate(object: CanvasObject): Promise<import('@/lib/ai/services/replicate').ImageData | null> {
     if (object.type !== 'image') return null
     
-    // Get the image data
-    const imageData = object.data as unknown as import('@/lib/editor/objects/types').ImageData
-    if (!imageData || !imageData.element) return null
+    const imageData = object.data as import('@/lib/editor/objects/types').ImageData
+    if (!imageData.element) return null
     
     return {
       element: imageData.element,
@@ -229,9 +244,8 @@ export class FaceEnhancementTool extends ObjectTool {
     }
   }
   
-  
   /**
-   * Apply face enhancement for AI operations
+   * Apply face enhancement with context (for AI adapter use)
    */
   async applyWithContext(
     targetObject?: CanvasObject,
@@ -239,25 +253,16 @@ export class FaceEnhancementTool extends ObjectTool {
       scale?: number
     }
   ): Promise<void> {
-    if (!this.replicateService) {
-      throw new Error('Replicate service not initialized')
-    }
-    
-    // Set options if provided
-    if (options?.scale !== undefined) {
-      this.setOption('enhancementScale', options.scale)
-    }
-    
-    // Get target object
-    const target = targetObject || this.getTargetObject()
-    if (!target || target.type !== 'image') {
+    const object = targetObject || this.getTargetObject()
+    if (!object || object.type !== 'image') {
       throw new Error('Face enhancement requires an image object')
     }
     
-    // Enhance the face
-    await this.enhanceFace(target)
+    // Set options if provided
+    if (options?.scale) {
+      this.setOption('enhancementScale', options.scale)
+    }
+    
+    await this.enhanceFace(object)
   }
-}
-
-// Export singleton instance
-export const faceEnhancementTool = new FaceEnhancementTool() 
+} 

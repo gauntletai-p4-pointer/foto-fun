@@ -1,17 +1,33 @@
-import { BaseTool } from './BaseTool'
+import { BaseTool, type ToolDependencies, type ToolOptions, type ToolOptionDefinition } from './BaseTool'
 import type { EventSelectionStore } from '@/lib/store/selection/EventSelectionStore'
 import type { Point } from '@/lib/editor/canvas/types'
+
+interface SelectionToolOptions extends ToolOptions {
+  mode: ToolOptionDefinition<'replace' | 'add' | 'subtract' | 'intersect'>
+}
 
 /**
  * Base class for selection tools
  * Uses dependency injection for store access
  */
-export abstract class SelectionTool extends BaseTool {
+export abstract class SelectionTool extends BaseTool<SelectionToolOptions> {
   protected selectionStore: EventSelectionStore
   
-  constructor(selectionStore: EventSelectionStore) {
-    super()
-    this.selectionStore = selectionStore
+  constructor(dependencies: ToolDependencies) {
+    super(dependencies)
+    // Get selection store from dependencies
+    this.selectionStore = dependencies.selectionManager as unknown as EventSelectionStore
+  }
+  
+  protected getOptionDefinitions(): SelectionToolOptions {
+    return {
+      mode: {
+        type: 'enum',
+        default: 'replace',
+        enum: ['replace', 'add', 'subtract', 'intersect'],
+        description: 'Selection mode'
+      }
+    }
   }
   
   /**

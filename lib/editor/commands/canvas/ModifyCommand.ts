@@ -1,140 +1,105 @@
-import { Command } from '../base'
-import type { CanvasManager } from '@/lib/editor/canvas/types'
+import type { CommandContext } from '../base/Command'
+import type { CommandResult } from '../base/CommandResult'
+import { Command } from '../base/Command'
+import { ExecutionError, success, failure } from '../base/CommandResult'
 import type { CanvasObject } from '@/lib/editor/objects/types'
-import type { TypedEventBus } from '@/lib/events/core/TypedEventBus'
 
-/**
- * Deep clone a value to ensure proper undo/redo
- */
-function deepClone(value: unknown): unknown {
-  if (value === null || value === undefined) return value
-  
-  // Handle arrays
-  if (Array.isArray(value)) {
-    return value.map(item => deepClone(item))
-  }
-  
-  // Handle objects (but not class instances)
-  if (typeof value === 'object' && value.constructor === Object) {
-    const cloned: Record<string, unknown> = {}
-    for (const key in value) {
-      if (Object.prototype.hasOwnProperty.call(value, key)) {
-        cloned[key] = deepClone((value as Record<string, unknown>)[key])
-      }
-    }
-    return cloned
-  }
-  
-  // For class instances (like filters), we need to handle them specially
-  if (typeof value === 'object' && 'type' in value) {
-    // This is likely a filter or similar object
-    // We'll store it as-is since the system will handle the recreation
-    return value
-  }
-  
-  // Primitive values
-  return value
+export interface ModifyOptions {
+  object: CanvasObject
+  updates: Partial<CanvasObject>
+  description?: string
 }
 
-/**
- * Command to modify object properties (color, opacity, etc.)
- * Uses the event-driven architecture for state changes
- */
 export class ModifyCommand extends Command {
-  private canvasManager: CanvasManager
-  private objectId: string
-  private oldProperties: Record<string, unknown>
-  private newProperties: Record<string, unknown>
-  
+  private object: CanvasObject
+  private updates: Partial<CanvasObject>
+  private previousState: Record<string, unknown>
+
   constructor(
-    eventBus: TypedEventBus,
-    canvasManager: CanvasManager, 
-    object: CanvasObject, 
-    properties: Record<string, unknown>,
-    description?: string
+    options: ModifyOptions,
+    context: CommandContext
   ) {
-    super(description || `Modify ${object.type || 'object'} properties`, eventBus)
-    this.canvasManager = canvasManager
-    this.objectId = object.id
-    this.newProperties = deepClone(properties) as Record<string, unknown>
-    
-    // Capture old properties with deep cloning
-    this.oldProperties = {}
-    for (const key in properties) {
-      // Use bracket notation with proper type assertion
-      const value = object[key as keyof CanvasObject]
-      this.oldProperties[key] = deepClone(value)
-    }
+    super(options.description || `Modify ${options.object.type || 'object'} properties`, context)
+    this.object = options.object
+    this.updates = options.updates
+    this.previousState = {}
   }
-  
+
   protected async doExecute(): Promise<void> {
-    // Find the object
-    const object = this.findObject(this.objectId)
-    if (!object) {
-      throw new Error(`Object ${this.objectId} not found`)
+    // Store previous state for undo
+    this.previousState = {}
+    for (const key in this.updates) {
+      if (key in this.object) {
+        this.previousState[key] = this.object[key as keyof CanvasObject]
+      }
     }
-    
-    // Emit modification event using inherited eventBus
-    this.eventBus.emit('canvas.object.modified', {
-      canvasId: 'main', // TODO: Get actual canvas ID
-      objectId: this.objectId,
-      previousState: this.oldProperties,
-      newState: this.newProperties
+
+    // Apply updates
+    Object.assign(this.object, this.updates)
+
+    // Update object through canvas manager
+    await this.context.canvasManager.updateObject(this.object.id, this.updates)
+
+    // Emit event through context
+    this.context.eventBus.emit('canvas.object.modified', {
+      canvasId: this.context.canvasManager.id,
+      objectId: this.object.id,
+      previousState: this.previousState as Record<string, unknown>,
+      newState: this.updates as Record<string, unknown>
     })
-    
-    // Update the object through canvas manager
-    await this.canvasManager.updateObject(this.objectId, this.newProperties)
   }
-  
-  async undo(): Promise<void> {
-    // Find the object
-    const object = this.findObject(this.objectId)
-    if (!object) {
-      throw new Error(`Object ${this.objectId} not found`)
+
+  async undo(): Promise<CommandResult<void>> {
+    try {
+      // Restore previous state
+      Object.assign(this.object, this.previousState)
+      
+      // Update object through canvas manager
+      await this.context.canvasManager.updateObject(this.object.id, this.previousState)
+
+      // Emit event through context
+      this.context.eventBus.emit('canvas.object.modified', {
+        canvasId: this.context.canvasManager.id,
+        objectId: this.object.id,
+        previousState: this.updates as Record<string, unknown>,
+        newState: this.previousState as Record<string, unknown>
+      })
+
+      return success(undefined, [], {
+        executionTime: 0,
+        affectedObjects: [this.object.id]
+      })
+    } catch (error) {
+      return failure(
+        new ExecutionError('Failed to undo object modification', { commandId: this.id })
+      )
     }
-    
-    // Emit modification event with reversed properties using inherited eventBus
-    this.eventBus.emit('canvas.object.modified', {
-      canvasId: 'main', // TODO: Get actual canvas ID
-      objectId: this.objectId,
-      previousState: this.newProperties,
-      newState: this.oldProperties
-    })
-    
-    // Update the object through canvas manager
-    await this.canvasManager.updateObject(this.objectId, this.oldProperties)
   }
-  
-  async redo(): Promise<void> {
-    await this.execute()
-  }
-  
-  /**
-   * Find object by ID
-   */
-  private findObject(id: string): CanvasObject | null {
-    return this.canvasManager.getObject(id)
-  }
-  
-  /**
-   * Check if this command can be merged with another
-   * We can merge consecutive property changes on the same object
-   */
-  canMergeWith(other: Command): boolean {
-    return other instanceof ModifyCommand && 
-           other.objectId === this.objectId &&
-           // Only merge if commands are close in time (within 500ms)
-           Math.abs(other.timestamp - this.timestamp) < 500
-  }
-  
-  /**
-   * Merge with another modify command
-   * Combine the property changes
-   */
-  mergeWith(other: Command): void {
-    if (other instanceof ModifyCommand) {
-      // Merge new properties
-      Object.assign(this.newProperties, other.newProperties)
+
+  async redo(): Promise<CommandResult<void>> {
+    try {
+      // Re-apply updates
+      Object.assign(this.object, this.updates)
+      
+      // Update object through canvas manager
+      await this.context.canvasManager.updateObject(this.object.id, this.updates)
+
+      // Emit event through context
+      this.context.eventBus.emit('canvas.object.modified', {
+        canvasId: this.context.canvasManager.id,
+        objectId: this.object.id,
+        previousState: this.previousState as Record<string, unknown>,
+        newState: this.updates as Record<string, unknown>
+      })
+
+      return success(undefined, [], {
+        executionTime: 0,
+        affectedObjects: [this.object.id]
+      })
+    } catch (error) {
+      return failure(
+        new ExecutionError('Failed to redo object modification', { commandId: this.id })
+      )
     }
   }
 } 

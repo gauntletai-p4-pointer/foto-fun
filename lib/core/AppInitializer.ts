@@ -17,7 +17,6 @@ import { EventStoreBridge } from '@/lib/events/core/EventStoreBridge'
 // Stores
 import { TypedCanvasStore } from '@/lib/store/canvas/TypedCanvasStore'
 import { EventToolStore } from '@/lib/store/tools/EventToolStore'
-
 import { EventSelectionStore } from '@/lib/store/selection/EventSelectionStore'
 import { EventColorStore } from '@/lib/store/color/EventColorStore'
 import { EventBasedHistoryStore } from '@/lib/events/history/EventBasedHistoryStore'
@@ -28,6 +27,15 @@ import { EventTextStore } from '@/lib/store/text/EventTextStore'
 
 // Managers
 import { FontManager } from '@/lib/editor/fonts/FontManager'
+import { ToolFactory } from '@/lib/editor/tools/base/ToolFactory'
+import { ModelPreferencesManager } from '@/lib/settings/ModelPreferences'
+import { FeatureManager } from '@/lib/config/features'
+import { CommandManager } from '@/lib/editor/commands/CommandManager'
+import { SelectionContextManager } from '@/lib/editor/selection/SelectionContextManager'
+import { ClipboardManager } from '@/lib/editor/clipboard/ClipboardManager'
+
+// Tools
+import { MoveTool } from '@/lib/editor/tools/transform/moveTool'
 
 // AI System
 import { ClientToolExecutor } from '@/lib/ai/client/tool-executor'
@@ -140,166 +148,132 @@ export class AppInitializer {
         phase: 'infrastructure'
       })
       
-      container.registerSingleton('ToolStore', () => {
-        const store = new EventToolStore(
+      container.registerSingleton('SelectionStore', () => 
+        new EventSelectionStore(
           container.getSync('EventStore'),
           container.getSync('TypedEventBus')
-        )
-        // Activate default tool immediately - no setTimeout hack needed
-        store.activateTool('move')
-        return store
-      }, {
+        ), {
         dependencies: ['EventStore', 'TypedEventBus'],
         phase: 'infrastructure'
       })
       
-      container.registerSingleton('SelectionStore', () => {
-        const store = new EventSelectionStore(
-          container.getSync('EventStore'),
-          container.getSync('TypedEventBus')
-        )
-        store.initialize()
-        return store
-      }, {
-        dependencies: ['EventStore', 'TypedEventBus'],
-        phase: 'infrastructure'
-      })
-      
-      // Register ColorStore
-      container.registerSingleton('ColorStore', () => {
-        const store = new EventColorStore(
+      container.registerSingleton('ColorStore', () => 
+        new EventColorStore(
           container.getSync('EventStore')
-        )
-        return store
-      }, {
+        ), {
         dependencies: ['EventStore'],
         phase: 'infrastructure'
       })
-
-      // Register ObjectStore
-      container.registerSingleton('ObjectStore', () => {
-        const store = new ObjectStore(
+      
+      container.registerSingleton('ObjectStore', () => 
+        new ObjectStore(
           container.getSync('EventStore'),
           container.getSync('TypedEventBus')
-        )
-        return store
-      }, {
+        ), {
         dependencies: ['EventStore', 'TypedEventBus'],
         phase: 'infrastructure'
       })
-
-      // Register ObjectManager
-      container.registerSingleton('ObjectManager', () => {
-        return new ObjectManager(
+      
+      container.registerSingleton('ObjectManager', () => 
+        new ObjectManager(
           'default', // canvasId
           container.getSync('TypedEventBus'),
           container.getSync('EventStore')
-        )
-      }, {
+        ), {
         dependencies: ['TypedEventBus', 'EventStore'],
         phase: 'infrastructure'
       })
-
-      // Register ProjectStore
-      container.registerSingleton('ProjectStore', () => {
-        return new EventProjectStore(
+      
+      container.registerSingleton('ProjectStore', () => 
+        new EventProjectStore(
           container.getSync('EventStore'),
           container.getSync('TypedEventBus'),
           { autoSave: true, versionControl: true, autoSaveInterval: 30000 }
-        )
-      }, {
+        ), {
         dependencies: ['EventStore', 'TypedEventBus'],
         phase: 'infrastructure'
       })
-
-      // Register EventBasedHistoryStore
-      container.registerSingleton('HistoryStore', () => {
-        return new EventBasedHistoryStore(
+      
+      container.registerSingleton('HistoryStore', () => 
+        new EventBasedHistoryStore(
           container.getSync('EventStore'),
           container.getSync('TypedEventBus')
-        )
-      }, {
+        ), {
         dependencies: ['EventStore', 'TypedEventBus'],
         phase: 'infrastructure'
       })
-
-      // Register TextStore
-      container.registerSingleton('TextStore', () => {
-        return new EventTextStore(
+      
+      container.registerSingleton('TextStore', () => 
+        new EventTextStore(
           container.getSync('EventStore'),
           container.getSync('TypedEventBus'),
           { persistence: true, validation: true, maxRecentFonts: 10 }
-        )
-      }, {
+        ), {
         dependencies: ['EventStore', 'TypedEventBus'],
         phase: 'infrastructure'
       })
       
       // Font System
-      container.registerSingleton('FontManager', () => {
-        return new FontManager(
+      container.registerSingleton('FontManager', () => 
+        new FontManager(
           container.getSync('TypedEventBus'),
           { preload: true, caching: true }
-        )
-      }, {
+        ), {
         dependencies: ['TypedEventBus'],
         phase: 'infrastructure'
       })
       
+      // Tool System - ToolFactory with pure DI
+      container.registerSingleton('ToolFactory', () => 
+        new ToolFactory(container), {
+        dependencies: [], // ToolFactory gets container directly for service resolution
+        phase: 'infrastructure'
+      })
+      
       // AI Model Preferences
-      container.registerSingleton('ModelPreferencesManager', () => {
-        const { ModelPreferencesManager } = require('@/lib/settings/ModelPreferences')
-        return new ModelPreferencesManager()
-      }, {
+      container.registerSingleton('ModelPreferencesManager', () => 
+        new ModelPreferencesManager(), {
         dependencies: [],
         phase: 'infrastructure'
       })
       
       // Feature Management
-      container.registerSingleton('FeatureManager', () => {
-        const { FeatureManager } = require('@/lib/config/features')
-        return new FeatureManager()
-      }, {
+      container.registerSingleton('FeatureManager', () => 
+        new FeatureManager(), {
         dependencies: [],
         phase: 'infrastructure'
       })
       
       // Command System
-      container.registerSingleton('CommandManager', () => {
-        const { CommandManager } = require('@/lib/editor/commands/CommandManager')
-        return new CommandManager(
+      container.registerSingleton('CommandManager', () => 
+        new CommandManager(
           container.getSync('EventStore'),
           container.getSync('TypedEventBus'),
           container.getSync('HistoryStore'),
           { validation: true, middleware: true, metrics: true }
-        )
-      }, {
+        ), {
         dependencies: ['EventStore', 'TypedEventBus', 'HistoryStore'],
         phase: 'infrastructure'
       })
       
       // Selection Context System
-      container.registerSingleton('SelectionContextManager', () => {
-        const { SelectionContextManager } = require('@/lib/editor/selection/SelectionContextManager')
-        return new SelectionContextManager(
+      container.registerSingleton('SelectionContextManager', () => 
+        new SelectionContextManager(
           container.getSync('EventStore'),
           container.getSync('TypedEventBus'),
           { persistence: true, optimization: true }
-        )
-      }, {
+        ), {
         dependencies: ['EventStore', 'TypedEventBus'],
         phase: 'infrastructure'
       })
       
       // Clipboard System
-      container.registerSingleton('ClipboardManager', () => {
-        const { ClipboardManager } = require('@/lib/editor/clipboard/ClipboardManager')
-        return new ClipboardManager(
+      container.registerSingleton('ClipboardManager', () => 
+        new ClipboardManager(
           container.getSync('EventStore'),
           container.getSync('TypedEventBus'),
           { persistence: true, validation: true, systemClipboard: true }
-        )
-      }, {
+        ), {
         dependencies: ['EventStore', 'TypedEventBus'],
         phase: 'infrastructure'
       })
@@ -334,7 +308,6 @@ export class AppInitializer {
       // Initialize infrastructure services
       await container.get('EventStoreBridge')
       await container.get('CanvasStore')
-      await container.get('ToolStore')
       await container.get('SelectionStore')
       await container.get('ColorStore')
       await container.get('ObjectStore')
@@ -342,6 +315,7 @@ export class AppInitializer {
       await container.get('ProjectStore')
       await container.get('HistoryStore')
       await container.get('FontManager')
+      await container.get('ToolFactory')
       await container.get('ModelPreferencesManager')
       await container.get('FeatureManager')
       await container.get('CommandManager')
@@ -353,6 +327,41 @@ export class AppInitializer {
       // Phase 3: Application Services (Services that depend on canvas or user interaction)
       container.setInitializationPhase('application')
       console.log('[AppInitializer] Registering application services...')
+      
+      // Tool Store - Now with proper dependencies (deferred to application phase)
+      // Note: ToolStore requires CanvasManager which is set by Canvas component
+      container.registerSingleton('ToolStore', () => {
+        console.log('[AppInitializer] Creating ToolStore with all dependencies...')
+        const store = new EventToolStore(
+          container.getSync('EventStore'),
+          container.getSync('TypedEventBus'),
+          container.getSync('ToolFactory'),
+          container.getSync('CanvasManager') // This will be set by Canvas component
+        )
+        
+        // Register core tools
+        console.log('[AppInitializer] Registering core tools...')
+        
+        // Import and register MoveTool (the only migrated tool so far)
+        store.registerTool(MoveTool).catch((error: Error) => {
+          console.error('[AppInitializer] Failed to register MoveTool:', error)
+        })
+        
+        // TODO: Register other tools as they are migrated
+        // For now, we'll register only MoveTool to avoid errors
+        
+        // Activate default tool after registration
+        setTimeout(() => {
+          store.activateTool('move').catch((error: Error) => {
+            console.error('[AppInitializer] Failed to activate move tool:', error)
+          })
+        }, 100)
+        
+        return store
+      }, {
+        dependencies: ['EventStore', 'TypedEventBus', 'ToolFactory', 'CanvasManager'],
+        phase: 'application'
+      })
       
       // History services
       container.registerSingleton('SnapshotManager', async () => {

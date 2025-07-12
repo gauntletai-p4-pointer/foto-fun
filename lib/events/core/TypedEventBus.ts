@@ -1,5 +1,5 @@
 import type { Selection } from '@/lib/editor/canvas/types'
-import type { CanvasObject } from '@/lib/editor/objects/types'
+import type { CanvasObject, FrameObject } from '@/lib/editor/objects/types'
 import { nanoid } from 'nanoid'
 
 /**
@@ -45,6 +45,95 @@ export interface EventRegistry {
   'canvas.object.reordered': {
     canvasId: string
     objectOrder: string[]
+  }
+  
+  // Frame events
+  'frame.created': {
+    canvasId: string
+    frame: FrameObject
+    preset?: string
+    isAutoFrame?: boolean
+  }
+  'frame.updated': {
+    canvasId: string
+    frameId: string
+    previousState: Record<string, unknown>
+    newState: Record<string, unknown>
+    updatedProperties: string[]
+  }
+  'frame.deleted': {
+    canvasId: string
+    frameId: string
+    frame: FrameObject
+  }
+  'frame.preset.applied': {
+    canvasId: string
+    frameId: string
+    presetId: string
+    previousDimensions: { width: number; height: number }
+    newDimensions: { width: number; height: number }
+  }
+  'frame.export.started': {
+    frameId: string
+    exportId: string
+    format: 'png' | 'jpeg' | 'webp'
+    options: Record<string, unknown>
+  }
+  'frame.export.completed': {
+    frameId: string
+    exportId: string
+    format: 'png' | 'jpeg' | 'webp'
+    blob: Blob
+    filename: string
+    size: number
+  }
+  'frame.export.failed': {
+    frameId: string
+    exportId: string
+    error: string
+    options: Record<string, unknown>
+  }
+  'frame.auto.created': {
+    canvasId: string
+    frameId: string
+    frame: FrameObject
+    trigger: 'image-import' | 'image-generation' | 'project-open'
+    sourceObjectId?: string
+  }
+  'frame.style.changed': {
+    canvasId: string
+    frameId: string
+    styleProperty: 'fill' | 'stroke' | 'background'
+    previousValue: unknown
+    newValue: unknown
+  }
+  'frame.clipping.changed': {
+    canvasId: string
+    frameId: string
+    clippingEnabled: boolean
+    showOverflow: boolean
+    exportClipped: boolean
+  }
+  'frame.presets.initialized': {
+    builtInCount: number
+    customCount: number
+    timestamp: number
+  }
+  'frame.preset.created': {
+    presetId: string
+    preset: Record<string, unknown>
+    timestamp: number
+  }
+  'frame.preset.updated': {
+    presetId: string
+    preset: Record<string, unknown>
+    changes: Record<string, unknown>
+    timestamp: number
+  }
+  'frame.preset.deleted': {
+    presetId: string
+    preset: Record<string, unknown>
+    timestamp: number
   }
   
   // Viewport events (for infinite canvas navigation)
@@ -181,8 +270,8 @@ export interface EventRegistry {
   'drawing.completed': {
     toolId: string
     canvasId: string
-    path?: any
-    result?: any
+    path?: string | Record<string, unknown>
+    result?: Record<string, unknown>
     pathId?: string
   }
   'drawing.options.changed': {
@@ -374,7 +463,7 @@ export interface EventRegistry {
   // Object filter events
   'object.filter.added': {
     objectId: string
-    filter: any
+    filter: Record<string, unknown>
     position: number
   }
   'object.filter.removed': {
