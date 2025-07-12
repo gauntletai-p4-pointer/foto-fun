@@ -137,7 +137,7 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
               {config.name}
             </Label>
             {config.status === 'beta' && (
-              <span className="text-xs px-1.5 py-0.5 bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 rounded">
+              <span className="text-xs px-1.5 py-0.5 bg-warning/10 text-warning rounded">
                 Beta
               </span>
             )}

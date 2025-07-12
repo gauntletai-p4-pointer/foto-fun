@@ -101,7 +101,7 @@ export function DemoSection() {
               </div>
 
               {/* Decorative elements */}
-              <div className="absolute top-4 right-4 bg-green-500/10 text-green-500 rounded-md px-3 py-1 text-sm">
+              <div className="absolute top-4 right-4 bg-success/10 text-success rounded-md px-3 py-1 text-sm">
                 AI Ready
               </div>
             </div>

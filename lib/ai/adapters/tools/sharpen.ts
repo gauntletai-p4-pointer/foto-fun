@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { UnifiedToolAdapter } from '../base/UnifiedToolAdapter'
 import type { ObjectCanvasContext } from '../base/UnifiedToolAdapter'
+import { sharpenTool } from '@/lib/editor/tools/filters/sharpenTool'
 
 // Define parameter schema
 const sharpenInputSchema = z.object({
@@ -52,52 +53,40 @@ Range: 0 (no sharpening) to 50 (maximum sharpening)`
       }
     }
     
-    const affectedObjects: string[] = []
+    console.log(`[SharpenAdapter] Applying sharpen: ${params.amount}% to ${imageObjects.length} objects`)
     
-    for (const obj of imageObjects) {
-      const filters = obj.filters || []
+    try {
+      // Use the underlying sharpen tool to apply the sharpening
+      await sharpenTool.applySharpen(params.amount)
       
-      // Remove existing sharpen filters
-      const filteredFilters = filters.filter(f => f.type !== 'sharpen')
+      // Get affected object IDs
+      const affectedObjects = imageObjects.map(obj => obj.id)
       
-      // Add new sharpen filter if amount > 0
-      if (params.amount > 0) {
-        filteredFilters.push({
-          id: `sharpen-${Date.now()}`,
-          type: 'sharpen',
-          params: { amount: params.amount }
-        })
+      // Generate descriptive message
+      let description = ''
+      
+      if (params.amount === 0) {
+        description = 'Removed sharpening'
+      } else if (params.amount <= 20) {
+        description = 'Applied subtle sharpening'
+      } else if (params.amount <= 40) {
+        description = 'Applied moderate sharpening'
+      } else if (params.amount <= 70) {
+        description = 'Applied strong sharpening'
+      } else {
+        description = 'Applied intense sharpening'
       }
       
-      await context.canvas.updateObject(obj.id, {
-        filters: filteredFilters
-      })
+      const message = `${description} (${params.amount}% intensity) on ${affectedObjects.length} object${affectedObjects.length !== 1 ? 's' : ''}`
       
-      affectedObjects.push(obj.id)
-    }
-    
-    // Generate descriptive message
-    let description = ''
-    
-    if (params.amount === 0) {
-      description = 'Removed sharpening'
-    } else if (params.amount <= 20) {
-      description = 'Applied subtle sharpening'
-    } else if (params.amount <= 40) {
-      description = 'Applied moderate sharpening'
-    } else if (params.amount <= 70) {
-      description = 'Applied strong sharpening'
-    } else {
-      description = 'Applied intense sharpening'
-    }
-    
-    const message = `${description} (${params.amount}% intensity) on ${affectedObjects.length} object${affectedObjects.length !== 1 ? 's' : ''}`
-    
-    return {
-      success: true,
-      amount: params.amount,
-      message,
-      affectedObjects
+      return {
+        success: true,
+        amount: params.amount,
+        message,
+        affectedObjects
+      }
+    } catch (error) {
+      throw new Error(`Sharpen adjustment failed: ${this.formatError(error)}`)
     }
   }
 }

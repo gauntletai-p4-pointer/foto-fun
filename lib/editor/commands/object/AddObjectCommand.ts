@@ -1,15 +1,17 @@
 import { Command } from '../base/Command'
 import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
 import type { CanvasObject } from '@/lib/editor/objects/types'
+import type { TypedEventBus } from '@/lib/events/core/TypedEventBus'
 
 export class AddObjectCommand extends Command {
   private objectId: string | null = null
   
   constructor(
+    eventBus: TypedEventBus,
     private canvas: CanvasManager,
     private objectData: Partial<CanvasObject>
   ) {
-    super(`Add ${objectData.type || 'object'}`)
+    super(`Add ${objectData.type || 'object'}`, eventBus)
   }
   
   protected async doExecute(): Promise<void> {

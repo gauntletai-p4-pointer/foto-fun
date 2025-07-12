@@ -1,16 +1,18 @@
 import { Command } from '../base/Command'
 import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
 import type { CanvasObject } from '@/lib/editor/objects/types'
+import type { TypedEventBus } from '@/lib/events/core/TypedEventBus'
 
 export class UngroupObjectsCommand extends Command {
   private groupData: CanvasObject | null = null
   private childIds: string[] = []
   
   constructor(
+    eventBus: TypedEventBus,
     private canvas: CanvasManager,
     private groupId: string
   ) {
-    super(`Ungroup`)
+    super(`Ungroup`, eventBus)
   }
   
   protected async doExecute(): Promise<void> {

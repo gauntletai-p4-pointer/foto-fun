@@ -1,6 +1,7 @@
 import { Command } from '../base'
 import type { ClipboardManager } from '@/lib/editor/clipboard/ClipboardManager'
 import type { CanvasObject } from '@/lib/editor/objects/types'
+import type { TypedEventBus } from '@/lib/events/core/TypedEventBus'
 
 /**
  * Command to copy selection or objects
@@ -10,8 +11,12 @@ export class CopyCommand extends Command {
   private clipboardManager: ClipboardManager
   private objectsToCopy: CanvasObject[]
   
-  constructor(clipboardManager: ClipboardManager, objectsToCopy: CanvasObject[]) {
-    super('Copy')
+  constructor(
+    eventBus: TypedEventBus,
+    clipboardManager: ClipboardManager, 
+    objectsToCopy: CanvasObject[]
+  ) {
+    super('Copy', eventBus)
     this.clipboardManager = clipboardManager
     this.objectsToCopy = objectsToCopy
   }

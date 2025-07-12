@@ -1,137 +1,80 @@
 import { z } from 'zod'
-import { UnifiedToolAdapter } from '../base/UnifiedToolAdapter'
-import type { ObjectCanvasContext } from '../base/UnifiedToolAdapter'
+import { UnifiedToolAdapter, type ObjectCanvasContext } from '../base/UnifiedToolAdapter'
+import { exposureTool } from '@/lib/editor/tools/adjustments/exposureTool'
 
 // Define parameter schema
-const exposureInputSchema = z.object({
-  adjustment: z.number()
-    .min(-100)
-    .max(100)
-    .describe('Exposure adjustment from -100 (darkest) to 100 (brightest)')
+const exposureParameters = z.object({
+  stops: z.number().min(-3).max(3)
+    .describe('Exposure adjustment in stops. Negative values darken, positive values brighten. Range: -3 to +3 EV')
 })
 
-type ExposureInput = z.infer<typeof exposureInputSchema>
+// Define types
+type ExposureInput = z.infer<typeof exposureParameters>
 
-// Define output type
 interface ExposureOutput {
   success: boolean
-  adjustment: number
+  stops: number
   message: string
   affectedObjects: string[]
 }
 
-// Create adapter class
+/**
+ * Adapter for the exposure adjustment tool
+ * Provides AI-compatible interface for adjusting image exposure
+ */
 export class ExposureToolAdapter extends UnifiedToolAdapter<ExposureInput, ExposureOutput> {
   toolId = 'exposure'
-  aiName = 'adjustExposure'
-  description = `Adjust the exposure of existing images (simulates camera exposure compensation).
-
-INTELLIGENT TARGETING:
-- If you have images selected, only those images will be adjusted
-- If no images are selected, all images on the canvas will be adjusted
-
-You MUST calculate the adjustment value based on user intent:
-- "increase exposure" or "overexpose" → +30 to +50
-- "decrease exposure" or "underexpose" → -30 to -50
-- "slightly overexposed" → +15 to +25
-- "slightly underexposed" → -15 to -25
-- "blown out" or "very overexposed" → +60 to +80
-- "very dark" or "very underexposed" → -60 to -80
-- "fix overexposure" → -30 to -50
-- "fix underexposure" → +30 to +50
-- "neutral exposure" → 0
-- "adjust exposure by X stops" → X * 33 (each stop ≈ 33 units)
-- "turn exposure down by X%" → use -X directly (e.g., "down by 10%" → -10)
-- "turn exposure up by X%" → use +X directly (e.g., "up by 15%" → +15)
-- "increase exposure X%" → use +X directly 
-- "decrease exposure X%" → use -X directly
-- "reduce exposure X%" → use -X directly
-
-Note: Exposure has a more dramatic effect than brightness, affecting the entire tonal range.
-NEVER ask for exact values - always interpret the user's intent and choose an appropriate value.
-Range: -100 (very dark) to +100 (very bright)`
-
-  inputSchema = exposureInputSchema
+  aiName = 'adjust_exposure'
+  description = `Adjust the exposure of images (simulates camera exposure compensation). 
   
-  async execute(params: ExposureInput, context: ObjectCanvasContext): Promise<ExposureOutput> {
+  You MUST calculate the exposure value based on user intent:
+  - "increase exposure" or "overexpose" → +1.0 to +1.5 stops
+  - "decrease exposure" or "underexpose" → -1.0 to -1.5 stops
+  - "slightly overexposed" → +0.5 to +0.8 stops
+  - "slightly underexposed" → -0.5 to -0.8 stops
+  - "blown out" or "very overexposed" → +2.0 to +3.0 stops
+  - "very dark" or "very underexposed" → -2.0 to -3.0 stops
+  - "fix overexposure" → -1.0 to -1.5 stops
+  - "fix underexposure" → +1.0 to +1.5 stops
+  - "neutral exposure" → 0 stops
+  
+  NEVER ask for exact values - interpret the user's intent.`
+  
+  inputSchema = exposureParameters
+  
+  async execute(
+    params: ExposureInput, 
+    context: ObjectCanvasContext
+  ): Promise<ExposureOutput> {
     const targets = this.getTargets(context)
     const imageObjects = targets.filter(obj => obj.type === 'image')
     
     if (imageObjects.length === 0) {
       return {
         success: false,
-        adjustment: params.adjustment,
-        message: 'No image objects found to adjust exposure',
+        stops: params.stops,
+        message: 'No image objects found to adjust',
         affectedObjects: []
       }
     }
     
-    const affectedObjects: string[] = []
+    console.log(`[ExposureAdapter] Applying exposure adjustment: ${params.stops} stops to ${imageObjects.length} objects`)
     
-    for (const obj of imageObjects) {
-      const adjustments = obj.adjustments || []
+    try {
+      // Use the underlying exposure tool to apply the adjustment
+      await exposureTool.applyExposure(params.stops)
       
-      // Remove existing exposure adjustments
-      const filteredAdjustments = adjustments.filter(adj => adj.type !== 'exposure')
+      // Get affected object IDs
+      const affectedObjects = imageObjects.map(obj => obj.id)
       
-      // Add new exposure adjustment if not zero
-      if (params.adjustment !== 0) {
-        filteredAdjustments.push({
-          id: `exposure-${Date.now()}`,
-          type: 'exposure',
-          params: { value: params.adjustment },
-          enabled: true
-        })
+      return {
+        success: true,
+        stops: params.stops,
+        message: `Exposure adjusted by ${params.stops > 0 ? '+' : ''}${params.stops} EV on ${affectedObjects.length} object(s)`,
+        affectedObjects
       }
-      
-      await context.canvas.updateObject(obj.id, {
-        adjustments: filteredAdjustments
-      })
-      
-      affectedObjects.push(obj.id)
-    }
-    
-    // Generate descriptive message
-    let description = ''
-    const magnitude = Math.abs(params.adjustment)
-    
-    if (params.adjustment === 0) {
-      description = 'Reset exposure to neutral'
-    } else if (params.adjustment > 0) {
-      // Increased exposure (overexposed)
-      if (magnitude <= 25) {
-        description = 'Slightly brightened exposure'
-      } else if (magnitude <= 50) {
-        description = 'Moderately increased exposure'
-      } else if (magnitude <= 75) {
-        description = 'Significantly overexposed'
-      } else {
-        description = 'Dramatically blown out exposure'
-      }
-    } else {
-      // Decreased exposure (underexposed)
-      if (magnitude <= 25) {
-        description = 'Slightly darkened exposure'
-      } else if (magnitude <= 50) {
-        description = 'Moderately reduced exposure'
-      } else if (magnitude <= 75) {
-        description = 'Significantly underexposed'
-      } else {
-        description = 'Dramatically darkened exposure'
-      }
-    }
-    
-    // Add stop information if applicable
-    const stops = Math.abs(params.adjustment / 33)
-    const stopInfo = stops >= 0.5 ? ` (~${stops.toFixed(1)} stops)` : ''
-    
-    const message = `${description} (${params.adjustment > 0 ? '+' : ''}${params.adjustment}%${stopInfo}) on ${affectedObjects.length} object${affectedObjects.length !== 1 ? 's' : ''}`
-    
-    return {
-      success: true,
-      adjustment: params.adjustment,
-      message,
-      affectedObjects
+    } catch (error) {
+      throw new Error(`Exposure adjustment failed: ${this.formatError(error)}`)
     }
   }
 }

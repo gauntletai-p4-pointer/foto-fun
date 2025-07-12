@@ -1,5 +1,6 @@
 import { CanvasToolBridge } from '../tools/canvas-bridge'
 import { adapterRegistry, autoDiscoverAdapters } from '../adapters/registry'
+import type { ServiceContainer } from '@/lib/core/ServiceContainer'
 
 /**
  * Client-side tool executor for AI operations
@@ -10,6 +11,14 @@ import { adapterRegistry, autoDiscoverAdapters } from '../adapters/registry'
  */
 export class ClientToolExecutor {
   private static initialized = false
+  private static serviceContainer: ServiceContainer | null = null
+  
+  /**
+   * Set the service container for dependency injection
+   */
+  static setServiceContainer(container: ServiceContainer): void {
+    this.serviceContainer = container
+  }
   
   /**
    * Initialize adapters on first use
@@ -17,7 +26,7 @@ export class ClientToolExecutor {
   private static async initialize() {
     if (!this.initialized) {
       console.log('[ClientToolExecutor] Initializing adapters...')
-      await autoDiscoverAdapters()
+      await autoDiscoverAdapters(this.serviceContainer || undefined)
       this.initialized = true
       console.log('[ClientToolExecutor] Adapters initialized:', adapterRegistry.getAll().map(t => t.aiName))
     }

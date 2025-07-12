@@ -1,7 +1,6 @@
 import type { CanvasManager } from '@/lib/editor/canvas/types'
 import type { CanvasObject } from '@/lib/editor/objects/types'
 import { Command } from '../base'
-import { ServiceContainer } from '@/lib/core/ServiceContainer'
 import type { TypedEventBus } from '@/lib/events/core/TypedEventBus'
 import { nanoid } from 'nanoid'
 
@@ -15,20 +14,19 @@ export class AddTextCommand extends Command {
   private position: { x: number; y: number }
   private text: string
   private style: Record<string, string | number | boolean>
-  private typedEventBus: TypedEventBus
   
   constructor(
     canvasManager: CanvasManager,
     text: string,
     position: { x: number; y: number },
-    style: Record<string, string | number | boolean> = {}
+    style: Record<string, string | number | boolean> = {},
+    eventBus: TypedEventBus
   ) {
-    super('Add text')
+    super('Add text', eventBus)
     this.canvasManager = canvasManager
     this.text = text
     this.position = position
     this.style = style
-    this.typedEventBus = ServiceContainer.getInstance().getSync<TypedEventBus>('TypedEventBus')
   }
   
   protected async doExecute(): Promise<void> {
@@ -75,8 +73,8 @@ export class AddTextCommand extends Command {
     // Add to canvas
     await this.canvasManager.addObject(this.textObject)
     
-    // Emit event
-    this.typedEventBus.emit('canvas.object.added', {
+    // Emit event using inherited eventBus
+    this.eventBus.emit('canvas.object.added', {
       canvasId: this.canvasManager.stage.id() || 'main',
       object: this.textObject
     })
@@ -87,8 +85,8 @@ export class AddTextCommand extends Command {
     
     await this.canvasManager.removeObject(this.textObject.id)
     
-    // Emit event
-    this.typedEventBus.emit('canvas.object.removed', {
+    // Emit event using inherited eventBus
+    this.eventBus.emit('canvas.object.removed', {
       canvasId: this.canvasManager.stage.id() || 'main',
       objectId: this.textObject.id
     })

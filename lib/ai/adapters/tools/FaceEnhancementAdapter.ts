@@ -51,12 +51,10 @@ export class FaceEnhancementAdapter extends UnifiedToolAdapter<Input, Output> {
       this.tool.setOption('enhancementScale', validated.enhancementScale)
       this.tool.setOption('autoDetect', validated.autoDetect)
       
-      // Execute face enhancement
-      await this.tool.applyWithContext(targetImage, {
-        scale: validated.enhancementScale
-      })
+      // Execute face enhancement using the tool's main method
+      await this.tool.enhanceFace(targetImage)
       
-      // The tool updates the object in place, so we return the same ID
+      // The tool modifies the object in place, so we return the same ID
       return {
         objectId: targetImage.id,
         facesEnhanced: 1, // Placeholder - actual implementation would detect face count

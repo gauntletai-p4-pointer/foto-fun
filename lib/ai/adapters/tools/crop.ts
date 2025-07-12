@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { UnifiedToolAdapter } from '../base/UnifiedToolAdapter'
 import type { ObjectCanvasContext } from '../base/UnifiedToolAdapter'
+import { cropTool } from '@/lib/editor/tools/transform/cropTool'
 
 // Input schema following AI SDK v5 patterns
 const cropInputSchema = z.object({
@@ -64,76 +65,63 @@ NEVER ask for exact coordinates - calculate them based on the object dimensions 
     let avgNewWidth = 0
     let avgNewHeight = 0
     
-    // Apply crop to each image object
-    for (const obj of imageObjects) {
-      // Get current dimensions
-      const currentWidth = obj.width * (obj.scaleX || 1)
-      const currentHeight = obj.height * (obj.scaleY || 1)
-      
-      // Validate crop bounds
-      if (params.x < 0 || params.y < 0 || 
-          params.x + params.width > currentWidth || 
-          params.y + params.height > currentHeight) {
-        console.warn(`Crop bounds exceed object dimensions for ${obj.id}, adjusting...`)
+    try {
+      // Apply crop to each image object using the underlying tool
+      for (const obj of imageObjects) {
+        // Get current dimensions
+        const currentWidth = obj.width * (obj.scaleX || 1)
+        const currentHeight = obj.height * (obj.scaleY || 1)
         
-        // Adjust crop bounds to fit within object
-        const adjustedX = Math.max(0, Math.min(params.x, currentWidth - 1))
-        const adjustedY = Math.max(0, Math.min(params.y, currentHeight - 1))
-        const adjustedWidth = Math.min(params.width, currentWidth - adjustedX)
-        const adjustedHeight = Math.min(params.height, currentHeight - adjustedY)
+        // Validate and adjust crop bounds if needed
+        let adjustedParams = { ...params }
+        if (params.x < 0 || params.y < 0 || 
+            params.x + params.width > currentWidth || 
+            params.y + params.height > currentHeight) {
+          console.warn(`Crop bounds exceed object dimensions for ${obj.id}, adjusting...`)
+          
+          // Adjust crop bounds to fit within object
+          adjustedParams = {
+            x: Math.max(0, Math.min(params.x, currentWidth - 1)),
+            y: Math.max(0, Math.min(params.y, currentHeight - 1)),
+            width: Math.min(params.width, currentWidth - Math.max(0, params.x)),
+            height: Math.min(params.height, currentHeight - Math.max(0, params.y))
+          }
+        }
         
-        params = { x: adjustedX, y: adjustedY, width: adjustedWidth, height: adjustedHeight }
+        // Use the underlying crop tool to perform the crop
+        await cropTool.cropObject(obj, adjustedParams)
+        
+        affectedObjects.push(obj.id)
+        avgNewWidth += adjustedParams.width
+        avgNewHeight += adjustedParams.height
       }
       
-      // For image objects, we'll update the crop properties
-      // This simulates cropping by defining a visible region
-      const cropData = {
-        cropX: params.x,
-        cropY: params.y,
-        cropWidth: params.width,
-        cropHeight: params.height
+      avgNewWidth /= affectedObjects.length
+      avgNewHeight /= affectedObjects.length
+      
+      // Generate descriptive message
+      const percentReduction = affectedObjects.length > 0 
+        ? Math.round((1 - (params.width * params.height) / 
+            (imageObjects[0].width * (imageObjects[0].scaleX || 1) * 
+             imageObjects[0].height * (imageObjects[0].scaleY || 1))) * 100)
+        : 0
+      
+      let message = `Cropped ${affectedObjects.length} object${affectedObjects.length !== 1 ? 's' : ''} to ${Math.round(avgNewWidth)}x${Math.round(avgNewHeight)}`
+      if (percentReduction > 0) {
+        message += ` (${percentReduction}% size reduction)`
       }
       
-      // Update object with crop data
-      await context.canvas.updateObject(obj.id, {
-        // Store crop information in metadata
-        metadata: {
-          ...obj.metadata,
-          crop: cropData
+      return {
+        success: true,
+        newDimensions: {
+          width: Math.round(avgNewWidth),
+          height: Math.round(avgNewHeight)
         },
-        // Update display dimensions to match crop
-        width: params.width / (obj.scaleX || 1),
-        height: params.height / (obj.scaleY || 1)
-      })
-      
-      affectedObjects.push(obj.id)
-      avgNewWidth += params.width
-      avgNewHeight += params.height
-    }
-    
-    avgNewWidth /= affectedObjects.length
-    avgNewHeight /= affectedObjects.length
-    
-    // Generate descriptive message
-    const percentReduction = affectedObjects.length > 0 
-      ? Math.round((1 - (params.width * params.height) / 
-          (imageObjects[0].width * (imageObjects[0].scaleX || 1) * 
-           imageObjects[0].height * (imageObjects[0].scaleY || 1))) * 100)
-      : 0
-    
-    let message = `Cropped ${affectedObjects.length} object${affectedObjects.length !== 1 ? 's' : ''} to ${Math.round(avgNewWidth)}x${Math.round(avgNewHeight)}`
-    if (percentReduction > 0) {
-      message += ` (${percentReduction}% size reduction)`
-    }
-    
-    return {
-      success: true,
-      newDimensions: {
-        width: Math.round(avgNewWidth),
-        height: Math.round(avgNewHeight)
-      },
-      message,
-      affectedObjects
+        message,
+        affectedObjects
+      }
+    } catch (error) {
+      throw new Error(`Crop operation failed: ${this.formatError(error)}`)
     }
   }
 } 

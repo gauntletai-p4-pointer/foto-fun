@@ -96,7 +96,7 @@ export function TestimonialsSection() {
                 {/* Rating */}
                 <div className="flex gap-1 mb-4">
                   {[...Array(testimonial.rating)].map((_, i) => (
-                    <Star key={i} className="h-4 w-4 fill-yellow-500 text-yellow-500" />
+                    <Star key={i} className="h-4 w-4 fill-warning text-warning" />
                   ))}
                 </div>
 

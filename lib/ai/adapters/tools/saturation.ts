@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { UnifiedToolAdapter, type ObjectCanvasContext } from '../base/UnifiedToolAdapter'
-// import { saturationTool } from '@/lib/editor/tools/adjustments/saturationTool'
+import { saturationTool } from '@/lib/editor/tools/adjustments/saturationTool'
 
 // Define parameter schema
 const saturationParameters = z.object({
@@ -58,39 +58,21 @@ export class SaturationToolAdapter extends UnifiedToolAdapter<SaturationInput, S
     
     console.log(`[SaturationAdapter] Applying saturation adjustment: ${params.adjustment}% to ${imageObjects.length} objects`)
     
-    // Apply saturation adjustment to each image object
-    const affectedObjects: string[] = []
-    
-    for (const obj of imageObjects) {
-      // Add saturation to the object's adjustments array
-      const adjustments = obj.adjustments || []
+    try {
+      // Use the underlying saturation tool to apply the adjustment
+      await saturationTool.applySaturation(params.adjustment)
       
-      // Remove any existing saturation adjustments
-      const filteredAdjustments = adjustments.filter(adj => adj.type !== 'saturation')
+      // Get affected object IDs
+      const affectedObjects = imageObjects.map(obj => obj.id)
       
-      // Add new saturation adjustment if not zero
-      if (params.adjustment !== 0) {
-        filteredAdjustments.push({
-          id: `saturation-${Date.now()}`,
-          type: 'saturation',
-          params: { value: params.adjustment },
-          enabled: true
-        })
+      return {
+        success: true,
+        adjustment: params.adjustment,
+        message: `Saturation adjusted by ${params.adjustment > 0 ? '+' : ''}${params.adjustment}% on ${affectedObjects.length} object(s)`,
+        affectedObjects
       }
-      
-      // Update the object
-      await context.canvas.updateObject(obj.id, {
-        adjustments: filteredAdjustments
-      })
-      
-      affectedObjects.push(obj.id)
-    }
-    
-    return {
-      success: true,
-      adjustment: params.adjustment,
-      message: `Saturation adjusted by ${params.adjustment > 0 ? '+' : ''}${params.adjustment}% on ${affectedObjects.length} object(s)`,
-      affectedObjects
+    } catch (error) {
+      throw new Error(`Saturation adjustment failed: ${this.formatError(error)}`)
     }
   }
 } 

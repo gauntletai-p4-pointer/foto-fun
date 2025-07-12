@@ -53,37 +53,16 @@ export class ObjectRemovalAdapter extends UnifiedToolAdapter<Input, Output> {
       // Create a mask object based on the target area
       const maskObject = await this.createMaskObject(validated.targetArea, targetImage, context)
       
-      // Execute object removal
+      // Execute object removal - tool creates and returns the canvas object
       const resultObject = await this.tool.execute(
         targetImage,
         maskObject,
         { modelTier: validated.modelTier }
       )
       
-      // Add the result object to canvas
-      const objectId = await context.canvas.addObject({
-        type: 'image',
-        x: targetImage.x + 20, // Offset slightly
-        y: targetImage.y + 20,
-        width: targetImage.width,
-        height: targetImage.height,
-        scaleX: targetImage.scaleX || 1,
-        scaleY: targetImage.scaleY || 1,
-        data: resultObject.data,
-        metadata: {
-          source: 'ai-object-removal',
-          originalObjectId: targetImage.id,
-          removedArea: validated.targetArea,
-          modelTier: validated.modelTier,
-          processedAt: new Date().toISOString()
-        }
-      })
-      
-      // Select the new object
-      context.canvas.selectObject(objectId)
-      
+      // Tool already created the canvas object, just return its info
       return {
-        objectId,
+        objectId: resultObject.id,
         removedArea: validated.targetArea
       }
       

@@ -7,7 +7,6 @@ import type { CanvasContext } from '../tools/canvas-bridge'
 import type { SelectionSnapshot } from '../execution/SelectionSnapshot'
 import type { ExecutionContext } from '@/lib/events/execution/ExecutionContext'
 import { KonvaObjectsBatchModifiedEvent } from '@/lib/events/canvas/CanvasEvents'
-import { ServiceContainer } from '@/lib/core/ServiceContainer'
 import type { EventToolStore } from '@/lib/store/tools/EventToolStore'
 
 /**
@@ -112,22 +111,18 @@ export abstract class BaseToolAdapter<
   }
   
   /**
-   * Apply tool operation without changing the active tool
-   * This is used during AI execution to prevent UI changes
-   * Now emits events when an ExecutionContext is provided
+   * Apply a tool operation to the canvas
+   * Updated to use dependency injection for store access
    */
   protected async applyToolOperation(
     toolId: string,
     optionId: string,
     value: unknown,
     canvas: CanvasManager,
+    toolStore: EventToolStore,
     selectionSnapshot?: SelectionSnapshot,
     executionContext?: ExecutionContext
   ): Promise<void> {
-    // Get the tool store from DI container
-    const container = ServiceContainer.getInstance()
-    const toolStore = container.getSync<EventToolStore>('ToolStore')
-    
     const tool = toolStore.getTool(toolId)
     
     if (!tool) {
@@ -483,24 +478,24 @@ export abstract class CanvasToolAdapter<
   
   /**
    * Helper to activate a tool and wait for it to be ready
+   * Note: This method is deprecated - use dependency injection instead
    */
   protected async activateTool(): Promise<void> {
-    const container = ServiceContainer.getInstance()
-    const toolStore = container.getSync<EventToolStore>('ToolStore')
-    await toolStore.activateTool(this.tool.id)
-    
-    // Small delay to ensure tool is activated and subscribed
-    await new Promise(resolve => setTimeout(resolve, 50))
+    throw new Error('activateTool() is deprecated - use dependency injection to pass EventToolStore')
   }
   
   /**
    * Helper to update a tool option
+   * Note: This method is deprecated - use dependency injection instead
    */
-  protected async updateToolOption(optionName: string, value: unknown): Promise<void> {
-    const container = ServiceContainer.getInstance()
-    const toolStore = container.getSync<EventToolStore>('ToolStore')
-    toolStore.updateOption(this.tool.id, optionName, value)
+  protected async updateToolOption(_optionName: string, _value: unknown): Promise<void> {
+    throw new Error('updateToolOption() is deprecated - use dependency injection to pass EventToolStore')
   }
+  
+  /**
+   * Optional: Handle tool option changes
+   */
+  handleOptionChange?(_optionName: string, _value: unknown): void
   
   /**
    * Get action verb for error messages

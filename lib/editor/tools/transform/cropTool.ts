@@ -661,6 +661,52 @@ export class CropTool extends ObjectTool {
   }
   
   /**
+   * Public method for programmatic cropping (for AI adapters)
+   */
+  async cropObject(
+    object: CanvasObject, 
+    cropBounds: { x: number; y: number; width: number; height: number }
+  ): Promise<void> {
+    if (object.type !== 'image') {
+      throw new Error('Can only crop image objects')
+    }
+    
+    const canvas = this.getCanvas()
+    
+    // Validate bounds
+    if (cropBounds.width < 1 || cropBounds.height < 1) {
+      throw new Error('Invalid crop bounds: width and height must be at least 1')
+    }
+    
+    // Ensure crop bounds are within object bounds
+    const maxWidth = object.width * (object.scaleX || 1)
+    const maxHeight = object.height * (object.scaleY || 1)
+    
+    if (cropBounds.x < 0 || cropBounds.y < 0 || 
+        cropBounds.x + cropBounds.width > maxWidth || 
+        cropBounds.y + cropBounds.height > maxHeight) {
+      throw new Error('Crop bounds exceed object dimensions')
+    }
+    
+    // Update object with crop information
+    await canvas.updateObject(object.id, {
+      // Store crop information in metadata
+      metadata: {
+        ...object.metadata,
+        crop: {
+          cropX: cropBounds.x,
+          cropY: cropBounds.y,
+          cropWidth: cropBounds.width,
+          cropHeight: cropBounds.height
+        }
+      },
+      // Update display dimensions to match crop
+      width: cropBounds.width / (object.scaleX || 1),
+      height: cropBounds.height / (object.scaleY || 1)
+    })
+  }
+  
+  /**
    * Cancel the crop operation
    */
   private cancelCrop(): void {

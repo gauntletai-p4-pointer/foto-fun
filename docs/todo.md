@@ -4,6 +4,8 @@
 
 This document outlines critical refactoring tasks to complete the migration from a layer-based, document-centric architecture to an object-based, infinite canvas architecture. The codebase is currently at ~30% completion of this migration, with significant technical debt and performance issues.
 
+**CRITICAL: Each agent must demonstrate EXTREME OWNERSHIP and SENIOR-LEVEL THINKING. You are not just fixing bugs - you are establishing architectural excellence. Proactively identify and fix ANY code that doesn't follow our established patterns.**
+
 ## Current State Summary
 
 ### Critical Issues
@@ -12,20 +14,71 @@ This document outlines critical refactoring tasks to complete the migration from
 3. **Technical Debt** - 50+ TODOs, deprecated methods, console.logs in production
 4. **Type Safety Issues** - Excessive use of `any` types and unsafe assertions
 5. **Legacy Canvas Dimensions** - Fixed canvas size assumptions vs infinite canvas
+6. **Pattern Violations** - Inconsistent use of DI, event-driven architecture, and established patterns
 
 ### Architecture Status
-- ✅ Well-designed: Event system, Command pattern, Store architecture
+- ✅ Well-designed: Event system, Command pattern, Store architecture, Service Container (DI)
 - ⚠️ Needs work: Canvas rendering, Tool system, Error handling
-- ❌ Critical: Object migration incomplete, Performance issues, Technical debt
+- ❌ Critical: Object migration incomplete, Performance issues, Technical debt, Pattern violations
+
+## Core Architectural Principles (MUST BE ENFORCED)
+
+### 1. Dependency Injection
+- ALL services must be injected via ServiceContainer
+- NO direct imports of singletons (e.g., `getTypedEventBus()`)
+- Constructor injection preferred over property injection
+- Example of GOOD pattern:
+  ```typescript
+  constructor(
+    eventBus: TypedEventBus,
+    canvasManager: ICanvasManager,
+    resourceManager: ResourceManager
+  ) {
+    this.eventBus = eventBus
+    // ...
+  }
+  ```
+
+### 2. Event-Driven Architecture
+- ALL state changes must emit events via TypedEventBus
+- NO direct method calls between loosely coupled components
+- Use event patterns for:
+  - Canvas operations
+  - Tool state changes
+  - Object modifications
+  - UI updates
+
+### 3. Command Pattern
+- ALL user actions must go through Command pattern
+- Commands must emit events for tracking
+- Support undo/redo via proper state capture
+
+### 4. Proper Resource Management
+- ALL resources must be tracked via ResourceManager
+- Cleanup in destroy() methods
+- No memory leaks from event listeners or timers
+
+### 5. Type Safety
+- NO `any` types
+- NO unsafe type assertions
+- Proper discriminated unions for variants
+- Runtime validation for external data
 
 ---
 
 ## Task Group 1: Object Migration & Architecture Cleanup
 
-**Goal**: Complete the migration from layer-based to object-based architecture and remove all legacy code.
+**Goal**: Complete the migration from layer-based to object-based architecture and remove all legacy code while enforcing architectural patterns.
 
 ### Context for Agent 1
-You are responsible for completing the object-based migration and removing all layer references. The codebase uses Konva.js for canvas rendering and has an event-driven architecture. The migration is currently 30% complete with many files still containing layer-based code.
+You are responsible for completing the object-based migration and removing all layer references. The codebase uses Konva.js for canvas rendering and has an event-driven architecture with dependency injection via ServiceContainer. The migration is currently 30% complete with many files still containing layer-based code.
+
+**SENIOR ENGINEER EXPECTATIONS**:
+- Don't just fix the listed issues - identify and fix ALL related problems
+- Enforce dependency injection patterns - NO singleton imports
+- Ensure ALL state changes emit proper events
+- Leave the code better than you found it
+- Think about future maintainability and extensibility
 
 ### Tasks
 
@@ -82,21 +135,51 @@ You are responsible for completing the object-based migration and removing all l
 - Remove any "align to canvas edge" functionality
 - Update crop resolver to use object bounds instead of canvas bounds
 
+#### 1.7 Enforce Architectural Patterns (CRITICAL)
+**Pattern Violations to Fix**:
+- Files importing singletons directly (e.g., `getTypedEventBus()`)
+- Components not using dependency injection
+- State changes without event emissions
+- Direct method calls between loosely coupled components
+- Missing ResourceManager usage for cleanup
+
+**Files with Pattern Violations**:
+- `lib/editor/tools/base/DrawingTool.ts` - Direct import of getTypedEventBus
+- `lib/editor/commands/base/Command.ts` - Should inject eventBus via constructor
+- `lib/ai/tools/ImageGenerationTool.ts` - Should inject dependencies
+- Any file with `ServiceContainer.getInstance()` calls
+
+**Actions**:
+- Convert ALL singleton imports to constructor injection
+- Ensure ALL tools receive dependencies via constructor
+- Update ALL commands to use injected event bus
+- Add proper cleanup in ALL destroy() methods
+
 ### Success Criteria
 - Zero references to "layer" in non-UI code
 - All event handlers functioning with object-based model
 - No deprecated methods remaining
 - Canvas treated as infinite space throughout
 - No fixed canvas dimensions anywhere in code
+- ALL services use dependency injection
+- NO direct singleton imports
+- ALL state changes emit events
 
 ---
 
 ## Task Group 2: Performance & Rendering Optimization
 
-**Goal**: Implement critical performance optimizations and fix rendering bottlenecks.
+**Goal**: Implement critical performance optimizations and fix rendering bottlenecks while maintaining architectural integrity.
 
 ### Context for Agent 2
 You are responsible for optimizing the rendering pipeline and fixing performance issues. The current implementation does full layer redraws instead of dirty rectangle rendering, causing significant performance problems. React components lack memoization, and there are memory leaks in various caching systems.
+
+**SENIOR ENGINEER EXPECTATIONS**:
+- Profile and measure performance improvements
+- Consider mobile and low-end device performance
+- Implement scalable solutions, not quick fixes
+- Ensure optimizations don't break architectural patterns
+- Document performance-critical code sections
 
 ### Tasks
 
@@ -158,6 +241,18 @@ You are responsible for optimizing the rendering pipeline and fixing performance
 - Show loading progress to user
 - Optimize concurrent load limit (currently 3)
 
+#### 2.7 Ensure Event-Driven Updates (CRITICAL)
+**Pattern Enforcement**:
+- Replace ALL polling mechanisms with event subscriptions
+- Ensure performance optimizations use TypedEventBus
+- No direct state reading in intervals/timeouts
+- Proper cleanup of all event listeners
+
+**Files Needing Event-Driven Refactor**:
+- Any component using setInterval for state checks
+- Tools checking canvas state in loops
+- UI components polling for updates
+
 ### Success Criteria
 - Dirty rectangle rendering fully functional
 - 50%+ reduction in unnecessary React re-renders
@@ -165,15 +260,25 @@ You are responsible for optimizing the rendering pipeline and fixing performance
 - All updates event-driven (no polling)
 - WebGL filters cached and optimized
 - Large images load progressively
+- ALL polling replaced with events
+- Proper resource cleanup verified
 
 ---
 
 ## Task Group 3: Type Safety & Error Handling
 
-**Goal**: Eliminate type safety issues, implement proper error handling, and remove all console.logs.
+**Goal**: Eliminate type safety issues, implement proper error handling, and remove all console.logs while establishing robust error recovery patterns.
 
 ### Context for Agent 3
 You are responsible for improving type safety and error handling throughout the codebase. There are currently 21+ instances of `any` types, 60+ console.log statements, and many silent error failures. The application lacks React error boundaries and proper user notifications.
+
+**SENIOR ENGINEER EXPECTATIONS**:
+- Design comprehensive error handling strategy
+- Create reusable error patterns for the team
+- Think about error recovery, not just reporting
+- Implement telemetry-ready error tracking
+- Consider user experience in all error scenarios
+- Enforce type safety as a development practice
 
 ### Tasks
 
@@ -260,6 +365,26 @@ You are responsible for improving type safety and error handling throughout the 
 - Fail fast with clear errors
 - Add proper null checks before assertions
 
+#### 3.8 Establish Error Recovery Patterns (CRITICAL)
+**Error Recovery Strategy**:
+- Create consistent retry mechanisms for transient failures
+- Implement graceful degradation for feature failures
+- Design offline-capable error handling
+- Create error recovery UI components
+
+**Patterns to Implement**:
+- Exponential backoff for API retries
+- Circuit breaker for failing services
+- Fallback rendering for component errors
+- State recovery after crashes
+
+#### 3.9 Enforce Architectural Patterns in Error Handling
+**Pattern Requirements**:
+- All errors must be proper Error subclasses
+- Error handling must use event system for notification
+- Logging service must be injected, not imported
+- Error boundaries must report via TypedEventBus
+
 ### Success Criteria
 - Zero `any` types in codebase
 - Zero console.log statements
@@ -267,6 +392,8 @@ You are responsible for improving type safety and error handling throughout the 
 - React error boundaries implemented
 - Type-safe external data handling
 - No non-null assertions without checks
+- Comprehensive error recovery strategy
+- All errors follow architectural patterns
 
 ---
 
@@ -280,6 +407,23 @@ You are responsible for improving type safety and error handling throughout the 
 4. **Test changes** - Ensure no regressions with your modifications
 5. **Update imports** - Fix all import statements when renaming/moving files
 6. **Document changes** - Add comments for complex refactoring decisions
+7. **ENFORCE PATTERNS** - Proactively fix any code that violates our architectural principles
+
+### Senior Engineering Principles
+
+**EXTREME OWNERSHIP means**:
+- If you see a problem, fix it - even if not explicitly listed
+- Leave every file better than you found it
+- Think about the next developer who will work on this code
+- Consider edge cases and failure modes
+- Write code that scales and maintains consistency
+
+**Pattern Enforcement**:
+- Dependency Injection: NO singleton imports, ALL services injected
+- Event-Driven: ALL state changes emit events
+- Command Pattern: ALL user actions use commands
+- Resource Management: ALL resources properly cleaned up
+- Type Safety: NO any types, NO unsafe assertions
 
 ### Order of Operations
 
@@ -287,6 +431,7 @@ While agents work in parallel, some tasks have dependencies:
 - Agent 1 should complete LayerManager rename early (affects other agents)
 - Agent 2's dirty rectangle implementation may require Agent 1's object migration
 - Agent 3 can work independently on type safety
+- ALL agents must enforce architectural patterns in their areas
 
 ### Validation
 
@@ -303,6 +448,7 @@ If you encounter blockers or need clarification:
 - Document the issue clearly
 - Propose a solution
 - Continue with other tasks while waiting
+- Share pattern violations you find with other agents
 
 ---
 
@@ -310,10 +456,40 @@ If you encounter blockers or need clarification:
 
 Upon completion of all tasks:
 
-1. **Architecture**: Clean object-based architecture with no layer references
-2. **Performance**: 50%+ improvement in rendering performance
-3. **Type Safety**: 100% type coverage, no unsafe assertions
-4. **Error Handling**: Robust error handling with user notifications
-5. **Code Quality**: No technical debt, clean codebase ready for features
+1. **Architecture**: 
+   - Clean object-based architecture with no layer references
+   - 100% dependency injection compliance
+   - Fully event-driven state management
+   - Consistent command pattern usage
 
-This refactoring will establish a solid foundation for the infinite canvas photo editor with AI-native tools.
+2. **Performance**: 
+   - 50%+ improvement in rendering performance
+   - Zero memory leaks
+   - Efficient dirty rectangle rendering
+   - Optimized React component rendering
+
+3. **Type Safety**: 
+   - 100% type coverage, no unsafe assertions
+   - Zero `any` types
+   - Runtime validation for all external data
+   - Type-safe event system
+
+4. **Error Handling**: 
+   - Robust error handling with user notifications
+   - Comprehensive error recovery strategies
+   - React error boundaries at all levels
+   - Zero console.log statements
+
+5. **Code Quality**: 
+   - No technical debt
+   - Clean, maintainable codebase
+   - Consistent architectural patterns
+   - Ready for rapid feature development
+
+6. **Developer Experience**:
+   - Self-documenting code
+   - Clear architectural boundaries
+   - Easy to extend and maintain
+   - Predictable behavior
+
+This refactoring will establish a solid foundation for the infinite canvas photo editor with AI-native tools, setting a new standard for code quality and architectural excellence.

@@ -1,5 +1,6 @@
 import { Command } from '../base'
 import type { SelectionManager, PixelSelection } from '@/lib/editor/selection'
+import type { TypedEventBus } from '@/lib/events/core/TypedEventBus'
 
 /**
  * Command to clear the current selection
@@ -8,8 +9,11 @@ export class ClearSelectionCommand extends Command {
   private selectionManager: SelectionManager
   private previousSelection: PixelSelection | null = null
   
-  constructor(selectionManager: SelectionManager) {
-    super('Clear selection')
+  constructor(
+    eventBus: TypedEventBus,
+    selectionManager: SelectionManager
+  ) {
+    super('Clear selection', eventBus)
     this.selectionManager = selectionManager
   }
   

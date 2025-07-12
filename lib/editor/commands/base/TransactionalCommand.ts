@@ -1,8 +1,10 @@
-import { Command, type ICommand } from './Command'
-import type { CanvasManager, BlendMode } from '@/lib/editor/canvas/types'
+import type { ICommand, CommandMetadata } from './Command'
+import { Command } from './Command'
+import type { CanvasManager } from '@/lib/editor/canvas/types'
+import type { TypedEventBus } from '@/lib/events/core/TypedEventBus'
+import type { BlendMode } from '@/lib/editor/canvas/types'
 import type { ImageData, TextData, ShapeData } from '@/lib/editor/objects/types'
 import { CommandExecutionError } from '@/lib/ai/errors'
-import { ServiceContainer } from '@/lib/core/ServiceContainer'
 
 /**
  * Object data union type for snapshots
@@ -38,19 +40,23 @@ export interface CanvasStateSnapshot {
 }
 
 /**
- * Transactional command with automatic rollback on error
- * 
- * Features:
- * - Automatic checkpoint before execution
- * - Rollback on error
- * - Nested transaction support
- * - Performance tracking
- * - Event-driven architecture compatible
+ * Abstract base class for transactional commands
+ * Provides automatic state snapshots and rollback capabilities
  */
 export abstract class TransactionalCommand extends Command {
   private checkpoint: CanvasStateSnapshot | null = null
   private executionTime: number = 0
-  protected canvasManager: CanvasManager | null = null
+  protected canvasManager: CanvasManager
+  
+  constructor(
+    description: string, 
+    canvasManager: CanvasManager,
+    eventBus: TypedEventBus,
+    metadata?: Partial<CommandMetadata>
+  ) {
+    super(description, eventBus, metadata)
+    this.canvasManager = canvasManager
+  }
   
   /**
    * The actual command implementation
@@ -203,21 +209,10 @@ export abstract class TransactionalCommand extends Command {
   
   /**
    * Get canvas manager instance
-   * Override this if your command gets canvas differently
+   * Now returns the injected instance instead of using singleton
    */
-  protected getCanvasManager(): CanvasManager | null {
-    if (this.canvasManager) return this.canvasManager
-    
-    // Try to get from DI container
-    try {
-      const container = ServiceContainer.getInstance()
-      const manager = container.getSync<CanvasManager>('CanvasManager')
-      return manager || null
-    } catch (error) {
-      console.warn('Failed to get CanvasManager from ServiceContainer:', error)
-    }
-    
-    return null
+  protected getCanvasManager(): CanvasManager {
+    return this.canvasManager
   }
   
   /**
@@ -239,8 +234,15 @@ export class CompositeTransactionalCommand extends TransactionalCommand {
   private commands: ICommand[] = []
   private executedCommands: ICommand[] = []
   
-  constructor(description: string, commands: ICommand[] = []) {
-    super(description)
+  constructor(
+    description: string, 
+    canvasManager: CanvasManager,
+    eventBus: TypedEventBus,
+    commands: ICommand[] = []
+  ) {
+    super(description, canvasManager, eventBus, {
+      source: 'system'
+    })
     this.commands = commands
   }
   
@@ -302,7 +304,9 @@ export class CompositeTransactionalCommand extends TransactionalCommand {
  */
 export function transaction(
   description: string,
+  canvasManager: CanvasManager,
+  eventBus: TypedEventBus,
   ...commands: ICommand[]
 ): CompositeTransactionalCommand {
-  return new CompositeTransactionalCommand(description, commands)
+  return new CompositeTransactionalCommand(description, canvasManager, eventBus, commands)
 } 

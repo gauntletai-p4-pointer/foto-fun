@@ -1,15 +1,15 @@
 import { z } from 'zod'
-import { UnifiedToolAdapter } from '../base/UnifiedToolAdapter'
-import type { ObjectCanvasContext } from '../base/UnifiedToolAdapter'
+import { UnifiedToolAdapter, type ObjectCanvasContext } from '../base/UnifiedToolAdapter'
+import { vintageEffectsTool } from '@/lib/editor/tools/filters/vintageEffectsTool'
 
 // Define parameter schema
-const vintageEffectsInputSchema = z.object({
-  effect: z.enum(['brownie', 'vintage-pinhole', 'kodachrome', 'technicolor', 'polaroid'])
+const vintageEffectsParameters = z.object({
+  effect: z.enum(['brownie', 'vintage-pinhole', 'kodachrome', 'technicolor', 'polaroid', 'sepia'])
     .describe('The vintage effect to apply')
 })
 
 // Define types
-type VintageEffectsInput = z.infer<typeof vintageEffectsInputSchema>
+type VintageEffectsInput = z.infer<typeof vintageEffectsParameters>
 
 interface VintageEffectsOutput {
   success: boolean
@@ -24,12 +24,8 @@ interface VintageEffectsOutput {
  */
 export class VintageEffectsToolAdapter extends UnifiedToolAdapter<VintageEffectsInput, VintageEffectsOutput> {
   toolId = 'vintage-effects'
-  aiName = 'applyVintageEffect'
+  aiName = 'apply_vintage_effect'
   description = `Apply vintage film effects to images. These are WebGL-powered effects that simulate classic film types.
-
-INTELLIGENT TARGETING:
-- If you have images selected, only those images will have the effect applied
-- If no images are selected, all images on the canvas will have the effect applied
 
 Available effects:
 - "brownie" → Classic brownie camera effect with warm brown tones
@@ -37,18 +33,23 @@ Available effects:
 - "kodachrome" → Kodachrome film simulation with vibrant, saturated colors
 - "technicolor" → Classic Technicolor film effect with rich colors
 - "polaroid" → Instant camera effect with faded edges and unique color cast
+- "sepia" → Classic sepia tone effect
 
 Common requests:
 - "vintage effect" or "old photo" → brownie
 - "retro look" → kodachrome or technicolor
 - "instant camera" → polaroid
 - "pinhole camera" → vintage-pinhole
+- "sepia tone" → sepia
 
 NEVER ask which effect - interpret the user's intent and choose the most appropriate effect.`
   
-  inputSchema = vintageEffectsInputSchema
+  inputSchema = vintageEffectsParameters
   
-  async execute(params: VintageEffectsInput, context: ObjectCanvasContext): Promise<VintageEffectsOutput> {
+  async execute(
+    params: VintageEffectsInput, 
+    context: ObjectCanvasContext
+  ): Promise<VintageEffectsOutput> {
     const targets = this.getTargets(context)
     const imageObjects = targets.filter(obj => obj.type === 'image')
     
@@ -61,45 +62,36 @@ NEVER ask which effect - interpret the user's intent and choose the most appropr
       }
     }
     
-    const affectedObjects: string[] = []
+    console.log(`[VintageEffectsAdapter] Applying ${params.effect} effect to ${imageObjects.length} objects`)
     
-    for (const obj of imageObjects) {
-      const filters = obj.filters || []
+    try {
+      // Use the underlying vintage effects tool to apply the effect
+      await vintageEffectsTool.applyVintageEffect(params.effect, 100)
       
-      // Remove existing vintage effect filters
-      const filteredFilters = filters.filter(f => !['brownie', 'vintage-pinhole', 'kodachrome', 'technicolor', 'polaroid'].includes(f.type))
+      // Get affected object IDs
+      const affectedObjects = imageObjects.map(obj => obj.id)
       
-      // Add new vintage effect filter
-      filteredFilters.push({
-        id: `vintage-${Date.now()}`,
-        type: params.effect,
-        params: {}
-      })
+      // Get human-readable effect name
+      const effectNames: Record<string, string> = {
+        'brownie': 'Brownie camera',
+        'vintage-pinhole': 'Vintage pinhole',
+        'kodachrome': 'Kodachrome film',
+        'technicolor': 'Technicolor film',
+        'polaroid': 'Polaroid instant camera',
+        'sepia': 'Sepia tone'
+      }
       
-      await context.canvas.updateObject(obj.id, {
-        filters: filteredFilters
-      })
+      const effectName = effectNames[params.effect] || params.effect
+      const message = `Applied ${effectName} effect to ${affectedObjects.length} object(s)`
       
-      affectedObjects.push(obj.id)
-    }
-    
-    // Get human-readable effect name
-    const effectNames: Record<string, string> = {
-      'brownie': 'Brownie camera',
-      'vintage-pinhole': 'Vintage pinhole',
-      'kodachrome': 'Kodachrome film',
-      'technicolor': 'Technicolor film',
-      'polaroid': 'Polaroid instant camera'
-    }
-    
-    const effectName = effectNames[params.effect] || params.effect
-    const message = `Applied ${effectName} effect to ${affectedObjects.length} object${affectedObjects.length !== 1 ? 's' : ''}`
-    
-    return {
-      success: true,
-      effect: params.effect,
-      message,
-      affectedObjects
+      return {
+        success: true,
+        effect: params.effect,
+        message,
+        affectedObjects
+      }
+    } catch (error) {
+      throw new Error(`Vintage effect application failed: ${this.formatError(error)}`)
     }
   }
 }

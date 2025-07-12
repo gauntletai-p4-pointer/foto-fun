@@ -41,46 +41,17 @@ export class VariationAdapter extends UnifiedToolAdapter<Input, Output> {
     
     // Use the first image target
     const targetImage = imageTargets[0]
-    const objectIds: string[] = []
     
     try {
-      // Generate variations
+      // Execute variation generation - tool should create and return canvas objects
       const variations = await this.tool.execute(targetImage, {
         strength: validated.variationStrength,
         numVariations: validated.count
+        // Note: seed and modelTier are not supported by VariationTool interface
       })
       
-      // Add each variation to canvas
-      for (let i = 0; i < variations.length; i++) {
-        const variation = variations[i]
-        const offsetX = (i % 2) * (targetImage.width + 40)
-        const offsetY = Math.floor(i / 2) * (targetImage.height + 40)
-        
-        const objectId = await context.canvas.addObject({
-          type: 'image',
-          x: targetImage.x + offsetX + 40,
-          y: targetImage.y + offsetY + 40,
-          width: targetImage.width,
-          height: targetImage.height,
-          scaleX: targetImage.scaleX || 1,
-          scaleY: targetImage.scaleY || 1,
-          data: variation.data,
-          metadata: {
-            source: 'ai-variation',
-            originalObjectId: targetImage.id,
-            variationIndex: i + 1,
-            variationStrength: validated.variationStrength,
-            seed: validated.seed,
-            modelTier: validated.modelTier,
-            processedAt: new Date().toISOString()
-          }
-        })
-        
-        objectIds.push(objectId)
-      }
-      
-      // Select all new variation objects
-      context.canvas.selectMultiple(objectIds)
+      // Tool should have created the canvas objects, just return their IDs
+      const objectIds = variations.map(variation => variation.id)
       
       return {
         objectIds,

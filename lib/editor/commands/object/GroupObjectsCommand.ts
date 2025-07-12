@@ -1,15 +1,17 @@
 import { Command } from '../base/Command'
 import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
+import type { TypedEventBus } from '@/lib/events/core/TypedEventBus'
 import type { CanvasObject } from '@/lib/editor/objects/types'
 
 export class GroupObjectsCommand extends Command {
   private groupId: string | null = null
   
   constructor(
+    eventBus: TypedEventBus,
     private canvas: CanvasManager,
     private objectIds: string[]
   ) {
-    super(`Group ${objectIds.length} objects`)
+    super(`Group ${objectIds.length} objects`, eventBus)
   }
   
   protected async doExecute(): Promise<void> {

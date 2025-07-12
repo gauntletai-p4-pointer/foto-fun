@@ -32,16 +32,18 @@ export function ToolExecutionDisplay({ executions, showConfidence = true }: Tool
     setExpandedTools(newExpanded)
   }
   
-  const getStatusIcon = (status?: string) => {
+  const getStatusIcon = (status: ToolExecution['status']) => {
     switch (status) {
-      case 'executing':
-        return <Loader2 className="w-3 h-3 animate-spin" />
       case 'completed':
-        return <Check className="w-3 h-3 text-green-600" />
+        return <Check className="w-3 h-3 text-success" />
       case 'error':
-        return <X className="w-3 h-3 text-red-600" />
+        return <X className="w-3 h-3 text-error" />
+      case 'executing':
+        return <Loader2 className="w-3 h-3 animate-spin text-primary" />
+      case 'pending':
+        return <Loader2 className="w-3 h-3 text-foreground/40" />
       default:
-        return null
+        return <Loader2 className="w-3 h-3 animate-spin text-primary" />
     }
   }
   
@@ -75,7 +77,7 @@ export function ToolExecutionDisplay({ executions, showConfidence = true }: Tool
                 
                 <Badge 
                   variant="default" 
-                  className="bg-blue-500 text-white hover:bg-blue-600"
+                  className="bg-primary text-primary-foreground hover:bg-primary/90"
                 >
                   {execution.toolName}
                 </Badge>
@@ -130,11 +132,11 @@ export function ToolExecutionDisplay({ executions, showConfidence = true }: Tool
                 
                 {/* Error */}
                 {execution.error && (
-                  <div className="space-y-1">
-                    <p className="text-xs font-medium text-red-600">Error</p>
-                    <div className="pl-3">
-                      <p className="text-xs text-red-600">{execution.error}</p>
-                    </div>
+                  <div className="mt-2 p-2 bg-error/10 rounded border border-error/20">
+                    <p className="text-xs font-medium text-error">Error</p>
+                    <pre className="text-xs text-error/80 whitespace-pre-wrap mt-1">
+                      {execution.error}
+                    </pre>
                   </div>
                 )}
               </div>

@@ -1,33 +1,38 @@
-import { Command } from '../base/Command'
-import { ServiceContainer } from '@/lib/core/ServiceContainer'
-import type { TypedEventBus } from '@/lib/events/core/TypedEventBus'
+import type { CanvasManager } from '@/lib/editor/canvas/types'
 import type { CanvasObject } from '@/lib/editor/objects/types'
+import { Command } from '../base'
+import type { TypedEventBus } from '@/lib/events/core/TypedEventBus'
 
 export class AddObjectCommand extends Command {
+  private canvasManager: CanvasManager
   private object: CanvasObject
-  private layerId: string
-  private typedEventBus: TypedEventBus
   
-  constructor(object: CanvasObject, layerId: string) {
-    super(`Add ${object.type}`)
+  constructor(
+    canvasManager: CanvasManager, 
+    object: CanvasObject,
+    eventBus: TypedEventBus
+  ) {
+    super(`Add ${object.type}`, eventBus)
+    this.canvasManager = canvasManager
     this.object = object
-    this.layerId = layerId
-    this.typedEventBus = ServiceContainer.getInstance().getSync<TypedEventBus>('TypedEventBus')
   }
   
   protected async doExecute(): Promise<void> {
-    // Emit object added event
-    this.typedEventBus.emit('canvas.object.added', {
-      canvasId: 'main', // TODO: Get actual canvas ID
-      object: this.object,
-      layerId: this.layerId
+    await this.canvasManager.addObject(this.object)
+    
+    // Emit event using inherited eventBus
+    this.eventBus.emit('canvas.object.added', {
+      canvasId: this.canvasManager.stage.id() || 'main',
+      object: this.object
     })
   }
   
   async undo(): Promise<void> {
-    // Emit object removed event
-    this.typedEventBus.emit('canvas.object.removed', {
-      canvasId: 'main', // TODO: Get actual canvas ID
+    await this.canvasManager.removeObject(this.object.id)
+    
+    // Emit event using inherited eventBus
+    this.eventBus.emit('canvas.object.removed', {
+      canvasId: this.canvasManager.stage.id() || 'main',
       objectId: this.object.id
     })
   }

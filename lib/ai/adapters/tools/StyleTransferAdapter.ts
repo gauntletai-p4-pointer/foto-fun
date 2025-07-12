@@ -44,39 +44,16 @@ export class StyleTransferAdapter extends UnifiedToolAdapter<Input, Output> {
     const targetImage = imageTargets[0]
     
     try {
-      // Execute style transfer
+      // Execute style transfer - tool creates and returns the canvas object
       const resultObject = await this.tool.execute(targetImage, {
         prompt: validated.stylePrompt,
         strength: validated.strength,
         modelTier: validated.modelTier
       })
       
-      // Add the result object to canvas
-      const objectId = await context.canvas.addObject({
-        type: 'image',
-        x: targetImage.x + 20, // Offset slightly
-        y: targetImage.y + 20,
-        width: targetImage.width,
-        height: targetImage.height,
-        scaleX: targetImage.scaleX || 1,
-        scaleY: targetImage.scaleY || 1,
-        data: resultObject.data,
-        metadata: {
-          source: 'ai-style-transfer',
-          originalObjectId: targetImage.id,
-          stylePrompt: validated.stylePrompt,
-          strength: validated.strength,
-          preserveColors: validated.preserveColors,
-          modelTier: validated.modelTier,
-          processedAt: new Date().toISOString()
-        }
-      })
-      
-      // Select the new object
-      context.canvas.selectObject(objectId)
-      
+      // Tool already created the canvas object, just return its info
       return {
-        objectId,
+        objectId: resultObject.id,
         appliedStyle: validated.stylePrompt,
         strength: validated.strength
       }

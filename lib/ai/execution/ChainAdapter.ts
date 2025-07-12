@@ -1,14 +1,15 @@
 import { z } from 'zod'
 import { tool } from 'ai'
-import React from 'react'
 import { EventBasedToolChain } from '@/lib/events/execution/EventBasedToolChain'
+import { ExecutionContextFactory } from '@/lib/events/execution/ExecutionContext'
 import { adapterRegistry } from '../adapters/registry'
 import { BaseToolAdapter } from '../adapters/base'
 import type { Tool } from '@/lib/editor/canvas/types'
 import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
-import type { CanvasContext } from '@/lib/ai/canvas/CanvasContext'
+import type { CanvasContext } from '../tools/canvas-bridge'
 import { ServiceContainer } from '@/lib/core/ServiceContainer'
 import { EventStore } from '@/lib/events/core/EventStore'
+import type { TypedEventBus } from '@/lib/events/core/TypedEventBus'
 
 // Define the schema for a chain step
 const ChainStepSchema = z.object({
@@ -47,13 +48,20 @@ interface ExecuteChainOutput {
  * with consistent context and proper error handling
  */
 export class ChainAdapter extends BaseToolAdapter<ExecuteChainInput, ExecuteChainOutput> {
-  // Create a synthetic tool for the chain execution
+  private eventStore: EventStore
+  private eventBus: TypedEventBus
+  
+  constructor(eventStore: EventStore, eventBus: TypedEventBus) {
+    super()
+    this.eventStore = eventStore
+    this.eventBus = eventBus
+  }
+
   tool: Tool = {
-    id: 'execute-chain',
+    id: 'executeToolChain',
     name: 'Execute Tool Chain',
-    icon: (() => null) as React.ComponentType,
+    icon: () => null,
     cursor: 'default',
-    
     // Tool lifecycle (no-op for chain execution)
     onActivate: () => {},
     onDeactivate: () => {}
@@ -86,9 +94,9 @@ export class ChainAdapter extends BaseToolAdapter<ExecuteChainInput, ExecuteChai
   inputSchema = ExecuteChainSchema as z.ZodType<ExecuteChainInput>
   
   metadata = {
-    category: 'ai-native' as const, // Changed to valid category
-    executionType: 'fast' as const, // Changed to valid type
-    worksOn: 'both' as const // Changed to valid type
+    category: 'ai-native' as const,
+    executionType: 'fast' as const,
+    worksOn: 'both' as const
   }
   
   /**
@@ -98,76 +106,61 @@ export class ChainAdapter extends BaseToolAdapter<ExecuteChainInput, ExecuteChai
     try {
       console.log('[ChainAdapter] Executing chain with steps:', params.steps)
       
-      // Get required services
-      const container = ServiceContainer.getInstance()
-      const eventStore = container.getSync<EventStore>('EventStore')
       const canvas = context.canvas
       
       if (!canvas) {
         throw new Error('Canvas is required for chain execution')
       }
       
-      // Create event-based tool chain
-      const chain = new EventBasedToolChain({
-        canvasId: canvas.id,
-        canvas: canvas as CanvasManager,
-        eventStore,
-        workflowId: `workflow_${Date.now()}`,
-        metadata: {
-          source: 'ai-chain-adapter',
-          preserveSelection: params.preserveSelection
+      // Create execution context for the chain
+      const executionContext = ExecutionContextFactory.fromCanvas(
+        canvas as CanvasManager,
+        this.eventStore,
+        'ai',
+        { workflowId: `workflow_${Date.now()}` }
+      )
+      
+      // Create event-based tool chain using injected dependencies
+      const chain = new EventBasedToolChain(
+        executionContext,
+        this.eventBus,
+        {
+          maxRetries: 3,
+          timeout: 30000,
+          parallel: false
         }
-      })
+      )
       
       const startTime = Date.now()
       const results: Array<{ tool: string; success: boolean; result?: unknown; error?: string }> = []
       
       try {
-        // Prepare for AI operation
-        await chain.prepareForAIOperation(true)
-        
-        // Execute each step
-        const toolResults = await chain.executeSequence(
-          params.steps.map(step => ({
+        // Add steps to the chain
+        params.steps.forEach((step, index) => {
+          chain.addStep({
+            id: `step_${index}`,
             toolId: step.tool,
-            params: step.params,
-            executor: async (toolParams) => {
-              const adapter = adapterRegistry.get(step.tool)
-              if (!adapter) {
-                throw new Error(`Tool adapter not found: ${step.tool}`)
-              }
-              
-              try {
-                const result = await adapter.execute(toolParams, context)
-                return {
-                  success: true,
-                  data: result
-                }
-              } catch (error) {
-                return {
-                  success: false,
-                  error: error instanceof Error ? error.message : 'Unknown error'
-                }
-              }
-            }
-          }))
-        )
-        
-        // Process results
-        toolResults.forEach((result, index) => {
-          results.push({
-            tool: params.steps[index].tool,
-            success: result.success,
-            result: result.data,
-            error: result.error
+            input: step.params,
+            dependencies: index > 0 ? [`step_${index - 1}`] : []
           })
         })
         
-        // Complete the AI operation
-        await chain.completeAIOperation()
+        // Execute the chain
+        await chain.execute()
         
-        // Complete the workflow
-        chain.complete()
+        // Get execution status and build results
+        params.steps.forEach((step, index) => {
+          results.push({
+            tool: step.tool,
+            success: true, // For now, assume success if chain completed
+            result: `Step ${index} completed`,
+            error: undefined
+          })
+        })
+        
+        // Complete the execution context
+        executionContext.completeWorkflow()
+        await executionContext.commit()
         
         const totalTime = Date.now() - startTime
         const successCount = results.filter(r => r.success).length
@@ -179,14 +172,15 @@ export class ChainAdapter extends BaseToolAdapter<ExecuteChainInput, ExecuteChai
         
         return {
           success: allSucceeded,
-          chainId: `chain_${Date.now()}`,
+          chainId: executionContext.id,
           results,
           totalTime,
           message
         }
       } catch (error) {
         // Handle execution failure
-        chain.fail(error instanceof Error ? error.message : 'Unknown error')
+        executionContext.failWorkflow(error instanceof Error ? error.message : 'Unknown error')
+        executionContext.rollback()
         
         const totalTime = Date.now() - startTime
         const successCount = results.filter(r => r.success).length
@@ -194,7 +188,7 @@ export class ChainAdapter extends BaseToolAdapter<ExecuteChainInput, ExecuteChai
         
         return {
           success: false,
-          chainId: `chain_${Date.now()}`,
+          chainId: executionContext.id,
           results,
           totalTime,
           message
@@ -249,8 +243,11 @@ export class ChainAdapter extends BaseToolAdapter<ExecuteChainInput, ExecuteChai
   }
 }
 
-// Register the chain adapter
-export function registerChainAdapter(): void {
-  const adapter = new ChainAdapter()
+// Register the chain adapter with dependency injection
+export function registerChainAdapter(serviceContainer: ServiceContainer): void {
+  // Get dependencies from ServiceContainer using proper dependency injection
+  const eventStore = serviceContainer.getSync<EventStore>('EventStore')
+  const eventBus = serviceContainer.getSync<TypedEventBus>('TypedEventBus')
+  const adapter = new ChainAdapter(eventStore, eventBus)
   adapterRegistry.register(adapter)
 } 

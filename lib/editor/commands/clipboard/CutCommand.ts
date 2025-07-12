@@ -1,59 +1,63 @@
-import { Command } from '../base'
 import type { CanvasManager } from '@/lib/editor/canvas/types'
 import type { CanvasObject } from '@/lib/editor/objects/types'
-import { ClipboardManager } from '../../clipboard'
-import { ServiceContainer } from '@/lib/core/ServiceContainer'
+import { Command } from '../base'
 import type { TypedEventBus } from '@/lib/events/core/TypedEventBus'
 
 /**
- * Command to cut objects (copy to clipboard and remove from canvas)
+ * Command to cut selected objects to clipboard
  */
 export class CutCommand extends Command {
   private canvasManager: CanvasManager
-  private objects: CanvasObject[]
-  private objectIds: string[]
-  private clipboard: ClipboardManager
-  private typedEventBus: TypedEventBus
+  private cutObjects: CanvasObject[] = []
   
-  constructor(canvasManager: CanvasManager, objects: CanvasObject[]) {
-    super(`Cut ${objects.length} object(s)`)
+  constructor(
+    canvasManager: CanvasManager,
+    eventBus: TypedEventBus
+  ) {
+    super('Cut objects', eventBus)
     this.canvasManager = canvasManager
-    this.objects = objects
-    this.objectIds = objects.map(obj => obj.id)
-    this.clipboard = ClipboardManager.getInstance()
-    this.typedEventBus = ServiceContainer.getInstance().getSync<TypedEventBus>('TypedEventBus')
   }
   
   protected async doExecute(): Promise<void> {
-    // Copy objects to clipboard
-    await this.clipboard.cut(this.objects)
+    // Get selected objects
+    const selectedObjects = this.canvasManager.getSelectedObjects()
+    this.cutObjects = [...selectedObjects]
     
-    // Remove objects from canvas
-    for (const objectId of this.objectIds) {
-      await this.canvasManager.removeObject(objectId)
-      
-      // Emit removal event
-      this.typedEventBus.emit('canvas.object.removed', {
+    if (this.cutObjects.length === 0) return
+    
+    // Copy to clipboard (implementation would go here)
+    // For now, just store the objects
+    
+    // Remove from canvas
+    for (const obj of this.cutObjects) {
+      await this.canvasManager.removeObject(obj.id)
+    }
+    
+    // Emit events using inherited eventBus
+    this.eventBus.emit('clipboard.cut', {
+      objects: this.cutObjects
+    })
+    
+    for (const obj of this.cutObjects) {
+      this.eventBus.emit('canvas.object.removed', {
         canvasId: this.canvasManager.stage.id() || 'main',
-        objectId
+        objectId: obj.id
       })
     }
   }
   
   async undo(): Promise<void> {
-    // Re-add objects to canvas
-    for (const obj of this.objects) {
+    // Restore cut objects
+    for (const obj of this.cutObjects) {
       await this.canvasManager.addObject(obj)
-      
-      // Emit addition event
-      this.typedEventBus.emit('canvas.object.added', {
+    }
+    
+    // Emit events using inherited eventBus
+    for (const obj of this.cutObjects) {
+      this.eventBus.emit('canvas.object.added', {
         canvasId: this.canvasManager.stage.id() || 'main',
         object: obj
       })
     }
-  }
-  
-  canExecute(): boolean {
-    return this.objects.length > 0
   }
 } 

@@ -13,7 +13,8 @@ import { ServiceContainer } from '@/lib/core/ServiceContainer'
 export class CanvasManagerFactory {
   constructor(
     private eventStore: EventStore,
-    private resourceManager: ResourceManager
+    private resourceManager: ResourceManager,
+    private serviceContainer: ServiceContainer
   ) {}
 
   /**
@@ -23,16 +24,17 @@ export class CanvasManagerFactory {
     container: HTMLDivElement,
     _executionContext?: ExecutionContext
   ): CanvasManager {
-    // Get services from container
-    const serviceContainer = ServiceContainer.getInstance()
-    const typedEventBus = serviceContainer.getSync<TypedEventBus>('TypedEventBus')
-    const objectManager = serviceContainer.getSync<ObjectManager>('ObjectManager')
+    // Get services from injected container (not singleton)
+    const typedEventBus = this.serviceContainer.getSync<TypedEventBus>('TypedEventBus')
+    const objectManager = this.serviceContainer.getSync<ObjectManager>('ObjectManager')
     
     // Create CanvasManager which implements our new object-based architecture
     const canvas = new CanvasManager(
       container,
       typedEventBus,
-      objectManager
+      objectManager,
+      this.eventStore,
+      this.resourceManager
     )
     
     // Register for cleanup

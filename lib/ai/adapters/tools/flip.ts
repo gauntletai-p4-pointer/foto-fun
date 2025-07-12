@@ -1,15 +1,15 @@
 import { z } from 'zod'
-import { UnifiedToolAdapter } from '../base/UnifiedToolAdapter'
-import type { ObjectCanvasContext } from '../base/UnifiedToolAdapter'
+import { UnifiedToolAdapter, type ObjectCanvasContext } from '../base/UnifiedToolAdapter'
+import { flipTool } from '@/lib/editor/tools/transform/flipTool'
 
 // Define parameter schema
-const flipInputSchema = z.object({
+const flipParameters = z.object({
   direction: z.enum(['horizontal', 'vertical'])
     .describe('Direction to flip: horizontal (left-right) or vertical (up-down)')
 })
 
 // Define types
-type FlipInput = z.infer<typeof flipInputSchema>
+type FlipInput = z.infer<typeof flipParameters>
 
 interface FlipOutput {
   success: boolean
@@ -35,7 +35,7 @@ export class FlipToolAdapter extends UnifiedToolAdapter<FlipInput, FlipOutput> {
   
   NEVER ask for the direction - interpret the user's intent.`
   
-  inputSchema = flipInputSchema
+  inputSchema = flipParameters
   
   async execute(
     params: FlipInput, 
@@ -52,34 +52,26 @@ export class FlipToolAdapter extends UnifiedToolAdapter<FlipInput, FlipOutput> {
       }
     }
     
-    const affectedObjects: string[] = []
+    console.log(`[FlipAdapter] Flipping ${targets.length} objects ${params.direction}`)
     
-    // Apply flip to all target objects
-    for (const obj of targets) {
-      const currentScaleX = obj.scaleX || 1
-      const currentScaleY = obj.scaleY || 1
+    try {
+      // Use the underlying flip tool to apply the flip
+      await flipTool.applyFlip(params.direction)
       
-      if (params.direction === 'horizontal') {
-        await context.canvas.updateObject(obj.id, {
-          scaleX: -currentScaleX
-        })
-      } else {
-        await context.canvas.updateObject(obj.id, {
-          scaleY: -currentScaleY
-        })
+      // Get affected object IDs
+      const affectedObjects = targets.map(obj => obj.id)
+      
+      const directionText = params.direction === 'horizontal' ? 'horizontally' : 'vertically'
+      const message = `Flipped ${affectedObjects.length} object(s) ${directionText}`
+      
+      return {
+        success: true,
+        direction: params.direction,
+        message,
+        affectedObjects
       }
-      
-      affectedObjects.push(obj.id)
-    }
-    
-    const directionText = params.direction === 'horizontal' ? 'horizontally' : 'vertically'
-    const message = `Flipped ${affectedObjects.length} object${affectedObjects.length !== 1 ? 's' : ''} ${directionText}`
-    
-    return {
-      success: true,
-      direction: params.direction,
-      message,
-      affectedObjects
+    } catch (error) {
+      throw new Error(`Flip operation failed: ${this.formatError(error)}`)
     }
   }
 } 

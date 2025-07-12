@@ -6,6 +6,15 @@ import { ModelPreferencesManager } from '@/lib/settings/ModelPreferences'
 import type { ModelTier } from '@/lib/plugins/types'
 import { TypedEventBus } from '@/lib/events/core/TypedEventBus'
 
+export interface ImageGenerationOptions {
+  prompt: string
+  width?: number
+  height?: number
+  negativePrompt?: string
+  modelTier?: string
+  position?: { x: number; y: number }
+}
+
 export class ImageGenerationTool extends ObjectTool {
   id = 'ai-image-generation'
   name = 'AI Image Generation'
@@ -63,23 +72,43 @@ export class ImageGenerationTool extends ObjectTool {
     }
   }
   
-  async execute(): Promise<void> {
+  /**
+   * Execute image generation
+   * Overloaded to support both UI usage (no params) and adapter usage (with params)
+   */
+  async execute(): Promise<void>
+  async execute(options: ImageGenerationOptions): Promise<import('@/lib/editor/objects/types').CanvasObject>
+  async execute(options?: ImageGenerationOptions): Promise<void | import('@/lib/editor/objects/types').CanvasObject> {
     if (!this.replicateService) {
-      console.error('[ImageGenerationTool] Service not initialized')
+      const error = 'Replicate service not initialized'
+      console.error(`[ImageGenerationTool] ${error}`)
+      if (options) throw new Error(error)
       return
     }
     
-    const prompt = this.getOption('prompt') as string
+    // Determine parameters - use provided options or tool settings
+    const prompt = options?.prompt || (this.getOption('prompt') as string)
+    const width = options?.width || (this.getOption('width') as number) || 1024
+    const height = options?.height || (this.getOption('height') as number) || 1024
+    const negativePrompt = options?.negativePrompt || ''
+    
     if (!prompt) {
-      console.warn('[ImageGenerationTool] No prompt provided')
+      const error = 'No prompt provided'
+      console.warn(`[ImageGenerationTool] ${error}`)
+      if (options) throw new Error(error)
       return
     }
     
     const canvas = this.getCanvas()
-    const tier = this.getCurrentTier()
+    
+    // Get model tier from options or tool settings
+    const tierName = options?.modelTier || (this.getOption('modelTier') as string) || 'balanced'
+    const tier = ModelRegistry.getModelTier('image-generation', tierName) || this.getCurrentTier()
     
     if (!tier) {
-      console.error('[ImageGenerationTool] No model tier selected')
+      const error = 'No model tier selected'
+      console.error(`[ImageGenerationTool] ${error}`)
+      if (options) throw new Error(error)
       return
     }
     
@@ -98,15 +127,30 @@ export class ImageGenerationTool extends ObjectTool {
       
       // Generate image using the selected model
       const imageData = await this.replicateService.generateImage(prompt, tier.modelId as `${string}/${string}`, {
-        width: this.getOption('width') as number,
-        height: this.getOption('height') as number,
+        width,
+        height,
+        negative_prompt: negativePrompt,
         // Add model-specific parameters
         ...(tier.id === 'fast' ? { num_inference_steps: 4 } : {}),
         ...(tier.id === 'best' ? { num_inference_steps: 50, guidance_scale: 7.5 } : {})
       })
       
+      // Determine position
+      let x: number, y: number
+      if (options?.position?.x !== undefined && options?.position?.y !== undefined) {
+        x = options.position.x
+        y = options.position.y
+      } else {
+        // Center in viewport
+        const viewport = canvas.getViewportBounds()
+        x = viewport.x + (viewport.width - imageData.naturalWidth) / 2
+        y = viewport.y + (viewport.height - imageData.naturalHeight) / 2
+      }
+      
       // Add to canvas
       const objectId = await this.createNewObject('image', {
+        x,
+        y,
         data: imageData,
         width: imageData.naturalWidth,
         height: imageData.naturalHeight,
@@ -115,7 +159,9 @@ export class ImageGenerationTool extends ObjectTool {
           prompt,
           modelUsed: tier.name,
           modelId: tier.modelId,
-          cost: tier.cost
+          cost: tier.cost,
+          aiGenerated: true,
+          generatedAt: new Date().toISOString()
         }
       })
       
@@ -130,6 +176,15 @@ export class ImageGenerationTool extends ObjectTool {
         success: true,
         affectedObjectIds: [objectId]
       })
+      
+      // Return the object for adapter use, or void for UI use
+      if (options) {
+        const createdObject = canvas.getObject(objectId)
+        if (!createdObject) {
+          throw new Error('Failed to create image object')
+        }
+        return createdObject
+      }
     } catch (error) {
       console.error('[ImageGenerationTool] Failed to generate image:', error)
       this.eventBus.emit('ai.processing.failed', {
@@ -137,9 +192,15 @@ export class ImageGenerationTool extends ObjectTool {
         toolId: this.id,
         error: error instanceof Error ? error.message : 'Image generation failed'
       })
+      
+      if (options) {
+        throw error
+      }
     }
   }
-  
+
+
+
   /**
    * Get tool-specific UI options
    */

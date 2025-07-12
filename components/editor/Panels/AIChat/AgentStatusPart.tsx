@@ -1,8 +1,7 @@
 'use client'
 
-import { Bot, Brain, Cpu, Route, Settings, Zap, AlertTriangle, CheckCircle2 } from 'lucide-react'
+import { Bot, Brain, Cpu, Route, Settings, Zap, AlertTriangle, CheckCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { Progress } from '@/components/ui/progress'
 import { Badge } from '@/components/ui/badge'
 
 export type AgentStatusType = 
@@ -26,11 +25,11 @@ export interface AgentStatus {
 
 const statusConfig: Record<AgentStatusType, { icon: React.ElementType; color: string; label: string }> = {
   'analyzing-prompt': { icon: Brain, color: 'text-primary', label: 'Analyzing' },
-  'routing-decision': { icon: Route, color: 'text-purple-500', label: 'Routing' },
-  'planning-steps': { icon: Settings, color: 'text-amber-500', label: 'Planning' },
-  'executing-tool': { icon: Cpu, color: 'text-green-500', label: 'Executing' },
-  'evaluating-result': { icon: Zap, color: 'text-indigo-500', label: 'Evaluating' },
-  'generating-response': { icon: Bot, color: 'text-pink-500', label: 'Responding' }
+  'routing-decision': { icon: Route, color: 'text-primary', label: 'Routing' },
+  'planning-steps': { icon: Settings, color: 'text-warning', label: 'Planning' },
+  'executing-tool': { icon: Cpu, color: 'text-success', label: 'Executing' },
+  'evaluating-result': { icon: Zap, color: 'text-primary', label: 'Evaluating' },
+  'generating-response': { icon: Bot, color: 'text-primary', label: 'Responding' }
 }
 
 interface ConfidenceDisplayProps {
@@ -39,65 +38,55 @@ interface ConfidenceDisplayProps {
   showThreshold?: boolean
 }
 
-function ConfidenceDisplay({ confidence, threshold = 0.8, showThreshold = true }: ConfidenceDisplayProps) {
+function ConfidenceDisplay({ confidence, threshold = 0.7 }: ConfidenceDisplayProps) {
   const percentage = Math.round(confidence * 100)
   const isAboveThreshold = confidence >= threshold
   
   return (
-    <div className="space-y-1">
-      <div className="flex items-center gap-2">
-        <span className="text-xs font-medium">Confidence:</span>
-        <div className="flex items-center gap-1">
-          <Progress 
-            value={percentage} 
-            className="h-1.5 w-20"
-            indicatorClassName={cn(
-              isAboveThreshold ? 'bg-green-500' : 'bg-amber-500'
-            )}
-          />
-          <span className={cn(
-            "text-xs font-medium",
-            isAboveThreshold ? 'text-green-600' : 'text-amber-600'
-          )}>
-            {percentage}%
-          </span>
-        </div>
+    <div className="flex items-center gap-2">
+      <div className="flex-1 bg-foreground/10 rounded-full h-1.5 overflow-hidden">
+        <div
+          className={cn(
+            'h-full transition-all duration-300',
+            isAboveThreshold ? 'bg-success' : 'bg-warning'
+          )}
+          style={{ width: `${percentage}%` }}
+        />
       </div>
-      {showThreshold && (
-        <div className="text-xs text-foreground/60">
-          Approval threshold: {Math.round(threshold * 100)}%
-        </div>
-      )}
+      <span className={cn(
+        'text-xs font-medium',
+        isAboveThreshold ? 'text-success' : 'text-warning'
+      )}>
+        {percentage}%
+      </span>
     </div>
   )
 }
 
-interface ApprovalIndicatorProps {
+function ApprovalIndicator({ required, confidence, threshold }: { 
   required: boolean
   confidence?: number
-  threshold?: number
-}
-
-function ApprovalIndicator({ required, confidence, threshold }: ApprovalIndicatorProps) {
-  if (required) {
+  threshold?: number 
+}) {
+  if (required && confidence !== undefined && threshold !== undefined) {
+    const isAboveThreshold = confidence >= threshold
     return (
-      <Badge variant="outline" className="text-xs gap-1 border-amber-500 text-amber-600">
+      <Badge variant="outline" className={cn(
+        "text-xs gap-1",
+        isAboveThreshold ? "border-success text-success" : "border-warning text-warning"
+      )}>
         <AlertTriangle className="w-3 h-3" />
-        Approval Required
+        {isAboveThreshold ? 'Auto-approved' : 'Needs approval'}
       </Badge>
     )
   }
   
-  if (confidence && threshold && confidence >= threshold) {
-    return (
-      <Badge variant="outline" className="text-xs gap-1 border-green-500 text-green-600">
-        <CheckCircle2 className="w-3 h-3" />
-        Auto-approved
-      </Badge>
-    )
-  }
-  
-  return null
+  return (
+    <Badge variant="outline" className="text-xs gap-1 border-success text-success">
+      <CheckCircle className="w-3 h-3" />
+      Approved
+    </Badge>
+  )
 }
 
 export function AgentStatusPart({ status }: { status: AgentStatus }) {

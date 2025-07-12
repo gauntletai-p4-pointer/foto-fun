@@ -389,6 +389,14 @@ export interface EventRegistry {
     commandId: string
   }
   
+  // Clipboard events
+  'clipboard.cut': {
+    objects: CanvasObject[]
+  }
+  'clipboard.paste': {
+    objects: CanvasObject[]
+  }
+  
   // AI events
   'ai.processing.started': {
     taskId: string

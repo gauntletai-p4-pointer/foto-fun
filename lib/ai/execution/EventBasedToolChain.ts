@@ -3,5 +3,5 @@
 export {
   EventBasedToolChain,
   type ToolChainOptions,
-  type ToolExecutionResult
+  type ToolChainStep
 } from '@/lib/events/execution/EventBasedToolChain'

@@ -21,15 +21,21 @@ const Canvas = dynamic(
   { 
     ssr: false,
     loading: () => (
-      <div className="relative flex-1 bg-content-background p-4 min-w-0 overflow-hidden flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-gray-400 mx-auto mb-2"></div>
-          <p className="text-sm text-gray-400">Loading canvas...</p>
-        </div>
-      </div>
+      <LoadingFallback />
     )
   }
 )
+
+function LoadingFallback() {
+  return (
+    <div className="h-screen flex items-center justify-center bg-background text-foreground">
+      <div className="text-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-foreground/20 mx-auto mb-2"></div>
+        <p className="text-sm text-foreground/60">Loading canvas...</p>
+      </div>
+    </div>
+  )
+}
 
 // Inner component that uses services
 function EditorContent() {
@@ -88,7 +94,7 @@ function EditorContent() {
   }, [toolState.tools, toolStore])
   
   return (
-    <div className="h-screen flex flex-col bg-[#1e1e1e] text-gray-200 overflow-hidden">
+    <div className="h-screen flex flex-col bg-background text-foreground overflow-hidden">
       <MenuBar />
       <OptionsBar />
       <div className="flex-1 flex overflow-hidden min-h-0">
@@ -130,10 +136,10 @@ export default function EditorPage() {
   // Show loading state while checking auth
   if (!authChecked) {
     return (
-      <div className="h-screen flex items-center justify-center bg-[#1e1e1e] text-gray-200">
+      <div className="h-screen flex items-center justify-center bg-background text-foreground">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-gray-400 mx-auto mb-4"></div>
-          <p className="text-sm text-gray-400">Loading editor...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-foreground/20 mx-auto mb-4"></div>
+          <p className="text-sm text-foreground/60">Loading editor...</p>
         </div>
       </div>
     )
@@ -146,10 +152,10 @@ export default function EditorPage() {
   
   // Otherwise, show loading (redirect will happen)
   return (
-    <div className="h-screen flex items-center justify-center bg-[#1e1e1e] text-gray-200">
+    <div className="h-screen flex items-center justify-center bg-background text-foreground">
       <div className="text-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-gray-400 mx-auto mb-4"></div>
-        <p className="text-sm text-gray-400">Redirecting to sign in...</p>
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-foreground/20 mx-auto mb-4"></div>
+        <p className="text-sm text-foreground/60">Redirecting to sign in...</p>
       </div>
     </div>
   )

@@ -7,7 +7,6 @@ export type { ToolOptionsState, ToolOption, ToolOptionsConfig, OptionType } from
 import { useService } from '@/lib/core/AppInitializer'
 import { useStore } from '@/lib/store/base/BaseStore'
 import { EventToolStore } from './EventToolStore'
-import { ServiceContainer } from '@/lib/core/ServiceContainer'
 
 /**
  * React hook for using the tool store
@@ -30,10 +29,5 @@ export function useToolStore() {
   }
 }
 
-/**
- * Get tool store instance for non-React contexts
- * Should be used in classes, commands, etc.
- */
-export function getToolStore(): EventToolStore {
-  return ServiceContainer.getInstance().getSync<EventToolStore>('ToolStore')
-} 
+// Note: getToolStore() function removed - all classes should receive 
+// EventToolStore through constructor injection instead of using singleton access 

@@ -1,14 +1,14 @@
 import { z } from 'zod'
-import { UnifiedToolAdapter } from '../base/UnifiedToolAdapter'
-import type { ObjectCanvasContext } from '../base/UnifiedToolAdapter'
+import { UnifiedToolAdapter, type ObjectCanvasContext } from '../base/UnifiedToolAdapter'
+import { invertTool } from '@/lib/editor/tools/filters/invertTool'
 
 // Define parameter schema
-const invertInputSchema = z.object({
+const invertParameters = z.object({
   enabled: z.boolean().describe('Whether to apply invert effect. true = invert colors, false = restore original colors')
 })
 
 // Define types
-type InvertInput = z.infer<typeof invertInputSchema>
+type InvertInput = z.infer<typeof invertParameters>
 
 interface InvertOutput {
   success: boolean
@@ -35,9 +35,12 @@ export class InvertToolAdapter extends UnifiedToolAdapter<InvertInput, InvertOut
   
   NEVER ask the user - determine from their intent.`
   
-  inputSchema = invertInputSchema
+  inputSchema = invertParameters
   
-  async execute(params: InvertInput, context: ObjectCanvasContext): Promise<InvertOutput> {
+  async execute(
+    params: InvertInput, 
+    context: ObjectCanvasContext
+  ): Promise<InvertOutput> {
     const targets = this.getTargets(context)
     const imageObjects = targets.filter(obj => obj.type === 'image')
     
@@ -50,39 +53,31 @@ export class InvertToolAdapter extends UnifiedToolAdapter<InvertInput, InvertOut
       }
     }
     
-    const affectedObjects: string[] = []
+    console.log(`[InvertAdapter] ${params.enabled ? 'Applying' : 'Removing'} color inversion to ${imageObjects.length} objects`)
     
-    for (const obj of imageObjects) {
-      const filters = obj.filters || []
-      
-      // Remove existing invert filters
-      const filteredFilters = filters.filter(f => f.type !== 'invert')
-      
-      // Add invert filter if enabled
+    try {
+      // Use the underlying invert tool to apply the effect
       if (params.enabled) {
-        filteredFilters.push({
-          id: `invert-${Date.now()}`,
-          type: 'invert',
-          params: {}
-        })
+        await invertTool.applyInvert(100)
+      } else {
+        await invertTool.applyInvert(0)
       }
       
-      await context.canvas.updateObject(obj.id, {
-        filters: filteredFilters
-      })
+      // Get affected object IDs
+      const affectedObjects = imageObjects.map(obj => obj.id)
       
-      affectedObjects.push(obj.id)
-    }
-    
-    const message = params.enabled 
-      ? `Inverted colors on ${affectedObjects.length} object${affectedObjects.length !== 1 ? 's' : ''} (negative effect applied)`
-      : `Removed color inversion from ${affectedObjects.length} object${affectedObjects.length !== 1 ? 's' : ''}`
-    
-    return {
-      success: true,
-      enabled: params.enabled,
-      message,
-      affectedObjects
+      const message = params.enabled 
+        ? `Inverted colors on ${affectedObjects.length} object(s) (negative effect applied)`
+        : `Removed color inversion from ${affectedObjects.length} object(s)`
+      
+      return {
+        success: true,
+        enabled: params.enabled,
+        message,
+        affectedObjects
+      }
+    } catch (error) {
+      throw new Error(`Color inversion failed: ${this.formatError(error)}`)
     }
   }
 }

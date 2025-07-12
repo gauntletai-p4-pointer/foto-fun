@@ -16,7 +16,6 @@ import { SelectionRenderer } from '@/lib/editor/selection/SelectionRenderer'
 import { calculateFitToScreenScale } from './helpers'
 import type { CanvasObject } from '@/lib/editor/objects/types'
 import { ObjectFilterManager } from '@/lib/editor/filters/ObjectFilterManager'
-import { ServiceContainer } from '@/lib/core/ServiceContainer'
 import { EventStore } from '@/lib/events/core/EventStore'
 import { ResourceManager } from '@/lib/core/ResourceManager'
 
@@ -28,6 +27,8 @@ export class CanvasManager implements ICanvasManager {
   private container: HTMLDivElement
   private typedEventBus: TypedEventBus
   private objectManager: ObjectManager
+  private eventStore: EventStore
+  private resourceManager: ResourceManager
   
   // Selection system
   private selectionManager: SelectionManager | null = null
@@ -52,11 +53,15 @@ export class CanvasManager implements ICanvasManager {
   constructor(
     container: HTMLDivElement,
     typedEventBus: TypedEventBus,
-    objectManager: ObjectManager
+    objectManager: ObjectManager,
+    eventStore: EventStore,
+    resourceManager: ResourceManager
   ) {
     this.container = container
     this.typedEventBus = typedEventBus
     this.objectManager = objectManager
+    this.eventStore = eventStore
+    this.resourceManager = resourceManager
     
     // Initialize stage
     this.stage = new Konva.Stage({
@@ -106,15 +111,12 @@ export class CanvasManager implements ICanvasManager {
     this.selectionManager = new SelectionManager(this as unknown as ICanvasManager, this.typedEventBus)
     this.selectionRenderer = new SelectionRenderer(this as unknown as ICanvasManager, this.selectionManager)
     
-    // Initialize filter system
-    const serviceContainer = ServiceContainer.getInstance()
-    const eventStore = serviceContainer.getSync<EventStore>('EventStore')
-    const resourceManager = serviceContainer.getSync<ResourceManager>('ResourceManager')
+    // Initialize filter system with injected dependencies
     this.filterManager = new ObjectFilterManager(
       this,
-      eventStore,
-      typedEventBus,
-      resourceManager
+      this.eventStore,
+      this.typedEventBus,
+      this.resourceManager
     )
     
     // Subscribe to object events

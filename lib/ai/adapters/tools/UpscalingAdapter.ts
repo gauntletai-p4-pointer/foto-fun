@@ -51,7 +51,7 @@ export class UpscalingAdapter extends UnifiedToolAdapter<Input, Output> {
         height: imageData.naturalHeight
       }
       
-      // Execute upscaling
+      // Execute upscaling - tool creates and returns the canvas object
       const resultObject = await this.tool.execute(targetImage, {
         scale: validated.scaleFactor as 2 | 4,
         faceEnhance: validated.enhanceDetails,
@@ -64,34 +64,9 @@ export class UpscalingAdapter extends UnifiedToolAdapter<Input, Output> {
         height: resultImageData.naturalHeight
       }
       
-      // Add the result object to canvas
-      const objectId = await context.canvas.addObject({
-        type: 'image',
-        x: targetImage.x + 20, // Offset slightly
-        y: targetImage.y + 20,
-        width: newDimensions.width,
-        height: newDimensions.height,
-        scaleX: targetImage.scaleX || 1,
-        scaleY: targetImage.scaleY || 1,
-        data: resultObject.data,
-        metadata: {
-          source: 'ai-upscaling',
-          originalObjectId: targetImage.id,
-          originalDimensions,
-          newDimensions,
-          scaleFactor: validated.scaleFactor,
-          enhanceDetails: validated.enhanceDetails,
-          preserveSharpness: validated.preserveSharpness,
-          modelTier: validated.modelTier,
-          processedAt: new Date().toISOString()
-        }
-      })
-      
-      // Select the new object
-      context.canvas.selectObject(objectId)
-      
+      // Tool already created the canvas object, just return its info
       return {
-        objectId,
+        objectId: resultObject.id,
         originalDimensions,
         newDimensions,
         scaleFactor: validated.scaleFactor

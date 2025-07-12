@@ -4,7 +4,7 @@ import { useChat } from '@ai-sdk/react'
 import { DefaultChatTransport } from 'ai'
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { useService } from '@/lib/core/AppInitializer'
+import { useService, useServiceContainer } from '@/lib/core/AppInitializer'
 import { useAISettings } from '@/hooks/useAISettings'
 import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
 import type { CanvasObject } from '@/lib/editor/objects/types'
@@ -58,6 +58,9 @@ export function AIChat() {
   // const canvasState = useCanvasStore(canvasStore) // Unused in this component
   const canvasManager = useService<CanvasManager>('CanvasManager')
   
+  // Get the service container from React context
+  const container = useServiceContainer()
+  
   // Canvas readiness helpers
   const waitForReady = async (): Promise<void> => {
     // Wait for canvas manager to be initialized
@@ -100,15 +103,19 @@ export function AIChat() {
     const loadAdapters = async () => {
       try {
         const { autoDiscoverAdapters } = await import('@/lib/ai/adapters/registry')
-        await autoDiscoverAdapters()
+        // Pass the ServiceContainer to autoDiscoverAdapters
+        await autoDiscoverAdapters(container)
         const names = getAIToolNames()
         setToolNames(names)
       } catch (error) {
         console.error('Failed to load adapters:', error)
       }
     }
-    loadAdapters()
-  }, [])
+    // Only load adapters when container is available
+    if (container) {
+      loadAdapters()
+    }
+  }, [container])
   
   // Initialize quick actions - rotate on each mount
   useEffect(() => {

@@ -1,15 +1,15 @@
 import { z } from 'zod'
-import { UnifiedToolAdapter } from '../base/UnifiedToolAdapter'
-import type { ObjectCanvasContext } from '../base/UnifiedToolAdapter'
+import { UnifiedToolAdapter, type ObjectCanvasContext } from '../base/UnifiedToolAdapter'
+import { rotateTool } from '@/lib/editor/tools/transform/rotateTool'
 
 // Define parameter schema
-const rotateInputSchema = z.object({
+const rotateParameters = z.object({
   angle: z.number().min(-360).max(360)
     .describe('Rotation angle in degrees. Positive values rotate clockwise, negative values rotate counter-clockwise')
 })
 
 // Define types
-type RotateInput = z.infer<typeof rotateInputSchema>
+type RotateInput = z.infer<typeof rotateParameters>
 
 interface RotateOutput {
   success: boolean
@@ -39,7 +39,7 @@ export class RotateToolAdapter extends UnifiedToolAdapter<RotateInput, RotateOut
   
   NEVER ask for exact angles - interpret the user's intent.`
   
-  inputSchema = rotateInputSchema
+  inputSchema = rotateParameters
   
   async execute(
     params: RotateInput, 
@@ -56,28 +56,26 @@ export class RotateToolAdapter extends UnifiedToolAdapter<RotateInput, RotateOut
       }
     }
     
-    const affectedObjects: string[] = []
+    console.log(`[RotateAdapter] Rotating ${targets.length} objects by ${params.angle}°`)
     
-    // Apply rotation to all target objects
-    for (const obj of targets) {
-      const currentRotation = obj.rotation || 0
-      const newRotation = currentRotation + params.angle
+    try {
+      // Use the underlying rotate tool to apply the rotation
+      await rotateTool.applyRotation(params.angle, true)
       
-      await context.canvas.updateObject(obj.id, {
-        rotation: newRotation
-      })
+      // Get affected object IDs
+      const affectedObjects = targets.map(obj => obj.id)
       
-      affectedObjects.push(obj.id)
-    }
-    
-    const directionText = params.angle > 0 ? 'clockwise' : 'counter-clockwise'
-    const message = `Rotated ${affectedObjects.length} object${affectedObjects.length !== 1 ? 's' : ''} by ${Math.abs(params.angle)}° ${directionText}`
-    
-    return {
-      success: true,
-      angle: params.angle,
-      message,
-      affectedObjects
+      const directionText = params.angle > 0 ? 'clockwise' : 'counter-clockwise'
+      const message = `Rotated ${affectedObjects.length} object(s) by ${Math.abs(params.angle)}° ${directionText}`
+      
+      return {
+        success: true,
+        angle: params.angle,
+        message,
+        affectedObjects
+      }
+    } catch (error) {
+      throw new Error(`Rotation failed: ${this.formatError(error)}`)
     }
   }
 } 

@@ -71,7 +71,6 @@ export abstract class ObjectTool extends BaseTool {
    */
   protected getVisibleObjects(): CanvasObject[] {
     const canvas = this.getCanvas()
-    // @ts-expect-error - getViewportBounds exists on our CanvasManager implementation
     const viewport = canvas.getViewportBounds()
     return canvas.getObjectsInBounds(viewport)
   }

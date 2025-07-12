@@ -3,10 +3,9 @@
 import React, { useRef, useEffect, useState } from 'react'
 import { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
 import { useFileHandler } from '@/hooks/useFileHandler'
-import { useService, useAsyncService } from '@/lib/core/AppInitializer'
+import { useService, useAsyncService, useServiceContainer } from '@/lib/core/AppInitializer'
 import { EventToolStore } from '@/lib/store/tools/EventToolStore'
 import { TypedCanvasStore, useCanvasStore as useTypedCanvasStore } from '@/lib/store/canvas/TypedCanvasStore'
-import { ServiceContainer } from '@/lib/core/ServiceContainer'
 
 import { getTypedEventBus } from '@/lib/events/core/TypedEventBus'
 import { CanvasManagerFactory } from '@/lib/editor/canvas/CanvasManagerFactory'
@@ -25,8 +24,8 @@ export function Canvas() {
   // Get the async CanvasManagerFactory
   const { service: canvasFactory, loading } = useAsyncService<CanvasManagerFactory>('CanvasManagerFactory')
   
-  // Get the service container to update the CanvasManager instance
-  const container = ServiceContainer.getInstance()
+  // Get the service container from React context (not singleton)
+  const container = useServiceContainer()
   
   // Use the typed canvas store
   useTypedCanvasStore(canvasStore)
@@ -473,9 +472,9 @@ export function Canvas() {
   if (loading) {
     return (
       <div className="relative flex-1 bg-content-background p-4 min-w-0 overflow-hidden flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-gray-400 mx-auto mb-2"></div>
-          <p className="text-sm text-gray-400">Loading canvas...</p>
+        <div className="flex flex-col items-center justify-center p-8">
+          <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-foreground/20 mx-auto mb-2"></div>
+          <p className="text-sm text-foreground/60">Loading canvas...</p>
         </div>
       </div>
     )

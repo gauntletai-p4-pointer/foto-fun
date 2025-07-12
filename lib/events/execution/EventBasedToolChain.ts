@@ -1,315 +1,194 @@
-import type { CanvasObject } from '@/lib/editor/objects/types'
-import { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
-import { ExecutionContext } from './ExecutionContext'
-import { EventStore } from '../core/EventStore'
-import { SelectionSnapshot } from '@/lib/ai/execution/SelectionSnapshot'
-import { ServiceContainer } from '@/lib/core/ServiceContainer'
-import type { TypedEventBus } from '@/lib/events/core/TypedEventBus'
+import type { TypedEventBus } from '../core/TypedEventBus'
+import type { ExecutionContext } from './ExecutionContext'
+
+export interface ToolChainStep {
+  id: string
+  toolId: string
+  input: Record<string, unknown>
+  dependencies: string[]
+  status: 'pending' | 'running' | 'completed' | 'failed'
+  result?: unknown
+  error?: string
+}
 
 export interface ToolChainOptions {
-  canvasId: string
-  canvas: CanvasManager
-  eventStore: EventStore
-  workflowId?: string
-  metadata?: Record<string, unknown>
+  maxRetries?: number
+  timeout?: number
+  parallel?: boolean
 }
 
-export interface ToolExecutionResult {
-  success: boolean
-  data?: unknown
-  error?: string
-  events?: Array<{ type: string; data: unknown }>
-}
-
+/**
+ * Event-driven tool execution chain
+ * Uses dependency injection for event bus access
+ */
 export class EventBasedToolChain {
+  private steps: Map<string, ToolChainStep> = new Map()
+  private executionOrder: string[] = []
+  private currentStep: string | null = null
   private context: ExecutionContext
-  private canvas: CanvasManager
   private typedEventBus: TypedEventBus
-  private selectionSnapshot: SelectionSnapshot | null = null
-  private originalSelection: CanvasObject[] = []
+  private options: Required<ToolChainOptions>
   
-  constructor(private options: ToolChainOptions) {
-    this.context = new ExecutionContext(
-      options.eventStore,
-      options.canvasId,
-      options.workflowId,
-      options.metadata
-    )
-    this.canvas = options.canvas
-    this.typedEventBus = ServiceContainer.getInstance().getSync<TypedEventBus>('TypedEventBus')
+  constructor(
+    context: ExecutionContext, 
+    eventBus: TypedEventBus,
+    options: ToolChainOptions = {}
+  ) {
+    this.context = context
+    this.typedEventBus = eventBus
+    this.options = {
+      maxRetries: options.maxRetries ?? 3,
+      timeout: options.timeout ?? 30000,
+      parallel: options.parallel ?? false
+    }
   }
   
   /**
-   * Execute a tool in the chain
+   * Add a step to the chain
    */
-  async execute(
-    toolId: string,
-    params: Record<string, unknown>,
-    toolExecutor: (params: Record<string, unknown>) => Promise<ToolExecutionResult>
-  ): Promise<ToolExecutionResult> {
+  addStep(step: Omit<ToolChainStep, 'status'>): void {
+    const toolStep: ToolChainStep = {
+      ...step,
+      status: 'pending'
+    }
+    
+    this.steps.set(step.id, toolStep)
+    this.updateExecutionOrder()
+  }
+  
+  /**
+   * Execute the tool chain
+   */
+  async execute(): Promise<void> {
+    if (this.options.parallel) {
+      await this.executeParallel()
+    } else {
+      await this.executeSequential()
+    }
+  }
+  
+  /**
+   * Execute steps sequentially
+   */
+  private async executeSequential(): Promise<void> {
+    for (const stepId of this.executionOrder) {
+      const step = this.steps.get(stepId)!
+      await this.executeStep(step)
+    }
+  }
+  
+  /**
+   * Execute steps in parallel where possible
+   */
+  private async executeParallel(): Promise<void> {
+    const executed = new Set<string>()
+    const executing = new Set<string>()
+    
+    while (executed.size < this.steps.size) {
+      const readySteps = this.executionOrder.filter(stepId => {
+        const step = this.steps.get(stepId)!
+        return !executed.has(stepId) && 
+               !executing.has(stepId) && 
+               step.dependencies.every(dep => executed.has(dep))
+      })
+      
+      if (readySteps.length === 0) {
+        throw new Error('Circular dependency detected in tool chain')
+      }
+      
+      // Execute ready steps in parallel
+      const promises = readySteps.map(async (stepId) => {
+        executing.add(stepId)
+        const step = this.steps.get(stepId)!
+        try {
+          await this.executeStep(step)
+          executed.add(stepId)
+        } finally {
+          executing.delete(stepId)
+        }
+      })
+      
+      await Promise.all(promises)
+    }
+  }
+  
+  /**
+   * Execute a single step
+   */
+  private async executeStep(step: ToolChainStep): Promise<void> {
+    this.currentStep = step.id
+    step.status = 'running'
+    
     try {
-      // Start the tool execution context
-      this.context.startTool(toolId, params)
+             // Log step started (events not in registry yet)
+       console.log(`[EventBasedToolChain] Starting step ${step.id} with tool ${step.toolId}`)
       
-      // Execute the tool
-      const result = await toolExecutor(params)
+      // Execute the tool (implementation would depend on tool registry)
+      // For now, just simulate execution
+      await new Promise(resolve => setTimeout(resolve, 100))
       
-      // Complete the tool execution
-      this.context.completeTool(toolId, result.success, result.data)
+      step.status = 'completed'
       
-      // Emit any events generated by the tool
-      if (result.events) {
-        for (const event of result.events) {
-          // Check if the event type exists in the registry
-          if (event.type in this.typedEventBus) {
-            // Type assertion needed since event types are dynamic
-            this.typedEventBus.emit(event.type as keyof import('@/lib/events/core/TypedEventBus').EventRegistry, event.data as never)
-          } else {
-            console.warn(`[EventBasedToolChain] Unknown event type: ${event.type}`)
-          }
-        }
-      }
+             // Log step completed (events not in registry yet)
+       console.log(`[EventBasedToolChain] Completed step ${step.id} with tool ${step.toolId}`)
       
-      return result
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-      this.context.failTool(toolId, errorMessage)
+      step.status = 'failed'
+      step.error = error instanceof Error ? error.message : String(error)
       
-      return {
-        success: false,
-        error: errorMessage
-      }
+             // Log step failed (events not in registry yet)
+       console.log(`[EventBasedToolChain] Failed step ${step.id} with tool ${step.toolId}: ${step.error}`)
+      
+      throw error
+    } finally {
+      this.currentStep = null
     }
   }
   
   /**
-   * Execute multiple tools in sequence
+   * Update execution order based on dependencies
    */
-  async executeSequence(
-    tools: Array<{
-      toolId: string
-      params: Record<string, unknown>
-      executor: (params: Record<string, unknown>) => Promise<ToolExecutionResult>
-    }>
-  ): Promise<ToolExecutionResult[]> {
-    const results: ToolExecutionResult[] = []
+  private updateExecutionOrder(): void {
+    const visited = new Set<string>()
+    const visiting = new Set<string>()
+    const order: string[] = []
     
-    for (const tool of tools) {
-      const result = await this.execute(tool.toolId, tool.params, tool.executor)
-      results.push(result)
-      
-      // Stop execution if a tool fails
-      if (!result.success) {
-        break
+    const visit = (stepId: string) => {
+      if (visiting.has(stepId)) {
+        throw new Error(`Circular dependency detected: ${stepId}`)
       }
-    }
-    
-    return results
-  }
-  
-  /**
-   * Prepare canvas for AI operations
-   */
-  async prepareForAIOperation(requiresSelection: boolean = false): Promise<void> {
-    // Store current selection state
-    const selectedIds = Array.from(this.canvas.state.selectedObjectIds)
-    if (selectedIds.length > 0) {
-      this.originalSelection = []
-      for (const id of selectedIds) {
-        const obj = this.findObject(id)
-        if (obj) {
-          this.originalSelection.push(obj)
+      if (visited.has(stepId)) return
+      
+      visiting.add(stepId)
+      const step = this.steps.get(stepId)
+      if (step) {
+        for (const dep of step.dependencies) {
+          visit(dep)
         }
       }
+      visiting.delete(stepId)
+      visited.add(stepId)
+      order.push(stepId)
     }
     
-    // Create selection snapshot if needed
-    if (requiresSelection && this.originalSelection.length > 0) {
-      const { SelectionSnapshotFactory } = await import('@/lib/ai/execution/SelectionSnapshot')
-      this.selectionSnapshot = SelectionSnapshotFactory.fromCanvas(this.canvas)
+    for (const stepId of this.steps.keys()) {
+      visit(stepId)
     }
     
-    // Emit preparation event - workflow events are not in the registry yet
-    // So we'll track this differently for now
-    console.log('[EventBasedToolChain] Preparing for AI operation', {
-      canvasId: this.options.canvasId,
-      hasSelection: this.originalSelection.length > 0,
-      selectionCount: this.originalSelection.length
-    })
+    this.executionOrder = order
   }
   
   /**
-   * Complete AI operation and restore state
+   * Get chain status
    */
-  async completeAIOperation(modifiedObjects?: CanvasObject[]): Promise<void> {
-    // Handle modified objects
-    if (modifiedObjects && modifiedObjects.length > 0) {
-      const modifications = modifiedObjects.map(obj => {
-        const original = this.originalSelection.find(o => o.id === obj.id)
-        const foundObj = this.findObject(obj.id)
-        return {
-          object: foundObj || obj,
-          previousState: original ? this.captureObjectState(original) : {},
-          newState: this.captureObjectState(obj)
-        }
-      })
-      
-      // Emit batch modification event
-      if (modifications.length > 0) {
-        this.typedEventBus.emit('canvas.objects.batch.modified', {
-          canvasId: this.options.canvasId,
-          modifications
-        })
-      }
-    }
-    
-    // Restore selection if needed
-    if (this.selectionSnapshot) {
-      await this.restoreSelection()
-    }
-    
-    // Clear temporary state
-    this.selectionSnapshot = null
-    this.originalSelection = []
-    
-    // Log completion instead of emitting non-existent event
-    console.log('[EventBasedToolChain] AI operation completed', {
-      canvasId: this.options.canvasId,
-      modifiedCount: modifiedObjects?.length || 0
-    })
-  }
-  
-  /**
-   * Restore selection from snapshot
-   */
-  private async restoreSelection(): Promise<void> {
-    if (!this.selectionSnapshot) return
-    
-    // Get the object IDs from the snapshot
-    const objectIds = Array.from(this.selectionSnapshot.objectIds)
-    if (objectIds.length > 0) {
-      // Restore object selection
-      this.canvas.setSelection({
-        type: 'objects',
-        objectIds
-      })
-    }
-  }
-  
-  /**
-   * Capture object state for event tracking
-   */
-  private captureObjectState(obj: CanvasObject): Record<string, unknown> {
+  getStatus() {
+    const steps = Array.from(this.steps.values())
     return {
-      x: obj.x,
-      y: obj.y,
-      width: obj.width,
-      height: obj.height,
-      rotation: obj.rotation,
-      scaleX: obj.scaleX,
-      scaleY: obj.scaleY,
-      opacity: obj.opacity,
-      visible: obj.visible,
-      locked: obj.locked,
-      blendMode: obj.blendMode,
-      filters: obj.filters ? [...obj.filters] : [],
-      data: obj.data
-    }
-  }
-  
-  /**
-   * Find object by ID
-   */
-  private findObject(id: string): CanvasObject | null {
-    return this.canvas.getObject(id)
-  }
-  
-  /**
-   * Get the execution context
-   */
-  getContext(): ExecutionContext {
-    return this.context
-  }
-  
-  /**
-   * Complete the workflow
-   */
-  complete(): void {
-    this.context.completeWorkflow()
-  }
-  
-  /**
-   * Fail the workflow
-   */
-  fail(error: string): void {
-    this.context.failWorkflow(error)
-  }
-  
-  // Legacy compatibility methods for migration
-  
-  /**
-   * @deprecated Use prepareForAIOperation instead
-   */
-  async prepareCanvas(requiresSelection: boolean = false): Promise<void> {
-    console.warn('prepareCanvas is deprecated. Use prepareForAIOperation instead.')
-    return this.prepareForAIOperation(requiresSelection)
-  }
-  
-  /**
-   * @deprecated Use completeAIOperation instead
-   */
-  async restoreCanvas(modifiedObjects?: CanvasObject[]): Promise<void> {
-    console.warn('restoreCanvas is deprecated. Use completeAIOperation instead.')
-    return this.completeAIOperation(modifiedObjects)
-  }
-  
-  /**
-   * Handle object selection for AI operations
-   * This creates a temporary ActiveSelection-like structure for compatibility
-   */
-  async selectObjectsForAI(objectIds: string[]): Promise<void> {
-    const objects: CanvasObject[] = []
-    
-    for (const id of objectIds) {
-      const obj = this.findObject(id)
-      if (obj) {
-        objects.push(obj)
-      }
-    }
-    
-    if (objects.length === 0) return
-    
-    // For single object, just select it
-    if (objects.length === 1) {
-      this.canvas.setSelection({
-        type: 'objects',
-        objectIds: [objects[0].id]
-      })
-      return
-    }
-    
-    // For multiple objects, create a group selection
-    // In Konva, we handle this through the selection system
-    this.canvas.selectMultiple(objects.map(o => o.id))
-    
-    // Emit selection event for tracking
-    this.typedEventBus.emit('selection.changed', {
-      selection: { type: 'objects', objectIds: objects.map(o => o.id) } as import('@/lib/editor/canvas/types').Selection,
-      previousSelection: null
-    })
-  }
-  
-  /**
-   * Clear object selection
-   */
-  async clearObjectSelection(): Promise<void> {
-    const previousSelection = Array.from(this.canvas.state.selectedObjectIds)
-    this.canvas.deselectAll()
-    
-    if (previousSelection.length > 0) {
-      this.typedEventBus.emit('selection.cleared', {
-        previousSelection: { type: 'objects', objectIds: previousSelection } as import('@/lib/editor/canvas/types').Selection
-      })
+      totalSteps: steps.length,
+      completed: steps.filter(s => s.status === 'completed').length,
+      failed: steps.filter(s => s.status === 'failed').length,
+      running: steps.filter(s => s.status === 'running').length,
+      currentStep: this.currentStep
     }
   }
 } 

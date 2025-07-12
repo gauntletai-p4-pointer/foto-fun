@@ -88,11 +88,11 @@ export function UnifiedToolDisplay({
   const getStatusIcon = () => {
     switch (state) {
       case 'input-streaming':
-        return <Loader2 className="w-3 h-3 animate-spin" />
+        return <Loader2 className="w-3 h-3 animate-spin text-primary" />
       case 'output-available':
-        return <Check className="w-3 h-3 text-green-600" />
+        return <Check className="w-3 h-3 text-success" />
       case 'output-error':
-        return <X className="w-3 h-3 text-red-600" />
+        return <X className="w-3 h-3 text-error" />
       default:
         return null
     }
@@ -114,6 +114,10 @@ export function UnifiedToolDisplay({
       .replace(/([A-Z])/g, ' $1')
       .replace(/^./, str => str.toUpperCase())
       .trim()
+  }
+  
+  const renderSuccessMessage = () => {
+    return <p className="text-xs text-success">Operation completed successfully</p>
   }
   
   return (
@@ -283,7 +287,7 @@ export function UnifiedToolDisplay({
                   }
                   
                   // Fallback
-                  return <p className="text-xs text-green-600">Operation completed successfully</p>
+                  return renderSuccessMessage()
                 })()}
               </div>
             </div>
@@ -291,11 +295,11 @@ export function UnifiedToolDisplay({
           
           {/* Error */}
           {errorText && (
-            <div className="space-y-1">
-              <p className="text-xs font-medium text-red-600">Error</p>
-              <div className="pl-3">
-                <p className="text-xs text-red-600">{errorText}</p>
-              </div>
+            <div className="mt-2 p-2 bg-error/10 rounded border border-error/20">
+              <p className="text-xs font-medium text-error">Error</p>
+              <pre className="text-xs text-error/80 whitespace-pre-wrap mt-1">
+                {errorText}
+              </pre>
             </div>
           )}
         </div>

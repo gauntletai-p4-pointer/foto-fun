@@ -1,6 +1,7 @@
 import type { ToolAdapter } from './base'
 import type { UnifiedToolAdapter } from './base/UnifiedToolAdapter'
 import type { Tool } from 'ai'
+import type { ServiceContainer } from '@/lib/core/ServiceContainer'
 
 /**
  * Registry for tool adapters - singleton pattern
@@ -116,7 +117,7 @@ class AdapterRegistry {
 export const adapterRegistry = new AdapterRegistry()
 
 // Auto-discovery function for adapters
-export async function autoDiscoverAdapters(): Promise<void> {
+export async function autoDiscoverAdapters(serviceContainer?: ServiceContainer): Promise<void> {
   // console.log('[AdapterRegistry] Starting auto-discovery of tool adapters')
   
   try {
@@ -205,8 +206,12 @@ export async function autoDiscoverAdapters(): Promise<void> {
     // Register all adapters
     adapterRegistry.registerMany([...canvasAdapters, ...aiAdapters])
     
-    // Register the chain adapter
-    registerChainAdapter()
+    // Register the chain adapter if ServiceContainer is available
+    if (serviceContainer) {
+      registerChainAdapter(serviceContainer)
+    } else {
+      console.warn('[AdapterRegistry] ServiceContainer not provided, skipping chain adapter registration')
+    }
     
     // console.log('[AdapterRegistry] Registered tool adapters including chain execution')
   } catch (error) {

@@ -1,7 +1,6 @@
 import { nanoid } from 'nanoid'
 import type { ExecutionContext } from '@/lib/events/execution/ExecutionContext'
 import type { SelectionSnapshot } from '@/lib/ai/execution/SelectionSnapshot'
-import { ServiceContainer } from '@/lib/core/ServiceContainer'
 import type { TypedEventBus } from '@/lib/events/core/TypedEventBus'
 
 /**
@@ -92,10 +91,18 @@ export abstract class Command implements ICommand {
   // NEW: Command metadata for better tracking
   readonly metadata: CommandMetadata
   
-  constructor(description: string, metadata?: Partial<CommandMetadata>) {
+  // Injected dependencies
+  protected readonly eventBus: TypedEventBus
+  
+  constructor(
+    description: string, 
+    eventBus: TypedEventBus,
+    metadata?: Partial<CommandMetadata>
+  ) {
     this.id = nanoid()
     this.timestamp = Date.now()
     this.description = description
+    this.eventBus = eventBus
     this.metadata = {
       source: 'user',
       canMerge: false,
@@ -122,11 +129,9 @@ export abstract class Command implements ICommand {
    * Enhanced execute with automatic event emission
    */
   async execute(): Promise<void> {
-    const eventBus = ServiceContainer.getInstance().getSync<TypedEventBus>('TypedEventBus')
-    
     try {
       // Emit command started event
-      eventBus.emit('command.started', {
+      this.eventBus.emit('command.started', {
         commandId: this.id,
         description: this.description,
         metadata: this.metadata as unknown as Record<string, unknown>
@@ -140,14 +145,14 @@ export abstract class Command implements ICommand {
       }
       
       // Emit command completed event
-      eventBus.emit('command.completed', {
+      this.eventBus.emit('command.completed', {
         commandId: this.id,
         success: true
       })
       
     } catch (error) {
       // Emit command failed event
-      eventBus.emit('command.failed', {
+      this.eventBus.emit('command.failed', {
         commandId: this.id,
         error: error instanceof Error ? error.message : 'Unknown error'
       })

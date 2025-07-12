@@ -1,126 +1,88 @@
+import { Command } from '../base'
 import type { CanvasManager } from '@/lib/editor/canvas/types'
-import type { CanvasObject } from '@/lib/editor/objects/types'
-import { Command } from '../base/Command'
-import { getTypedEventBus } from '@/lib/events/core/TypedEventBus'
-import { ServiceContainer } from '@/lib/core/ServiceContainer'
+import type { TypedEventBus } from '@/lib/events/core/TypedEventBus'
+import type { TextData } from '@/lib/editor/objects/types'
 
-/**
- * Command to edit existing text content
- * Uses event-driven architecture for state changes
- */
+interface TextEdit {
+  content?: string
+  font?: string
+  fontSize?: number
+  color?: string
+  align?: 'left' | 'center' | 'right'
+}
+
 export class EditTextCommand extends Command {
-  private canvasManager: CanvasManager | null = null
+  private canvasManager: CanvasManager
+  private objectId: string
+  private newEdit: TextEdit
+  private oldEdit: TextEdit | null = null
   
   constructor(
-    private textObjectId: string,
-    private oldText: string,
-    private newText: string
+    eventBus: TypedEventBus,
+    canvasManager: CanvasManager,
+    objectId: string,
+    newEdit: TextEdit
   ) {
-    super('Edit text')
+    super('Edit text', eventBus)
+    this.canvasManager = canvasManager
+    this.objectId = objectId
+    this.newEdit = newEdit
   }
   
   protected async doExecute(): Promise<void> {
-    const canvas = this.getCanvasManager()
-    if (!canvas) {
-      throw new Error('Canvas manager not available')
+    const object = this.canvasManager.getObject(this.objectId)
+    if (!object || object.type !== 'text') {
+      throw new Error(`Text object with id ${this.objectId} not found`)
     }
     
-    // Find the text object
-    const textObject = this.findTextObject(canvas)
-    if (!textObject) {
-      throw new Error('Text object not found')
+    // Store old text data for undo (cast to TextData since we checked type)
+    const textData = object.data as TextData
+    this.oldEdit = {
+      content: textData?.content,
+      font: textData?.font,
+      fontSize: textData?.fontSize,
+      color: textData?.color,
+      align: textData?.align
     }
     
-    // Update the text object
-    const currentTextData = textObject.data as import('@/lib/editor/objects/types').TextData
-    await canvas.updateObject(textObject.id, {
-      data: {
-        ...currentTextData,
-        content: this.newText
-      }
-    })
+    // Apply new text data
+    const updatedData = {
+      ...object.data,
+      ...this.newEdit
+    }
     
-    // Emit event for state tracking
-    const eventBus = getTypedEventBus()
-    const newTextData = textObject.data as import('@/lib/editor/objects/types').TextData
-    eventBus.emit('canvas.object.modified', {
-      canvasId: canvas.stage.id() || 'main',
-      objectId: textObject.id,
-      previousState: { data: { ...newTextData, content: this.oldText } },
-      newState: { data: newTextData }
+    await this.canvasManager.updateObject(this.objectId, { data: updatedData })
+    
+    // Emit event using inherited eventBus
+    this.eventBus.emit('canvas.object.modified', {
+      canvasId: this.canvasManager.stage.id() || 'main',
+      objectId: this.objectId,
+      previousState: { data: this.oldEdit },
+      newState: { data: this.newEdit }
     })
   }
   
   async undo(): Promise<void> {
-    const canvas = this.getCanvasManager()
-    if (!canvas) {
-      throw new Error('Canvas manager not available')
+    if (!this.oldEdit) return
+    
+    const object = this.canvasManager.getObject(this.objectId)
+    if (!object) return
+    
+    // Restore old text data
+    const restoredData = {
+      ...object.data,
+      ...this.oldEdit
     }
     
-    // Find the text object
-    const textObject = this.findTextObject(canvas)
-    if (!textObject) {
-      throw new Error('Text object not found')
-    }
+    await this.canvasManager.updateObject(this.objectId, { data: restoredData })
     
-    // Restore the old text
-    const currentTextData = textObject.data as import('@/lib/editor/objects/types').TextData
-    await canvas.updateObject(textObject.id, {
-      data: {
-        ...currentTextData,
-        content: this.oldText
-      }
-    })
-    
-    // Emit event for state tracking
-    const eventBus = getTypedEventBus()
-    const oldTextData = textObject.data as import('@/lib/editor/objects/types').TextData
-    eventBus.emit('canvas.object.modified', {
-      canvasId: canvas.stage.id() || 'main',
-      objectId: textObject.id,
-      previousState: { data: { ...oldTextData, content: this.newText } },
-      newState: { data: oldTextData }
+    // Emit event using inherited eventBus
+    this.eventBus.emit('canvas.object.modified', {
+      canvasId: this.canvasManager.stage.id() || 'main',
+      objectId: this.objectId,
+      previousState: { data: this.newEdit },
+      newState: { data: this.oldEdit }
     })
   }
   
-  async redo(): Promise<void> {
-    await this.execute()
-  }
-  
-  /**
-   * Allow merging of consecutive text edits within 1 second
-   */
-  canMergeWith(other: Command): boolean {
-    return other instanceof EditTextCommand && 
-           other.textObjectId === this.textObjectId &&
-           Math.abs(other.timestamp - this.timestamp) < 1000
-  }
-  
-  /**
-   * Find the text object in the canvas
-   */
-  private findTextObject(canvas: CanvasManager): CanvasObject | null {
-    const obj = canvas.getObject(this.textObjectId)
-    if (obj && obj.type === 'text') {
-      return obj
-    }
-    return null
-  }
-  
-  /**
-   * Get canvas manager instance
-   */
-  private getCanvasManager(): CanvasManager | null {
-    if (this.canvasManager) return this.canvasManager
-    
-    try {
-      const container = ServiceContainer.getInstance()
-      const manager = container.getSync<CanvasManager>('CanvasManager')
-      return manager || null
-    } catch (error) {
-      console.warn('Failed to get CanvasManager from ServiceContainer:', error)
-    }
-    
-    return null
-  }
 } 

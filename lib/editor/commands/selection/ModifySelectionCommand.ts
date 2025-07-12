@@ -1,5 +1,6 @@
 import { Command } from '../base'
 import type { SelectionManager, SelectionModification, PixelSelection } from '@/lib/editor/selection'
+import type { TypedEventBus } from '@/lib/events/core/TypedEventBus'
 
 /**
  * Command to modify an existing selection
@@ -11,11 +12,12 @@ export class ModifySelectionCommand extends Command {
   private previousSelection: PixelSelection | null = null
   
   constructor(
+    eventBus: TypedEventBus,
     selectionManager: SelectionManager,
     modification: SelectionModification,
     amount: number = 0
   ) {
-    super(`${modification} selection${amount > 0 ? ` by ${amount}px` : ''}`)
+    super(`${modification} selection${amount > 0 ? ` by ${amount}px` : ''}`, eventBus)
     this.selectionManager = selectionManager
     this.modification = modification
     this.amount = amount

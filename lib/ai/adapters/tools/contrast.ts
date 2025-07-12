@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { UnifiedToolAdapter, type ObjectCanvasContext } from '../base/UnifiedToolAdapter'
-// import { contrastTool } from '@/lib/editor/tools/adjustments/contrastTool'
+import { contrastTool } from '@/lib/editor/tools/adjustments/contrastTool'
 
 // Define parameter schema
 const contrastParameters = z.object({
@@ -57,39 +57,21 @@ export class ContrastToolAdapter extends UnifiedToolAdapter<ContrastInput, Contr
     
     console.log(`[ContrastAdapter] Applying contrast adjustment: ${params.adjustment}% to ${imageObjects.length} objects`)
     
-    // Apply contrast adjustment to each image object
-    const affectedObjects: string[] = []
-    
-    for (const obj of imageObjects) {
-      // Add contrast to the object's adjustments array
-      const adjustments = obj.adjustments || []
+    try {
+      // Use the underlying contrast tool to apply the adjustment
+      await contrastTool.applyContrast(params.adjustment)
       
-      // Remove any existing contrast adjustments
-      const filteredAdjustments = adjustments.filter(adj => adj.type !== 'contrast')
+      // Get affected object IDs
+      const affectedObjects = imageObjects.map(obj => obj.id)
       
-      // Add new contrast adjustment if not zero
-      if (params.adjustment !== 0) {
-        filteredAdjustments.push({
-          id: `contrast-${Date.now()}`,
-          type: 'contrast',
-          params: { value: params.adjustment },
-          enabled: true
-        })
+      return {
+        success: true,
+        adjustment: params.adjustment,
+        message: `Contrast adjusted by ${params.adjustment > 0 ? '+' : ''}${params.adjustment}% on ${affectedObjects.length} object(s)`,
+        affectedObjects
       }
-      
-      // Update the object
-      await context.canvas.updateObject(obj.id, {
-        adjustments: filteredAdjustments
-      })
-      
-      affectedObjects.push(obj.id)
-    }
-    
-    return {
-      success: true,
-      adjustment: params.adjustment,
-      message: `Contrast adjusted by ${params.adjustment > 0 ? '+' : ''}${params.adjustment}% on ${affectedObjects.length} object(s)`,
-      affectedObjects
+    } catch (error) {
+      throw new Error(`Contrast adjustment failed: ${this.formatError(error)}`)
     }
   }
 } 

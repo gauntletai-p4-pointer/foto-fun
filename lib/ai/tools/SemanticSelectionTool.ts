@@ -22,12 +22,11 @@ export class SemanticSelectionTool extends ObjectTool {
   private eventBus = new TypedEventBus()
   
   protected setupTool(): void {
-    // Initialize Replicate service
-    const apiKey = process.env.NEXT_PUBLIC_REPLICATE_API_TOKEN
-    if (apiKey) {
-      this.replicateService = new ReplicateService(apiKey)
-    } else {
-      console.error('[SemanticSelectionTool] No Replicate API key found')
+    // Initialize Replicate service (automatically handles server/client routing)
+    try {
+      this.replicateService = new ReplicateService()
+    } catch (error) {
+      console.error('[SemanticSelectionTool] Failed to initialize Replicate service:', error)
     }
     
     // Set default options

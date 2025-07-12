@@ -1,7 +1,6 @@
 import { Command } from '../base'
 import type { CanvasManager } from '@/lib/editor/canvas/types'
 import type { CanvasObject } from '@/lib/editor/objects/types'
-import { getTypedEventBus } from '@/lib/events/core/TypedEventBus'
 import type { TypedEventBus } from '@/lib/events/core/TypedEventBus'
 
 /**
@@ -46,19 +45,18 @@ export class ModifyCommand extends Command {
   private objectId: string
   private oldProperties: Record<string, unknown>
   private newProperties: Record<string, unknown>
-  private typedEventBus: TypedEventBus
   
   constructor(
+    eventBus: TypedEventBus,
     canvasManager: CanvasManager, 
     object: CanvasObject, 
     properties: Record<string, unknown>,
     description?: string
   ) {
-    super(description || `Modify ${object.type || 'object'} properties`)
+    super(description || `Modify ${object.type || 'object'} properties`, eventBus)
     this.canvasManager = canvasManager
     this.objectId = object.id
     this.newProperties = deepClone(properties) as Record<string, unknown>
-    this.typedEventBus = getTypedEventBus()
     
     // Capture old properties with deep cloning
     this.oldProperties = {}
@@ -76,8 +74,8 @@ export class ModifyCommand extends Command {
       throw new Error(`Object ${this.objectId} not found`)
     }
     
-    // Emit modification event
-    this.typedEventBus.emit('canvas.object.modified', {
+    // Emit modification event using inherited eventBus
+    this.eventBus.emit('canvas.object.modified', {
       canvasId: 'main', // TODO: Get actual canvas ID
       objectId: this.objectId,
       previousState: this.oldProperties,
@@ -95,8 +93,8 @@ export class ModifyCommand extends Command {
       throw new Error(`Object ${this.objectId} not found`)
     }
     
-    // Emit modification event with reversed properties
-    this.typedEventBus.emit('canvas.object.modified', {
+    // Emit modification event with reversed properties using inherited eventBus
+    this.eventBus.emit('canvas.object.modified', {
       canvasId: 'main', // TODO: Get actual canvas ID
       objectId: this.objectId,
       previousState: this.newProperties,

@@ -1,155 +1,81 @@
-import { Command } from '../base'
-import type { CanvasManager, Transform } from '@/lib/editor/canvas/types'
-import type { CanvasObject } from '@/lib/editor/objects/types'
-import { ServiceContainer } from '@/lib/core/ServiceContainer'
+import { Command } from '../base/Command'
+import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
 import type { TypedEventBus } from '@/lib/events/core/TypedEventBus'
 
-export type TransformationType = 'rotate' | 'scale' | 'skew' | 'flip'
+interface Transform {
+  x: number
+  y: number
+  scaleX: number
+  scaleY: number
+  rotation: number
+  skewX: number
+  skewY: number
+}
 
-/**
- * Command to transform objects (rotate, scale, skew, flip)
- * Uses the event-driven architecture for state changes
- */
 export class TransformCommand extends Command {
   private canvasManager: CanvasManager
-  private objectIds: string[]
-  private transformType: TransformationType
-  private value: number | { x: number; y: number } | 'horizontal' | 'vertical'
-  private previousTransforms: Map<string, Transform>
-  private typedEventBus: TypedEventBus
+  private objectId: string
+  private newTransform: Transform
+  private oldTransform: Transform | null = null
   
   constructor(
     canvasManager: CanvasManager,
-    objects: CanvasObject[],
-    transformType: TransformationType,
-    value: number | { x: number; y: number } | 'horizontal' | 'vertical',
-    description?: string
+    objectId: string,
+    newTransform: Transform,
+    eventBus: TypedEventBus
   ) {
-    super(description || `${transformType} objects`)
+    super('Transform object', eventBus)
     this.canvasManager = canvasManager
-    this.objectIds = objects.map(obj => obj.id)
-    this.transformType = transformType
-    this.value = value
-    this.previousTransforms = new Map()
-    this.typedEventBus = ServiceContainer.getInstance().getSync<TypedEventBus>('TypedEventBus')
-    
-    // Store previous transforms
-    objects.forEach(obj => {
-      this.previousTransforms.set(obj.id, {
-        x: obj.transform?.x ?? obj.x,
-        y: obj.transform?.y ?? obj.y,
-        scaleX: obj.transform?.scaleX ?? obj.scaleX,
-        scaleY: obj.transform?.scaleY ?? obj.scaleY,
-        rotation: obj.transform?.rotation ?? obj.rotation,
-        skewX: obj.transform?.skewX ?? 0,
-        skewY: obj.transform?.skewY ?? 0
-      })
-    })
+    this.objectId = objectId
+    this.newTransform = newTransform
   }
   
   protected async doExecute(): Promise<void> {
-    const objects = this.getObjects()
-    if (objects.length === 0) return
-    
-    const modifications = objects.map(obj => {
-      const previousTransform = this.previousTransforms.get(obj.id)!
-      const newTransform = this.applyTransform({ ...previousTransform })
-      
-      return {
-        object: obj,
-        previousState: { transform: previousTransform },
-        newState: { transform: newTransform }
-      }
-    })
-    
-    // Emit batch modification event
-    this.typedEventBus.emit('canvas.objects.batch.modified', {
-      canvasId: 'main', // TODO: Get actual canvas ID
-      modifications
-    })
-    
-    // Apply transformations through canvas manager
-    for (const { object, newState } of modifications) {
-      await this.canvasManager.updateObject(object.id, newState)
+    const object = this.canvasManager.getObject(this.objectId)
+    if (!object) {
+      throw new Error(`Object with id ${this.objectId} not found`)
     }
+    
+    // Store old transform for undo
+    this.oldTransform = {
+      x: object.transform?.x ?? object.x,
+      y: object.transform?.y ?? object.y,
+      scaleX: object.transform?.scaleX ?? object.scaleX,
+      scaleY: object.transform?.scaleY ?? object.scaleY,
+      rotation: object.transform?.rotation ?? object.rotation,
+      skewX: object.transform?.skewX ?? 0,
+      skewY: object.transform?.skewY ?? 0
+    }
+    
+    // Apply new transform
+    object.transform = { ...this.newTransform }
+    await this.canvasManager.updateObject(this.objectId, { transform: this.newTransform })
+    
+    // Emit event using inherited eventBus
+    this.eventBus.emit('canvas.object.modified', {
+      canvasId: this.canvasManager.stage.id() || 'main',
+      objectId: this.objectId,
+      previousState: { transform: this.oldTransform },
+      newState: { transform: this.newTransform }
+    })
   }
   
   async undo(): Promise<void> {
-    const objects = this.getObjects()
-    if (objects.length === 0) return
+    if (!this.oldTransform) return
     
-    const modifications = objects.map(obj => {
-      const currentTransform = obj.transform
-      const previousTransform = this.previousTransforms.get(obj.id)!
-      
-      return {
-        object: obj,
-        previousState: { transform: currentTransform },
-        newState: { transform: previousTransform }
-      }
+    const object = this.canvasManager.getObject(this.objectId)
+    if (!object) return
+    
+    // Restore old transform
+    object.transform = { ...this.oldTransform }
+    await this.canvasManager.updateObject(this.objectId, { transform: this.oldTransform })
+    
+    // Emit event using inherited eventBus
+    this.eventBus.emit('canvas.object.modified', {
+      canvasId: this.canvasManager.stage.id() || 'main',
+      objectId: this.objectId,
+      previousState: { transform: this.newTransform },
+      newState: { transform: this.oldTransform }
     })
-    
-    // Emit batch modification event
-    this.typedEventBus.emit('canvas.objects.batch.modified', {
-      canvasId: 'main', // TODO: Get actual canvas ID
-      modifications
-    })
-    
-    // Restore original transforms
-    for (const { object, newState } of modifications) {
-      await this.canvasManager.updateObject(object.id, newState)
-    }
-  }
-  
-  private applyTransform(transform: Transform): Transform {
-    const newTransform = { ...transform }
-    
-    switch (this.transformType) {
-      case 'rotate':
-        if (typeof this.value === 'number') {
-          newTransform.rotation += this.value
-        }
-        break
-        
-      case 'scale':
-        if (typeof this.value === 'object' && 'x' in this.value && 'y' in this.value) {
-          newTransform.scaleX *= this.value.x
-          newTransform.scaleY *= this.value.y
-        } else if (typeof this.value === 'number') {
-          newTransform.scaleX *= this.value
-          newTransform.scaleY *= this.value
-        }
-        break
-        
-      case 'skew':
-        if (typeof this.value === 'object' && 'x' in this.value && 'y' in this.value) {
-          newTransform.skewX += this.value.x
-          newTransform.skewY += this.value.y
-        }
-        break
-        
-      case 'flip':
-        if (this.value === 'horizontal') {
-          newTransform.scaleX *= -1
-        } else if (this.value === 'vertical') {
-          newTransform.scaleY *= -1
-        }
-        break
-    }
-    
-    return newTransform
-  }
-  
-  private getObjects(): CanvasObject[] {
-    const objects: CanvasObject[] = []
-    
-    for (const id of this.objectIds) {
-      const obj = this.canvasManager.getObject(id)
-      if (obj) {
-        objects.push(obj)
-      }
-    }
-    
-    return objects
   }
 } 

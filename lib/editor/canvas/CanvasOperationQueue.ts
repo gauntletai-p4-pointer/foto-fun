@@ -1,85 +1,57 @@
-import { ServiceContainer } from '@/lib/core/ServiceContainer'
+import type { CanvasManager } from './CanvasManager'
 import type { TypedCanvasStore } from '@/lib/store/canvas/TypedCanvasStore'
 
-interface QueuedOperation {
-  id: string
-  type: string
-  operation: () => Promise<void>
-  priority: number
-  timestamp: number
-}
-
 /**
- * Queue for canvas operations to ensure proper execution order
- * Updated for Konva architecture
+ * Manages queued canvas operations for performance optimization
+ * Uses dependency injection for store access
  */
 export class CanvasOperationQueue {
-  private queue: QueuedOperation[] = []
+  private queue: { operation: () => Promise<unknown>; resolve: (value: unknown) => void; reject: (reason?: unknown) => void }[] = []
   private isProcessing = false
+  private canvasManager: CanvasManager
   private canvasStore: TypedCanvasStore
   
-  constructor() {
-    this.canvasStore = ServiceContainer.getInstance().getSync<TypedCanvasStore>('CanvasStore')
-    
-    // Subscribe to canvas state changes
-    this.canvasStore.subscribe((state) => {
-      // Process queue when canvas is ready
-      if (!state.isLoading && this.queue.length > 0 && !this.isProcessing) {
-        this.processQueue()
-      }
-    })
+  constructor(canvasManager: CanvasManager, canvasStore: TypedCanvasStore) {
+    this.canvasManager = canvasManager
+    this.canvasStore = canvasStore
   }
   
   /**
-   * Add operation to queue
+   * Add an operation to the queue
    */
-  enqueue(operation: () => Promise<void>, type: string, priority = 0): string {
-    const id = `op_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
-    
-    this.queue.push({
-      id,
-      type,
-      operation,
-      priority,
-      timestamp: Date.now()
-    })
-    
-    // Sort by priority (higher priority first)
-    this.queue.sort((a, b) => b.priority - a.priority)
-    
-    // Try to process if not already processing
-    if (!this.isProcessing) {
+  enqueue(operation: () => Promise<unknown>): Promise<unknown> {
+    return new Promise((resolve, reject) => {
+      this.queue.push({ operation, resolve, reject })
       this.processQueue()
-    }
-    
-    return id
+    })
   }
   
   /**
-   * Process the operation queue
+   * Process the next operation in the queue
    */
   private async processQueue(): Promise<void> {
-    if (this.isProcessing || this.queue.length === 0) return
+    if (this.isProcessing || this.queue.length === 0) {
+      return
+    }
     
     this.isProcessing = true
     
-    try {
-      while (this.queue.length > 0) {
-        const operation = this.queue.shift()!
-        
-        try {
-          await operation.operation()
-        } catch (error) {
-          console.error(`Operation ${operation.id} (${operation.type}) failed:`, error)
-        }
+    while (this.queue.length > 0) {
+      const { operation, resolve, reject } = this.queue.shift()!
+      
+      try {
+        const result = await operation()
+        resolve(result)
+      } catch (error) {
+        reject(error)
       }
-    } finally {
-      this.isProcessing = false
     }
+    
+    this.isProcessing = false
   }
   
   /**
-   * Clear all pending operations
+   * Clear all queued operations
    */
   clear(): void {
     this.queue = []
@@ -88,9 +60,9 @@ export class CanvasOperationQueue {
   /**
    * Get queue status
    */
-  getStatus(): { pending: number; processing: boolean } {
+  getStatus() {
     return {
-      pending: this.queue.length,
+      queueLength: this.queue.length,
       processing: this.isProcessing
     }
   }

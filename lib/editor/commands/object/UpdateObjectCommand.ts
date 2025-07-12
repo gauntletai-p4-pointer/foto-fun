@@ -1,16 +1,18 @@
 import { Command } from '../base/Command'
 import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
 import type { CanvasObject } from '@/lib/editor/objects/types'
+import type { TypedEventBus } from '@/lib/events/core/TypedEventBus'
 
 export class UpdateObjectCommand extends Command {
   private previousState: Partial<CanvasObject> | null = null
   
   constructor(
+    eventBus: TypedEventBus,
     private canvas: CanvasManager,
     private objectId: string,
     private updates: Partial<CanvasObject>
   ) {
-    super(`Update object`)
+    super(`Update object`, eventBus)
   }
   
   protected async doExecute(): Promise<void> {

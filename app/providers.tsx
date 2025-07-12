@@ -30,9 +30,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
     return (
       <div className="flex items-center justify-center min-h-screen p-4">
         <div className="text-center">
-          <h1 className="text-2xl font-bold text-red-600 mb-2">Initialization Error</h1>
-          <p className="text-gray-600 mb-4">Failed to initialize the application</p>
-          <pre className="text-left bg-gray-100 p-4 rounded-md text-sm overflow-auto max-w-2xl">
+          <h1 className="text-2xl font-bold text-error mb-2">Initialization Error</h1>
+          <p className="text-foreground/60 mb-4">Failed to initialize the application</p>
+          <pre className="text-left bg-foreground/5 p-4 rounded-md text-sm overflow-auto max-w-2xl">
             {error.message}
           </pre>
         </div>
@@ -44,8 +44,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-gray-900 mx-auto mb-4"></div>
-          <p className="text-gray-600">Initializing application...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-foreground/20 mx-auto mb-4"></div>
+          <p className="text-foreground/60">Initializing application...</p>
         </div>
       </div>
     )

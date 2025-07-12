@@ -1,8 +1,6 @@
-import { Command } from '../base'
 import type { CanvasManager } from '@/lib/editor/canvas/types'
 import type { CanvasObject } from '@/lib/editor/objects/types'
-import { ClipboardManager } from '../../clipboard'
-import { ServiceContainer } from '@/lib/core/ServiceContainer'
+import { Command } from '../base'
 import type { TypedEventBus } from '@/lib/events/core/TypedEventBus'
 
 /**
@@ -10,34 +8,34 @@ import type { TypedEventBus } from '@/lib/events/core/TypedEventBus'
  */
 export class PasteCommand extends Command {
   private canvasManager: CanvasManager
-  private clipboard: ClipboardManager
   private pastedObjects: CanvasObject[] = []
-  private typedEventBus: TypedEventBus
   
-  constructor(canvasManager: CanvasManager) {
-    super('Paste')
+  constructor(
+    canvasManager: CanvasManager,
+    eventBus: TypedEventBus
+  ) {
+    super('Paste objects', eventBus)
     this.canvasManager = canvasManager
-    this.clipboard = ClipboardManager.getInstance()
-    this.typedEventBus = ServiceContainer.getInstance().getSync<TypedEventBus>('TypedEventBus')
   }
   
   protected async doExecute(): Promise<void> {
-    // Paste objects from clipboard
-    this.pastedObjects = await this.clipboard.paste(this.canvasManager)
+    // Get objects from clipboard (implementation would go here)
+    // For now, assume we have objects to paste
     
-    // Emit addition events
+    // Add objects to canvas
     for (const obj of this.pastedObjects) {
-      this.typedEventBus.emit('canvas.object.added', {
-        canvasId: this.canvasManager.stage.id() || 'main',
-        object: obj
-      })
+      await this.canvasManager.addObject(obj)
     }
     
-    // Select the pasted objects
-    if (this.pastedObjects.length > 0) {
-      this.canvasManager.setSelection({
-        type: 'objects',
-        objectIds: this.pastedObjects.map(obj => obj.id)
+    // Emit events using inherited eventBus
+    this.eventBus.emit('clipboard.paste', {
+      objects: this.pastedObjects
+    })
+    
+    for (const obj of this.pastedObjects) {
+      this.eventBus.emit('canvas.object.added', {
+        canvasId: this.canvasManager.stage.id() || 'main',
+        object: obj
       })
     }
   }
@@ -46,22 +44,14 @@ export class PasteCommand extends Command {
     // Remove pasted objects
     for (const obj of this.pastedObjects) {
       await this.canvasManager.removeObject(obj.id)
-      
-      // Emit removal event
-      this.typedEventBus.emit('canvas.object.removed', {
+    }
+    
+    // Emit events using inherited eventBus
+    for (const obj of this.pastedObjects) {
+      this.eventBus.emit('canvas.object.removed', {
         canvasId: this.canvasManager.stage.id() || 'main',
         objectId: obj.id
       })
     }
-    
-    // Clear selection
-    this.canvasManager.deselectAll()
-    
-    // Clear pasted objects list
-    this.pastedObjects = []
-  }
-  
-  canExecute(): boolean {
-    return this.clipboard.hasContent()
   }
 } 

@@ -2,9 +2,9 @@ import type { ComponentType } from 'react'
 import { BaseTool } from '../base/BaseTool'
 import { createToolState } from '../utils/toolState'
 import type { BaseAITool } from '@/lib/ai/tools/base'
-// import { getCanvasStore } from '@/lib/store/canvas' - not used
-import { getToolStore } from '@/lib/store/tools'
+import type { EventToolStore } from '@/lib/store/tools'
 import { TOOL_IDS } from '@/constants'
+import type { ServiceContainer } from '@/lib/core/ServiceContainer'
 
 // Define tool state
 type AIToolWrapperState = {
@@ -36,10 +36,14 @@ export class AIToolWrapper extends BaseTool {
     isProcessing: false
   })
   
+  // Service container for dependency injection
+  private serviceContainer: ServiceContainer
+  
   constructor(
     toolId: string,
     aiTool: BaseAITool,
     icon: ComponentType,
+    serviceContainer: ServiceContainer,
     shortcut?: string
   ) {
     super()
@@ -47,6 +51,7 @@ export class AIToolWrapper extends BaseTool {
     this.aiTool = aiTool
     this.name = aiTool.name
     this.icon = icon
+    this.serviceContainer = serviceContainer
     this.shortcut = shortcut
   }
   
@@ -98,8 +103,8 @@ export class AIToolWrapper extends BaseTool {
    * This is called by the UI component after successful execution
    */
   public onComplete(): void {
-    // Switch back to move tool after completion
-    const toolStore = getToolStore()
+    // Switch back to move tool after completion using dependency injection
+    const toolStore = this.serviceContainer.getSync<EventToolStore>('ToolStore')
     toolStore.activateTool(TOOL_IDS.MOVE)
   }
 }
@@ -111,7 +116,8 @@ export function createAIToolWrapper(
   toolId: string,
   aiTool: BaseAITool,
   icon: ComponentType,
+  serviceContainer: ServiceContainer,
   shortcut?: string
 ): AIToolWrapper {
-  return new AIToolWrapper(toolId, aiTool, icon, shortcut)
+  return new AIToolWrapper(toolId, aiTool, icon, serviceContainer, shortcut)
 } 

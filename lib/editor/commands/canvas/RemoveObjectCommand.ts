@@ -1,34 +1,49 @@
-import { Command } from '../base/Command'
-import { ServiceContainer } from '@/lib/core/ServiceContainer'
-import type { TypedEventBus } from '@/lib/events/core/TypedEventBus'
+import type { CanvasManager } from '@/lib/editor/canvas/types'
 import type { CanvasObject } from '@/lib/editor/objects/types'
+import { Command } from '../base'
+import type { TypedEventBus } from '@/lib/events/core/TypedEventBus'
 
 export class RemoveObjectCommand extends Command {
-  private object: CanvasObject
-  private layerId: string
-  private typedEventBus: TypedEventBus
+  private canvasManager: CanvasManager
+  private object: CanvasObject | null = null
+  private objectId: string
   
-  constructor(object: CanvasObject, layerId: string) {
-    super(`Remove ${object.type}`)
-    this.object = object
-    this.layerId = layerId
-    this.typedEventBus = ServiceContainer.getInstance().getSync<TypedEventBus>('TypedEventBus')
+  constructor(
+    canvasManager: CanvasManager, 
+    objectId: string,
+    eventBus: TypedEventBus
+  ) {
+    super('Remove object', eventBus)
+    this.canvasManager = canvasManager
+    this.objectId = objectId
+    this.object = null! // Will be set during execution
   }
   
   protected async doExecute(): Promise<void> {
-    // Emit object removed event
-    this.typedEventBus.emit('canvas.object.removed', {
-      canvasId: 'main', // TODO: Get actual canvas ID
-      objectId: this.object.id
+    // Store object for undo
+    this.object = this.canvasManager.getObject(this.objectId)
+    if (!this.object) {
+      throw new Error(`Object with id ${this.objectId} not found`)
+    }
+    
+    await this.canvasManager.removeObject(this.objectId)
+    
+    // Emit event using inherited eventBus
+    this.eventBus.emit('canvas.object.removed', {
+      canvasId: this.canvasManager.stage.id() || 'main',
+      objectId: this.objectId
     })
   }
   
   async undo(): Promise<void> {
-    // Emit object added event to restore
-    this.typedEventBus.emit('canvas.object.added', {
-      canvasId: 'main', // TODO: Get actual canvas ID
-      object: this.object,
-      layerId: this.layerId
+    if (!this.object) return
+    
+    await this.canvasManager.addObject(this.object)
+    
+    // Emit event using inherited eventBus
+    this.eventBus.emit('canvas.object.added', {
+      canvasId: this.canvasManager.stage.id() || 'main',
+      object: this.object
     })
   }
 } 

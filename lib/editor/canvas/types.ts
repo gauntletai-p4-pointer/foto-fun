@@ -257,6 +257,7 @@ export interface CanvasManager {
   
   // View operations
   getViewport(): { width: number; height: number }
+  getViewportBounds(): Rect
   getCamera(): { x: number; y: number; zoom: number }
   setZoom(zoom: number): void
   setPan(pan: Point): void

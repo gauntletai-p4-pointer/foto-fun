@@ -1,5 +1,6 @@
 import { Command } from '../base/Command'
 import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
+import type { TypedEventBus } from '@/lib/events/core/TypedEventBus'
 
 export type ReorderDirection = 'front' | 'back' | 'forward' | 'backward'
 
@@ -7,11 +8,12 @@ export class ReorderObjectsCommand extends Command {
   private previousOrder: string[] = []
   
   constructor(
+    eventBus: TypedEventBus,
     private canvas: CanvasManager,
     private objectIds: string[],
-    private direction: ReorderDirection
+    private direction: 'forward' | 'backward' | 'front' | 'back'
   ) {
-    super(`Move ${objectIds.length} object(s) ${direction}`)
+    super(`Move ${objectIds.length} object(s) ${direction}`, eventBus)
   }
   
   protected async doExecute(): Promise<void> {

@@ -1,5 +1,6 @@
 import { Command } from '../base'
 import type { SelectionManager, SelectionMode, PixelSelection } from '@/lib/editor/selection'
+import type { TypedEventBus } from '@/lib/events/core/TypedEventBus'
 
 /**
  * Command to create a selection
@@ -12,11 +13,12 @@ export class CreateSelectionCommand extends Command {
   private finalSelection: PixelSelection | null = null
   
   constructor(
+    eventBus: TypedEventBus,
     selectionManager: SelectionManager, 
     selection: PixelSelection,
     mode: SelectionMode = 'replace'
   ) {
-    super(`Create ${mode} selection`)
+    super(`Create ${mode} selection`, eventBus)
     this.selectionManager = selectionManager
     this.newSelection = {
       type: 'pixel',

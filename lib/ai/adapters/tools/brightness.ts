@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { UnifiedToolAdapter, type ObjectCanvasContext } from '../base/UnifiedToolAdapter'
-// import { brightnessTool } from '@/lib/editor/tools/adjustments/brightnessTool'
+import { brightnessTool } from '@/lib/editor/tools/adjustments/brightnessTool'
 
 // Define parameter schema
 const brightnessParameters = z.object({
@@ -57,39 +57,21 @@ export class BrightnessToolAdapter extends UnifiedToolAdapter<BrightnessInput, B
     
     console.log(`[BrightnessAdapter] Applying brightness adjustment: ${params.adjustment}% to ${imageObjects.length} objects`)
     
-    // Apply brightness adjustment to each image object
-    const affectedObjects: string[] = []
-    
-    for (const obj of imageObjects) {
-      // Add brightness to the object's adjustments array
-      const adjustments = obj.adjustments || []
+    try {
+      // Use the underlying brightness tool to apply the adjustment
+      await brightnessTool.applyBrightness(params.adjustment)
       
-      // Remove any existing brightness adjustments
-      const filteredAdjustments = adjustments.filter(adj => adj.type !== 'brightness')
+      // Get affected object IDs
+      const affectedObjects = imageObjects.map(obj => obj.id)
       
-      // Add new brightness adjustment if not zero
-      if (params.adjustment !== 0) {
-        filteredAdjustments.push({
-          id: `brightness-${Date.now()}`,
-          type: 'brightness',
-          params: { value: params.adjustment },
-          enabled: true
-        })
+      return {
+        success: true,
+        adjustment: params.adjustment,
+        message: `Brightness adjusted by ${params.adjustment > 0 ? '+' : ''}${params.adjustment}% on ${affectedObjects.length} object(s)`,
+        affectedObjects
       }
-      
-      // Update the object
-      await context.canvas.updateObject(obj.id, {
-        adjustments: filteredAdjustments
-      })
-      
-      affectedObjects.push(obj.id)
-    }
-    
-    return {
-      success: true,
-      adjustment: params.adjustment,
-      message: `Brightness adjusted by ${params.adjustment > 0 ? '+' : ''}${params.adjustment}% on ${affectedObjects.length} object(s)`,
-      affectedObjects
+    } catch (error) {
+      throw new Error(`Brightness adjustment failed: ${this.formatError(error)}`)
     }
   }
 } 

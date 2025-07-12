@@ -30,9 +30,9 @@ export function EvaluationResultDisplay({
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           {goalsMet ? (
-            <CheckCircle2 className="w-5 h-5 text-green-600" />
+            <CheckCircle2 className="w-5 h-5 text-success" />
           ) : (
-            <AlertCircle className="w-5 h-5 text-amber-600" />
+            <AlertCircle className="w-5 h-5 text-warning" />
           )}
           <span className="font-medium text-sm">Vision Analysis Complete</span>
         </div>
@@ -47,7 +47,7 @@ export function EvaluationResultDisplay({
             variant={goalsMet ? "default" : "secondary"}
             className={cn(
               "text-xs",
-              goalsMet && "bg-green-600 hover:bg-green-700"
+              goalsMet && "bg-success hover:bg-success/90"
             )}
           >
             {successPercentage}% Success
@@ -81,7 +81,7 @@ export function EvaluationResultDisplay({
       {/* Status Message */}
       <div className={cn(
         "text-sm p-3 rounded",
-        goalsMet ? "bg-green-500/10 text-green-700" : "bg-amber-500/10 text-amber-700"
+        goalsMet ? "bg-success/10 text-success" : "bg-warning/10 text-warning"
       )}>
         {message}
       </div>
@@ -95,7 +95,7 @@ export function EvaluationResultDisplay({
       
       {/* Max Iterations Warning */}
       {iterationCount >= 3 && !goalsMet && (
-        <div className="text-sm text-amber-600 font-medium">
+        <div className="text-sm text-warning font-medium">
           Maximum iterations reached. Further improvements would require a new workflow.
         </div>
       )}

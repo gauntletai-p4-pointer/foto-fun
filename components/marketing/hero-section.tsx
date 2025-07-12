@@ -142,11 +142,11 @@ export function HeroSection() {
               {/* Trust indicators */}
               <div className="flex flex-wrap items-center gap-6 mt-8 text-sm text-foreground/60 justify-center lg:justify-start animate-in fade-in slide-in-from-bottom-3 duration-500 delay-400">
                 <div className="flex items-center gap-2">
-                  <Zap className="h-4 w-4 text-yellow-500" />
+                  <Zap className="h-4 w-4 text-warning" />
                   <span>No Installation Required</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                  <div className="w-2 h-2 bg-success rounded-full animate-pulse" />
                   <span>GPU Accelerated</span>
                 </div>
                 <div className="flex items-center gap-2">
@@ -163,9 +163,9 @@ export function HeroSection() {
                 {/* Browser chrome */}
                 <div className="bg-foreground/5/50 px-4 py-3 flex items-center gap-2 border-b">
                   <div className="flex gap-1.5">
-                    <div className="w-3 h-3 rounded-full bg-red-500/20" />
-                    <div className="w-3 h-3 rounded-full bg-yellow-500/20" />
-                    <div className="w-3 h-3 rounded-full bg-green-500/20" />
+                    <div className="w-3 h-3 rounded-full bg-error/20" />
+                    <div className="w-3 h-3 rounded-full bg-warning/20" />
+                    <div className="w-3 h-3 rounded-full bg-success/20" />
                   </div>
                   <div className="flex-1 flex justify-center">
                     <div className="bg-background/50 rounded-md px-3 py-1 text-xs text-foreground/60">
@@ -200,7 +200,7 @@ export function HeroSection() {
 
                   {/* Performance indicator */}
                   <div className="absolute bottom-4 right-4 bg-background/90 backdrop-blur-sm rounded-md px-3 py-2 text-xs">
-                    <span className="text-green-500 font-medium">Processed in 0.3s</span>
+                    <span className="text-success font-medium">Processed in 0.3s</span>
                   </div>
                 </div>
               </div>

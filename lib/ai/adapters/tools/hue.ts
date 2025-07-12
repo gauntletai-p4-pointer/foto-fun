@@ -1,18 +1,16 @@
 import { z } from 'zod'
-import { UnifiedToolAdapter } from '../base/UnifiedToolAdapter'
-import type { ObjectCanvasContext } from '../base/UnifiedToolAdapter'
+import { UnifiedToolAdapter, type ObjectCanvasContext } from '../base/UnifiedToolAdapter'
+import { hueTool } from '@/lib/editor/tools/adjustments/hueTool'
 
-// Input schema following AI SDK v5 patterns
-const hueInputSchema = z.object({
-  rotation: z.number()
-    .min(-180)
-    .max(180)
-    .describe('Hue rotation in degrees from -180 to 180, where 0 is no change')
+// Define parameter schema
+const hueParameters = z.object({
+  rotation: z.number().min(-180).max(180)
+    .describe('Hue rotation in degrees. Negative values shift towards cool colors, positive values shift towards warm colors. Range: -180 to +180')
 })
 
-type HueInput = z.infer<typeof hueInputSchema>
+// Define types
+type HueInput = z.infer<typeof hueParameters>
 
-// Output type
 interface HueOutput {
   success: boolean
   rotation: number
@@ -21,42 +19,33 @@ interface HueOutput {
 }
 
 /**
- * Adapter for the hue tool to make it AI-compatible
- * Following AI SDK v5 patterns with intelligent image targeting
+ * Adapter for the hue adjustment tool
+ * Provides AI-compatible interface for adjusting image hue
  */
 export class HueToolAdapter extends UnifiedToolAdapter<HueInput, HueOutput> {
   toolId = 'hue'
-  aiName = 'adjustHue'
-  description = `Adjust image hue (color rotation on the color wheel). You MUST calculate the rotation value based on user intent.
-
-INTELLIGENT TARGETING:
-- If you have images selected, only those images will be adjusted
-- If no images are selected, all images on the canvas will be adjusted
-
-IMPORTANT: When user specifies exact degrees, ALWAYS use that value directly:
-- "shift hue by 70 degrees" → use 70
-- "rotate hue by -45 degrees" → use -45
-- "warmer tones by 60 degrees" → use 60 (ignore the "warmer" part, use the explicit degrees)
-
-If NO explicit degrees are given, use these patterns:
-- "shift colors" or "rotate hue" → +45 to +90
-- "complementary colors" → +180 or -180
-- Color shifts (rotates ALL colors by same amount):
+  aiName = 'adjust_hue'
+  description = `Adjust the hue (color rotation) of images. 
+  
+  You MUST calculate the rotation value based on user intent:
+  - "shift colors" or "rotate hue" → +45 to +90
+  - "complementary colors" → +180 or -180
+  - "warmer tones" → +20 to +40 (toward red/orange)
+  - "cooler tones" → -20 to -40 (toward blue/cyan)
   - "make it more red/orange" → +15 to +30
   - "make it more yellow" → +60 to +80
   - "make it more green" → +120 to +140
-  - "make it more cyan" → +180 to +200 (or -180 to -160)
   - "make it more blue" → -120 to -90
   - "make it more purple/magenta" → -60 to -30
-- "warmer tones" (no degrees specified) → +20 to +40 (toward red/orange)
-- "cooler tones" (no degrees specified) → -20 to -40 (toward blue/cyan)
-
-NOTE: This rotates ALL colors on the color wheel by the same amount.
-NEVER ask for exact values - always interpret the user's intent and choose an appropriate value.`
   
-  inputSchema = hueInputSchema
+  NEVER ask for exact values - interpret the user's intent.`
   
-  async execute(params: HueInput, context: ObjectCanvasContext): Promise<HueOutput> {
+  inputSchema = hueParameters
+  
+  async execute(
+    params: HueInput, 
+    context: ObjectCanvasContext
+  ): Promise<HueOutput> {
     const targets = this.getTargets(context)
     const imageObjects = targets.filter(obj => obj.type === 'image')
     
@@ -64,65 +53,28 @@ NEVER ask for exact values - always interpret the user's intent and choose an ap
       return {
         success: false,
         rotation: params.rotation,
-        message: 'No image objects found to adjust hue',
+        message: 'No image objects found to adjust',
         affectedObjects: []
       }
     }
     
-    const affectedObjects: string[] = []
+    console.log(`[HueAdapter] Applying hue rotation: ${params.rotation}° to ${imageObjects.length} objects`)
     
-    for (const obj of imageObjects) {
-      const adjustments = obj.adjustments || []
+    try {
+      // Use the underlying hue tool to apply the adjustment
+      await hueTool.applyHue(params.rotation)
       
-      // Remove existing hue adjustments
-      const filteredAdjustments = adjustments.filter(adj => adj.type !== 'hue')
+      // Get affected object IDs
+      const affectedObjects = imageObjects.map(obj => obj.id)
       
-      // Add new hue adjustment if not zero
-      if (params.rotation !== 0) {
-        filteredAdjustments.push({
-          id: `hue-${Date.now()}`,
-          type: 'hue',
-          params: { value: params.rotation },
-          enabled: true
-        })
+      return {
+        success: true,
+        rotation: params.rotation,
+        message: `Hue rotated by ${params.rotation > 0 ? '+' : ''}${params.rotation}° on ${affectedObjects.length} object(s)`,
+        affectedObjects
       }
-      
-      await context.canvas.updateObject(obj.id, {
-        adjustments: filteredAdjustments
-      })
-      
-      affectedObjects.push(obj.id)
-    }
-    
-    // Generate descriptive message based on rotation
-    let colorShift = ''
-    const normalizedRotation = ((params.rotation % 360) + 360) % 360 // Normalize to 0-360
-    
-    if (params.rotation === 0) {
-      colorShift = 'Reset hue to original colors'
-    } else if (params.rotation === 180 || params.rotation === -180) {
-      colorShift = 'Shifted to complementary colors'
-    } else if (normalizedRotation >= 345 || normalizedRotation <= 30) {
-      colorShift = 'Shifted colors toward red/orange tones'
-    } else if (normalizedRotation > 30 && normalizedRotation <= 90) {
-      colorShift = 'Shifted colors toward yellow/green tones'
-    } else if (normalizedRotation > 90 && normalizedRotation <= 150) {
-      colorShift = 'Shifted colors toward green/cyan tones'
-    } else if (normalizedRotation > 150 && normalizedRotation <= 210) {
-      colorShift = 'Shifted colors toward cyan/blue tones'
-    } else if (normalizedRotation > 210 && normalizedRotation <= 270) {
-      colorShift = 'Shifted colors toward blue/purple tones'
-    } else {
-      colorShift = 'Shifted colors toward purple/magenta tones'
-    }
-    
-    const message = `${colorShift} (${params.rotation > 0 ? '+' : ''}${params.rotation}°) on ${affectedObjects.length} object${affectedObjects.length !== 1 ? 's' : ''}`
-    
-    return {
-      success: true,
-      rotation: params.rotation,
-      message,
-      affectedObjects
+    } catch (error) {
+      throw new Error(`Hue adjustment failed: ${this.formatError(error)}`)
     }
   }
 }
