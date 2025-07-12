@@ -26,6 +26,8 @@ export class CanvasManagerFactory {
   ): CanvasManager {
     // Get services from injected container (not singleton)
     const typedEventBus = this.serviceContainer.getSync<TypedEventBus>('TypedEventBus')
+    const commandManager = this.serviceContainer.getSync<import('@/lib/editor/commands/CommandManager').CommandManager>('CommandManager')
+    const commandFactory = this.serviceContainer.getSync<import('@/lib/editor/commands/base/CommandFactory').CommandFactory>('CommandFactory')
     
     // Create CanvasManager which implements our new object-based architecture
     // ObjectManager is now created internally by CanvasManager
@@ -33,7 +35,9 @@ export class CanvasManagerFactory {
       container,
       typedEventBus,
       this.eventStore,
-      this.resourceManager
+      this.resourceManager,
+      commandManager,
+      commandFactory
     )
     
     // Register for cleanup

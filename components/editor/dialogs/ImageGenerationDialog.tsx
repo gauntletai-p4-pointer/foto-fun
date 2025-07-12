@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useService } from '@/lib/core/AppInitializer'
+import { useAsyncService } from '@/lib/core/AppInitializer'
 import { EventToolStore } from '@/lib/store/tools/EventToolStore'
 import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
@@ -23,9 +23,9 @@ const COMMON_DIMENSIONS = [
 ]
 
 export function ImageGenerationDialog() {
-  const toolStore = useService<EventToolStore>('ToolStore')
-  const activeTool = toolStore.getActiveTool()
-  const canvasManager = useService<CanvasManager>('CanvasManager')
+  const { service: toolStore } = useAsyncService<EventToolStore>('ToolStore')
+  const activeTool = toolStore?.getActiveTool()
+  const { service: canvasManager } = useAsyncService<CanvasManager>('CanvasManager')
   
   const [prompt, setPrompt] = useState('')
   const [negativePrompt, setNegativePrompt] = useState('')
@@ -46,7 +46,7 @@ export function ImageGenerationDialog() {
   }, [isOpen])
   
   const handleClose = () => {
-    if (!isGenerating) {
+    if (!isGenerating && toolStore) {
       toolStore.deactivateTool()
     }
   }

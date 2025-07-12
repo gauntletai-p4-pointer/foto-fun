@@ -1,7 +1,21 @@
 import { BaseTool, ToolDependencies } from '../base/BaseTool';
 import type { PixelBuffer } from '../../pixel/PixelBuffer';
-import type { Point } from '@/types';
 import type { CanvasObject } from '@/lib/editor/objects/types';
+import { BrushOptions, BrushStrokePoint } from '../engines/BrushEngine';
+
+// Default brush options for drawing tools
+export const DEFAULT_BRUSH_OPTIONS: BrushOptions = {
+  size: 20,
+  opacity: 100,
+  color: '#000000',
+  blendMode: 'normal',
+  pressure: true,
+  flow: 100,
+  hardness: 100,
+  spacing: 25,
+  roundness: 100,
+  angle: 0,
+};
 
 // Brush definition for drawing tools
 interface Brush {
@@ -14,8 +28,8 @@ interface Brush {
 export abstract class DrawingTool extends BaseTool {
   protected pixelBuffer: PixelBuffer | null = null;
   protected isDrawing: boolean = false;
-  protected lastPoint: Point | null = null;
-  protected strokePath: Point[] = [];
+  protected lastPoint: BrushStrokePoint | null = null;
+  protected strokePath: BrushStrokePoint[] = [];
   
   constructor(id: string, dependencies: ToolDependencies) {
     super(id, dependencies);
@@ -33,8 +47,8 @@ export abstract class DrawingTool extends BaseTool {
     // NOTE TO EXECUTOR: A 'createDrawCommand' method will need to be added to the CommandFactory.
     const command = this.dependencies.commandFactory.createDrawCommand(
       imageObject.id,
-      this.pixelBuffer.getImageData(),
-      this.strokePath
+      this.strokePath,
+      DEFAULT_BRUSH_OPTIONS
     );
     
     this.dependencies.commandManager.executeCommand(command);

@@ -128,7 +128,7 @@ export abstract class BaseTool<T extends ToolOptions = ToolOptions> {
     return {} as T;
   }
   
-  protected getOptionDefinitions(): Record<string, {
+  public getOptionDefinitions(): Record<string, {
     type: 'string' | 'number' | 'boolean' | 'select' | 'color';
     defaultValue?: string | number | boolean;
     label?: string;
@@ -140,7 +140,7 @@ export abstract class BaseTool<T extends ToolOptions = ToolOptions> {
     return {};
   }
   
-  protected getAllOptions(): T {
+  public getAllOptions(): T {
     const defaults = this.getDefaultOptions();
     
     // Get current options from tool options store
@@ -157,7 +157,7 @@ export abstract class BaseTool<T extends ToolOptions = ToolOptions> {
     return allOptions[key] as U;
   }
   
-  protected setOption(key: keyof T, value: T[keyof T]): void {
+  public setOption(key: keyof T, value: T[keyof T]): void {
     // Emit option change event - the store will handle the update
     this.dependencies.eventBus.emit('tool.option.changed', {
       toolId: this.id,

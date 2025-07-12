@@ -243,8 +243,9 @@ export function ToolPalette({ className }: ToolPaletteProps) {
               key={toolId}
               className={cn(
                 "w-full flex items-center gap-2 px-2 py-2 text-sm rounded transition-colors text-left",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
                 isActive 
-                  ? "bg-primary text-primary-foreground" 
+                  ? "bg-muted text-foreground" 
                   : implemented
                     ? "text-popover-foreground hover:bg-accent hover:text-accent-foreground"
                     : "text-muted-foreground cursor-not-allowed opacity-50"
@@ -252,7 +253,7 @@ export function ToolPalette({ className }: ToolPaletteProps) {
               onClick={() => implemented && handleToolSelect(toolId)}
               disabled={!implemented}
             >
-                             {renderIcon(ToolIcon, "w-4 h-4 flex-shrink-0")}
+                             {renderIcon(ToolIcon, "w-4 h-4 flex-shrink-0 stroke-[1.5]")}
               <span className="flex-1">{toolClass.metadata.name}</span>
               {isSelected && (
                 <Check className="w-3 h-3 text-primary" />
@@ -291,17 +292,17 @@ export function ToolPalette({ className }: ToolPaletteProps) {
               className={cn(
                 "w-10 h-10 flex items-center justify-center rounded-md transition-all relative group",
                 isActive 
-                  ? "bg-primary text-primary-foreground shadow-sm" 
+                  ? "bg-muted text-foreground" 
                   : implemented
-                    ? "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-                    : "text-muted-foreground/50 cursor-not-allowed"
+                    ? "text-foreground hover:bg-muted"
+                    : "text-foreground/50 cursor-not-allowed"
               )}
               onClick={() => handleGroupClick(group.id)}
               onMouseEnter={(e) => handleGroupHover(group.id, e.currentTarget)}
               onMouseLeave={handleGroupLeave}
               disabled={!implemented || isActivating}
             >
-                             {renderIcon(IconToShow, "w-5 h-5")}
+                             {renderIcon(IconToShow, "w-5 h-5 stroke-[1.5]")}
               
               {/* Multiple tools indicator */}
               {hasMultipleTools && (

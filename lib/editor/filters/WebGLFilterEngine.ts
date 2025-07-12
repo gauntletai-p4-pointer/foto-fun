@@ -125,8 +125,9 @@ export class WebGLFilterEngine {
       })
       
     } catch (error) {
-      console.error('[WebGLFilterEngine] Failed to initialize:', error)
-      throw new Error('WebGL not supported or filter library failed to load')
+      console.warn('[WebGLFilterEngine] Failed to initialize, falling back to software rendering:', error)
+      // Don't throw - allow the app to continue without WebGL filters
+      // The filter methods will handle the non-initialized state gracefully
     }
   }
   
@@ -160,7 +161,17 @@ export class WebGLFilterEngine {
     }
     
     if (!this.filterInstance) {
-      throw new Error('WebGL filter not initialized')
+      // WebGL failed to initialize, return a copy of the source
+      console.warn('[WebGLFilterEngine] WebGL not available, skipping filter application')
+      const canvas = document.createElement('canvas')
+      const ctx = canvas.getContext('2d')
+      if (!ctx) {
+        throw new Error('Cannot create 2D context for fallback')
+      }
+      canvas.width = source.width
+      canvas.height = source.height
+      ctx.drawImage(source, 0, 0)
+      return canvas
     }
     
     // Check cache if enabled
@@ -220,11 +231,21 @@ export class WebGLFilterEngine {
     }
     
     if (!this.isInitialized) {
-      await this.initialize()
+      await this.initializeWebGL()
     }
     
     if (!this.filterInstance) {
-      throw new Error('WebGL filter not initialized')
+      // WebGL failed to initialize, return a copy of the source
+      console.warn('[WebGLFilterEngine] WebGL not available, skipping filter chain application')
+      const canvas = document.createElement('canvas')
+      const ctx = canvas.getContext('2d')
+      if (!ctx) {
+        throw new Error('Cannot create 2D context for fallback')
+      }
+      canvas.width = source.width
+      canvas.height = source.height
+      ctx.drawImage(source, 0, 0)
+      return canvas
     }
     
     // Check cache for entire chain if enabled

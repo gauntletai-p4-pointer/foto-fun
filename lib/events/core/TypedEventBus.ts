@@ -223,6 +223,9 @@ export interface EventRegistry {
     optionKey: string
     value: unknown
   }
+  'tool.activation.requested': {
+    toolId: string
+  }
   'tool.preset.saved': {
     toolId: string
     name: string

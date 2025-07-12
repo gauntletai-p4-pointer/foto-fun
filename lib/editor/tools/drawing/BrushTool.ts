@@ -1,9 +1,10 @@
 import { BaseTool, ToolDependencies, ToolState, type ToolOptions } from '../base/BaseTool';
-import { type ToolEvent } from '@/lib/events/canvas/ToolEvents';
-import { BrushEngine } from '../engines/BrushEngine';
-import React from 'react';
-import { CanvasManager } from '@/lib/editor/canvas/CanvasManager';
+import { type ToolEvent } from '../../../events/canvas/ToolEvents';
+import { type CanvasManager } from '../../canvas/CanvasManager';
+import { type CanvasObject } from '../../objects/types';
 import { type ToolMetadata } from '../base/ToolRegistry';
+import * as React from 'react';
+import Konva from 'konva';
 
 export interface BrushToolOptions extends ToolOptions {
   size: number;
@@ -18,7 +19,7 @@ export interface BrushToolOptions extends ToolOptions {
   angle: number;
 }
 
-export interface BrushStrokeData {
+interface BrushStroke {
   id: string;
   targetObjectId: string;
   points: Array<{
@@ -28,279 +29,132 @@ export interface BrushStrokeData {
     timestamp: number;
   }>;
   options: BrushToolOptions;
-  startTime: number;
 }
 
 /**
- * BrushTool - Pixel painting tool with advanced brush engine
- * Follows senior architecture patterns: event-driven, command-based, dependency injection
+ * BrushTool - Professional pixel painting tool
+ * 
+ * Implements pixel-level painting on image objects with advanced brush engine.
+ * Follows senior architecture patterns with proper dependency injection,
+ * event-driven communication, and command pattern for undo/redo.
  */
 export class BrushTool extends BaseTool<BrushToolOptions> {
-  id = 'brush';
-  name = 'Brush Tool';
-  icon = () => React.createElement('div', { className: 'icon-brush' });
-  cursor = 'crosshair';
-  
-  private brushEngine: BrushEngine | null = null;
-  private currentStroke: BrushStrokeData | null = null;
-  private isDrawing = false;
+  private currentStroke: BrushStroke | null = null;
+  private isDrawing: boolean = false;
   private lastPoint: { x: number; y: number } | null = null;
-  
+  private targetImageObject: CanvasObject | null = null;
+
   constructor(id: string, dependencies: ToolDependencies) {
     super(id, dependencies);
     this.cursor = 'crosshair';
   }
-  
+
   /**
-   * Required by BaseTool - called when tool is activated
+   * Tool activation lifecycle
    */
   async onActivate(_canvas: CanvasManager): Promise<void> {
-    console.log('BrushTool: Activating brush tool...');
+    this.setState(ToolState.ACTIVATING);
+
+    // Validate we have image objects to paint on
+    const imageObjects = this.getImageObjects();
+    if (imageObjects.length === 0) {
+      await this.handleNoImageObjects();
+      return;
+    }
+
+    // Set up event subscriptions
+    this.setupEventSubscriptions();
+
+    // Initialize for first selected image object
+    this.targetImageObject = imageObjects[0];
     
-    // Initialize brush engine with default options
-    this.brushEngine = new BrushEngine(this.getDefaultOptions());
-    
-    // Register cleanup
-    this.registerCleanup(() => {
-      this.brushEngine?.dispose();
-      this.brushEngine = null;
-    });
-    
-    // Register for option changes
-    this.dependencies.eventBus.on('tool.option.changed', (event) => {
-      if (event.toolId === this.id && this.brushEngine) {
-        this.brushEngine.updateOptions(this.getAllOptions());
-      }
-    });
+    this.setState(ToolState.ACTIVE);
   }
-  
+
   /**
-   * Required by BaseTool - called when tool is deactivated
+   * Tool deactivation lifecycle
    */
   async onDeactivate(_canvas: CanvasManager): Promise<void> {
-    console.log('BrushTool: Deactivating brush tool...');
-    
-    // Complete any active stroke
-    if (this.isDrawing && this.currentStroke) {
-      await this.completeStroke();
+    this.setState(ToolState.DEACTIVATING);
+
+    // Commit any active stroke
+    if (this.currentStroke) {
+      await this.commitStroke();
     }
-    
-    // Cleanup brush engine
-    if (this.brushEngine) {
-      this.brushEngine.dispose();
-      this.brushEngine = null;
-    }
-  }
-  
-  // State change handler (required by BaseTool)
-  protected onStateChange(_from: ToolState, to: ToolState): void {
-    console.log(`BrushTool: ${_from} → ${to}`);
-    
-    if (to === ToolState.ACTIVE) {
-      this.setupBrushEngine();
-    } else if (to === ToolState.INACTIVE) {
-      this.cleanupBrushEngine();
-    }
-  }
-  
-  // Tool setup
-  protected async setupTool(): Promise<void> {
-    console.log('BrushTool: Setting up brush tool...');
-    
-    // Initialize brush engine with default options
-    this.brushEngine = new BrushEngine(this.getDefaultOptions());
-    
-    // Register cleanup
-    this.registerCleanup(() => {
-      this.brushEngine?.dispose();
-      this.brushEngine = null;
-    });
-    
-    // Register for option changes
-    this.dependencies.eventBus.on('tool.option.changed', (event) => {
-      if (event.toolId === this.id && this.brushEngine) {
-        this.brushEngine.updateOptions(this.getAllOptions());
-      }
-    });
-  }
-  
-  // Tool cleanup
-  protected async cleanupTool(): Promise<void> {
-    console.log('BrushTool: Cleaning up brush tool...');
-    
-    // Complete any active stroke
-    if (this.isDrawing && this.currentStroke) {
-      await this.completeStroke();
-    }
-    
-    // Cleanup brush engine
-    if (this.brushEngine) {
-      this.brushEngine.dispose();
-      this.brushEngine = null;
-    }
-  }
-  
-  // Default options
-  protected getDefaultOptions(): BrushToolOptions {
-    return {
-      size: 10,
-      opacity: 100,
-      color: '#000000',
-      blendMode: 'normal',
-      pressure: false,
-      flow: 100,
-      hardness: 100,
-      spacing: 20,
-      roundness: 100,
-      angle: 0
-    };
+
+    // Clean up state
+    this.cleanup();
+
+    this.setState(ToolState.INACTIVE);
   }
 
-  // Get current options with defaults
-  protected getAllOptions(): BrushToolOptions {
-    const defaults = this.getDefaultOptions();
-    // TODO: Implement proper options retrieval once EventToolOptionsStore is updated
-    const current = {}; // this.dependencies.toolOptionsStore?.getOptions?.(this.id) || {};
-    return { ...defaults, ...current };
-  }
-
-  // Mouse event handlers
+  /**
+   * Mouse down - start drawing stroke
+   */
   onMouseDown(event: ToolEvent): void {
-    if (this.getState() !== ToolState.ACTIVE || !this.brushEngine) return;
-    
-    try {
-      // Get target image objects
-      const selectedObjects = this.dependencies.canvasManager.getSelectedObjects();
-      const imageObjects = selectedObjects.filter(obj => obj.type === 'image');
-      
-      if (imageObjects.length === 0) {
-        // No image selected - emit error
-        this.dependencies.eventBus.emit('tool.error', {
-          toolId: this.id,
-          instanceId: this.instanceId,
-          error: new Error('No image selected for brush tool'),
-          operation: 'mouseDown',
-          timestamp: Date.now()
-        });
-        return;
-      }
-      
-      // Start brush stroke
-      this.startBrushStroke(event, imageObjects[0]);
-      
-    } catch (error) {
-      this.dependencies.eventBus.emit('tool.error', {
-        toolId: this.id,
-        instanceId: this.instanceId,
-        error: error instanceof Error ? error : new Error(String(error)),
-        operation: 'mouseDown',
-        timestamp: Date.now()
-      });
-    }
-  }
-  
-  onMouseMove(event: ToolEvent): void {
-    if (this.getState() !== ToolState.ACTIVE || !this.brushEngine) return;
-    
-    if (this.isDrawing && this.currentStroke) {
-      this.continueBrushStroke(event);
-    }
-  }
-  
-  onMouseUp(event: ToolEvent): void {
-    if (this.isDrawing && this.currentStroke) {
-      this.completeBrushStroke(event);
-    }
-  }
-  
-  // Keyboard event handlers (required by BaseTool)
-  protected handleKeyDown(event: KeyboardEvent): void {
-    // Handle brush-specific shortcuts
-    if (event.key === '[' && !event.ctrlKey && !event.metaKey) {
-      // Decrease brush size
-      const options = this.getAllOptions();
-      const newSize = Math.max(1, options.size - 1);
-      this.setOption('size', newSize);
-      event.preventDefault();
-    } else if (event.key === ']' && !event.ctrlKey && !event.metaKey) {
-      // Increase brush size
-      const options = this.getAllOptions();
-      const newSize = Math.min(500, options.size + 1);
-      this.setOption('size', newSize);
-      event.preventDefault();
-    }
-  }
-  
-  protected handleKeyUp(_event: KeyboardEvent): void {
-    // Handle key releases if needed
-  }
-  
-  // Brush stroke operations
-  private startBrushStroke(event: ToolEvent, targetObject: { id: string; type: string }): void {
-    if (!this.brushEngine) return;
-    
+    if (this.state !== ToolState.ACTIVE) return;
+    if (!this.targetImageObject) return;
+
+    this.setState(ToolState.WORKING);
     this.isDrawing = true;
     this.lastPoint = { x: event.canvasX, y: event.canvasY };
-    
-    // Create stroke data
+
+    // Create new stroke
     this.currentStroke = {
-      id: `brush-stroke-${Date.now()}`,
-      targetObjectId: targetObject.id,
-      points: [{ 
-        x: event.canvasX, 
-        y: event.canvasY, 
-        pressure: event.pressure || 1.0,
-        timestamp: Date.now()
-      }],
-      options: this.getAllOptions(),
-      startTime: Date.now()
-    };
-    
-    // Emit stroke started event
-    this.emitOperation('brush.stroke.started', {
-      strokeId: this.currentStroke.id,
-      targetObjectId: targetObject.id,
-      startPoint: { x: event.canvasX, y: event.canvasY },
-      options: this.currentStroke.options
-    });
-    
-    // Start rendering stroke preview
-    this.brushEngine.startStroke(this.currentStroke);
-  }
-  
-  private continueBrushStroke(event: ToolEvent): void {
-    if (!this.brushEngine || !this.currentStroke) return;
-    
-    const currentPoint = { x: event.canvasX, y: event.canvasY };
-    
-    // Check if we should add this point (based on spacing)
-    if (this.lastPoint && this.shouldAddPoint(this.lastPoint, currentPoint)) {
-      // Add point to stroke
-      this.currentStroke.points.push({
+      id: `stroke-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      targetObjectId: this.targetImageObject.id,
+      points: [{
         x: event.canvasX,
         y: event.canvasY,
         pressure: event.pressure || 1.0,
         timestamp: Date.now()
-      });
-      
-      // Update brush engine
-      this.brushEngine.continueStroke(this.currentStroke);
-      
-      // Emit stroke continued event
-      this.emitOperation('brush.stroke.continued', {
-        strokeId: this.currentStroke.id,
-        point: currentPoint,
-        pressure: event.pressure || 1.0,
-        pointCount: this.currentStroke.points.length
-      });
-      
-      this.lastPoint = currentPoint;
-    }
+      }],
+      options: this.getAllOptions()
+    };
+
+    // Emit drawing started event
+    this.dependencies.eventBus.emit('drawing.started', {
+      toolId: this.id,
+      canvasId: this.targetImageObject.id,
+      position: { x: event.canvasX, y: event.canvasY },
+      point: { x: event.canvasX, y: event.canvasY, pressure: event.pressure || 1.0 },
+      options: this.getAllOptions()
+    });
   }
-  
-  private completeBrushStroke(event: ToolEvent): void {
-    if (!this.brushEngine || !this.currentStroke) return;
+
+  /**
+   * Mouse move - continue drawing stroke
+   */
+  onMouseMove(event: ToolEvent): void {
+    if (!this.isDrawing || !this.currentStroke || !this.lastPoint) return;
+
+    const currentPoint = { x: event.canvasX, y: event.canvasY };
     
+    // Add point to stroke
+    this.currentStroke.points.push({
+      x: currentPoint.x,
+      y: currentPoint.y,
+      pressure: event.pressure || 1.0,
+      timestamp: Date.now()
+    });
+
+    // Emit drawing updated event
+    this.dependencies.eventBus.emit('drawing.updated', {
+      toolId: this.id,
+      canvasId: this.targetImageObject!.id,
+      position: currentPoint
+    });
+    
+    this.updatePreview();
+    this.lastPoint = currentPoint;
+  }
+
+  /**
+   * Mouse up - finish drawing stroke
+   */
+  onMouseUp(event: ToolEvent): void {
+    if (!this.isDrawing || !this.currentStroke) return;
+
     // Add final point
     this.currentStroke.points.push({
       x: event.canvasX,
@@ -308,111 +162,268 @@ export class BrushTool extends BaseTool<BrushToolOptions> {
       pressure: event.pressure || 1.0,
       timestamp: Date.now()
     });
+
+    // Commit the stroke
+    this.commitStroke();
+
+    // Reset state
+    this.isDrawing = false;
+    this.lastPoint = null;
+    this.currentStroke = null;
+    this.dependencies.canvasManager.clearOverlay();
+
+    this.setState(ToolState.ACTIVE);
+  }
+
+  /**
+   * Get default tool options
+   */
+  protected getDefaultOptions(): BrushToolOptions {
+    return {
+      size: 20,
+      opacity: 100,
+      color: '#000000',
+      blendMode: 'normal',
+      pressure: true,
+      flow: 100,
+      hardness: 100,
+      spacing: 25,
+      roundness: 100,
+      angle: 0
+    };
+  }
+
+  /**
+   * Get tool option definitions for UI
+   */
+  public getOptionDefinitions(): Record<string, {
+    type: 'string' | 'number' | 'boolean' | 'select' | 'color';
+    defaultValue?: string | number | boolean;
+    label?: string;
+    options?: Array<{ value: string | number; label: string; }>;
+    min?: number;
+    max?: number;
+    step?: number;
+  }> {
+    return {
+      size: {
+        type: 'number',
+        defaultValue: 20,
+        min: 1,
+        max: 500,
+        step: 1,
+        label: 'Size'
+      },
+      opacity: {
+        type: 'number',
+        defaultValue: 100,
+        min: 0,
+        max: 100,
+        step: 1,
+        label: 'Opacity'
+      },
+      color: {
+        type: 'color',
+        defaultValue: '#000000',
+        label: 'Color'
+      },
+      blendMode: {
+        type: 'select',
+        defaultValue: 'normal',
+        options: [
+          { value: 'normal', label: 'Normal' },
+          { value: 'multiply', label: 'Multiply' },
+          { value: 'screen', label: 'Screen' },
+          { value: 'overlay', label: 'Overlay' },
+          { value: 'soft-light', label: 'Soft Light' },
+          { value: 'hard-light', label: 'Hard Light' }
+        ],
+        label: 'Blend Mode'
+      },
+      pressure: {
+        type: 'boolean',
+        defaultValue: true,
+        label: 'Pressure Sensitivity'
+      },
+      flow: {
+        type: 'number',
+        defaultValue: 100,
+        min: 1,
+        max: 100,
+        step: 1,
+        label: 'Flow'
+      },
+      hardness: {
+        type: 'number',
+        defaultValue: 100,
+        min: 0,
+        max: 100,
+        step: 1,
+        label: 'Hardness'
+      },
+      spacing: {
+        type: 'number',
+        defaultValue: 25,
+        min: 1,
+        max: 100,
+        step: 1,
+        label: 'Spacing'
+      },
+    };
+  }
+
+  private updatePreview(): void {
+    if (!this.currentStroke) return;
+
+    this.dependencies.canvasManager.clearOverlay();
     
-    // Complete stroke in brush engine
-    this.brushEngine.completeStroke(this.currentStroke);
-    
-    // Create command for undo/redo using the correct factory method
-    const strokePath = this.currentStroke.points.map((point) => ({ x: point.x, y: point.y }));
-    const command = this.dependencies.commandFactory.createDrawCommand(
-      this.currentStroke.targetObjectId,
-      new ImageData(1, 1), // Placeholder - will be generated by brush engine
-      strokePath
-    );
-    
-    // Execute command
-    this.dependencies.commandManager.executeCommand(command);
-    
-    // Emit stroke completed event
-    this.emitOperation('brush.stroke.completed', {
-      strokeId: this.currentStroke.id,
-      targetObjectId: this.currentStroke.targetObjectId,
-      endPoint: { x: event.canvasX, y: event.canvasY },
-      pointCount: this.currentStroke.points.length,
-      duration: Date.now() - this.currentStroke.startTime
+    const line = new Konva.Line({
+      points: this.currentStroke.points.flatMap(p => [p.x, p.y]),
+      stroke: this.currentStroke.options.color,
+      strokeWidth: this.currentStroke.options.size,
+      tension: 0.5,
+      lineCap: 'round',
+      lineJoin: 'round',
+      globalCompositeOperation: this.getCompositeOperation(this.currentStroke.options.blendMode),
+      opacity: this.currentStroke.options.opacity / 100,
     });
     
-    // Reset stroke state
-    this.currentStroke = null;
-    this.isDrawing = false;
-    this.lastPoint = null;
+    this.dependencies.canvasManager.addToOverlay(line);
   }
-  
-  // Helper methods
-  private shouldAddPoint(lastPoint: { x: number; y: number }, currentPoint: { x: number; y: number }): boolean {
-    const options = this.getAllOptions();
-    const distance = Math.sqrt(
-      Math.pow(currentPoint.x - lastPoint.x, 2) + 
-      Math.pow(currentPoint.y - lastPoint.y, 2)
+
+  private getCompositeOperation(blendMode: BrushToolOptions['blendMode']) {
+    switch (blendMode) {
+      case 'multiply':
+      case 'screen':
+      case 'overlay':
+      case 'soft-light':
+      case 'hard-light':
+        return blendMode;
+      default:
+        return 'source-over'; // 'normal' maps to 'source-over'
+    }
+  }
+
+  /**
+   * Get image objects that can be painted on
+   */
+  private getImageObjects(): CanvasObject[] {
+    const selectedObjects = this.dependencies.objectManager.getSelectedObjects();
+    
+    // Filter to only image objects
+    const imageObjects = selectedObjects.filter((obj: CanvasObject) => obj.type === 'image');
+    
+    // If no image objects selected, get all image objects
+    if (imageObjects.length === 0) {
+      const allObjects = this.dependencies.objectManager.getAllObjects();
+      return allObjects.filter((obj: CanvasObject) => obj.type === 'image');
+    }
+    
+    return imageObjects;
+  }
+
+  /**
+   * Handle case when no image objects are available
+   */
+  private async handleNoImageObjects(): Promise<void> {
+    // Emit event for UI to show message
+    this.dependencies.eventBus.emit('tool.message', {
+      toolId: this.id,
+      message: 'Brush tool requires an image object to paint on. Please select an image or create one first.',
+      type: 'warning'
+    });
+
+    // Switch to default tool
+    await this.dependencies.eventBus.emit('tool.activated', {
+      toolId: 'move',
+      previousToolId: this.id
+    });
+  }
+
+  /**
+   * Set up event subscriptions
+   */
+  private setupEventSubscriptions(): void {
+    // Listen for selection changes
+    const selectionUnsubscribe = this.dependencies.eventBus.on('selection.changed', (data) => {
+      if (data.selection?.type === 'objects' && 'objectIds' in data.selection && data.selection.objectIds) {
+        const selectedObjects = data.selection.objectIds
+          .map(id => this.dependencies.objectManager.getObject(id))
+          .filter((obj): obj is CanvasObject => obj !== null);
+        
+        const imageObjects = selectedObjects.filter((obj: CanvasObject) => obj.type === 'image');
+        if (imageObjects.length > 0) {
+          this.targetImageObject = imageObjects[0];
+        }
+      }
+    });
+    this.registerCleanup(selectionUnsubscribe);
+
+    // Listen for object deletion
+    const objectDeleteUnsubscribe = this.dependencies.eventBus.on('canvas.object.removed', (data) => {
+      if (this.targetImageObject?.id === data.objectId) {
+        this.targetImageObject = null;
+        // Find another image object
+        const imageObjects = this.getImageObjects();
+        if (imageObjects.length > 0) {
+          this.targetImageObject = imageObjects[0];
+        }
+      }
+    });
+    this.registerCleanup(objectDeleteUnsubscribe);
+  }
+
+  /**
+   * Commit the current stroke via command pattern
+   */
+  private async commitStroke(): Promise<void> {
+    if (!this.currentStroke) return;
+
+    // Use the factory to create the command
+    const command = this.dependencies.commandFactory.createDrawCommand(
+      this.currentStroke.targetObjectId,
+      this.currentStroke.points,
+      this.currentStroke.options
     );
     
-    // Add point if distance is greater than spacing percentage of brush size
-    const minDistance = (options.size * options.spacing) / 100;
-    return distance >= minDistance;
-  }
-  
-  private setupBrushEngine(): void {
-    if (this.brushEngine) {
-      this.brushEngine.updateOptions(this.getAllOptions());
-    }
-  }
-  
-  private cleanupBrushEngine(): void {
-    if (this.isDrawing && this.currentStroke) {
-      // Force complete any active stroke
-      this.completeStroke();
-    }
-  }
-  
-  private async completeStroke(): Promise<void> {
-    if (!this.currentStroke || !this.brushEngine) return;
-    
-    try {
-      // Create command to apply the stroke using the correct factory method
-      const strokePath = this.currentStroke.points.map((point) => ({ x: point.x, y: point.y }));
-      const command = this.dependencies.commandFactory.createDrawCommand(
-        this.currentStroke.targetObjectId,
-        new ImageData(1, 1), // Placeholder - will be generated by brush engine
-        strokePath
-      );
-      
-      // Execute the command
-      await this.dependencies.commandManager.executeCommand(command);
-      
-      // Emit stroke completed event
-      this.emitOperation('brush.stroke.completed', {
+    // Execute the command
+    await this.dependencies.commandManager.executeCommand(command);
+
+    // Emit drawing completed event
+    this.dependencies.eventBus.emit('drawing.completed', {
+      toolId: this.id,
+      canvasId: this.currentStroke.targetObjectId,
+      result: {
         strokeId: this.currentStroke.id,
-        targetObjectId: this.currentStroke.targetObjectId,
-        pointCount: this.currentStroke.points.length,
-        duration: Date.now() - this.currentStroke.startTime
-      });
-      
-    } catch (error) {
-      this.dependencies.eventBus.emit('tool.error', {
-        toolId: this.id,
-        instanceId: this.instanceId,
-        error: error instanceof Error ? error : new Error(String(error)),
-        operation: 'completeStroke',
-        timestamp: Date.now()
-      });
-    }
-    
-    // Clear stroke data
-    this.currentStroke = null;
+        pointCount: this.currentStroke.points.length
+      }
+    });
+  }
+
+  /**
+   * Clean up tool state
+   */
+  private cleanup(): void {
     this.isDrawing = false;
     this.lastPoint = null;
+    this.currentStroke = null;
+    this.targetImageObject = null;
   }
-}
 
-// Tool metadata for registration
-export const BrushToolMetadata: ToolMetadata = {
-  id: 'brush',
-  name: 'Brush Tool',
-  description: 'Paint with customizable brushes on image objects',
-  category: 'drawing',
-  groupId: 'drawing-group',
-  icon: () => React.createElement('div', { className: 'icon-brush' }),
-  cursor: 'crosshair',
-  shortcut: 'B',
-  priority: 1
-}; 
+  /**
+   * Tool metadata for registration
+   */
+  static getMetadata(): ToolMetadata {
+    return {
+      id: 'brush',
+      name: 'Brush',
+      description: 'Paint pixels directly on image objects',
+      category: 'drawing',
+      groupId: 'drawing-tools',
+      icon: () => React.createElement('div', { className: 'tool-icon brush-icon' }),
+      cursor: 'crosshair',
+      shortcut: 'B',
+      priority: 1
+    };
+  }
+} 

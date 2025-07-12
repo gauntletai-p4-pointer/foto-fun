@@ -187,14 +187,20 @@ export abstract class UnifiedToolAdapter<TInput = unknown, TOutput = unknown> {
    * Start performance tracking
    */
   private startPerformanceTracking(): void {
-    this.dependencies.performanceMonitor?.startTracking(this.aiName);
+    const monitor = this.dependencies.performanceMonitor;
+    if (monitor && typeof monitor === 'object' && 'startTracking' in monitor) {
+      (monitor as { startTracking: (name: string) => void }).startTracking(this.aiName);
+    }
   }
   
   /**
    * End performance tracking
    */
   private endPerformanceTracking(): void {
-    this.dependencies.performanceMonitor?.endTracking(this.aiName);
+    const monitor = this.dependencies.performanceMonitor;
+    if (monitor && typeof monitor === 'object' && 'endTracking' in monitor) {
+      (monitor as { endTracking: (name: string) => void }).endTracking(this.aiName);
+    }
   }
   
   /**

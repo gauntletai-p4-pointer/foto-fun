@@ -51,7 +51,7 @@ export function StatusBar() {
   }
   
   return (
-    <div className="h-6 bg-background border-t border-foreground/10 flex items-center px-4 text-xs text-foreground/60">
+    <div className="h-6 bg-background border-t border-foreground/10 flex items-center px-4 text-xs text-foreground">
       <div className="flex items-center gap-4">
         <span>{objectCount} {objectCount === 1 ? 'object' : 'objects'}</span>
         {selectionState.selectedObjectIds.size > 0 && (

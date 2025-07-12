@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState } from 'react'
-import { useService } from '@/lib/core/AppInitializer'
+import { useService, useAsyncService } from '@/lib/core/AppInitializer'
 import { useStore } from '@/lib/store/base/BaseStore'
 import { EventSelectionStore } from '@/lib/store/selection/EventSelectionStore'
 import { EventToolStore } from '@/lib/store/tools/EventToolStore'
@@ -57,7 +57,7 @@ export function MenuBar() {
     return () => clearInterval(interval)
   }, [objectManager])
   
-  const toolStore = useService<EventToolStore>('ToolStore')
+  const { service: toolStore } = useAsyncService<EventToolStore>('ToolStore')
   const canvasManager = useService<CanvasManager>('CanvasManager')
   
   const { theme, setTheme } = useTheme()
@@ -136,7 +136,9 @@ export function MenuBar() {
   }
   
   const activateFilterTool = (toolId: string) => {
-    toolStore.activateTool(toolId)
+    if (toolStore) {
+      toolStore.activateTool(toolId)
+    }
   }
   
   // Object menu handlers

@@ -9,7 +9,7 @@ import { Panels } from '@/components/editor/Panels'
 import { OptionsBar } from '@/components/editor/OptionsBar'
 import { StatusBar } from '@/components/editor/StatusBar'
 import { ImageGenerationDialog } from '@/components/editor/dialogs/ImageGenerationDialog'
-import { useService } from '@/lib/core/AppInitializer'
+import { useAsyncService } from '@/lib/core/AppInitializer'
 import { EventToolStore } from '@/lib/store/tools/EventToolStore'
 import { createClient } from '@/lib/db/supabase/client'
 import { eventHistoryKeyboardHandlers } from '@/lib/events/history/EventBasedHistoryStore'
@@ -38,10 +38,12 @@ function LoadingFallback() {
 
 // Inner component that uses services
 function EditorContent() {
-  const toolStore = useService<EventToolStore>('ToolStore')
+  const { service: toolStore } = useAsyncService<EventToolStore>('ToolStore')
   
   // Handle keyboard shortcuts
   useEffect(() => {
+    if (!toolStore) return
+    
     const handleKeyDown = (e: KeyboardEvent) => {
       // Check if input is focused
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {

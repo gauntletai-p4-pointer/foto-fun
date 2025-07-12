@@ -8,26 +8,26 @@ import type { ServiceCommandFactory } from '@/lib/editor/commands/base/CommandFa
 /**
  * Dependencies injected into AI adapters
  * Follows senior-level dependency injection patterns
- * All core dependencies are mandatory to ensure consistent behavior
+ * Core dependencies are available, others are placeholders during migration
  */
 export interface AdapterDependencies {
-  // Core services - ALL MANDATORY
+  // Core services - Available and registered
   eventBus: TypedEventBus;
   canvasManager: CanvasManager;
   commandManager: CommandManager;
   commandFactory: ServiceCommandFactory;
-  toolStore: EventToolStore;
   resourceManager: ResourceManager;
   
-  // Adapter-specific services - MANDATORY
-  parameterConverter: ParameterConverter;
-  responseFormatter: ResponseFormatter;
-  errorHandler: ErrorHandler;
-  performanceMonitor: PerformanceMonitor;
+  // Basic services - Available and registered
+  parameterConverter: unknown; // ParameterConverter type not imported to avoid circular deps
+  modelPreferences: unknown; // ModelPreferencesManager type not imported to avoid circular deps
   
-  // AI-specific services - MANDATORY
-  modelPreferences: ModelPreferencesManager;
-  replicateClient: ReplicateClient;
+  // Services being migrated - Temporarily nullable during foundation cleanup
+  toolStore: EventToolStore | null;
+  responseFormatter: unknown | null;
+  errorHandler: unknown | null;
+  performanceMonitor: unknown | null;
+  replicateClient: unknown | null;
 }
 
 /**

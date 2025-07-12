@@ -17,7 +17,7 @@ export function Canvas() {
   
   // Get services
   const canvasStore = useService<TypedCanvasStore>('CanvasStore')
-  const toolStore = useService<EventToolStore>('ToolStore')
+  const { service: toolStore } = useAsyncService<EventToolStore>('ToolStore')
   const eventBus = useService<TypedEventBus>('TypedEventBus')
   
   // Get the async CanvasManagerFactory
@@ -480,11 +480,13 @@ export function Canvas() {
   
   // Canvas always renders - no empty state
   return (
-    <div 
-      ref={containerRef} 
-      className="flex-1 relative overflow-hidden bg-content-background"
+    <div
+      ref={containerRef}
+      className="w-full h-full bg-[color:var(--content-background)]"
       onDrop={handleDrop}
       onDragOver={handleDragOver}
-    />
+    >
+      {/* Canvas will be mounted here by Konva */}
+    </div>
   )
 } 

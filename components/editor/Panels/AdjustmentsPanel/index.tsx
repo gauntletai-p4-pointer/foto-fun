@@ -1,11 +1,11 @@
 'use client'
 
 import React from 'react'
-import { useService } from '@/lib/core/AppInitializer'
+import { useAsyncService } from '@/lib/core/AppInitializer'
 import type { EventToolStore } from '@/lib/store/tools/EventToolStore'
 
 export function AdjustmentsPanel() {
-  const toolStore = useService<EventToolStore>('ToolStore')
+  const { service: toolStore } = useAsyncService<EventToolStore>('ToolStore')
   
   if (!toolStore) {
     return <div className="p-4">Loading...</div>

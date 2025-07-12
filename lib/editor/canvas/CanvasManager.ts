@@ -13,11 +13,15 @@ import { TypedEventBus } from '@/lib/events/core/TypedEventBus'
 import { ObjectManager } from './services/ObjectManager'
 import { SelectionManager } from '@/lib/editor/selection/SelectionManager'
 import { SelectionRenderer } from '@/lib/editor/selection/SelectionRenderer'
+import { TransformRenderer } from './TransformRenderer'
 import { calculateFitToScreenScale } from './helpers'
 import type { CanvasObject } from '@/lib/editor/objects/types'
 import { ObjectFilterManager } from '@/lib/editor/filters/ObjectFilterManager'
 import { EventStore } from '@/lib/events/core/EventStore'
 import { ResourceManager } from '@/lib/core/ResourceManager'
+import { CommandManager } from '../commands/CommandManager'
+import { CommandFactory } from '../commands/base/CommandFactory'
+import { KeyboardManager } from './KeyboardManager';
 
 /**
  * Object-based canvas manager implementation
@@ -29,10 +33,16 @@ export class CanvasManager implements ICanvasManager {
   private objectManager: ObjectManager
   private eventStore: EventStore
   private resourceManager: ResourceManager
+  private commandManager: CommandManager
+  private commandFactory: CommandFactory
   
   // Selection system
   private selectionManager: SelectionManager | null = null
   private selectionRenderer: SelectionRenderer | null = null
+  private transformRenderer: TransformRenderer | null = null
+  
+  // Keyboard system
+  private keyboardManager: KeyboardManager | null = null
   
   // Filter system
   private filterManager: ObjectFilterManager | null = null
@@ -54,12 +64,16 @@ export class CanvasManager implements ICanvasManager {
     container: HTMLDivElement,
     typedEventBus: TypedEventBus,
     eventStore: EventStore,
-    resourceManager: ResourceManager
+    resourceManager: ResourceManager,
+    commandManager: CommandManager,
+    commandFactory: CommandFactory
   ) {
     this.container = container
     this.typedEventBus = typedEventBus
     this.eventStore = eventStore
     this.resourceManager = resourceManager
+    this.commandManager = commandManager
+    this.commandFactory = commandFactory
     
     // Create ObjectManager with proper dependencies
     this.objectManager = new ObjectManager(this.id, typedEventBus, eventStore)
@@ -83,6 +97,9 @@ export class CanvasManager implements ICanvasManager {
     this.stage.add(this.contentLayer)
     this.stage.add(this.selectionLayer)
     this.stage.add(this.overlayLayer)
+
+    // Style the container, not the layer, for a true infinite canvas feel
+    // this.styleContainer()
     
     // Initialize state (objects now managed by ObjectManager)
     this._state = {
@@ -105,12 +122,15 @@ export class CanvasManager implements ICanvasManager {
       canRedo: false
     }
     
-    // Render background
-    this.renderBackground()
+    // Background is now handled by CSS on the container
+    // this.renderBackground()
     
     // Initialize selection system
     this.selectionManager = new SelectionManager(this, this.typedEventBus)
     this.selectionRenderer = new SelectionRenderer(this, this.selectionManager)
+    
+    // Initialize transform system
+    this.transformRenderer = new TransformRenderer(this, this.typedEventBus, this.commandManager, this.commandFactory)
     
     // Initialize filter system (will be injected via ServiceContainer)
     this.filterManager = null
@@ -164,24 +184,18 @@ export class CanvasManager implements ICanvasManager {
       this.renderSelection()
     })
   }
-  
-  private renderBackground(): void {
-    this.backgroundLayer.destroyChildren()
-    
+
+  /*
+  private styleContainer(): void {
     const computedStyle = getComputedStyle(document.documentElement)
-    const bgColor = computedStyle.getPropertyValue('--content-background').trim() || '#1a1a1a'
-    
-    const bg = new Konva.Rect({
-      x: 0,
-      y: 0,
-      width: this.stage.width(),
-      height: this.stage.height(),
-      fill: bgColor,
-      listening: false
-    })
-    
-    this.backgroundLayer.add(bg)
-    this.backgroundLayer.draw()
+    const bgColor = computedStyle.getPropertyValue('--content-background').trim() || '#F0F0F0'
+    this.container.style.backgroundColor = bgColor
+  }
+  */
+
+  private renderBackground(): void {
+    // This method is now deprecated in favor of styling the container.
+    // Kept for potential future use (e.g., canvas-specific backgrounds).
   }
   
   private renderObject(objectId: string, object: CanvasObject): void {
@@ -270,75 +284,21 @@ export class CanvasManager implements ICanvasManager {
         
       case 'frame': {
         const frameData = object.data as import('@/lib/editor/objects/types').FrameData
-        
-        // Create a group to hold frame components
-        const frameGroup = new Konva.Group({
+        node = new Konva.Rect({
           id: objectId,
           x: object.x,
           y: object.y,
-          scaleX: object.scaleX,
-          scaleY: object.scaleY,
-          rotation: object.rotation,
-          draggable: !object.locked,
-          visible: object.visible,
-          opacity: object.opacity
-        })
-        
-        // Create background rectangle if fill is not transparent
-        if (frameData.style.fill !== 'transparent') {
-          const backgroundRect = new Konva.Rect({
-            x: 0,
-            y: 0,
-            width: object.width,
-            height: object.height,
-            fill: frameData.style.fill,
-            listening: false // Background doesn't handle events
-          })
-          frameGroup.add(backgroundRect)
-        }
-        
-        // Create optional colored background
-        if (frameData.style.background) {
-          const coloredBackground = new Konva.Rect({
-            x: 0,
-            y: 0,
-            width: object.width,
-            height: object.height,
-            fill: frameData.style.background.color,
-            opacity: frameData.style.background.opacity,
-            listening: false
-          })
-          frameGroup.add(coloredBackground)
-        }
-        
-        // Create border stroke
-        const borderRect = new Konva.Rect({
-          x: 0,
-          y: 0,
           width: object.width,
           height: object.height,
+          fill: frameData.style.fill === 'transparent' ? undefined : frameData.style.fill,
           stroke: frameData.style.stroke.color,
           strokeWidth: frameData.style.stroke.width,
-          dash: frameData.style.stroke.style === 'dashed' ? [5, 5] : [],
-          fill: undefined, // No fill for border
-          listening: true // Border handles events for frame selection
+          dash: frameData.style.stroke.style === 'dashed' ? [10, 5] : [],
+          draggable: !object.locked,
+          visible: object.visible,
+          opacity: object.opacity,
+          listening: true, // Frames should be interactive
         })
-        frameGroup.add(borderRect)
-        
-        // Add frame label if needed (for debugging or UI)
-        if (object.name && object.name !== `Frame ${objectId.slice(-6)}`) {
-          const label = new Konva.Text({
-            x: 5,
-            y: 5,
-            text: object.name,
-            fontSize: 12,
-            fill: frameData.style.stroke.color,
-            listening: false
-          })
-          frameGroup.add(label)
-        }
-        
-        node = frameGroup
         break
       }
         
@@ -545,15 +505,22 @@ export class CanvasManager implements ICanvasManager {
   }
   
   getSelectionManager(): SelectionManager {
-    return this.selectionManager!
+    if (!this.selectionManager) {
+      throw new Error('SelectionManager not initialized')
+    }
+    return this.selectionManager
   }
-  
+
+  /**
+   * Set the keyboard manager (called after creation with proper dependencies)
+   */
+  setKeyboardManager(keyboardManager: KeyboardManager): void {
+    this.keyboardManager = keyboardManager
+  }
+
   // View operations
   getViewport(): { width: number; height: number } {
-    return {
-      width: this._state.viewport.width,
-      height: this._state.viewport.height
-    }
+    return this._state.viewport
   }
   
   getCamera(): { x: number; y: number; zoom: number } {
@@ -789,6 +756,17 @@ export class CanvasManager implements ICanvasManager {
     this.overlayLayer.draw()
   }
   
+  // == Overlay Layer Management ==
+  public addToOverlay(node: Konva.Group | Konva.Shape): void {
+    this.overlayLayer.add(node);
+    this.overlayLayer.batchDraw();
+  }
+
+  public clearOverlay(): void {
+    this.overlayLayer.destroyChildren();
+    this.overlayLayer.batchDraw();
+  }
+
   // Export
   async exportImage(format: 'png' | 'jpeg' | 'webp' = 'png'): Promise<Blob> {
     return new Promise((resolve, reject) => {
@@ -843,6 +821,12 @@ export class CanvasManager implements ICanvasManager {
   destroy(): void {
     if (this.filterManager) {
       this.filterManager.destroy()
+    }
+    if (this.transformRenderer) {
+      this.transformRenderer.destroy()
+    }
+    if (this.keyboardManager) {
+      this.keyboardManager.destroy()
     }
     this.stage.destroy()
   }

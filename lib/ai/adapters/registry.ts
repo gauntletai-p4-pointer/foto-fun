@@ -2,6 +2,7 @@ import { AdapterRegistry, type AdapterRegistration } from './base/AdapterRegistr
 import { AdapterFactory } from './base/AdapterFactory';
 import { ImageGenerationAdapter } from './tools/ImageGenerationAdapter';
 import { MoveAdapter } from './tools/MoveAdapter';
+import { FrameAdapter } from './tools/FrameAdapter';
 import type { ServiceContainer } from '@/lib/core/ServiceContainer';
 
 /**
@@ -28,6 +29,14 @@ export function createAdapterRegistry(serviceContainer: ServiceContainer): Adapt
       category: 'canvas-tool',
       priority: 2,
       AdapterClass: MoveAdapter
+    },
+    {
+      id: 'frame',
+      aiName: 'createFrame',
+      description: 'Create frames for document boundaries and composition guides',
+      category: 'canvas-tool',
+      priority: 3,
+      AdapterClass: FrameAdapter
     }
   ];
 

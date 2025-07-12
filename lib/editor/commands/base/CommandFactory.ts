@@ -1,5 +1,5 @@
 import type { CanvasObject, TextData } from '@/lib/editor/objects/types'
-import type { PixelSelection, SelectionMode, Point } from '@/types'
+import type { PixelSelection, SelectionMode } from '@/types'
 import type { CommandContext } from './Command'
 import type { Command } from './Command'
 import type { ServiceContainer } from '@/lib/core/ServiceContainer'
@@ -53,7 +53,11 @@ export interface CommandFactory {
   createApplySelectionCommand(selectionMask: SelectionMask, mode: SelectionMode): CreateSelectionCommand
 
   // Drawing commands
-  createDrawCommand(objectId: string, imageData: ImageData, strokePath: Point[]): CreateBrushStrokeCommand
+  createDrawCommand(
+    targetObjectId: string,
+    points: import('@/lib/editor/tools/engines/BrushEngine').BrushStrokePoint[],
+    options: import('@/lib/editor/tools/engines/BrushEngine').BrushOptions
+  ): CreateBrushStrokeCommand
 
   // Canvas commands
   createCropCommand(cropOptions: CropOptions): CropCommand
@@ -216,40 +220,23 @@ export class ServiceCommandFactory implements CommandFactory {
   }
 
   // Drawing commands
-  createDrawCommand(objectId: string, imageData: ImageData, strokePath: Point[]): CreateBrushStrokeCommand {
-    // Convert Point[] to BrushStrokePoint[]
-    const brushStrokePoints = strokePath.map((point, index) => ({
-      x: point.x,
-      y: point.y,
-      pressure: 1.0, // Default pressure
-      timestamp: Date.now() + index // Incremental timestamps
-    }));
-    
+  createDrawCommand(
+    targetObjectId: string,
+    points: import('@/lib/editor/tools/engines/BrushEngine').BrushStrokePoint[],
+    options: import('@/lib/editor/tools/engines/BrushEngine').BrushOptions
+  ): CreateBrushStrokeCommand {
+    const strokeData: import('@/lib/editor/tools/engines/BrushEngine').BrushStrokeData = {
+      id: `stroke-${Date.now()}`,
+      targetObjectId,
+      points,
+      options,
+      startTime: Date.now()
+    };
     return new CreateBrushStrokeCommand(
       'Draw brush stroke',
       this.createCommandContext(),
-      { 
-        strokeData: {
-          id: `stroke-${Date.now()}`,
-          targetObjectId: objectId,
-          points: brushStrokePoints,
-          options: {
-            size: 10,
-            opacity: 100,
-            color: '#000000',
-            blendMode: 'normal',
-            pressure: false,
-            flow: 100,
-            hardness: 100,
-            spacing: 25,
-            roundness: 100,
-            angle: 0
-          },
-          startTime: Date.now()
-        },
-        targetObjectId: objectId
-      }
-    )
+      { strokeData, targetObjectId }
+    );
   }
 
   // Canvas commands

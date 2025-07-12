@@ -36,8 +36,10 @@ export class MoveAdapter extends UnifiedToolAdapter<MoveInput, MoveOutput> {
       throw new Error('No objects selected for move operation');
     }
 
-    // Activate move tool
-    await this.dependencies.toolStore.activateTool('move');
+    // Activate move tool if available
+    if (this.dependencies.toolStore) {
+      await this.dependencies.toolStore.activateTool('move');
+    }
     
     // Calculate new positions based on parameters
     const moveOperations = targetObjects.map(obj => {

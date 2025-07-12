@@ -1,4 +1,4 @@
-import React from 'react';
+import type React from 'react';
 
 /**
  * Tool group metadata for UI organization
@@ -7,13 +7,13 @@ export interface ToolGroupMetadata {
   id: string;
   name: string;
   description: string;
-  icon: React.ComponentType;
+  icon: React.ComponentType<{ className?: string }>;
   tools: string[];              // Tool IDs that belong to this group
   defaultTool: string;          // Default tool to activate when group is selected
   showActiveToolIcon: boolean;  // Whether to show active tool icon in UI
   priority: number;             // Sort order in UI (lower = higher priority)
   shortcut?: string;            // Keyboard shortcut for group
-  category: 'core' | 'creative' | 'ai' | 'utility'; // Group category
+  category: 'core' | 'creative' | 'utility' | 'ai'; // Group category
 }
 
 /**
@@ -126,91 +126,4 @@ export class ToolGroupRegistry {
       throw new Error(`Tool group validation failed:\n${errors.join('\n')}`);
     }
   }
-}
-
-/**
- * Default tool groups for the application
- */
-export const DEFAULT_TOOL_GROUPS: ToolGroupMetadata[] = [
-  {
-    id: 'selection-group',
-    name: 'Selection Tools',
-    description: 'Tools for selecting objects and areas',
-    icon: () => React.createElement('div', { className: 'icon-selection' }),
-    tools: ['marquee-rect', 'marquee-ellipse', 'lasso', 'magic-wand', 'quick-selection'],
-    defaultTool: 'marquee-rect',
-    showActiveToolIcon: true,
-    priority: 1,
-    shortcut: 'M',
-    category: 'core'
-  },
-  {
-    id: 'transform-group',
-    name: 'Transform Tools',
-    description: 'Tools for moving, rotating, and transforming objects',
-    icon: () => React.createElement('div', { className: 'icon-transform' }),
-    tools: ['move', 'crop', 'rotate', 'flip'],
-    defaultTool: 'move',
-    showActiveToolIcon: true,
-    priority: 2,
-    shortcut: 'V',
-    category: 'core'
-  },
-  {
-    id: 'drawing-group',
-    name: 'Drawing Tools',
-    description: 'Tools for drawing and painting',
-    icon: () => React.createElement('div', { className: 'icon-drawing' }),
-    tools: ['brush', 'eraser', 'gradient'],
-    defaultTool: 'brush',
-    showActiveToolIcon: true,
-    priority: 3,
-    shortcut: 'B',
-    category: 'creative'
-  },
-  {
-    id: 'shape-group',
-    name: 'Shape Tools',
-    description: 'Tools for creating shapes and frames',
-    icon: () => React.createElement('div', { className: 'icon-shape' }),
-    tools: ['frame'],
-    defaultTool: 'frame',
-    showActiveToolIcon: false,
-    priority: 4,
-    shortcut: 'U',
-    category: 'core'
-  },
-  {
-    id: 'text-group',
-    name: 'Text Tools',
-    description: 'Tools for creating and editing text',
-    icon: () => React.createElement('div', { className: 'icon-text' }),
-    tools: ['horizontal-type', 'vertical-type', 'type-mask', 'type-on-path'],
-    defaultTool: 'horizontal-type',
-    showActiveToolIcon: true,
-    priority: 5,
-    shortcut: 'T',
-    category: 'creative'
-  },
-  {
-    id: 'navigation-group',
-    name: 'Navigation Tools',
-    description: 'Tools for navigating and examining the canvas',
-    icon: () => React.createElement('div', { className: 'icon-navigation' }),
-    tools: ['hand', 'zoom', 'eyedropper'],
-    defaultTool: 'hand',
-    showActiveToolIcon: true,
-    priority: 6,
-    shortcut: 'H',
-    category: 'utility'
-  }
-];
-
-/**
- * Register all default tool groups
- */
-export function registerDefaultToolGroups(registry: ToolGroupRegistry): void {
-  DEFAULT_TOOL_GROUPS.forEach(group => {
-    registry.registerToolGroup(group);
-  });
 } 

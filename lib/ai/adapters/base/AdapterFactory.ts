@@ -33,27 +33,28 @@ export class AdapterFactory {
 
   /**
    * Resolve all dependencies required by adapters
-   * All dependencies are mandatory and resolved synchronously
+   * Only depends on services that are actually registered
    */
   private resolveAdapterDependencies(): AdapterDependencies {
     return {
-      // Core services - ALL MANDATORY
+      // Core services - Available and registered
       eventBus: this.serviceContainer.getSync('TypedEventBus'),
       canvasManager: this.serviceContainer.getSync('CanvasManager'),
       commandManager: this.serviceContainer.getSync('CommandManager'),
       commandFactory: this.serviceContainer.getSync('CommandFactory'),
-      toolStore: this.serviceContainer.getSync('EventToolStore'),
       resourceManager: this.serviceContainer.getSync('ResourceManager'),
       
-      // Adapter-specific services - MANDATORY
+      // Basic services - Available and registered
       parameterConverter: this.serviceContainer.getSync('ParameterConverter'),
-      responseFormatter: this.serviceContainer.getSync('ResponseFormatter'),
-      errorHandler: this.serviceContainer.getSync('ErrorHandler'),
-      performanceMonitor: this.serviceContainer.getSync('PerformanceMonitor'),
-      
-      // AI-specific services - MANDATORY
       modelPreferences: this.serviceContainer.getSync('ModelPreferencesManager'),
-      replicateClient: this.serviceContainer.getSync('ReplicateClient')
+      
+      // Placeholder services for missing dependencies
+      // TODO: Register these services properly when needed
+      toolStore: null, // Will be resolved async when needed
+      responseFormatter: null, // Not implemented yet
+      errorHandler: null, // Not implemented yet
+      performanceMonitor: null, // Not implemented yet
+      replicateClient: null // Not implemented yet
     };
   }
 } 
