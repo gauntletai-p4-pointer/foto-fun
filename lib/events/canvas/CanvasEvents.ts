@@ -1,38 +1,21 @@
 import { CanvasEvent } from '../core/Event'
-import type { BlendMode } from '@/lib/editor/canvas/types'
 import type { CanvasObject } from '@/lib/editor/objects/types'
-// import type Konva from 'konva'
 
 /**
- * Canvas state interface for event application
+ * Canvas state interface for infinite canvas (no size/background)
  */
 export interface CanvasState {
   objects: CanvasObject[]
-  backgroundColor?: string
-  width: number
-  height: number
   version: number
 }
 
 /**
- * New canvas state for Konva-based system
- */
-export interface KonvaCanvasState {
-  objects: CanvasObject[]
-  backgroundColor?: string
-  width: number
-  height: number
-  version: number
-}
-
-/**
- * Object added to canvas
+ * Object added to infinite canvas
  */
 export class ObjectAddedEvent extends CanvasEvent {
   constructor(
     private canvasId: string,
     private object: CanvasObject,
-    private layerId: string | undefined,
     metadata: CanvasEvent['metadata'],
     version?: number
   ) {
@@ -40,11 +23,6 @@ export class ObjectAddedEvent extends CanvasEvent {
   }
   
   apply(currentState: CanvasState): CanvasState {
-    // Add custom properties
-    if (this.layerId) {
-      (this.object as CanvasObject & { layerId?: string }).layerId = this.layerId
-    }
-    
     return {
       ...currentState,
       objects: [...currentState.objects, this.object],
@@ -80,14 +58,13 @@ export class ObjectAddedEvent extends CanvasEvent {
       canvasId: this.canvasId,
       objectType: this.object.type,
       objectId: (this.object as CanvasObject & { id?: string }).id,
-      layerId: this.layerId,
       objectData: { ...this.object }
     }
   }
 }
 
 /**
- * Object removed from canvas
+ * Object removed from infinite canvas
  */
 export class ObjectRemovedEvent extends CanvasEvent {
   private objectIndex: number = -1
@@ -113,11 +90,9 @@ export class ObjectRemovedEvent extends CanvasEvent {
   }
   
   reverse(): ObjectAddedEvent {
-    const layerId = (this.object as CanvasObject & { layerId?: string }).layerId
     return new ObjectAddedEvent(
       this.canvasId,
       this.object,
-      layerId,
       this.metadata
     )
   }
@@ -142,7 +117,7 @@ export class ObjectRemovedEvent extends CanvasEvent {
 }
 
 /**
- * Object modified on canvas
+ * Object modified on infinite canvas
  */
 export class ObjectModifiedEvent extends CanvasEvent {
   private previousState: Record<string, unknown>
@@ -204,7 +179,7 @@ export class ObjectModifiedEvent extends CanvasEvent {
 }
 
 /**
- * Multiple objects modified (for efficiency)
+ * Multiple objects modified in batch on infinite canvas
  */
 export class ObjectsBatchModifiedEvent extends CanvasEvent {
   constructor(
@@ -232,8 +207,8 @@ export class ObjectsBatchModifiedEvent extends CanvasEvent {
   }
   
   reverse(): ObjectsBatchModifiedEvent {
-    // Reverse the modifications
-    const reversedMods = this.modifications.map(({ object, previousState, newState }) => ({
+    // Reverse all modifications
+    const reversedModifications = this.modifications.map(({ object, previousState, newState }) => ({
       object,
       previousState: newState,
       newState: previousState
@@ -241,7 +216,7 @@ export class ObjectsBatchModifiedEvent extends CanvasEvent {
     
     return new ObjectsBatchModifiedEvent(
       this.canvasId,
-      reversedMods,
+      reversedModifications,
       this.metadata
     )
   }
@@ -253,386 +228,19 @@ export class ObjectsBatchModifiedEvent extends CanvasEvent {
   }
   
   getDescription(): string {
-    return `Modify ${this.modifications.length} objects`
+    return `Batch modify ${this.modifications.length} objects`
   }
   
   protected getEventData(): Record<string, unknown> {
     return {
       canvasId: this.canvasId,
+      modificationsCount: this.modifications.length,
       modifications: this.modifications.map(({ object, previousState, newState }) => ({
-        objectType: object.type,
         objectId: (object as CanvasObject & { id?: string }).id,
+        objectType: object.type,
         previousState,
         newState
       }))
-    }
-  }
-}
-
-/**
- * Multiple objects modified in Konva canvas (for efficiency)
- */
-export class KonvaObjectsBatchModifiedEvent extends CanvasEvent {
-  constructor(
-    private canvasId: string,
-    private modifications: Array<{
-      objectId: string
-      previousState: Record<string, unknown>
-      newState: Record<string, unknown>
-    }>,
-    metadata: CanvasEvent['metadata']
-  ) {
-    super('canvas.objects.batch.modified', canvasId, metadata)
-  }
-  
-  apply(currentState: KonvaCanvasState): KonvaCanvasState {
-    // Apply all modifications
-    this.modifications.forEach(({ objectId, newState }) => {
-      const object = currentState.objects.find(obj => obj.id === objectId)
-      if (object) {
-        Object.assign(object, newState)
-      }
-    })
-    
-    return {
-      ...currentState,
-      version: currentState.version + 1
-    }
-  }
-  
-  reverse(): KonvaObjectsBatchModifiedEvent {
-    // Reverse the modifications
-    const reversedMods = this.modifications.map(({ objectId, previousState, newState }) => ({
-      objectId,
-      previousState: newState,
-      newState: previousState
-    }))
-    
-    return new KonvaObjectsBatchModifiedEvent(
-      this.canvasId,
-      reversedMods,
-      this.metadata
-    )
-  }
-  
-  canApply(currentState: KonvaCanvasState): boolean {
-    return this.modifications.every(({ objectId }) => 
-      currentState.objects.some(obj => obj.id === objectId)
-    )
-  }
-  
-  getDescription(): string {
-    return `Modify ${this.modifications.length} objects`
-  }
-  
-  protected getEventData(): Record<string, unknown> {
-    return {
-      canvasId: this.canvasId,
-      modifications: this.modifications
-    }
-  }
-}
-
-/**
- * Canvas background changed
- */
-export class CanvasBackgroundChangedEvent extends CanvasEvent {
-  constructor(
-    private canvasId: string,
-    private previousColor: string | undefined,
-    private newColor: string,
-    metadata: CanvasEvent['metadata']
-  ) {
-    super('canvas.background.changed', canvasId, metadata)
-  }
-  
-  apply(currentState: CanvasState): CanvasState {
-    return {
-      ...currentState,
-      backgroundColor: this.newColor,
-      version: currentState.version + 1
-    }
-  }
-  
-  reverse(): CanvasBackgroundChangedEvent {
-    return new CanvasBackgroundChangedEvent(
-      this.canvasId,
-      this.newColor,
-      this.previousColor || 'white',
-      this.metadata
-    )
-  }
-  
-  canApply(): boolean {
-    return true
-  }
-  
-  getDescription(): string {
-    return `Change background color to ${this.newColor}`
-  }
-  
-  protected getEventData(): Record<string, unknown> {
-    return {
-      canvasId: this.canvasId,
-      previousColor: this.previousColor,
-      newColor: this.newColor
-    }
-  }
-}
-
-/**
- * Canvas resized
- */
-export class CanvasResizedEvent extends CanvasEvent {
-  constructor(
-    private canvasId: string,
-    private previousSize: { width: number; height: number },
-    private newSize: { width: number; height: number },
-    metadata: CanvasEvent['metadata']
-  ) {
-    super('canvas.resized', canvasId, metadata)
-  }
-  
-  apply(currentState: CanvasState): CanvasState {
-    return {
-      ...currentState,
-      width: this.newSize.width,
-      height: this.newSize.height,
-      version: currentState.version + 1
-    }
-  }
-  
-  reverse(): CanvasResizedEvent {
-    return new CanvasResizedEvent(
-      this.canvasId,
-      this.newSize,
-      this.previousSize,
-      this.metadata
-    )
-  }
-  
-  canApply(): boolean {
-    return true
-  }
-  
-  getDescription(): string {
-    return `Resize canvas to ${this.newSize.width}x${this.newSize.height}`
-  }
-  
-  protected getEventData(): Record<string, unknown> {
-    return {
-      canvasId: this.canvasId,
-      previousSize: this.previousSize,
-      newSize: this.newSize
-    }
-  }
-} 
-
-/**
- * Konva object added to canvas
- */
-export class KonvaObjectAddedEvent extends CanvasEvent {
-  constructor(
-    private canvasId: string,
-    private objectId: string,
-    private objectType: string,
-    private objectData: Record<string, unknown>,
-    private layerId: string,
-    metadata: CanvasEvent['metadata']
-  ) {
-    super('canvas.konva.object.added', canvasId, metadata)
-  }
-  
-  apply(currentState: KonvaCanvasState): KonvaCanvasState {
-    // Create new CanvasObject using the new object-based model
-    const newObject: CanvasObject = {
-      id: this.objectId,
-      type: this.objectType as CanvasObject['type'],
-      name: this.objectData.name as string || this.objectType,
-      visible: this.objectData.visible as boolean ?? true,
-      locked: this.objectData.locked as boolean ?? false,
-      opacity: this.objectData.opacity as number ?? 1,
-      blendMode: (this.objectData.blendMode as BlendMode) || 'normal',
-      x: (this.objectData.x as number) || 0,
-      y: (this.objectData.y as number) || 0,
-      width: (this.objectData.width as number) || 100,
-      height: (this.objectData.height as number) || 100,
-      rotation: (this.objectData.rotation as number) || 0,
-      scaleX: (this.objectData.scaleX as number) || 1,
-      scaleY: (this.objectData.scaleY as number) || 1,
-      zIndex: (this.objectData.zIndex as number) || 0,
-      filters: (this.objectData.filters as Array<import('@/lib/editor/canvas/types').Filter>) || [],
-      adjustments: (this.objectData.adjustments as Array<import('@/lib/editor/objects/types').Adjustment>) || [],
-      data: this.objectData.data as import('@/lib/editor/objects/types').ImageData | import('@/lib/editor/objects/types').TextData | import('@/lib/editor/objects/types').ShapeData || { content: '', font: 'Arial', fontSize: 16, color: '#000000', align: 'left' }
-    }
-    
-    return {
-      ...currentState,
-      objects: [...currentState.objects, newObject],
-      version: currentState.version + 1
-    }
-  }
-  
-  reverse(): KonvaObjectRemovedEvent {
-    return new KonvaObjectRemovedEvent(
-      this.canvasId,
-      this.objectId,
-      this.metadata
-    )
-  }
-  
-  canApply(currentState: KonvaCanvasState): boolean {
-    return !currentState.objects.some(obj => obj.id === this.objectId)
-  }
-  
-  getDescription(): string {
-    return `Add ${this.objectType} to canvas`
-  }
-  
-  protected getEventData(): Record<string, unknown> {
-    return {
-      canvasId: this.canvasId,
-      objectId: this.objectId,
-      objectType: this.objectType,
-      layerId: this.layerId,
-      objectData: this.objectData
-    }
-  }
-}
-
-/**
- * Konva object removed from canvas
- */
-export class KonvaObjectRemovedEvent extends CanvasEvent {
-  private removedObject: CanvasObject | null = null
-  
-  constructor(
-    private canvasId: string,
-    private objectId: string,
-    metadata: CanvasEvent['metadata']
-  ) {
-    super('canvas.konva.object.removed', canvasId, metadata)
-  }
-  
-  apply(currentState: KonvaCanvasState): KonvaCanvasState {
-    // Find and store the object for undo
-    this.removedObject = currentState.objects.find(obj => obj.id === this.objectId) || null
-    
-    return {
-      ...currentState,
-      objects: currentState.objects.filter(obj => obj.id !== this.objectId),
-      version: currentState.version + 1
-    }
-  }
-  
-  reverse(): KonvaObjectAddedEvent {
-    if (!this.removedObject) {
-      throw new Error('Cannot reverse object removal: object data not available')
-    }
-    
-    return new KonvaObjectAddedEvent(
-      this.canvasId,
-      this.removedObject.id,
-      this.removedObject.type,
-      {
-        name: this.removedObject.name,
-        visible: this.removedObject.visible,
-        locked: this.removedObject.locked,
-        opacity: this.removedObject.opacity,
-        blendMode: this.removedObject.blendMode,
-        x: this.removedObject.x,
-        y: this.removedObject.y,
-        width: this.removedObject.width,
-        height: this.removedObject.height,
-        rotation: this.removedObject.rotation,
-        scaleX: this.removedObject.scaleX,
-        scaleY: this.removedObject.scaleY,
-        zIndex: this.removedObject.zIndex,
-        filters: this.removedObject.filters,
-        adjustments: this.removedObject.adjustments,
-        data: this.removedObject.data
-      },
-      'default-layer',
-      this.metadata
-    )
-  }
-  
-  canApply(currentState: KonvaCanvasState): boolean {
-    return currentState.objects.some(obj => obj.id === this.objectId)
-  }
-  
-  getDescription(): string {
-    return `Remove ${this.removedObject?.type || 'object'} from canvas`
-  }
-  
-  protected getEventData(): Record<string, unknown> {
-    return {
-      canvasId: this.canvasId,
-      objectId: this.objectId,
-      objectType: this.removedObject?.type
-    }
-  }
-}
-
-/**
- * Konva object modified on canvas
- */
-export class KonvaObjectModifiedEvent extends CanvasEvent {
-  constructor(
-    private canvasId: string,
-    private objectId: string,
-    private previousState: Record<string, unknown>,
-    private newState: Record<string, unknown>,
-    metadata: CanvasEvent['metadata']
-  ) {
-    super('canvas.konva.object.modified', canvasId, metadata)
-  }
-  
-  apply(currentState: KonvaCanvasState): KonvaCanvasState {
-    const objectIndex = currentState.objects.findIndex(obj => obj.id === this.objectId)
-    if (objectIndex === -1) return currentState
-    
-    // Create updated object
-    const updatedObject = {
-      ...currentState.objects[objectIndex],
-      ...this.newState
-    }
-    
-    const newObjects = [...currentState.objects]
-    newObjects[objectIndex] = updatedObject
-    
-    return {
-      ...currentState,
-      objects: newObjects,
-      version: currentState.version + 1
-    }
-  }
-  
-  reverse(): KonvaObjectModifiedEvent {
-    return new KonvaObjectModifiedEvent(
-      this.canvasId,
-      this.objectId,
-      this.newState,
-      this.previousState,
-      this.metadata
-    )
-  }
-  
-  canApply(currentState: KonvaCanvasState): boolean {
-    return currentState.objects.some(obj => obj.id === this.objectId)
-  }
-  
-  getDescription(): string {
-    const changes = Object.keys(this.newState).join(', ')
-    return `Modify object: ${changes}`
-  }
-  
-  protected getEventData(): Record<string, unknown> {
-    return {
-      canvasId: this.canvasId,
-      objectId: this.objectId,
-      previousState: this.previousState,
-      newState: this.newState
     }
   }
 } 

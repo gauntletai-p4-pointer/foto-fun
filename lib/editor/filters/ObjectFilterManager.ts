@@ -1,13 +1,13 @@
 /**
- * ObjectFilterManager - Manages filter application to objects
- * Bridges WebGL and Konva filters with the object-based architecture
+ * ObjectFilterManager - Manages filters for canvas objects
+ * Now uses dependency injection instead of singleton pattern
  */
 
 import type { Filter } from '@/lib/editor/canvas/types'
 import type { CanvasObject, Adjustment } from '@/lib/editor/objects/types'
 import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
-import { WebGLFilterManager } from './WebGLFilterManager'
-import { WebGLFilterEngine } from './WebGLFilterEngine'
+import type { WebGLFilterEngine } from './WebGLFilterEngine'
+import type { ServiceContainer } from '@/lib/core/ServiceContainer'
 import type { ExecutionContext } from '@/lib/events/execution/ExecutionContext'
 import { EventStore } from '@/lib/events/core/EventStore'
 import { TypedEventBus } from '@/lib/events/core/TypedEventBus'
@@ -15,19 +15,17 @@ import { ResourceManager } from '@/lib/core/ResourceManager'
 import Konva from 'konva'
 // import { nanoid } from 'nanoid'
 
+/**
+ * ObjectFilterManager - Manages filters for canvas objects
+ * Now uses dependency injection instead of singleton pattern
+ */
 export class ObjectFilterManager {
-  private webglFilterManager: WebGLFilterManager
   private webglEngine: WebGLFilterEngine
+  private activeFilters = new Map<string, Filter[]>()
   private filterCache = new Map<string, HTMLCanvasElement>()
   
-  constructor(
-    private canvas: CanvasManager,
-    private eventStore: EventStore,
-    private typedEventBus: TypedEventBus,
-    private resourceManager: ResourceManager
-  ) {
-    this.webglFilterManager = new WebGLFilterManager(eventStore, typedEventBus, resourceManager)
-    this.webglEngine = WebGLFilterEngine.getInstance()
+  constructor(serviceContainer: ServiceContainer) {
+    this.webglEngine = serviceContainer.getSync<WebGLFilterEngine>('WebGLFilterEngine')
   }
   
   /**

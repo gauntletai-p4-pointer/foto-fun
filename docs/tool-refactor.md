@@ -10,6 +10,46 @@
 
 **Comprehensive Solution:** Implement senior-level architectural patterns including state machine, dependency injection, event-driven communication, and defensive programming across all tools.
 
+## 🚨 **CRITICAL: Domain Model Migration Required**
+
+**IMPORTANT**: During this tool refactoring, we are **simultaneously migrating from Layer-based to Object-based architecture**. This affects tool operations, event names, and target terminology.
+
+### **Legacy (Being Removed):**
+```typescript
+// ❌ OLD: Layer-based operations
+tool.applyToLayer(layerId)
+tool.createLayer(layerData)
+tool.selectLayers(layerIds)
+
+// ❌ OLD Event Names
+'tool.layer.created'
+'tool.layer.modified'
+'tool.layer.selected'
+
+// ❌ OLD Tool Targets
+selectedLayers: Layer[]
+currentLayer: Layer
+layerOperations: LayerOperations
+```
+
+### **Modern (Target Architecture):**
+```typescript
+// ✅ NEW: Object-based operations
+tool.applyToObject(objectId)
+tool.createObject(objectData)
+tool.selectObjects(objectIds)
+
+// ✅ NEW Event Names
+'tool.object.created'
+'tool.object.modified'
+'tool.object.selected'
+
+// ✅ NEW Tool Targets
+selectedObjects: CanvasObject[]
+currentObject: CanvasObject
+objectOperations: ObjectOperations
+```
+
 ## Senior-Level Architecture Patterns
 
 ### 1. State Machine Pattern for Tool Lifecycle
@@ -702,16 +742,35 @@ export class SelectionBehavior implements ToolBehavior {
 
 ### Phase 1: Core Architecture Foundation (Days 1-3)
 
-#### Step 1.1: Update Core Types and Interfaces
-- [ ] Add `ToolState` enum and interfaces to `lib/editor/canvas/types.ts`
-- [ ] Create `ToolDependencies` interface
-- [ ] Add `ToolOptions` and `ToolOptionDefinition` interfaces
-- [ ] Update `Tool` interface with state machine properties
+#### Step 1.1: Domain Model Migration (CRITICAL FIRST STEP)
+- [ ] **Migrate Tool Target Terminology**: Update all tools to use Object-based terminology
+  - [ ] Replace `selectedLayers` with `selectedObjects` in all tool files
+  - [ ] Replace `currentLayer` with `currentObject` references
+  - [ ] Update `layerOperations` to `objectOperations` throughout tools
+  - [ ] Change `applyToLayer()` methods to `applyToObject()`
+  - [ ] Update event names from `tool.layer.*` to `tool.object.*`
+- [ ] **Update Tool Event Names**: Migrate all tool-emitted events
+  - [ ] `'tool.layer.created'` → `'tool.object.created'`
+  - [ ] `'tool.layer.modified'` → `'tool.object.modified'`
+  - [ ] `'tool.layer.selected'` → `'tool.object.selected'`
+  - [ ] `'tool.layer.deleted'` → `'tool.object.deleted'`
+- [ ] **Update Tool Interfaces**: Change tool method signatures
+  - [ ] `getSelectedLayers()` → `getSelectedObjects()`
+  - [ ] `createLayer()` → `createObject()`
+  - [ ] `selectLayers()` → `selectObjects()`
 
-#### Step 1.2: Implement Service Container Integration
+#### Step 1.2: Update Core Types and Interfaces
+- [ ] Add `ToolState` enum and interfaces to `lib/editor/canvas/types.ts`
+- [ ] Create `ToolDependencies` interface with Object-based services
+- [ ] Add `ToolOptions` and `ToolOptionDefinition` interfaces
+- [ ] Update `Tool` interface with state machine properties and Object terminology
+
+#### Step 1.3: Implement Service Container Integration
 - [ ] Add `resolveToolDependencies()` method to ServiceContainer
-- [ ] Update ServiceContainer registration for all tool dependencies
+- [ ] Update ServiceContainer registration for all tool dependencies (use Object-based services)
 - [ ] Add proper lifecycle management for tool dependencies
+- [ ] Register `ObjectManager` instead of `LayerManager`
+- [ ] Register `ObjectStore` instead of `LayerStore`
 
 #### Step 1.3: Create Tool Factory System
 - [ ] Implement `ToolFactory` class with dependency injection
@@ -750,8 +809,35 @@ export class SelectionBehavior implements ToolBehavior {
 
 ### Phase 2: Tool Migration with Senior Patterns (Days 4-10)
 
-#### Step 2.1: Transform Tools (Priority 1) - Complete Architecture Refactor
-**Tools:** move, crop, rotate, flip, resize, hand, zoom
+#### Step 2.1: Core Tools (Priority 1) - Complete Architecture Refactor
+**Tools:** frame, move, crop, rotate, flip, resize, hand, zoom
+
+- [ ] **Frame Tool** - `lib/editor/tools/shapes/FrameTool.ts` (FIRST TOOL - Top-Left Position)
+  - [ ] **Domain Migration**: Implement as reference Object-based architecture tool
+    - [ ] Create `FrameObject` interface extending `CanvasObject`
+    - [ ] Implement object-based operations: `createFrameObject()`, `updateFrameObject()`
+    - [ ] Use object terminology throughout (no layer references)
+  - [ ] **Dependency Injection**: Full constructor injection pattern
+  - [ ] **State Machine**: Implement complete tool state management
+  - [ ] **Type-Safe Options**: Define comprehensive FrameTool options interface
+    ```typescript
+    interface FrameToolOptions {
+      fill: FillOptions;
+      stroke: StrokeOptions;
+      effects: EffectOptions;
+      presets: PresetOptions;
+      behavior: BehaviorOptions;
+    }
+    ```
+  - [ ] **Command Pattern**: CreateFrameCommand, UpdateFrameCommand, CreateBackgroundCommand
+  - [ ] **Behavior Composition**: Add FrameBehavior for preset management
+  - [ ] **Performance**: Debounced preview updates and cached preset calculations
+  - [ ] **Event-Driven**: Frame creation/modification events for UI synchronization
+  - [ ] **Plugin Support**: Add document-preset and snap-to-size plugins
+  - [ ] **Preset System**: Built-in document presets (A4, Instagram, business cards, etc.)
+  - [ ] **Background Creation**: One-click background frame creation workflow
+  - [ ] Test frame creation with all preset types and custom dimensions
+  - [ ] Test object-based architecture patterns as reference implementation
 
 - [ ] **MoveTool** - `lib/editor/tools/transform/moveTool.ts`
   - [ ] **Dependency Injection**: Replace any singleton imports with constructor injection
@@ -1188,8 +1274,8 @@ For each tool, verify:
 - [ ] Event queue system (0%)
 
 ### Phase 2: Tool Migration with Senior Patterns (Days 4-10)
-**Progress:** 0/45 tools migrated (0%)
-- **Transform Tools (7):** 0/7 complete (0%)
+**Progress:** 0/46 tools migrated (0%)
+- **Core Tools (8):** 0/8 complete (0%)
 - **Selection Tools (5):** 0/5 complete (0%)
 - **Drawing Tools (3):** 0/3 complete (0%)
 - **Text Tools (4):** 0/4 complete (0%)
@@ -1210,15 +1296,15 @@ For each tool, verify:
 - [ ] Final validation (0%)
 
 ### Overall Progress Metrics
-- **Total Items:** 59 major items
-- **Completed:** 0/59 (0%)
-- **In Progress:** 0/59 (0%)
-- **Blocked:** 0/59 (0%)
+- **Total Items:** 60 major items
+- **Completed:** 0/60 (0%)
+- **In Progress:** 0/60 (0%)
+- **Blocked:** 0/60 (0%)
 
 ### Quality Gates
 - [ ] **Gate 1:** Core architecture compiles and passes basic tests
 - [ ] **Gate 2:** First 5 tools migrated and fully functional
-- [ ] **Gate 3:** All transform tools working with new architecture
+- [ ] **Gate 3:** All core tools (including Frame Tool) working with new architecture
 - [ ] **Gate 4:** All tools migrated and race condition eliminated
 - [ ] **Gate 5:** Performance benchmarks met or exceeded
 - [ ] **Gate 6:** Full integration testing passed

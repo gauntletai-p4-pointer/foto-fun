@@ -539,8 +539,8 @@ export function MenuBar() {
 
       {/* Export Dialog */}
       <ExportDialog
-        open={exportDialogOpen}
-        onOpenChange={setExportDialogOpen}
+        isOpen={exportDialogOpen}
+        onClose={() => setExportDialogOpen(false)}
       />
     </>
   )

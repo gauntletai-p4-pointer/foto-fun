@@ -357,23 +357,15 @@ export class EventToolStore extends BaseStore<ToolState> {
   }
 }
 
-// Export singleton instance and hook
-let eventToolStore: EventToolStore | null = null
+// React hook for compatibility (will be updated to use ServiceContainer)
+import { useStore } from '../base/BaseStore' 
 
-export function getEventToolStore(eventStore: EventStore, typedEventBus: TypedEventBus): EventToolStore {
-  if (!eventToolStore) {
-    eventToolStore = new EventToolStore(eventStore, typedEventBus)
-  }
-  return eventToolStore
-}
-
-// React hook
-import { useStore } from '../base/BaseStore'
-import { getTypedEventBus } from '@/lib/events/core/TypedEventBus'
-
-export function useEventToolStore(): ToolState {
-  const eventStore = EventStore.getInstance()
-  const typedEventBus = getTypedEventBus()
-  const store = getEventToolStore(eventStore, typedEventBus)
-  return useStore(store)
+/**
+ * React hook to use the EventToolStore
+ * @deprecated Use useService<EventToolStore>('ToolStore') instead
+ */
+export function useEventToolStore() {
+  // This is a temporary compatibility hook
+  // In the new architecture, components should use useService('ToolStore')
+  throw new Error('useEventToolStore is deprecated. Use useService<EventToolStore>("ToolStore") instead.')
 } 

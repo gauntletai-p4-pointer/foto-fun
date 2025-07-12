@@ -1,2 +1,3 @@
-export { EventTextStore, useEventTextStore, getEventTextStore } from './EventTextStore'
-export type { TextStoreState } from './EventTextStore' 
+// Export only the EventTextStore class - singleton pattern eliminated
+export { EventTextStore } from './EventTextStore'
+export type { TextStoreState, TextStoreConfig } from './EventTextStore' 

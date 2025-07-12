@@ -339,11 +339,12 @@ class HistoryRedoEvent extends Event {
   }
 }
 
-// Singleton instance
+// Legacy singleton function - will be removed in Phase 2 completion
 let historyStoreInstance: EventBasedHistoryStore | null = null
 
 /**
  * Get or create the singleton history store instance
+ * @deprecated Use ServiceContainer instead
  */
 export function getHistoryStore(eventStore: EventStore, typedEventBus: TypedEventBus): EventBasedHistoryStore {
   if (!historyStoreInstance) {

@@ -1,7 +1,13 @@
 import Konva from 'konva'
 import type { CanvasObject } from '@/lib/editor/objects/types'
-import { getTypedEventBus } from '@/lib/events/core/TypedEventBus'
+import type { TypedEventBus } from '@/lib/events/core/TypedEventBus'
 import { nanoid } from 'nanoid'
+
+interface LayerStylesConfig {
+  quality?: 'low' | 'medium' | 'high'
+  realtime?: boolean
+  caching?: boolean
+}
 
 // Layer style types
 export interface DropShadowStyle {
@@ -100,13 +106,27 @@ export interface LayerStyles {
 }
 
 /**
- * Enhanced Layer Styles implementation for Konva
- * Provides Photoshop-like layer effects
+ * Enhanced Layer Styles - Professional-grade text and shape effects
+ * Now uses dependency injection instead of singleton pattern
  */
 export class EnhancedLayerStyles {
-  private typedEventBus = getTypedEventBus()
+  private typedEventBus: TypedEventBus
+  private config: LayerStylesConfig
   private effectCache = new Map<string, Konva.Group>()
-  
+
+  constructor(
+    typedEventBus: TypedEventBus,
+    config: LayerStylesConfig = {}
+  ) {
+    this.typedEventBus = typedEventBus
+    this.config = {
+      quality: 'high',
+      realtime: true,
+      caching: true,
+      ...config
+    }
+  }
+
   /**
    * Apply layer styles to a Konva node
    * Returns a group containing the styled node

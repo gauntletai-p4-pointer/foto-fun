@@ -1,222 +1,221 @@
 import { EventStore } from './EventStore'
 import { TypedEventBus } from './TypedEventBus'
-import type { Event } from './Event'
-import type { Selection, Layer } from '@/lib/editor/canvas/types'
+import type { Selection } from '@/lib/editor/canvas/types'
 import type { CanvasObject } from '@/lib/editor/objects/types'
 
+export interface EventStoreBridgeConfig {
+  batchingEnabled?: boolean
+  batchSize?: number
+  batchTimeout?: number
+  errorHandling?: 'log' | 'throw' | 'ignore'
+  debugging?: boolean
+}
+
 /**
- * Bridge between EventStore (event sourcing) and TypedEventBus (UI updates)
- * 
- * This bridge listens to all events in the EventStore and emits corresponding
- * events on the TypedEventBus for UI components to react to.
- * 
- * Architecture:
- * - EventStore: Source of truth, handles versioning, persistence, undo/redo
- * - TypedEventBus: Lightweight UI notifications, no persistence
- * - This bridge: Converts Event objects to typed UI events
+ * Bridge between EventStore and TypedEventBus
+ * Handles event persistence and real-time notifications
  */
 export class EventStoreBridge {
-  private static instance: EventStoreBridge
-  private eventStore: EventStore
-  private typedEventBus: TypedEventBus
-  private unsubscribe: (() => void) | null = null
-  
-  private constructor(eventStore: EventStore, typedEventBus: TypedEventBus) {
-    this.eventStore = eventStore
-    this.typedEventBus = typedEventBus
-  }
-  
-  static getInstance(eventStore: EventStore, typedEventBus: TypedEventBus): EventStoreBridge {
-    if (!EventStoreBridge.instance) {
-      EventStoreBridge.instance = new EventStoreBridge(eventStore, typedEventBus)
+  private config: EventStoreBridgeConfig
+  private disposed = false
+  private batchQueue: any[] = []
+  private batchTimer: NodeJS.Timeout | null = null
+
+  constructor(
+    private eventStore: EventStore,
+    private typedEventBus: TypedEventBus,
+    config: EventStoreBridgeConfig = {}
+  ) {
+    this.config = {
+      batchingEnabled: true,
+      batchSize: 10,
+      batchTimeout: 100,
+      errorHandling: 'log',
+      debugging: false,
+      ...config
     }
-    return EventStoreBridge.instance
+    this.initialize()
   }
-  
-  /**
-   * Start bridging events from EventStore to TypedEventBus
-   */
-  start(): void {
-    if (this.unsubscribe) {
-      console.warn('[EventStoreBridge] Already started')
-      return
-    }
-    
-    // Subscribe to all events in EventStore
-    this.unsubscribe = this.eventStore.subscribe('*', (event) => {
-      this.handleEvent(event)
+
+  private initialize(): void {
+    this.setupEventHandlers()
+    this.setupBatching()
+    this.setupErrorHandling()
+  }
+
+  private setupEventHandlers(): void {
+    // Canvas events
+    this.typedEventBus.on('canvas.ready', (data) => {
+      this.persistEvent('canvas.ready', data)
     })
-    
-    console.log('[EventStoreBridge] Started bridging events')
+
+    this.typedEventBus.on('canvas.object.added', (data) => {
+      this.persistEvent('canvas.object.added', data)
+    })
+
+    this.typedEventBus.on('canvas.object.modified', (data) => {
+      this.persistEvent('canvas.object.modified', data)
+    })
+
+    this.typedEventBus.on('canvas.object.removed', (data) => {
+      this.persistEvent('canvas.object.removed', data)
+    })
+
+    // Selection events
+    this.typedEventBus.on('selection.changed', (data) => {
+      this.persistEvent('selection.changed', data)
+    })
+
+    // Tool events
+    this.typedEventBus.on('tool.activated', (data) => {
+      this.persistEvent('tool.activated', data)
+    })
+
+    this.typedEventBus.on('tool.option.changed', (data) => {
+      this.persistEvent('tool.option.changed', data)
+    })
+
+    // Project events (not document events)
+    this.typedEventBus.on('project.created', (data) => {
+      this.persistEvent('project.created', data)
+    })
+
+    this.typedEventBus.on('project.saved', (data) => {
+      this.persistEvent('project.saved', data)
+    })
+
+    // History events
+    this.typedEventBus.on('history.navigated', (data) => {
+      this.persistEvent('history.navigated', data)
+    })
   }
-  
-  /**
-   * Stop bridging events
-   */
-  stop(): void {
-    if (this.unsubscribe) {
-      this.unsubscribe()
-      this.unsubscribe = null
-      console.log('[EventStoreBridge] Stopped bridging events')
-    }
+
+  private setupBatching(): void {
+    if (!this.config.batchingEnabled) return
+
+    // Batching logic for performance
+    this.batchTimer = setInterval(() => {
+      this.processBatch()
+    }, this.config.batchTimeout)
   }
-  
-  /**
-   * Handle an event from EventStore and emit to TypedEventBus
-   */
-  private handleEvent(event: Event): void {
+
+  private setupErrorHandling(): void {
+    if (this.config.errorHandling === 'ignore') return
+
+    process.on('unhandledRejection', (error) => {
+      this.handleError(new Error(`Unhandled rejection in EventStoreBridge: ${error}`))
+    })
+  }
+
+  private persistEvent(eventType: string, eventData: unknown): void {
     try {
-      // Get the serialized event data which includes the 'data' property
-      const serializedEvent = event.toJSON()
-      const eventData = serializedEvent.data as Record<string, unknown>
+      if (this.disposed) return
+
+      // Create event for persistence
+      const event = this.createEventForPersistence(eventType, eventData)
       
-      // Use event type to determine what to emit
-      switch (event.type) {
-        case 'canvas.object.added': {
-          // For ObjectAddedEvent, we need to reconstruct the data
-          const data = eventData as { canvasId: string; objectData: unknown; layerId?: string }
-          this.typedEventBus.emit('canvas.object.added', {
-            canvasId: data.canvasId,
-            object: data.objectData as CanvasObject,
-            layerId: data.layerId
-          })
-          break
-        }
-        
-        case 'canvas.object.modified': {
-          const data = eventData as { canvasId: string; objectId: string; previousState: unknown; newState: unknown }
-          this.typedEventBus.emit('canvas.object.modified', {
-            canvasId: data.canvasId,
-            objectId: data.objectId,
-            previousState: data.previousState as Record<string, unknown>,
-            newState: data.newState as Record<string, unknown>
-          })
-          break
-        }
-        
-        case 'canvas.object.removed': {
-          const data = eventData as { canvasId: string; objectId: string }
-          this.typedEventBus.emit('canvas.object.removed', {
-            canvasId: data.canvasId,
-            objectId: data.objectId
-          })
-          break
-        }
-        
-        case 'canvas.objects.batch.modified': {
-          const data = eventData as { canvasId: string; modifications: Array<{
-            object: CanvasObject
-            previousState: Record<string, unknown>
-            newState: Record<string, unknown>
-          }> }
-          this.typedEventBus.emit('canvas.objects.batch.modified', {
-            canvasId: data.canvasId,
-            modifications: data.modifications
-          })
-          break
-        }
-        
-        // Layer events
-        case 'layer.created': {
-          const data = eventData as { layer: Layer }
-          this.typedEventBus.emit('layer.created', {
-            layer: data.layer
-          })
-          break
-        }
-        
-        case 'layer.removed': {
-          const data = eventData as { layerId: string }
-          this.typedEventBus.emit('layer.removed', {
-            layerId: data.layerId
-          })
-          break
-        }
-        
-        case 'layer.modified': {
-          const data = eventData as { layerId: string; modifications: Partial<Layer> }
-          this.typedEventBus.emit('layer.modified', {
-            layerId: data.layerId,
-            modifications: data.modifications
-          })
-          break
-        }
-        
-        case 'layers.reordered': {
-          const data = eventData as { layerIds: string[]; previousOrder: string[] }
-          this.typedEventBus.emit('layer.reordered', {
-            layerIds: data.layerIds,
-            previousOrder: data.previousOrder
-          })
-          break
-        }
-        
-        // Selection events
-        case 'selection.changed': {
-          const data = eventData as { selection: Selection | null; previousSelection: Selection | null }
-          this.typedEventBus.emit('selection.changed', {
-            selection: data.selection,
-            previousSelection: data.previousSelection
-          })
-          break
-        }
-        
-        case 'selection.cleared': {
-          const data = eventData as { previousSelection: Selection }
-          this.typedEventBus.emit('selection.cleared', {
-            previousSelection: data.previousSelection
-          })
-          break
-        }
-        
-        // Canvas state events
-        case 'canvas.resized': {
-          const data = eventData as { previousSize: { width: number; height: number }; newSize: { width: number; height: number } }
-          const { previousSize, newSize } = data
-          this.typedEventBus.emit('canvas.resized', {
-            width: newSize.width,
-            height: newSize.height,
-            previousWidth: previousSize.width,
-            previousHeight: previousSize.height
-          })
-          break
-        }
-        
-        case 'canvas.background.changed': {
-          const data = eventData as { newColor: string; previousColor: string }
-          this.typedEventBus.emit('canvas.background.changed', {
-            backgroundColor: data.newColor,
-            previousColor: data.previousColor
-          })
-          break
-        }
-        
-        // Tool events
-        case 'tool.activated': {
-          const data = eventData as { toolId: string; previousToolId: string | null }
-          this.typedEventBus.emit('tool.activated', data)
-          break
-        }
-        
-        case 'tool.option.changed': {
-          const data = eventData as { 
-            toolId: string
-            optionId?: string
-            optionKey?: string
-            value: unknown
-          }
-          this.typedEventBus.emit('tool.option.changed', data)
-          break
-        }
-        
-        // Add more event mappings as needed...
-        default:
-          // Log unhandled events for debugging
-          console.debug('[EventStoreBridge] Unhandled event type:', event.type)
+      if (this.config.batchingEnabled) {
+        this.addToBatch(event)
+      } else {
+        this.eventStore.append(event)
       }
-      
+
+      if (this.config.debugging) {
+        console.log(`[EventStoreBridge] Persisted event: ${eventType}`, eventData)
+      }
     } catch (error) {
-      console.error('[EventStoreBridge] Error handling event:', event.type, error)
+      this.handleError(error as Error)
     }
+  }
+
+  private createEventForPersistence(eventType: string, eventData: unknown): any {
+    const data = eventData as { canvasId: string; objectData: unknown }
+    
+    return {
+      type: eventType,
+      aggregateId: data.canvasId || 'global',
+      aggregateType: 'canvas',
+      data: eventData,
+      metadata: {
+        timestamp: Date.now(),
+        source: 'EventStoreBridge'
+      }
+    }
+  }
+
+  private addToBatch(event: any): void {
+    this.batchQueue.push(event)
+    
+    if (this.batchQueue.length >= (this.config.batchSize || 10)) {
+      this.processBatch()
+    }
+  }
+
+  private processBatch(): void {
+    if (this.batchQueue.length === 0) return
+
+    const batch = [...this.batchQueue]
+    this.batchQueue = []
+
+    try {
+      this.eventStore.appendBatch(batch)
+    } catch (error) {
+      this.handleError(error as Error)
+    }
+  }
+
+  private handleError(error: Error): void {
+    switch (this.config.errorHandling) {
+      case 'throw':
+        throw error
+      case 'log':
+        console.error('[EventStoreBridge] Error:', error)
+        break
+      case 'ignore':
+      default:
+        break
+    }
+  }
+
+  start(): void {
+    if (this.disposed) {
+      throw new Error('Cannot start disposed EventStoreBridge')
+    }
+    // Bridge is automatically active when created
+  }
+
+  stop(): void {
+    this.dispose()
+  }
+
+  dispose(): void {
+    if (this.disposed) return
+
+    this.disposed = true
+    
+    // Process any remaining batched events
+    this.processBatch()
+    
+    // Clear batch timer
+    if (this.batchTimer) {
+      clearInterval(this.batchTimer)
+      this.batchTimer = null
+    }
+
+    // Clear batch queue
+    this.batchQueue = []
+  }
+
+  isDisposed(): boolean {
+    return this.disposed
+  }
+
+  // Object events (updated from layer events)
+  emitObjectEvent(eventType: 'object.created' | 'object.updated' | 'object.deleted', data: {
+    canvasId: string
+    objectId: string
+    objectData?: unknown
+  }): void {
+    this.typedEventBus.emit(eventType as any, data)
   }
 } 

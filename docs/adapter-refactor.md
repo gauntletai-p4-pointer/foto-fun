@@ -2,7 +2,7 @@
 
 ## Overview
 
-**Primary Goal:** Implement senior-level architectural patterns across all 30+ AI adapters that bridge canvas tools with AI agents/chat.
+**Primary Goal:** Implement senior-level architectural patterns across all 31+ AI adapters that bridge canvas tools with AI agents/chat.
 
 **Foundation:** This refactor builds on the [Tool Architecture Refactor](./tool-refactor.md) and assumes all tools follow the new senior-level patterns.
 
@@ -10,11 +10,60 @@
 
 **Comprehensive Solution:** Implement dependency injection, type-safe parameter conversion, event-driven communication, composition patterns, and intelligent error handling across all adapters.
 
+## 🚨 **CRITICAL: Domain Model Migration Required**
+
+**IMPORTANT**: During this adapter refactoring, we are **simultaneously migrating from Layer-based to Object-based architecture**. This affects adapter operations, parameter schemas, and target terminology.
+
+### **Legacy (Being Removed):**
+```typescript
+// ❌ OLD: Layer-based adapter operations
+adapter.applyToLayers(layerIds)
+adapter.getSelectedLayers()
+adapter.createLayer(layerData)
+
+// ❌ OLD Parameter Schemas
+interface LayerInput {
+  layerId: string
+  layerProperties: LayerProperties
+  selectedLayers: string[]
+}
+
+// ❌ OLD Response Formats
+{
+  affectedLayers: string[]
+  layerCount: number
+  layerData: LayerData[]
+}
+```
+
+### **Modern (Target Architecture):**
+```typescript
+// ✅ NEW: Object-based adapter operations
+adapter.applyToObjects(objectIds)
+adapter.getSelectedObjects()
+adapter.createObject(objectData)
+
+// ✅ NEW Parameter Schemas
+interface ObjectInput {
+  objectId: string
+  objectProperties: ObjectProperties
+  selectedObjects: string[]
+}
+
+// ✅ NEW Response Formats
+{
+  affectedObjects: string[]
+  objectCount: number
+  objectData: ObjectData[]
+}
+```
+
 ## Current Adapter Architecture Analysis
 
-### **Adapter Categories (30+ Adapters)**
+### **Adapter Categories (31+ Adapters)**
 
-#### **1. Canvas Tool Adapters (15 adapters)**
+#### **1. Canvas Tool Adapters (16 adapters)**
+- **Core:** `frame.ts` (first tool - document creation)
 - **Transform:** `move.ts`, `crop.ts`, `rotate.ts`, `flip.ts`, `resize.ts`
 - **Adjustment:** `brightness.ts`, `contrast.ts`, `saturation.ts`, `hue.ts`, `exposure.ts`
 - **Filter:** `blur.ts`, `sharpen.ts`, `grayscale.ts`, `invert.ts`, `vintageEffects.ts`
@@ -93,10 +142,10 @@ tool.apply(); // Direct method call
 
 **Should Be:**
 ```typescript
-// Proper abstraction with commands
+// Proper abstraction with commands and Object-based targets
 const command = this.commandFactory.createBrightnessCommand({
   brightness: brightnessValue,
-  target: selectedObjects
+  targetObjects: selectedObjects // Object-based targeting
 });
 await this.commandManager.execute(command);
 ```
@@ -976,8 +1025,26 @@ export abstract class FilterToolAdapter<TInput = any> extends CanvasToolAdapter<
 
 ### Phase 1: Core Adapter Infrastructure (Days 1-4)
 
-#### Step 1.1: Create Core Adapter Types and Interfaces
-- [ ] Define `AdapterDependencies` interface
+#### Step 1.1: Domain Model Migration (CRITICAL FIRST STEP)
+- [ ] **Migrate Adapter Target Terminology**: Update all adapters to use Object-based terminology
+  - [ ] Replace `affectedLayers` with `affectedObjects` in all adapter responses
+  - [ ] Replace `layerId` with `objectId` in parameter schemas
+  - [ ] Update `selectedLayers` to `selectedObjects` in input interfaces
+  - [ ] Change `getSelectedLayers()` methods to `getSelectedObjects()`
+  - [ ] Update `layerCount` to `objectCount` in response formats
+- [ ] **Update Adapter Parameter Schemas**: Migrate all parameter interfaces
+  - [ ] `LayerInput` → `ObjectInput`
+  - [ ] `LayerProperties` → `ObjectProperties`
+  - [ ] `LayerData` → `ObjectData`
+  - [ ] `LayerTarget` → `ObjectTarget`
+- [ ] **Update Adapter Method Names**: Change method signatures
+  - [ ] `applyToLayers()` → `applyToObjects()`
+  - [ ] `createLayer()` → `createObject()`
+  - [ ] `updateLayer()` → `updateObject()`
+  - [ ] `deleteLayer()` → `deleteObject()`
+
+#### Step 1.2: Create Core Adapter Types and Interfaces
+- [ ] Define `AdapterDependencies` interface with Object-based services
 - [ ] Create `ParameterSchema` and `ParameterDefinition` types
 - [ ] Add `AdapterEvent` and `AdapterBehavior` interfaces
 - [ ] Define `AdapterCommand` and `ErrorStrategy` interfaces
@@ -1038,28 +1105,63 @@ export abstract class FilterToolAdapter<TInput = any> extends CanvasToolAdapter<
 
 ### Phase 2: Canvas Tool Adapter Migration (Days 5-8)
 
-#### Step 2.1: Transform Tool Adapters (Priority 1)
-**Adapters:** `move.ts`, `crop.ts`, `rotate.ts`, `flip.ts`, `resize.ts`
+#### Step 2.1: Core Tool Adapters (Priority 1)
+**Adapters:** `frame.ts`, `move.ts`, `crop.ts`, `rotate.ts`, `flip.ts`, `resize.ts`
+
+- [ ] **Frame Adapter** - `lib/ai/adapters/tools/frame.ts` (FIRST ADAPTER - Document Creation)
+  - [ ] **Domain Migration**: Implement as reference Object-based adapter
+    - [ ] Replace any layer references with object terminology
+    - [ ] Update parameter schema to use `targetObjects` instead of `selectedLayers`
+    - [ ] Change response format to include `affectedObjects` and `objectCount`
+    - [ ] Use `createFrameObject()` instead of any layer-based operations
+  - [ ] **Dependency Injection**: Replace serviceContainer access with constructor injection
+  - [ ] **Parameter Schema**: Define comprehensive frame creation parameters
+    ```typescript
+    getParameterSchema(): ParameterSchema {
+      return {
+        preset: { type: 'enum', enum: ['A4', 'letter', 'instagram-post', 'custom'], description: 'Document preset' },
+        width: { type: 'number', required: false, min: 1, max: 8000, description: 'Frame width in pixels' },
+        height: { type: 'number', required: false, min: 1, max: 8000, description: 'Frame height in pixels' },
+        position: { type: 'object', required: false, description: 'Frame position on canvas' },
+        fill: { type: 'object', required: false, description: 'Frame fill style' },
+        stroke: { type: 'object', required: false, description: 'Frame stroke style' },
+        isBackground: { type: 'boolean', default: false, description: 'Create as background frame' }
+      };
+    }
+    ```
+  - [ ] **Type-Safe Input**: Convert preset descriptions and size specifications to frame parameters
+  - [ ] **Command Pattern**: Create CreateFrameCommand instead of direct tool manipulation
+  - [ ] **Event-Driven**: Replace direct calls with object-based event emissions
+  - [ ] **Error Handling**: Use intelligent error strategies for frame creation
+  - [ ] **Behavior Composition**: Add FrameBehavior for preset management and validation
+  - [ ] **Performance**: Add caching for preset calculations and frame previews
+  - [ ] **Advanced Features**: Support document preset library and custom preset creation
+  - [ ] **Testing**: Verify frame creation with all preset types and custom parameters
 
 - [ ] **Move Adapter** - `lib/ai/adapters/tools/move.ts`
+  - [ ] **Domain Migration**: Update all Layer references to Object terminology
+    - [ ] Replace `selectedLayers` with `selectedObjects` in parameter schema
+    - [ ] Update `affectedLayers` to `affectedObjects` in response format
+    - [ ] Change method calls from `moveLayer()` to `moveObject()`
   - [ ] **Dependency Injection**: Replace serviceContainer access with constructor injection
-  - [ ] **Parameter Schema**: Define MoveTool parameter schema with constraints
+  - [ ] **Parameter Schema**: Define MoveTool parameter schema with Object-based constraints
     ```typescript
     getParameterSchema(): ParameterSchema {
       return {
         deltaX: { type: 'number', required: true, description: 'Horizontal movement in pixels' },
         deltaY: { type: 'number', required: true, description: 'Vertical movement in pixels' },
-        targetObjects: { type: 'object', required: false, description: 'Objects to move' }
+        targetObjects: { type: 'object', required: false, description: 'Canvas objects to move' },
+        objectIds: { type: 'array', required: false, description: 'Specific object IDs to move' }
       };
     }
     ```
   - [ ] **Type-Safe Input**: Convert manual parameter handling to type-safe conversion
-  - [ ] **Command Pattern**: Create MoveCommand instead of direct tool manipulation
-  - [ ] **Event-Driven**: Replace direct calls with event emissions
+  - [ ] **Command Pattern**: Create MoveObjectCommand instead of direct tool manipulation
+  - [ ] **Event-Driven**: Replace direct calls with object-based event emissions
   - [ ] **Error Handling**: Use intelligent error strategies
-  - [ ] **Behavior Composition**: Add TransformBehavior for shared logic
+  - [ ] **Behavior Composition**: Add TransformBehavior for shared object logic
   - [ ] **Performance**: Add batching for multiple object moves
-  - [ ] **Testing**: Verify move operations with new architecture
+  - [ ] **Testing**: Verify move operations with new Object-based architecture
 
 - [ ] **Crop Adapter** - `lib/ai/adapters/tools/crop.ts`
   - [ ] **Dependency Injection**: Inject CropTool and CropCommand factory
@@ -1589,8 +1691,8 @@ export abstract class FilterToolAdapter<TInput = any> extends CanvasToolAdapter<
 - [ ] Service container updates (0%)
 
 ### Phase 2: Canvas Tool Adapters (Days 5-8)
-**Progress:** 0/15 adapters migrated (0%)
-- **Transform Adapters (5):** 0/5 complete (0%)
+**Progress:** 0/16 adapters migrated (0%)
+- **Core Adapters (6):** 0/6 complete (0%)
 - **Adjustment Adapters (5):** 0/5 complete (0%)
 - **Filter Adapters (5):** 0/5 complete (0%)
 
@@ -1615,16 +1717,16 @@ export abstract class FilterToolAdapter<TInput = any> extends CanvasToolAdapter<
 - [ ] Documentation (0%)
 
 ### Overall Progress Metrics
-- **Total Adapters:** 30 adapters to migrate
-- **Completed:** 0/30 (0%)
-- **In Progress:** 0/30 (0%)
+- **Total Adapters:** 31 adapters to migrate
+- **Completed:** 0/31 (0%)
+- **In Progress:** 0/31 (0%)
 - **Infrastructure Steps:** 0/10 (0%)
 - **Integration Steps:** 0/5 (0%)
 
 ### Quality Gates
 - [ ] **Gate 1:** Core infrastructure compiles and passes tests
 - [ ] **Gate 2:** First 5 adapters migrated and functional
-- [ ] **Gate 3:** All canvas tool adapters working with new architecture
+- [ ] **Gate 3:** All canvas tool adapters (including Frame Adapter) working with new architecture
 - [ ] **Gate 4:** All AI service adapters integrated and tested
 - [ ] **Gate 5:** Performance benchmarks met or exceeded
 - [ ] **Gate 6:** Full integration testing passed

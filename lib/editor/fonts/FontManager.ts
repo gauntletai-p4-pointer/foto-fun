@@ -1,87 +1,114 @@
-import type { FontInfo } from '@/types/text'
+import type { TypedEventBus } from '@/lib/events/core/TypedEventBus'
+
+export interface FontInfo {
+  family: string
+  name: string
+  category: 'system' | 'google' | 'custom'
+  loaded: boolean
+  variants?: string[]
+  url?: string
+}
 
 /**
- * FontManager - Singleton class for managing fonts in FotoFun
- * Handles font loading, caching, and availability
+ * Configuration for FontManager
+ */
+export interface FontManagerConfig {
+  preload?: boolean
+  caching?: boolean
+  googleFontsApiKey?: string
+  maxCachedFonts?: number
+}
+
+/**
+ * Manages font loading, caching, and availability
+ * Provides a unified interface for system fonts, Google Fonts, and custom fonts
  */
 export class FontManager {
-  private static instance: FontManager | null = null
   private loadedFonts = new Set<string>()
   private fontCache = new Map<string, FontFace>()
   private systemFonts: string[] = []
   private googleFonts: string[] = []
   private googleFontsLoaded = false
+  private disposed = false
   
-  // Common web-safe fonts that are likely available
+  // Web-safe fonts that are available on most systems
   private readonly WEB_SAFE_FONTS = [
-    'Arial',
-    'Arial Black',
-    'Comic Sans MS',
-    'Courier New',
-    'Georgia',
-    'Helvetica',
-    'Impact',
-    'Lucida Console',
-    'Lucida Sans Unicode',
-    'Palatino Linotype',
-    'Tahoma',
-    'Times New Roman',
+    'Arial', 'Arial Black', 'Arial Narrow',
+    'Helvetica', 'Helvetica Neue',
+    'Times', 'Times New Roman',
+    'Georgia', 'Garamond',
+    'Courier', 'Courier New',
+    'Verdana', 'Geneva',
     'Trebuchet MS',
-    'Verdana'
+    'Impact',
+    'Comic Sans MS',
+    'Palatino',
+    'Lucida Console',
+    'Tahoma'
   ]
   
-  // Popular Google Fonts to show initially (before full list loads)
+  // Popular Google Fonts to load immediately
   private readonly POPULAR_GOOGLE_FONTS = [
-    'Roboto',
-    'Open Sans',
-    'Lato',
-    'Montserrat',
-    'Oswald',
-    'Raleway',
-    'Poppins',
-    'Merriweather',
-    'Playfair Display',
-    'Ubuntu',
-    'Nunito',
-    'Quicksand',
-    'Bebas Neue',
-    'Dancing Script',
-    'Pacifico',
-    'Caveat',
-    'Satisfy',
-    'Great Vibes',
-    'Permanent Marker',
-    'Amatic SC'
+    'Roboto', 'Open Sans', 'Lato', 'Montserrat', 'Oswald',
+    'Source Sans Pro', 'Raleway', 'PT Sans', 'Lora', 'Nunito',
+    'Ubuntu', 'Playfair Display', 'Merriweather', 'Poppins', 'Roboto Condensed',
+    'Noto Sans', 'Fira Sans', 'Work Sans', 'Crimson Text', 'Libre Baskerville'
   ]
   
-  // Google Fonts API key (optional - works without it but has rate limits)
-  private readonly GOOGLE_FONTS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_FONTS_API_KEY || ''
+  private readonly googleFontsApiKey: string
   
-  private constructor() {
-    this.detectSystemFonts()
-    // Load popular Google Fonts list immediately
-    this.googleFonts = [...this.POPULAR_GOOGLE_FONTS]
+  constructor(
+    private typedEventBus: TypedEventBus,
+    private config: FontManagerConfig = {}
+  ) {
+    this.googleFontsApiKey = config.googleFontsApiKey || process.env.NEXT_PUBLIC_GOOGLE_FONTS_API_KEY || ''
+    this.initialize()
   }
   
-  /**
-   * Get singleton instance
-   */
-  static getInstance(): FontManager {
-    if (!FontManager.instance) {
-      FontManager.instance = new FontManager()
+  private initialize(): void {
+    this.detectSystemFonts()
+    this.setupEventHandlers()
+    
+    // Load popular Google Fonts list immediately
+    this.googleFonts = [...this.POPULAR_GOOGLE_FONTS]
+    
+    if (this.config.preload) {
+      this.preloadCommonFonts().catch(error => {
+        console.warn('[FontManager] Failed to preload common fonts:', error)
+      })
     }
-    return FontManager.instance
+  }
+  
+  private setupEventHandlers(): void {
+    // Listen for text events to track font usage
+    this.typedEventBus.on('text.font.used', (event) => {
+      // Auto-load fonts when they're used
+      this.loadFont(event.fontFamily).catch(error => {
+        console.warn(`[FontManager] Failed to auto-load font: ${event.fontFamily}`, error)
+      })
+    })
+    
+    this.typedEventBus.on('text.created', (event) => {
+      // Emit font usage analytics
+      if (this.config.caching) {
+        console.log(`[FontManager] Text created: ${event.textId}`)
+      }
+    })
   }
   
   /**
    * Load the full Google Fonts list from API
    */
   async loadGoogleFontsList(): Promise<void> {
+    if (this.disposed) {
+      throw new Error('FontManager has been disposed')
+    }
+    
     if (this.googleFontsLoaded) return
     
     try {
-      const apiUrl = this.GOOGLE_FONTS_API_KEY 
-        ? `https://www.googleapis.com/webfonts/v1/webfonts?key=${this.GOOGLE_FONTS_API_KEY}&sort=popularity`
+      const apiUrl = this.googleFontsApiKey 
+        ? `https://www.googleapis.com/webfonts/v1/webfonts?key=${this.googleFontsApiKey}&sort=popularity`
         : 'https://www.googleapis.com/webfonts/v1/webfonts?sort=popularity'
       
       const response = await fetch(apiUrl)
@@ -107,6 +134,10 @@ export class FontManager {
    * Search fonts by name
    */
   async searchFonts(query: string): Promise<FontInfo[]> {
+    if (this.disposed) {
+      throw new Error('FontManager has been disposed')
+    }
+    
     // Ensure Google Fonts list is loaded
     await this.loadGoogleFontsList()
     
@@ -122,6 +153,10 @@ export class FontManager {
    * Load a font from URL or Google Fonts
    */
   async loadFont(fontFamily: string, url?: string): Promise<void> {
+    if (this.disposed) {
+      throw new Error('FontManager has been disposed')
+    }
+    
     if (this.loadedFonts.has(fontFamily)) {
       return
     }
@@ -132,7 +167,11 @@ export class FontManager {
         const font = new FontFace(fontFamily, `url(${url})`)
         await font.load()
         document.fonts.add(font)
-        this.fontCache.set(fontFamily, font)
+        
+        if (this.config.caching) {
+          this.fontCache.set(fontFamily, font)
+        }
+        
         this.loadedFonts.add(fontFamily)
       } else if (this.googleFonts.includes(fontFamily) || await this.isGoogleFont(fontFamily)) {
         // Load from Google Fonts
@@ -141,6 +180,10 @@ export class FontManager {
         // Assume it's a system font
         this.loadedFonts.add(fontFamily)
       }
+      
+      // Emit font loaded event
+      this.typedEventBus.emit('text.font.used', { fontFamily })
+      
     } catch (error) {
       console.error(`Failed to load font: ${fontFamily}`, error)
       throw error
@@ -166,6 +209,10 @@ export class FontManager {
    * Load a font from Google Fonts with variants
    */
   async loadGoogleFont(fontFamily: string, variants: string[] = ['400', '700']): Promise<void> {
+    if (this.disposed) {
+      throw new Error('FontManager has been disposed')
+    }
+    
     if (this.loadedFonts.has(fontFamily)) {
       return
     }
@@ -201,6 +248,8 @@ export class FontManager {
    * Get all available fonts
    */
   getAvailableFonts(): FontInfo[] {
+    if (this.disposed) return []
+    
     const fonts: FontInfo[] = []
     
     // Add system fonts
@@ -231,6 +280,8 @@ export class FontManager {
    * Preload common fonts for better performance
    */
   async preloadCommonFonts(): Promise<void> {
+    if (this.disposed) return
+    
     const commonFonts = ['Arial', 'Helvetica', 'Times New Roman', 'Roboto', 'Open Sans']
     
     await Promise.all(
@@ -257,26 +308,78 @@ export class FontManager {
    * Check if a font is loaded
    */
   isFontLoaded(fontFamily: string): boolean {
+    if (this.disposed) return false
     return this.loadedFonts.has(fontFamily)
   }
   
   /**
-   * Get font categories
+   * Get font categories for UI organization
    */
   getFontCategories(): Array<{ name: string; fonts: FontInfo[] }> {
-    const categories = new Map<string, FontInfo[]>()
+    if (this.disposed) return []
     
-    this.getAvailableFonts().forEach(font => {
-      const category = font.category
-      if (!categories.has(category)) {
-        categories.set(category, [])
+    const allFonts = this.getAvailableFonts()
+    
+    return [
+      {
+        name: 'System Fonts',
+        fonts: allFonts.filter(f => f.category === 'system')
+      },
+      {
+        name: 'Google Fonts',
+        fonts: allFonts.filter(f => f.category === 'google')
+      },
+      {
+        name: 'Custom Fonts',
+        fonts: allFonts.filter(f => f.category === 'custom')
       }
-      categories.get(category)!.push(font)
-    })
+    ]
+  }
+  
+  /**
+   * Clear font cache to free memory
+   */
+  clearCache(): void {
+    if (this.disposed) return
+    this.fontCache.clear()
+  }
+  
+  /**
+   * Get cache statistics
+   */
+  getCacheStats(): { size: number; maxSize: number; fonts: string[] } {
+    if (this.disposed) {
+      return { size: 0, maxSize: 0, fonts: [] }
+    }
     
-    return Array.from(categories.entries()).map(([name, fonts]) => ({
-      name,
-      fonts
-    }))
+    return {
+      size: this.fontCache.size,
+      maxSize: this.config.maxCachedFonts || 50,
+      fonts: Array.from(this.fontCache.keys())
+    }
+  }
+  
+  /**
+   * Dispose the FontManager and clean up resources
+   */
+  dispose(): void {
+    if (this.disposed) return
+    
+    this.clearCache()
+    this.loadedFonts.clear()
+    this.systemFonts = []
+    this.googleFonts = []
+    this.disposed = true
+    
+    // Remove event listeners
+    this.typedEventBus.clear('text.font.used')
+    this.typedEventBus.clear('text.created')
+  }
+  
+  /**
+   * Check if the manager has been disposed
+   */
+  isDisposed(): boolean {
+    return this.disposed
   }
 } 

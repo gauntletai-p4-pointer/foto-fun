@@ -7,10 +7,10 @@ import { useService, useAsyncService, useServiceContainer } from '@/lib/core/App
 import { EventToolStore } from '@/lib/store/tools/EventToolStore'
 import { TypedCanvasStore, useCanvasStore as useTypedCanvasStore } from '@/lib/store/canvas/TypedCanvasStore'
 
-import { getTypedEventBus } from '@/lib/events/core/TypedEventBus'
 import { CanvasManagerFactory } from '@/lib/editor/canvas/CanvasManagerFactory'
 import type { ToolEvent } from '@/lib/editor/canvas/types'
 import { TOOL_IDS } from '@/constants'
+import type { TypedEventBus } from '@/lib/events/core/TypedEventBus'
 
 export function Canvas() {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -19,7 +19,7 @@ export function Canvas() {
   // Get services
   const canvasStore = useService<TypedCanvasStore>('CanvasStore')
   const toolStore = useService<EventToolStore>('ToolStore')
-  const eventBus = useService<ReturnType<typeof getTypedEventBus>>('TypedEventBus')
+  const eventBus = useService<TypedEventBus>('TypedEventBus')
   
   // Get the async CanvasManagerFactory
   const { service: canvasFactory, loading } = useAsyncService<CanvasManagerFactory>('CanvasManagerFactory')
@@ -73,7 +73,7 @@ export function Canvas() {
   useEffect(() => {
     if (!canvasManager || !toolStore) return
     
-    const typedEventBus = getTypedEventBus()
+    const typedEventBus = eventBus
     const unsubscribe = typedEventBus.on('tool.activated', (data) => {
       const tool = toolStore.getTool(data.toolId)
       if (tool) {
@@ -126,7 +126,7 @@ export function Canvas() {
         currentTool.onDeactivate?.(canvasManager)
       }
     }
-  }, [canvasManager, toolStore])
+  }, [canvasManager, toolStore, eventBus])
   
   // Handle mouse events for tools
   useEffect(() => {

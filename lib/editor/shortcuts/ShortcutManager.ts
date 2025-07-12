@@ -1,407 +1,208 @@
-import { EventDocumentStore } from '@/lib/store/document/EventDocumentStore'
-import { EventToolStore } from '@/lib/store/tools/EventToolStore'
-import { CanvasManager } from '../canvas/CanvasManager'
-import { ExportManager } from '../export/ExportManager'
-import { DocumentSerializer } from '../persistence/DocumentSerializer'
-import { EventBasedHistoryStore } from '@/lib/events/history/EventBasedHistoryStore'
-import { TOOL_IDS } from '@/constants'
+import { EventProjectStore } from '@/lib/store/project/EventProjectStore'
+import { TypedEventBus } from '@/lib/events/core/TypedEventBus'
 
-export interface Shortcut {
+export interface ShortcutAction {
   key: string
-  ctrl?: boolean
-  shift?: boolean
-  alt?: boolean
-  meta?: boolean
+  ctrlKey?: boolean
+  shiftKey?: boolean
+  altKey?: boolean
+  metaKey?: boolean
+  action: () => void | Promise<void>
   description: string
-  handler: () => void | Promise<void>
+  category: 'file' | 'edit' | 'view' | 'tools' | 'canvas'
 }
 
 /**
  * Manages keyboard shortcuts for the application
  */
 export class ShortcutManager {
-  private shortcuts: Map<string, Shortcut> = new Map()
+  private shortcuts: Map<string, ShortcutAction> = new Map()
   private isEnabled = true
-  
+
   constructor(
-    private documentStore: EventDocumentStore,
-    private toolStore: EventToolStore,
-    private historyStore: EventBasedHistoryStore,
-    private canvasManager: CanvasManager,
-    private exportManager: ExportManager,
-    private documentSerializer: DocumentSerializer
+    private typedEventBus: TypedEventBus,
+    private projectStore: EventProjectStore,
+    private container: { getSync: (token: string) => unknown }
   ) {
     this.registerDefaultShortcuts()
-    this.attachEventListeners()
+    this.setupEventListeners()
   }
 
-  /**
-   * Register default shortcuts
-   */
   private registerDefaultShortcuts(): void {
     // File operations
     this.register({
       key: 'n',
-      meta: true,
-      description: 'New document',
-      handler: () => {
-        // This would trigger the new document dialog
-        // For now, just create a default document
-        this.documentStore.createNewDocument('default', 1920, 1080, '#ffffff')
-      }
+      ctrlKey: true,
+      action: () => this.createNewProject(),
+      description: 'Create new project',
+      category: 'file'
     })
-    
+
     this.register({
       key: 's',
-      meta: true,
-      description: 'Save document',
-      handler: async () => {
-        await this.documentSerializer.saveToFile()
-      }
+      ctrlKey: true,
+      action: () => this.saveProject(),
+      description: 'Save project',
+      category: 'file'
     })
-    
-    this.register({
-      key: 's',
-      meta: true,
-      shift: true,
-      description: 'Save as',
-      handler: async () => {
-        // This would trigger save as dialog
-        await this.documentSerializer.saveToFile()
-      }
-    })
-    
-    this.register({
-      key: 'e',
-      meta: true,
-      shift: true,
-      description: 'Export',
-      handler: () => {
-        // This would trigger export dialog
-        console.log('Export dialog should open')
-      }
-    })
-    
+
     // Edit operations
     this.register({
       key: 'z',
-      meta: true,
+      ctrlKey: true,
+      action: () => this.undo(),
       description: 'Undo',
-      handler: async () => {
-        await this.historyStore.undo()
-      }
+      category: 'edit'
     })
-    
-    this.register({
-      key: 'z',
-      meta: true,
-      shift: true,
-      description: 'Redo',
-      handler: async () => {
-        await this.historyStore.redo()
-      }
-    })
-    
+
     this.register({
       key: 'y',
-      meta: true,
-      description: 'Redo (alternate)',
-      handler: async () => {
-        await this.historyStore.redo()
-      }
+      ctrlKey: true,
+      action: () => this.redo(),
+      description: 'Redo',
+      category: 'edit'
     })
-    
-    this.register({
-      key: 'a',
-      meta: true,
-      description: 'Select all',
-      handler: () => {
-        this.canvasManager?.selectAll()
-      }
-    })
-    
-    this.register({
-      key: 'd',
-      meta: true,
-      description: 'Deselect',
-      handler: () => {
-        this.canvasManager?.deselectAll()
-      }
-    })
-    
-    // Tool shortcuts
-    this.register({
-      key: 'v',
-      description: 'Move tool',
-      handler: () => {
-        this.toolStore.activateTool(TOOL_IDS.MOVE)
-      }
-    })
-    
-    this.register({
-      key: 'm',
-      description: 'Marquee tool',
-      handler: () => {
-        this.toolStore.activateTool(TOOL_IDS.MARQUEE_RECT)
-      }
-    })
-    
-    this.register({
-      key: 'l',
-      description: 'Lasso tool',
-      handler: () => {
-        this.toolStore.activateTool(TOOL_IDS.LASSO)
-      }
-    })
-    
-    this.register({
-      key: 'w',
-      description: 'Magic wand tool',
-      handler: () => {
-        this.toolStore.activateTool(TOOL_IDS.MAGIC_WAND)
-      }
-    })
-    
-    this.register({
-      key: 'c',
-      description: 'Crop tool',
-      handler: () => {
-        this.toolStore.activateTool(TOOL_IDS.CROP)
-      }
-    })
-    
-    this.register({
-      key: 'b',
-      description: 'Brush tool',
-      handler: () => {
-        this.toolStore.activateTool(TOOL_IDS.BRUSH)
-      }
-    })
-    
-    this.register({
-      key: 'e',
-      description: 'Eraser tool',
-      handler: () => {
-        this.toolStore.activateTool(TOOL_IDS.ERASER)
-      }
-    })
-    
-    this.register({
-      key: 't',
-      description: 'Text tool',
-      handler: () => {
-        this.toolStore.activateTool(TOOL_IDS.TYPE_HORIZONTAL)
-      }
-    })
-    
-    this.register({
-      key: 'h',
-      description: 'Hand tool',
-      handler: () => {
-        this.toolStore.activateTool(TOOL_IDS.HAND)
-      }
-    })
-    
+
     this.register({
       key: 'z',
-      description: 'Zoom tool',
-      handler: () => {
-        this.toolStore.activateTool(TOOL_IDS.ZOOM)
-      }
+      ctrlKey: true,
+      shiftKey: true,
+      action: () => this.redo(),
+      description: 'Redo (alternative)',
+      category: 'edit'
     })
-    
-    // View shortcuts
+
+    // Canvas operations
     this.register({
       key: '0',
-      meta: true,
-      description: 'Fit to screen',
-      handler: () => {
-        this.canvasManager?.fitToScreen()
-      }
+      ctrlKey: true,
+      action: () => this.resetZoom(),
+      description: 'Reset zoom to 100%',
+      category: 'canvas'
     })
-    
-    this.register({
-      key: '1',
-      meta: true,
-      description: 'Actual size (100%)',
-      handler: () => {
-        this.canvasManager?.setZoom(1)
-      }
-    })
-    
+
     this.register({
       key: '=',
-      meta: true,
+      ctrlKey: true,
+      action: () => this.zoomIn(),
       description: 'Zoom in',
-      handler: () => {
-        if (!this.canvasManager) return
-        const currentZoom = this.canvasManager.getCamera().zoom
-        this.canvasManager.setZoom(Math.min(currentZoom * 1.25, 32))
-      }
+      category: 'canvas'
     })
-    
+
     this.register({
       key: '-',
-      meta: true,
+      ctrlKey: true,
+      action: () => this.zoomOut(),
       description: 'Zoom out',
-      handler: () => {
-        if (!this.canvasManager) return
-        const currentZoom = this.canvasManager.getCamera().zoom
-        this.canvasManager.setZoom(Math.max(currentZoom / 1.25, 0.01))
-      }
-    })
-    
-    // Spacebar for temporary hand tool
-    this.register({
-      key: ' ',
-      description: 'Temporary hand tool',
-      handler: () => {
-        // This would be handled differently - need to track key down/up
-        console.log('Space for hand tool needs special handling')
-      }
+      category: 'canvas'
     })
   }
 
-  /**
-   * Register a shortcut
-   */
-  register(shortcut: Shortcut): void {
-    const key = this.getShortcutKey(shortcut)
-    this.shortcuts.set(key, shortcut)
-  }
-
-  /**
-   * Unregister a shortcut
-   */
-  unregister(shortcut: Partial<Shortcut>): void {
-    const key = this.getShortcutKey(shortcut as Shortcut)
-    this.shortcuts.delete(key)
-  }
-
-  /**
-   * Enable/disable shortcuts
-   */
-  setEnabled(enabled: boolean): void {
-    this.isEnabled = enabled
-  }
-
-  /**
-   * Get all registered shortcuts
-   */
-  getShortcuts(): Shortcut[] {
-    return Array.from(this.shortcuts.values())
-  }
-
-  /**
-   * Attach event listeners
-   */
-  private attachEventListeners(): void {
+  private setupEventListeners(): void {
     document.addEventListener('keydown', this.handleKeyDown.bind(this))
   }
 
-  /**
-   * Handle keydown event
-   */
   private handleKeyDown(event: KeyboardEvent): void {
     if (!this.isEnabled) return
-    
-    // Skip if typing in an input
-    const target = event.target as HTMLElement
-    if (target.tagName === 'INPUT' || 
-        target.tagName === 'TEXTAREA' || 
-        target.isContentEditable) {
+
+    // Don't trigger shortcuts when typing in inputs
+    if (event.target instanceof HTMLInputElement || 
+        event.target instanceof HTMLTextAreaElement ||
+        (event.target as HTMLElement).contentEditable === 'true') {
       return
     }
-    
-    const shortcut = this.findShortcut(event)
+
+    const shortcutKey = this.getShortcutKey(event)
+    const shortcut = this.shortcuts.get(shortcutKey)
+
     if (shortcut) {
       event.preventDefault()
       event.stopPropagation()
-      
-      try {
-        const result = shortcut.handler()
-        if (result instanceof Promise) {
-          result.catch(error => {
-            console.error('Shortcut handler error:', error)
-          })
-        }
-      } catch (error) {
-        console.error('Shortcut handler error:', error)
-      }
+      shortcut.action()
     }
   }
 
-  /**
-   * Find matching shortcut
-   */
-  private findShortcut(event: KeyboardEvent): Shortcut | undefined {
-    const key = this.getEventKey(event)
-    return this.shortcuts.get(key)
-  }
-
-  /**
-   * Get shortcut key string
-   */
-  private getShortcutKey(shortcut: Shortcut): string {
-    const parts: string[] = []
-    
-    if (shortcut.ctrl) parts.push('ctrl')
-    if (shortcut.shift) parts.push('shift')
-    if (shortcut.alt) parts.push('alt')
-    if (shortcut.meta) parts.push('meta')
-    parts.push(shortcut.key.toLowerCase())
-    
-    return parts.join('+')
-  }
-
-  /**
-   * Get event key string
-   */
-  private getEventKey(event: KeyboardEvent): string {
-    const parts: string[] = []
-    
-    // Use metaKey for Cmd on Mac, ctrlKey for Ctrl on Windows/Linux
-    const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0
-    const metaPressed = isMac ? event.metaKey : event.ctrlKey
-    
-    if (!isMac && event.ctrlKey) parts.push('ctrl')
+  private getShortcutKey(event: KeyboardEvent): string {
+    const parts = []
+    if (event.ctrlKey || event.metaKey) parts.push('ctrl')
     if (event.shiftKey) parts.push('shift')
     if (event.altKey) parts.push('alt')
-    if (metaPressed) parts.push('meta')
-    
-    // Normalize key name
-    let key = event.key.toLowerCase()
-    if (key === 'escape') key = 'esc'
-    if (key === 'delete') key = 'del'
-    if (key === 'arrowup') key = 'up'
-    if (key === 'arrowdown') key = 'down'
-    if (key === 'arrowleft') key = 'left'
-    if (key === 'arrowright') key = 'right'
-    
-    parts.push(key)
-    
+    parts.push(event.key.toLowerCase())
     return parts.join('+')
   }
 
-  /**
-   * Format shortcut for display
-   */
-  formatShortcut(shortcut: Shortcut): string {
-    const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0
-    const parts: string[] = []
-    
-    if (shortcut.ctrl && !isMac) parts.push('Ctrl')
-    if (shortcut.shift) parts.push('Shift')
-    if (shortcut.alt) parts.push(isMac ? 'Option' : 'Alt')
-    if (shortcut.meta) parts.push(isMac ? '⌘' : 'Ctrl')
-    
-    // Format key
-    let key = shortcut.key
-    if (key === ' ') key = 'Space'
-    else if (key.length === 1) key = key.toUpperCase()
-    
-    parts.push(key)
-    
-    return parts.join(isMac ? '' : '+')
+  register(shortcut: ShortcutAction): void {
+    const key = this.buildShortcutKey(shortcut)
+    this.shortcuts.set(key, shortcut)
+  }
+
+  unregister(shortcut: Partial<ShortcutAction>): void {
+    const key = this.buildShortcutKey(shortcut)
+    this.shortcuts.delete(key)
+  }
+
+  private buildShortcutKey(shortcut: Partial<ShortcutAction>): string {
+    const parts = []
+    if (shortcut.ctrlKey || shortcut.metaKey) parts.push('ctrl')
+    if (shortcut.shiftKey) parts.push('shift')
+    if (shortcut.altKey) parts.push('alt')
+    if (shortcut.key) parts.push(shortcut.key.toLowerCase())
+    return parts.join('+')
+  }
+
+  enable(): void {
+    this.isEnabled = true
+  }
+
+  disable(): void {
+    this.isEnabled = false
+  }
+
+  getShortcuts(): ShortcutAction[] {
+    return Array.from(this.shortcuts.values())
+  }
+
+  // Action implementations
+  private createNewProject(): void {
+    this.projectStore.createProject('Untitled Project')
+  }
+
+  private saveProject(): void {
+    this.projectStore.saveProject()
+  }
+
+  private async undo(): Promise<void> {
+    try {
+      const historyStore = this.container.getSync('HistoryStore') as { undo: () => Promise<void> }
+      await historyStore.undo()
+    } catch (error) {
+      console.error('[ShortcutManager] Undo failed:', error)
+    }
+  }
+
+  private async redo(): Promise<void> {
+    try {
+      const historyStore = this.container.getSync('HistoryStore') as { redo: () => Promise<void> }
+      await historyStore.redo()
+    } catch (error) {
+      console.error('[ShortcutManager] Redo failed:', error)
+    }
+  }
+
+  private resetZoom(): void {
+    this.typedEventBus.emit('canvas.zoom.reset', {})
+  }
+
+  private zoomIn(): void {
+    this.typedEventBus.emit('canvas.zoom.in', {})
+  }
+
+  private zoomOut(): void {
+    this.typedEventBus.emit('canvas.zoom.out', {})
+  }
+
+  dispose(): void {
+    document.removeEventListener('keydown', this.handleKeyDown.bind(this))
+    this.shortcuts.clear()
   }
 } 

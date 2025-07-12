@@ -6,6 +6,9 @@
  */
 
 import type { Filter } from '../canvas/types'
+import type { EventStore } from '@/lib/events/core/EventStore'
+import type { TypedEventBus } from '@/lib/events/core/TypedEventBus'
+import type { ResourceManager } from '@/lib/core/ResourceManager'
 
 // WebGLImageFilter doesn't have types, so we'll define them
 interface WebGLImageFilterInstance {
@@ -25,6 +28,9 @@ export interface WebGLFilterConfig {
   canvas?: HTMLCanvasElement
   preserveDrawingBuffer?: boolean
   premultiplyAlpha?: boolean
+  optimization?: boolean
+  caching?: boolean
+  maxCacheSize?: number
 }
 
 export interface FilterChain {
@@ -34,30 +40,72 @@ export interface FilterChain {
 }
 
 /**
- * Singleton WebGL Filter Engine
+ * WebGL Filter Engine
  * Manages WebGL context and provides high-performance filtering
  */
 export class WebGLFilterEngine {
-  private static instance: WebGLFilterEngine
   private filterInstance: WebGLImageFilterInstance | null = null
   private canvas: HTMLCanvasElement
   private isInitialized = false
+  private disposed = false
+  private filterCache = new Map<string, HTMLCanvasElement>()
   
-  private constructor(config?: WebGLFilterConfig) {
-    this.canvas = config?.canvas || document.createElement('canvas')
+  constructor(
+    private eventStore: EventStore,
+    private typedEventBus: TypedEventBus,
+    private resourceManager: ResourceManager,
+    private config: WebGLFilterConfig = {}
+  ) {
+    this.canvas = config.canvas || document.createElement('canvas')
+    this.initialize()
   }
   
-  static getInstance(config?: WebGLFilterConfig): WebGLFilterEngine {
-    if (!WebGLFilterEngine.instance) {
-      WebGLFilterEngine.instance = new WebGLFilterEngine(config)
-    }
-    return WebGLFilterEngine.instance
+  private initialize(): void {
+    this.setupEventHandlers()
+    this.setupResourceManagement()
+  }
+  
+  private setupEventHandlers(): void {
+    // Listen for filter events
+    this.typedEventBus.on('layer.filter.added', (event) => {
+      if (this.config.optimization) {
+        console.log(`[WebGLFilterEngine] Filter added: ${event.layerId}`)
+      }
+    })
+    
+    this.typedEventBus.on('layer.filter.removed', (event) => {
+      // Clear cache for this layer
+      this.clearLayerCache(event.layerId)
+    })
+  }
+  
+  private setupResourceManagement(): void {
+    // Register with resource manager for cleanup
+    this.resourceManager.register('WebGLFilterEngine', this)
+  }
+  
+  private clearLayerCache(layerId: string): void {
+    if (!this.config.caching) return
+    
+    // Remove cached results for this layer
+    const keysToDelete: string[] = []
+    this.filterCache.forEach((_, key) => {
+      if (key.startsWith(`${layerId}:`)) {
+        keysToDelete.push(key)
+      }
+    })
+    
+    keysToDelete.forEach(key => this.filterCache.delete(key))
   }
   
   /**
    * Initialize the WebGL filter system
    */
-  async initialize(): Promise<void> {
+  async initializeWebGL(): Promise<void> {
+    if (this.disposed) {
+      throw new Error('WebGLFilterEngine has been disposed')
+    }
+    
     if (this.isInitialized) return
     
     try {
@@ -68,6 +116,13 @@ export class WebGLFilterEngine {
       
       this.filterInstance = new window.WebGLImageFilter()
       this.isInitialized = true
+      
+      // Emit initialization event
+      this.typedEventBus.emit('layer.filter.stack.updated', {
+        layerId: 'system',
+        filterStack: 'WebGL initialized'
+      })
+      
     } catch (error) {
       console.error('[WebGLFilterEngine] Failed to initialize:', error)
       throw new Error('WebGL not supported or filter library failed to load')
@@ -92,14 +147,28 @@ export class WebGLFilterEngine {
    */
   async applyFilter(
     source: HTMLImageElement | HTMLCanvasElement,
-    filter: Filter
+    filter: Filter,
+    layerId?: string
   ): Promise<HTMLCanvasElement> {
+    if (this.disposed) {
+      throw new Error('WebGLFilterEngine has been disposed')
+    }
+    
     if (!this.isInitialized) {
-      await this.initialize()
+      await this.initializeWebGL()
     }
     
     if (!this.filterInstance) {
       throw new Error('WebGL filter not initialized')
+    }
+    
+    // Check cache if enabled
+    if (this.config.caching && layerId) {
+      const cacheKey = `${layerId}:${filter.type}:${JSON.stringify(filter.params)}`
+      const cached = this.filterCache.get(cacheKey)
+      if (cached) {
+        return cached
+      }
     }
     
     // Reset filter chain
@@ -108,8 +177,33 @@ export class WebGLFilterEngine {
     // Add filter based on type
     this.addFilterToChain(this.filterInstance, filter)
     
-    // Apply and return result
-    return this.filterInstance.apply(source)
+    // Apply and get result
+    const result = this.filterInstance.apply(source)
+    
+    // Cache result if enabled
+    if (this.config.caching && layerId) {
+      const cacheKey = `${layerId}:${filter.type}:${JSON.stringify(filter.params)}`
+      this.filterCache.set(cacheKey, result)
+      
+      // Limit cache size
+      if (this.config.maxCacheSize && this.filterCache.size > this.config.maxCacheSize) {
+              const firstKey = this.filterCache.keys().next().value
+      if (firstKey) {
+        this.filterCache.delete(firstKey)
+      }
+      }
+    }
+    
+    // Emit filter applied event
+    if (layerId) {
+      this.typedEventBus.emit('layer.filter.added', {
+        layerId,
+        filter,
+        position: 0
+      })
+    }
+    
+    return result
   }
   
   /**
@@ -117,14 +211,28 @@ export class WebGLFilterEngine {
    */
   async applyFilterChain(
     source: HTMLImageElement | HTMLCanvasElement,
-    filters: Filter[]
+    filters: Filter[],
+    layerId?: string
   ): Promise<HTMLCanvasElement> {
+    if (this.disposed) {
+      throw new Error('WebGLFilterEngine has been disposed')
+    }
+    
     if (!this.isInitialized) {
       await this.initialize()
     }
     
     if (!this.filterInstance) {
       throw new Error('WebGL filter not initialized')
+    }
+    
+    // Check cache for entire chain if enabled
+    if (this.config.caching && layerId) {
+      const cacheKey = `${layerId}:chain:${JSON.stringify(filters)}`
+      const cached = this.filterCache.get(cacheKey)
+      if (cached) {
+        return cached
+      }
     }
     
     // Reset filter chain
@@ -135,8 +243,24 @@ export class WebGLFilterEngine {
       this.addFilterToChain(this.filterInstance, filter)
     }
     
-    // Apply and return result
-    return this.filterInstance.apply(source)
+    // Apply and get result
+    const result = this.filterInstance.apply(source)
+    
+    // Cache result if enabled
+    if (this.config.caching && layerId) {
+      const cacheKey = `${layerId}:chain:${JSON.stringify(filters)}`
+      this.filterCache.set(cacheKey, result)
+    }
+    
+    // Emit filter stack updated event
+    if (layerId) {
+      this.typedEventBus.emit('layer.filter.stack.updated', {
+        layerId,
+        filterStack: filters
+      })
+    }
+    
+    return result
   }
   
   /**
@@ -199,75 +323,106 @@ export class WebGLFilterEngine {
         instance.addFilter('emboss', typeof embossStrength === 'number' ? embossStrength : 1)
         break
         
-      case 'sharpen':
-        const sharpenAmount = filter.params.amount
-        instance.addFilter('sharpen', typeof sharpenAmount === 'number' ? sharpenAmount : 1)
-        break
-        
-      // Vintage effects
-      case 'custom':
-        if (filter.params.effect === 'brownie') {
-          instance.addFilter('brownie')
-        } else if (filter.params.effect === 'vintage') {
-          instance.addFilter('vintagePinhole')
-        } else if (filter.params.effect === 'kodachrome') {
-          instance.addFilter('kodachrome')
-        } else if (filter.params.effect === 'technicolor') {
-          instance.addFilter('technicolor')
-        } else if (filter.params.effect === 'polaroid') {
-          instance.addFilter('polaroid')
-        }
-        break
-        
       default:
         console.warn(`[WebGLFilterEngine] Unsupported filter type: ${filter.type}`)
     }
   }
   
   /**
-   * Create a custom filter using raw shader code
+   * Create a custom filter from shader code
    */
   async createCustomFilter(
     _vertexShader: string,
     _fragmentShader: string
   ): Promise<(source: HTMLImageElement | HTMLCanvasElement) => HTMLCanvasElement> {
-    // This would require extending WebGLImageFilter
-    // For now, we'll use the built-in filters
-    throw new Error('Custom shaders not yet implemented')
+    if (this.disposed) {
+      throw new Error('WebGLFilterEngine has been disposed')
+    }
+    
+    // Placeholder for custom shader implementation
+    throw new Error('Custom filters not yet implemented')
   }
   
   /**
-   * Get available filters and their parameters
+   * Get available filter types
    */
   getAvailableFilters(): Record<string, { params: string[]; description: string }> {
     return {
-      brightness: { params: ['amount'], description: 'Adjust brightness (-1 to 1)' },
-      contrast: { params: ['amount'], description: 'Adjust contrast (-1 to 1)' },
-      saturation: { params: ['amount'], description: 'Adjust saturation (-1 to 1)' },
-      hue: { params: ['rotation'], description: 'Rotate hue (0-360 degrees)' },
+      brightness: { params: ['value'], description: 'Adjust image brightness' },
+      contrast: { params: ['value'], description: 'Adjust image contrast' },
+      saturation: { params: ['value'], description: 'Adjust color saturation' },
+      hue: { params: ['value'], description: 'Rotate hue' },
       grayscale: { params: [], description: 'Convert to grayscale' },
+      sepia: { params: [], description: 'Apply sepia tone' },
       invert: { params: [], description: 'Invert colors' },
-      blur: { params: ['radius'], description: 'Apply gaussian blur' },
-      sharpen: { params: ['amount'], description: 'Sharpen image' },
-      detectEdges: { params: [], description: 'Detect edges' },
-      sobelX: { params: [], description: 'Horizontal edge detection' },
-      sobelY: { params: [], description: 'Vertical edge detection' },
-      brownie: { params: [], description: 'Vintage brownie effect' },
-      vintage: { params: [], description: 'Vintage pinhole effect' },
-      kodachrome: { params: [], description: 'Kodachrome film effect' },
-      technicolor: { params: [], description: 'Technicolor film effect' },
-      polaroid: { params: [], description: 'Polaroid camera effect' }
+      pixelate: { params: ['size'], description: 'Pixelate effect' },
+      emboss: { params: ['strength'], description: 'Emboss effect' }
     }
   }
   
   /**
-   * Cleanup resources
+   * Clear all cached results
    */
-  destroy(): void {
+  clearCache(): void {
+    if (this.disposed) return
+    this.filterCache.clear()
+  }
+  
+  /**
+   * Get cache statistics
+   */
+  getCacheStats(): { size: number; maxSize: number; keys: string[] } {
+    if (this.disposed) {
+      return { size: 0, maxSize: 0, keys: [] }
+    }
+    
+    return {
+      size: this.filterCache.size,
+      maxSize: this.config.maxCacheSize || 50,
+      keys: Array.from(this.filterCache.keys())
+    }
+  }
+  
+  /**
+   * Check if WebGL is supported
+   */
+  static isSupported(): boolean {
+    try {
+      const canvas = document.createElement('canvas')
+      const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl')
+      return !!gl
+    } catch {
+      return false
+    }
+  }
+  
+  /**
+   * Dispose the WebGLFilterEngine and clean up resources
+   */
+  async dispose(): Promise<void> {
+    if (this.disposed) return
+    
     if (this.filterInstance) {
       this.filterInstance.destroy()
       this.filterInstance = null
     }
+    
+    this.clearCache()
     this.isInitialized = false
+    this.disposed = true
+    
+    // Dispose resource from resource manager
+    await this.resourceManager.disposeResource('WebGLFilterEngine')
+    
+    // Remove event listeners
+    this.typedEventBus.clear('layer.filter.added')
+    this.typedEventBus.clear('layer.filter.removed')
+  }
+  
+  /**
+   * Check if the engine has been disposed
+   */
+  isDisposed(): boolean {
+    return this.disposed
   }
 } 

@@ -1,8 +1,7 @@
 import Konva from 'konva'
-import { BaseTool } from './BaseTool'
-import type { ToolContext, ToolEvent } from '@/lib/editor/canvas/types'
-import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
-import { getTypedEventBus } from '@/lib/events/core/TypedEventBus'
+import { DrawingTool, DrawingToolDependencies, DrawingToolConfig } from './DrawingTool'
+import type { Point } from '@/lib/editor/canvas/types'
+import type { TypedEventBus } from '@/lib/events/core/TypedEventBus'
 import { nanoid } from 'nanoid'
 
 export interface DrawingPoint {
@@ -33,42 +32,32 @@ export interface DrawingContext {
 }
 
 /**
- * Enhanced base class for drawing tools
- * Provides smooth drawing with pressure sensitivity and advanced brush options
+ * Enhanced Drawing Tool with advanced features
+ * Now uses dependency injection instead of singleton pattern
  */
-export abstract class EnhancedDrawingTool extends BaseTool {
-  protected drawingContext: DrawingContext = {
-    points: [],
-    path: null,
-    tempPath: null,
-    lastPoint: null,
-    distance: 0,
-    isDrawing: false
+export class EnhancedDrawingTool extends DrawingTool {
+  protected typedEventBus: TypedEventBus
+  private enhancedConfig: EnhancedDrawingToolConfig
+
+  constructor(
+    dependencies: DrawingToolDependencies,
+    config: EnhancedDrawingToolConfig = {}
+  ) {
+    super(dependencies, config)
+    this.typedEventBus = dependencies.typedEventBus
+    this.enhancedConfig = {
+      pressureSensitive: false,
+      tiltSensitive: false,
+      textureEnabled: false,
+      antiAliasing: true,
+      ...config
+    }
   }
-  
-  protected drawingOptions: DrawingOptions = {
-    color: '#000000',
-    size: 10,
-    opacity: 1,
-    smoothing: 0.5,
-    pressureSensitivity: true,
-    hardness: 80,
-    spacing: 10,
-    blendMode: 'source-over' as GlobalCompositeOperation
-  }
-  
-  protected typedEventBus = getTypedEventBus()
-  protected drawingLayer: Konva.Layer | null = null
-  protected tempLayer: Konva.Layer | null = null
-  
-  constructor() {
-    super()
-  }
-  
+
   /**
    * Initialize drawing layers
    */
-  protected initializeDrawingLayers(canvas: CanvasManager): void {
+  protected initializeDrawingLayers(canvas: any): void {
     const stage = canvas.stage
     if (!stage) return
     
@@ -85,7 +74,7 @@ export abstract class EnhancedDrawingTool extends BaseTool {
   /**
    * Start drawing
    */
-  protected startDrawing(event: ToolEvent, _context: ToolContext): void {
+  protected startDrawing(event: any, _context: any): void {
     const point = this.getEventPoint(event)
     if (!point) return
     
@@ -126,7 +115,7 @@ export abstract class EnhancedDrawingTool extends BaseTool {
   /**
    * Continue drawing
    */
-  protected continueDrawing(event: ToolEvent, _context: ToolContext): void {
+  protected continueDrawing(event: any, _context: any): void {
     if (!this.drawingContext.isDrawing) return
     
     const point = this.getEventPoint(event)
@@ -152,7 +141,7 @@ export abstract class EnhancedDrawingTool extends BaseTool {
   /**
    * End drawing
    */
-  protected endDrawing(_event: ToolEvent, _context: ToolContext): void {
+  protected endDrawing(_event: any, _context: any): void {
     if (!this.drawingContext.isDrawing) return
     
     this.drawingContext.isDrawing = false
@@ -354,7 +343,7 @@ export abstract class EnhancedDrawingTool extends BaseTool {
   /**
    * Get point from tool event
    */
-  protected getEventPoint(event: ToolEvent): DrawingPoint {
+  protected getEventPoint(event: any): DrawingPoint {
     const pressure = 0.5 // Default pressure since ToolEvent doesn't have pressure info
     
     return {
@@ -398,7 +387,7 @@ export abstract class EnhancedDrawingTool extends BaseTool {
   /**
    * Handle tool events
    */
-  handleEvent(event: ToolEvent, context: ToolContext): void {
+  handleEvent(event: any, context: any): void {
     switch (event.type) {
       case 'mousedown':
         this.startDrawing(event, context)
@@ -421,7 +410,7 @@ export abstract class EnhancedDrawingTool extends BaseTool {
   /**
    * Activate tool
    */
-  onActivate(canvas: CanvasManager): void {
+  onActivate(canvas: any): void {
     super.onActivate(canvas)
     this.initializeDrawingLayers(canvas)
   }
@@ -429,7 +418,7 @@ export abstract class EnhancedDrawingTool extends BaseTool {
   /**
    * Deactivate tool
    */
-  onDeactivate(canvas: CanvasManager): void {
+  onDeactivate(canvas: any): void {
     super.onDeactivate(canvas)
     
     // Clean up temporary layer

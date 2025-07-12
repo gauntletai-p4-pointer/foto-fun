@@ -1,18 +1,18 @@
-import type { Layer, Selection, Point } from '@/lib/editor/canvas/types'
+import type { Selection } from '@/lib/editor/canvas/types'
 import type { CanvasObject } from '@/lib/editor/objects/types'
+import { nanoid } from 'nanoid'
 
 /**
  * Event type registry for type-safe event handling
  */
 export interface EventRegistry {
-  // Canvas events
+  // Canvas events (INFINITE CANVAS - no size, no background)
   'canvas.ready': {
     canvasId: string
   }
   'canvas.object.added': { 
     canvasId: string
     object: CanvasObject
-    layerId?: string 
   }
   'canvas.object.modified': { 
     canvasId: string
@@ -35,196 +35,94 @@ export interface EventRegistry {
   'objectOrderChanged': {
     objectOrder: string[]
   }
-  
-  // Layer events
-  'layer.created': { 
-    layer: Layer 
-  }
-  'layer.removed': { 
-    layerId: string 
-  }
-  'layer.modified': { 
-    layerId: string
-    modifications: Partial<Layer> 
-  }
-  'layer.reordered': {
-    layerIds: string[]
-    previousOrder: string[]
-  }
-  'layer.parent.changed': {
-    layerId: string
-    parentId: string | undefined
-    previousParentId: string | undefined
-  }
-  'layer.group.expansion.changed': {
-    groupId: string
-    expanded: boolean
+  'canvas.object.reordered': {
+    canvasId: string
+    objectOrder: string[]
   }
   
-  // Filter events
-  'layer.filter.added': {
-    layerId: string
-    filter: unknown // Using unknown to avoid circular dependency
-    position?: number
-  }
-  'layer.filter.removed': {
-    layerId: string
-    filterId: string
-  }
-  'layer.filter.stack.updated': {
-    layerId: string
-    filterStack: unknown // Using unknown to avoid circular dependency
-  }
-  'layer.filters.reordered': {
-    layerId: string
-    filterIds: string[]
+  // Viewport events (for infinite canvas navigation)
+  'viewport.changed': {
+    zoom?: number
+    pan?: { x: number; y: number }
   }
   
   // Selection events
   'selection.changed': { 
     selection: Selection | null
-    previousSelection: Selection | null
+    previousSelection?: Selection | null
+  }
+  'selection.created': {
+    canvasId: string
+    selection: Selection
+  }
+  'selection.modified': {
+    canvasId: string
+    oldSelection: Selection
+    newSelection: Selection
   }
   'selection.cleared': {
-    previousSelection: Selection
+    canvasId: string
+    clearedSelection: Selection
   }
   
-  // Canvas state events
-  'canvas.resized': { 
-    width: number
-    height: number
-    previousWidth: number
-    previousHeight: number
+  // Tool events
+  'tool.activated': { 
+    toolId: string
+    previousToolId?: string
   }
-  'canvas.background.changed': {
-    backgroundColor: string
-    previousColor: string
+  'tool.deactivated': { 
+    toolId: string 
   }
-  
-  // Viewport events
-  'viewport.changed': { 
-    zoom?: number
-    pan?: Point
-    previousZoom?: number
-    previousPan?: Point
+  'tool.option.changed': { 
+    toolId: string
+    optionId: string
+    optionKey: string
+    value: unknown
   }
-  
-  // Document events
-  'document.loaded': { 
-    document: {
-      id: string
-      name: string
-      width: number
-      height: number
-      backgroundColor: string
-      createdAt: number
-      lastModified: number
-    }
-  }
-  'document.saved': { 
-    documentId: string 
-  }
-  'document.created': {
-    documentId: string
+  'tool.preset.saved': {
+    toolId: string
     name: string
-    bounds: {
-      width: number
-      height: number
-      x: number
-      y: number
-    }
-    metadata: {
-      id: string
-      name: string
-      created: Date
-      modified: Date
-      author?: string
-      colorSpace: 'RGB' | 'CMYK' | 'LAB'
-      resolution: number
-      bitDepth: 8 | 16 | 32
-      backgroundColor?: string
-    }
+    values: Record<string, unknown>
   }
-  'document.image.ready': {
-    documentId: string
-    imageElement: HTMLImageElement
-    dataUrl: string
-  }
-  'document.autosaved': { 
-    documentId: string
-    location: 'local' | 'cloud' 
-  }
-  'document.recovered': { 
-    documentId: string
-    recoveredFrom: string 
-  }
-  'document.opened': { 
-    document: { 
-      id: string
-      name: string
-      path?: string
-      size?: number 
-    } 
-  }
-  'document.closed': { 
-    documentId?: string 
-  }
-  'document.resized': {
-    documentId: string
-    previousBounds: {
-      width: number
-      height: number
-      x: number
-      y: number
-    }
-    newBounds: {
-      width: number
-      height: number
-      x: number
-      y: number
-    }
-  }
-  'document.metadata.updated': {
-    documentId: string
-    updates: Record<string, unknown>
-  }
-  'document.ready': {
-    documentId: string
+  'tool.preset.applied': {
+    toolId: string
+    presetId: string
   }
   
-  // Recent files events
-  'recentFiles.updated': { 
-    files: Array<{ 
-      id: string
-      name: string
-      path?: string
-      lastOpened: Date
-      thumbnail?: string
-      size?: number 
-    }> 
+  // Drawing events
+  'drawing.started': {
+    toolId: string
+    canvasId: string
+    position: { x: number; y: number }
   }
-  'recentFiles.cleared': Record<string, never>
-  
-  // Export events
-  'export.started': {
-    exportId: string
-    format: string
+  'drawing.updated': {
+    toolId: string
+    canvasId: string
+    position: { x: number; y: number }
+  }
+  'drawing.completed': {
+    toolId: string
+    canvasId: string
+    path?: any
+    result?: any
+  }
+  'drawing.options.changed': {
+    toolId: string
     options: Record<string, unknown>
-  }
-  'export.completed': {
-    exportId: string
-    blob: Blob
-    size: number
-  }
-  'export.failed': {
-    exportId: string
-    error: string
   }
   
   // Text events
   'text.created': {
     textId: string
+    canvasId: string
+    properties: Record<string, unknown>
+  }
+  'text.updated': {
+    textId: string
+    property: string
+    value: unknown
     style?: Record<string, unknown>
+    setAsDefault?: boolean
   }
   'text.selected': {
     textId: string
@@ -237,265 +135,278 @@ export interface EventRegistry {
   }
   'text.editing.ended': {
     textId: string
-    finalText: string
-  }
-  'text.style.changed': {
-    textId?: string
-    style: Record<string, unknown>
-    setAsDefault?: boolean
+    finalText?: string
   }
   'text.effects.applied': {
     textId: string
     effects: Record<string, unknown>
   }
-  'text.effects.removed': {
-    textId: string
-  }
-  'text.font.used': {
-    fontFamily: string
-  }
   'text.preset.saved': {
     name: string
     style: Record<string, unknown>
-    effects?: Record<string, unknown>
-  }
-  'text.warped': {
-    textId: string
-    warpStyle: string
-    warpOptions: Record<string, unknown>
+    effects: Record<string, unknown>
   }
   
-  // Layer styles events
-  'layer.styles.applied': {
-    objectId: string
-    styles: Record<string, unknown>
-  }
-  'layer.styles.updated': {
-    groupId: string
-    styleType: string
-    newStyle: unknown
-  }
-  
-  // Drawing events
-  'drawing.started': {
-    toolId: string
-    point: { x: number; y: number; pressure?: number }
-    options: Record<string, unknown>
-  }
-  'drawing.completed': {
-    toolId: string
-    pathId: string
-    bounds: { x: number; y: number; width: number; height: number }
-  }
-  'drawing.options.changed': {
-    toolId: string
-    options: Record<string, unknown>
-  }
-  
-    // Tool events
-  'tool.activated': { 
-    toolId: string
-    previousToolId: string | null
-  }
-  'tool.deactivated': { 
-    toolId: string 
-  }
-  'tool.options.changed': {
-    toolId: string
-    options: Record<string, unknown>
-  }
-  'tool.option.changed': {
-    toolId: string
-    optionId?: string
-    optionKey?: string
-    value: unknown
-  }
-  'tool.preset.saved': {
-    toolId: string
+  // Project events (INFINITE CANVAS - projects don't have canvas size/background)
+  'project.created': {
+    projectId: string
     name: string
-    values: Record<string, unknown>
   }
-  'tool.preset.applied': {
-    toolId: string
-    presetId: string
+  'project.loaded': {
+    project: {
+      id: string
+      name: string
+      createdAt: Date
+      lastModified: Date
+    }
   }
-  'tool.locked': Record<string, never>
-  'tool.unlocked': Record<string, never>
-  
-  // History events
-  'history.snapshot.created': {
-    snapshotId: string
-    name: string
-    description?: string
-    eventId: string
+  'project.saved': {
+    projectId: string
     timestamp: number
   }
-  'history.snapshot.loaded': {
-    snapshotId: string
-    eventId: string
+  'project.updated': {
+    projectId: string
+    name: string
   }
-  'history.snapshot.deleted': {
-    snapshotId: string
+  'project.deleted': {
+    projectId: string
   }
-  'history.branch.created': {
-    branchId: string
-    fromEventId: string
-    name?: string
-  }
+  
+  // History events
   'history.navigated': {
-    fromEventId: string | null
-    toEventId: string
-    method: 'undo' | 'redo' | 'jump' | 'snapshot'
+    eventId: string
+    timestamp: number
+    direction: 'undo' | 'redo'
   }
   'history.state.changed': {
     canUndo: boolean
     canRedo: boolean
-    currentEventId: string | null
+    currentIndex: number
     totalEvents: number
+  }
+  'history.snapshot.created': {
+    snapshotId: string
+    timestamp: number
+    eventCount: number
+  }
+  'history.snapshot.loaded': {
+    snapshotId: string
+    eventId: string
+    timestamp: number
+  }
+  'history.snapshot.deleted': {
+    snapshotId: string
   }
   
   // Workflow events
   'workflow.started': {
     workflowId: string
-    name: string
+    type: string
+    metadata?: Record<string, unknown>
   }
   'workflow.completed': {
     workflowId: string
-    eventCount: number
+    result?: Record<string, unknown>
   }
   'workflow.failed': {
     workflowId: string
     error: string
+    metadata?: Record<string, unknown>
   }
   
+  // File events
+  'recentFiles.updated': {
+    files: Array<{ id: string; name: string; path: string; lastOpened: Date }>
+  }
+  'recentFiles.cleared': Record<string, never>
+  
   // Command events
-  'command.started': {
+  'command.executed': {
     commandId: string
-    description: string
-    metadata: Record<string, unknown>
-  }
-  'command.completed': {
-    commandId: string
-    success: boolean
-  }
-  'command.failed': {
-    commandId: string
-    error: string
+    commandType: string
+    metadata?: Record<string, unknown>
   }
   'command.undone': {
     commandId: string
+    commandType: string
   }
   'command.redone': {
     commandId: string
+    commandType: string
   }
   
-  // Clipboard events
-  'clipboard.cut': {
-    objects: CanvasObject[]
-  }
-  'clipboard.paste': {
-    objects: CanvasObject[]
-  }
-  
-  // AI events
+  // AI Processing events
   'ai.processing.started': {
-    taskId: string
-    toolId: string
-    description: string
-    targetObjectIds?: string[]
+    operationId: string
+    type: string
+    metadata?: Record<string, unknown>
   }
   'ai.processing.completed': {
-    taskId: string
-    toolId: string
-    success: boolean
+    operationId: string
     result?: Record<string, unknown>
-    affectedObjectIds?: string[]
+    metadata?: Record<string, unknown>
   }
   'ai.processing.failed': {
-    taskId: string
-    toolId: string
+    operationId: string
     error: string
-    details?: Record<string, unknown>
-  }
-  'tool.message': {
-    toolId: string
-    message: string
-    type: 'info' | 'warning' | 'error' | 'success'
-    data?: Record<string, unknown>
+    metadata?: Record<string, unknown>
   }
   
-  // Tool-specific completion events
-  'ai.inpainting.completed': {
-    taskId: string
-    toolId: string
-    objectId: string
-    prompt: string
-    success: boolean
-    maskArea?: { x: number; y: number; width: number; height: number }
-  }
-  'ai.outpainting.completed': {
-    taskId: string
-    toolId: string
-    objectId: string
-    direction: 'left' | 'right' | 'top' | 'bottom' | 'all'
-    expandSize: number
-    success: boolean
-  }
-  'ai.semantic.selection': {
-    taskId: string
-    toolId: string
-    query: string
-    matchedCount: number
-    objectIds: string[]
-    confidence: number
-  }
+  // AI-specific operation events
   'ai.face.enhanced': {
-    taskId: string
-    toolId: string
-    objectId: string
-    enhancementScale: number
-    success: boolean
+    operationId: string
+    imageId: string
+    enhancementType: string
+    result?: Record<string, unknown>
   }
   'ai.face.error': {
-    taskId: string
-    toolId: string
-    objectId: string
+    operationId: string
     error: string
-    enhancementScale?: number
+    metadata?: Record<string, unknown>
   }
-  
-  // Selection enforcement events
-  'ai.tool.selection.required': {
-    toolId: string
-    objectCount: number
-    message: string
-    requiresSelection: boolean
+  'ai.inpainting.completed': {
+    operationId: string
+    imageId: string
+    result?: Record<string, unknown>
   }
-  
-  // Approval system events
-  'ai.tool.preview.generated': {
-    toolId: string
-    previewData: string
-    confidence: number
-    requiresApproval: boolean
+  'ai.background.removed': {
+    operationId: string
+    imageId: string
+    result?: Record<string, unknown>
   }
-  
-  // Agent workflow events
-  'ai.workflow.step.completed': {
-    workflowId: string
-    stepId: string
-    toolId: string
-    success: boolean
-    result?: unknown
-    executionTime?: number
+  'ai.image.generated': {
+    operationId: string
+    prompt: string
+    result?: Record<string, unknown>
   }
+  'ai.image.upscaled': {
+    operationId: string
+    imageId: string
+    scaleFactor: number
+    result?: Record<string, unknown>
+  }
+  'ai.style.transferred': {
+    operationId: string
+    sourceImageId: string
+    styleImageId: string
+    result?: Record<string, unknown>
+  }
+  'ai.object.removed': {
+    operationId: string
+    imageId: string
+    objectType: string
+    result?: Record<string, unknown>
+  }
+  'ai.variation.generated': {
+    operationId: string
+    sourceImageId: string
+    variationType: string
+    result?: Record<string, unknown>
+  }
+  'ai.relighting.applied': {
+    operationId: string
+    imageId: string
+    lightingType: string
+    result?: Record<string, unknown>
+  }
+  'ai.outpainting.completed': {
+    operationId: string
+    imageId: string
+    result?: Record<string, unknown>
+  }
+  'ai.semantic.selection': {
+    operationId: string
+    imageId: string
+    selectionData?: Record<string, unknown>
+    result?: Record<string, unknown>
+  }
+}
+
+export interface EventBusConfig {
+  maxListeners?: number
+  errorHandling?: 'log' | 'throw' | 'ignore'
+  metrics?: boolean
+  debugging?: boolean
 }
 
 /**
  * Type-safe event bus for application-wide event handling
+ * 
+ * Now uses dependency injection instead of singleton pattern.
  */
 export class TypedEventBus {
   private handlers = new Map<keyof EventRegistry, Set<(data: unknown) => void>>()
+  private config: EventBusConfig
+  private disposed = false
+  private metrics: Map<keyof EventRegistry, { count: number; lastEmitted: number }> = new Map()
+  
+  constructor(config: EventBusConfig = {}) {
+    this.config = {
+      maxListeners: 1000,
+      errorHandling: 'log',
+      metrics: true,
+      debugging: false,
+      ...config
+    }
+    this.initialize()
+  }
+  
+  private initialize(): void {
+    this.setupSubscriptions()
+    this.setupErrorHandling()
+    this.setupMetrics()
+    
+    if (this.config.debugging) {
+      console.log('[TypedEventBus] Initialized with config:', this.config)
+    }
+  }
+  
+  private setupSubscriptions(): void {
+    // Setup subscription management
+    if (this.config.debugging) {
+      console.log('[TypedEventBus] Subscription management initialized')
+    }
+  }
+  
+  private setupErrorHandling(): void {
+    // Setup error handling based on config
+    if (this.config.debugging) {
+      console.log('[TypedEventBus] Error handling setup:', this.config.errorHandling)
+    }
+  }
+  
+  private setupMetrics(): void {
+    if (this.config.metrics) {
+      // Setup metrics collection
+      if (this.config.debugging) {
+        console.log('[TypedEventBus] Metrics collection enabled')
+      }
+    }
+  }
+  
+  /**
+   * Dispose of the TypedEventBus and clean up resources
+   */
+  dispose(): void {
+    if (this.disposed) return
+    
+    this.disposed = true
+    this.cleanup()
+    this.unsubscribeAll()
+    
+    console.log('[TypedEventBus] Disposed')
+  }
+  
+  private cleanup(): void {
+    // Clear all handlers
+    this.handlers.clear()
+    this.metrics.clear()
+  }
+  
+  private unsubscribeAll(): void {
+    // Unsubscribe all handlers
+    this.handlers.clear()
+  }
   
   /**
    * Subscribe to an event type
@@ -504,15 +415,35 @@ export class TypedEventBus {
     event: K,
     handler: (data: EventRegistry[K] & { timestamp: number }) => void
   ): () => void {
+    if (this.disposed) {
+      throw new Error('TypedEventBus has been disposed')
+    }
+    
     if (!this.handlers.has(event)) {
       this.handlers.set(event, new Set())
     }
     
-    this.handlers.get(event)!.add(handler as (data: unknown) => void)
+    const handlers = this.handlers.get(event)!
+    
+    // Check max listeners limit
+    if (this.config.maxListeners && handlers.size >= this.config.maxListeners) {
+      const message = `Maximum listeners (${this.config.maxListeners}) exceeded for event: ${event}`
+      this.handleError(new Error(message))
+      return () => {} // Return no-op function
+    }
+    
+    handlers.add(handler as (data: unknown) => void)
+    
+    if (this.config.debugging) {
+      console.log(`[TypedEventBus] Subscribed to ${event}, total listeners: ${handlers.size}`)
+    }
     
     // Return unsubscribe function
     return () => {
-      this.handlers.get(event)?.delete(handler as (data: unknown) => void)
+      handlers.delete(handler as (data: unknown) => void)
+      if (this.config.debugging) {
+        console.log(`[TypedEventBus] Unsubscribed from ${event}, remaining listeners: ${handlers.size}`)
+      }
     }
   }
   
@@ -538,6 +469,8 @@ export class TypedEventBus {
     event: K,
     handler: (data: EventRegistry[K] & { timestamp: number }) => void
   ): void {
+    if (this.disposed) return
+    
     this.handlers.get(event)?.delete(handler as (data: unknown) => void)
   }
   
@@ -548,19 +481,43 @@ export class TypedEventBus {
     event: K,
     data: EventRegistry[K]
   ): void {
+    if (this.disposed) {
+      if (this.config.debugging) {
+        console.warn(`[TypedEventBus] Attempted to emit ${event} on disposed event bus`)
+      }
+      return
+    }
+    
     const handlers = this.handlers.get(event)
-    if (!handlers) return
+    if (!handlers || handlers.size === 0) {
+      if (this.config.debugging) {
+        console.log(`[TypedEventBus] No handlers for event: ${event}`)
+      }
+      return
+    }
     
     const eventData = {
       ...data,
       timestamp: Date.now()
     }
     
+    // Update metrics
+    if (this.config.metrics) {
+      const metric = this.metrics.get(event) || { count: 0, lastEmitted: 0 }
+      metric.count++
+      metric.lastEmitted = eventData.timestamp
+      this.metrics.set(event, metric)
+    }
+    
+    if (this.config.debugging) {
+      console.log(`[TypedEventBus] Emitting ${event} to ${handlers.size} handlers`)
+    }
+    
     handlers.forEach(handler => {
       try {
         handler(eventData)
       } catch (error) {
-        console.error(`Error in event handler for ${event}:`, error)
+        this.handleError(new Error(`Error in event handler for ${event}: ${error}`))
       }
     })
   }
@@ -569,10 +526,18 @@ export class TypedEventBus {
    * Clear all handlers for a specific event type
    */
   clear(event?: keyof EventRegistry): void {
+    if (this.disposed) return
+    
     if (event) {
       this.handlers.delete(event)
+      if (this.config.debugging) {
+        console.log(`[TypedEventBus] Cleared all handlers for ${event}`)
+      }
     } else {
       this.handlers.clear()
+      if (this.config.debugging) {
+        console.log('[TypedEventBus] Cleared all handlers')
+      }
     }
   }
   
@@ -582,14 +547,38 @@ export class TypedEventBus {
   listenerCount(event: keyof EventRegistry): number {
     return this.handlers.get(event)?.size || 0
   }
-}
-
-// Singleton instance
-let instance: TypedEventBus | null = null
-
-export function getTypedEventBus(): TypedEventBus {
-  if (!instance) {
-    instance = new TypedEventBus()
+  
+  /**
+   * Get all registered event types
+   */
+  getEventTypes(): (keyof EventRegistry)[] {
+    return Array.from(this.handlers.keys())
   }
-  return instance
+  
+  /**
+   * Get metrics for event usage
+   */
+  getMetrics(): Map<keyof EventRegistry, { count: number; lastEmitted: number }> {
+    return new Map(this.metrics)
+  }
+  
+  /**
+   * Check if the event bus is disposed
+   */
+  isDisposed(): boolean {
+    return this.disposed
+  }
+  
+  private handleError(error: Error): void {
+    switch (this.config.errorHandling) {
+      case 'throw':
+        throw error
+      case 'log':
+        console.error('[TypedEventBus]', error.message)
+        break
+      case 'ignore':
+        // Do nothing
+        break
+    }
+  }
 } 

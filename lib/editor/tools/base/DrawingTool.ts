@@ -1,6 +1,8 @@
-import { BaseTool } from './BaseTool'
-import type { ToolEvent, Point } from '@/lib/editor/canvas/types'
 import Konva from 'konva'
+import { BaseTool } from './BaseTool'
+import { Point } from '@/lib/editor/canvas/types'
+import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
+import type { TypedEventBus } from '@/lib/events/core/TypedEventBus'
 import { createToolState } from '../utils/toolState'
 // Tool option type
 export interface ToolOption {
@@ -8,30 +10,57 @@ export interface ToolOption {
   value: unknown
 }
 import { nanoid } from 'nanoid'
-import { getTypedEventBus } from '@/lib/events/core/TypedEventBus'
 
-// Drawing tool state
-type DrawingToolState = {
-  isDrawing: boolean
-  lastPoint: Point | null
-  currentPath: Point[]
-  currentStroke: Konva.Path | null
-  previewLayer: Konva.Layer | null
+export interface DrawingToolConfig {
+  brushSize?: number
+  opacity?: number
+  blendMode?: string
+  smoothing?: boolean
+}
+
+export interface DrawingToolDependencies {
+  typedEventBus: TypedEventBus
+  canvasManager: CanvasManager
 }
 
 /**
- * Base class for drawing tools (brush, pencil, eraser, etc.)
- * Uses Konva for rendering and follows event-driven architecture
+ * Base class for drawing tools with proper dependency injection
  */
 export abstract class DrawingTool extends BaseTool {
   // Encapsulated state
-  protected state = createToolState<DrawingToolState>({
+  protected state = createToolState<{
+    isDrawing: boolean
+    lastPoint: Point | null
+    currentPath: Point[]
+    currentStroke: Konva.Path | null
+    previewLayer: Konva.Layer | null
+  }>({
     isDrawing: false,
     lastPoint: null,
     currentPath: [],
     currentStroke: null,
     previewLayer: null
   })
+  
+  protected typedEventBus: TypedEventBus
+  protected canvasManager: CanvasManager
+  protected config: DrawingToolConfig
+
+  constructor(
+    dependencies: DrawingToolDependencies,
+    config: DrawingToolConfig = {}
+  ) {
+    super()
+    this.typedEventBus = dependencies.typedEventBus
+    this.canvasManager = dependencies.canvasManager
+    this.config = {
+      brushSize: 10,
+      opacity: 1,
+      blendMode: 'source-over',
+      smoothing: true,
+      ...config
+    }
+  }
   
   // Tool properties
   protected abstract strokeColor: string
@@ -73,7 +102,7 @@ export abstract class DrawingTool extends BaseTool {
   /**
    * Handle mouse down - start drawing
    */
-  onMouseDown(event: ToolEvent): void {
+  onMouseDown(event: { point: Point }): void {
     if (!this.canvas) return
     
     const point = event.point
@@ -93,7 +122,7 @@ export abstract class DrawingTool extends BaseTool {
   /**
    * Handle mouse move - continue drawing
    */
-  onMouseMove(event: ToolEvent): void {
+  onMouseMove(event: { point: Point }): void {
     if (!this.canvas || !this.state.get('isDrawing')) return
     
     const point = event.point
@@ -113,7 +142,7 @@ export abstract class DrawingTool extends BaseTool {
   /**
    * Handle mouse up - finish drawing
    */
-  onMouseUp(_event: ToolEvent): void {
+  onMouseUp(_event: { point: Point }): void {
     if (!this.canvas || !this.state.get('isDrawing')) return
     
     const currentPath = this.state.get('currentPath')
@@ -234,8 +263,7 @@ export abstract class DrawingTool extends BaseTool {
     await this.canvas.addObject(pathObject)
     
     // Emit event
-    const eventBus = getTypedEventBus()
-    eventBus.emit('canvas.object.added', {
+    this.typedEventBus.emit('canvas.object.added', {
       canvasId: this.canvas.stage.id() || 'main',
       object: pathObject,
       layerId: pathObject.layerId

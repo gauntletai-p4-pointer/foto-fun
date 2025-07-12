@@ -4,11 +4,33 @@ import { textToPathConverter } from '../services/TextToPathConverter'
 import type { PathData, TextOptions } from '../services/TextToPathConverter'
 import { getTypedEventBus } from '@/lib/events/core/TypedEventBus'
 import { nanoid } from 'nanoid'
+import { Point } from '@/lib/editor/canvas/types'
+import type { TypedEventBus } from '@/lib/events/core/TypedEventBus'
+import { Effect } from './base/Effect'
 
 // Type for text objects in our system
-type TextObject = CanvasObject & {
-  type: 'text' | 'verticalText'
-  node: Konva.Text
+interface TextObject extends CanvasObject {
+  type: 'text'
+  text: string
+  fontFamily: string
+  fontSize: number
+  fontStyle: string
+  fontWeight: string
+  fill: string
+  stroke?: string
+  strokeWidth?: number
+  textAlign: string
+  verticalAlign: string
+  lineHeight: number
+  letterSpacing: number
+  textDecoration: string
+  textTransform: string
+}
+
+interface TextWarpConfig {
+  intensity?: number
+  quality?: 'low' | 'medium' | 'high'
+  realtime?: boolean
 }
 
 // Warp style types
@@ -37,11 +59,25 @@ export interface WarpOptions {
 }
 
 /**
- * Enhanced TextWarp - Applies various warping effects to text objects
- * Uses proper text-to-path conversion for accurate results
+ * Enhanced text warp effects with proper dependency injection
  */
-export class EnhancedTextWarp {
-  private typedEventBus = getTypedEventBus()
+export class EnhancedTextWarp extends Effect {
+  private config: TextWarpConfig
+  private typedEventBus: TypedEventBus
+
+  constructor(
+    typedEventBus: TypedEventBus,
+    config: TextWarpConfig = {}
+  ) {
+    super()
+    this.typedEventBus = typedEventBus
+    this.config = {
+      intensity: 1.0,
+      quality: 'high',
+      realtime: true,
+      ...config
+    }
+  }
   
   /**
    * Apply warp effect to a text object

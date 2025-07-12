@@ -3,7 +3,7 @@ import { ResourceManager } from './ResourceManager'
 
 // Type imports for services
 import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
-import type { DocumentSerializer } from '@/lib/editor/persistence/DocumentSerializer'
+import type { ProjectSerializer } from '@/lib/editor/persistence/ProjectSerializer'
 import type { ExportManager } from '@/lib/editor/export/ExportManager'
 // import type { ImageLoaderService } from '@/lib/editor/canvas/services/ImageLoaderService'
 // import type { LayerManager } from '@/lib/editor/canvas/services/LayerManager'
@@ -20,10 +20,11 @@ import { EventToolStore } from '@/lib/store/tools/EventToolStore'
 
 import { EventSelectionStore } from '@/lib/store/selection/EventSelectionStore'
 import { EventColorStore } from '@/lib/store/color/EventColorStore'
-import { getHistoryStore } from '@/lib/events/history/EventBasedHistoryStore'
+import { EventBasedHistoryStore } from '@/lib/events/history/EventBasedHistoryStore'
 import { ObjectManager } from '@/lib/editor/objects'
 import { ObjectStore } from '@/lib/store/objects'
-import { getEventDocumentStore } from '@/lib/store/document/EventDocumentStore'
+import { EventProjectStore } from '@/lib/store/project/EventProjectStore'
+import { EventTextStore } from '@/lib/store/text/EventTextStore'
 
 // Managers
 import { FontManager } from '@/lib/editor/fonts/FontManager'
@@ -49,12 +50,28 @@ export class AppInitializer {
         phase: 'core'
       })
       
-      container.registerSingleton('EventStore', () => EventStore.getInstance(), {
+      container.registerSingleton('EventStore', () => {
+        return new EventStore({
+          persistence: true,
+          indexing: true,
+          compression: true,
+          maxEvents: 10000,
+          snapshotInterval: 1000,
+          batchSize: 50
+        })
+      }, {
         dependencies: [],
         phase: 'core'
       })
       
-      container.registerSingleton('TypedEventBus', () => new TypedEventBus(), {
+      container.registerSingleton('TypedEventBus', () => {
+        return new TypedEventBus({
+          maxListeners: 1000,
+          errorHandling: 'log',
+          metrics: true,
+          debugging: false
+        })
+      }, {
         dependencies: [],
         phase: 'core'
       })
@@ -70,10 +87,12 @@ export class AppInitializer {
       
       // Initialize the EventStoreBridge to connect EventStore to TypedEventBus
       container.registerSingleton('EventStoreBridge', () => {
-        const bridge = EventStoreBridge.getInstance(
-          container.getSync('EventStore'),
-          container.getSync('TypedEventBus')
-        )
+        const eventStore = container.getSync<EventStore>('EventStore')
+        const eventBus = container.getSync<TypedEventBus>('TypedEventBus')
+        const bridge = new EventStoreBridge(eventStore, eventBus, {
+          debugging: false,
+          errorHandling: 'log'
+        })
         bridge.start()
         return bridge
       }, {
@@ -123,10 +142,8 @@ export class AppInitializer {
           container.getSync('EventStore'),
           container.getSync('TypedEventBus')
         )
-        // Activate default tool after a short delay to ensure everything is initialized
-        setTimeout(() => {
-          store.activateTool('move')
-        }, 100)
+        // Activate default tool immediately - no setTimeout hack needed
+        store.activateTool('move')
         return store
       }, {
         dependencies: ['EventStore', 'TypedEventBus'],
@@ -176,11 +193,12 @@ export class AppInitializer {
         phase: 'infrastructure'
       })
 
-      // Register DocumentStore
-      container.registerSingleton('DocumentStore', () => {
-        return getEventDocumentStore(
+      // Register ProjectStore
+      container.registerSingleton('ProjectStore', () => {
+        return new EventProjectStore(
           container.getSync('EventStore'),
-          container.getSync('TypedEventBus')
+          container.getSync('TypedEventBus'),
+          { autoSave: true, versionControl: true, autoSaveInterval: 30000 }
         )
       }, {
         dependencies: ['EventStore', 'TypedEventBus'],
@@ -189,9 +207,21 @@ export class AppInitializer {
 
       // Register EventBasedHistoryStore
       container.registerSingleton('HistoryStore', () => {
-        return getHistoryStore(
+        return new EventBasedHistoryStore(
           container.getSync('EventStore'),
           container.getSync('TypedEventBus')
+        )
+      }, {
+        dependencies: ['EventStore', 'TypedEventBus'],
+        phase: 'infrastructure'
+      })
+
+      // Register TextStore
+      container.registerSingleton('TextStore', () => {
+        return new EventTextStore(
+          container.getSync('EventStore'),
+          container.getSync('TypedEventBus'),
+          { persistence: true, validation: true, maxRecentFonts: 10 }
         )
       }, {
         dependencies: ['EventStore', 'TypedEventBus'],
@@ -200,25 +230,69 @@ export class AppInitializer {
       
       // Font System
       container.registerSingleton('FontManager', () => {
-        return FontManager.getInstance()
+        return new FontManager(
+          container.getSync('TypedEventBus'),
+          { preload: true, caching: true }
+        )
       }, {
-        dependencies: [],
+        dependencies: ['TypedEventBus'],
         phase: 'infrastructure'
       })
       
-      // Filter System - Use async factory for lazy loading
-      container.registerSingleton('WebGLFilterManager', async () => {
-        const { WebGLFilterManager } = await import('@/lib/editor/filters/WebGLFilterManager')
-        const manager = new WebGLFilterManager(
+      // Command System
+      container.registerSingleton('CommandManager', () => {
+        const { CommandManager } = require('@/lib/editor/commands/CommandManager')
+        return new CommandManager(
           container.getSync('EventStore'),
           container.getSync('TypedEventBus'),
-          container.getSync('ResourceManager')
+          container.getSync('HistoryStore'),
+          { validation: true, middleware: true, metrics: true }
+        )
+      }, {
+        dependencies: ['EventStore', 'TypedEventBus', 'HistoryStore'],
+        phase: 'infrastructure'
+      })
+      
+      // Selection Context System
+      container.registerSingleton('SelectionContextManager', () => {
+        const { SelectionContextManager } = require('@/lib/editor/selection/SelectionContextManager')
+        return new SelectionContextManager(
+          container.getSync('EventStore'),
+          container.getSync('TypedEventBus'),
+          { persistence: true, optimization: true }
+        )
+      }, {
+        dependencies: ['EventStore', 'TypedEventBus'],
+        phase: 'infrastructure'
+      })
+      
+      // Clipboard System
+      container.registerSingleton('ClipboardManager', () => {
+        const { ClipboardManager } = require('@/lib/editor/clipboard/ClipboardManager')
+        return new ClipboardManager(
+          container.getSync('EventStore'),
+          container.getSync('TypedEventBus'),
+          { persistence: true, validation: true, systemClipboard: true }
+        )
+      }, {
+        dependencies: ['EventStore', 'TypedEventBus'],
+        phase: 'infrastructure'
+      })
+      
+      // WebGL Filter System
+      container.registerSingleton('WebGLFilterEngine', async () => {
+        const { WebGLFilterEngine } = await import('@/lib/editor/filters/WebGLFilterEngine')
+        const engine = new WebGLFilterEngine(
+          container.getSync('EventStore'),
+          container.getSync('TypedEventBus'),
+          container.getSync('ResourceManager'),
+          { optimization: true, caching: true }
         )
         // Initialize asynchronously but don't block
-        manager.initialize().catch((error: Error) => {
-          console.error('[AppInitializer] Failed to initialize WebGLFilterManager:', error)
+        engine.initializeWebGL().catch((error: Error) => {
+          console.error('[AppInitializer] Failed to initialize WebGLFilterEngine:', error)
         })
-        return manager
+        return engine
       }, {
         dependencies: ['EventStore', 'TypedEventBus', 'ResourceManager'],
         phase: 'infrastructure'
@@ -240,9 +314,13 @@ export class AppInitializer {
       await container.get('ColorStore')
       await container.get('ObjectStore')
       await container.get('ObjectManager')
-      await container.get('DocumentStore')
+      await container.get('ProjectStore')
       await container.get('HistoryStore')
       await container.get('FontManager')
+      await container.get('CommandManager')
+      await container.get('SelectionContextManager')
+      await container.get('ClipboardManager')
+      await container.get('WebGLFilterEngine')
       await container.get('ToolExecutor')
       
       // Phase 3: Application Services (Services that depend on canvas or user interaction)
@@ -277,29 +355,26 @@ export class AppInitializer {
         phase: 'application'
       })
       
-      // Document services
-      container.registerSingleton('DocumentSerializer', async () => {
-        const { DocumentSerializer } = await import('@/lib/editor/persistence/DocumentSerializer')
-        return new DocumentSerializer(
-          container.getSync('CanvasManager'),
-          container.getSync('DocumentStore'),
-          container.getSync('TypedEventBus')
-        )
-      }, {
-        dependencies: ['CanvasManager', 'DocumentStore', 'TypedEventBus'],
-        phase: 'application'
-      })
+              // Project services
+        container.registerSingleton('ProjectSerializer', async () => {
+          const { ProjectSerializer } = await import('@/lib/editor/persistence/ProjectSerializer')
+          return new ProjectSerializer(
+            container.getSync('TypedEventBus'),
+            container.getSync('ProjectStore')
+          )
+        }, {
+          dependencies: ['TypedEventBus', 'ProjectStore'],
+          phase: 'application'
+        })
       
       container.registerSingleton('AutoSaveManager', async () => {
         const { AutoSaveManager } = await import('@/lib/editor/autosave/AutoSaveManager')
-        const documentSerializer = await container.get<DocumentSerializer>('DocumentSerializer')
         return new AutoSaveManager(
-          documentSerializer,
-          container.getSync('DocumentStore'),
-          container.getSync('TypedEventBus')
+          container.getSync('TypedEventBus'),
+          container.getSync('ProjectStore')
         )
       }, {
-        dependencies: ['DocumentSerializer', 'DocumentStore', 'TypedEventBus'],
+        dependencies: ['TypedEventBus', 'ProjectStore'],
         phase: 'application'
       })
       
@@ -313,18 +388,13 @@ export class AppInitializer {
       
       container.registerSingleton('ShortcutManager', async () => {
         const { ShortcutManager } = await import('@/lib/editor/shortcuts/ShortcutManager')
-        const exportManager = await container.get<ExportManager>('ExportManager')
-        const documentSerializer = await container.get<DocumentSerializer>('DocumentSerializer')
         return new ShortcutManager(
-          container.getSync('DocumentStore'),
-          container.getSync('ToolStore'),
-          container.getSync('HistoryStore'),
-          container.getSync('CanvasManager'),
-          exportManager,
-          documentSerializer
+          container.getSync('TypedEventBus'),
+          container.getSync('ProjectStore'),
+          container
         )
       }, {
-        dependencies: ['DocumentStore', 'ToolStore', 'HistoryStore', 'CanvasManager', 'ExportManager', 'DocumentSerializer'],
+        dependencies: ['TypedEventBus', 'ProjectStore'],
         phase: 'application'
       })
       

@@ -1,53 +1,41 @@
 import type { CanvasManager, Layer } from '@/lib/editor/canvas/types'
-import { getTypedEventBus } from '@/lib/events/core/TypedEventBus'
+import type { TypedEventBus } from '@/lib/events/core/TypedEventBus'
 import Konva from 'konva'
 
 /**
- * PixelBuffer manages pixel data for efficient painting operations
- * Handles conversion between Konva nodes and pixel data
+ * PixelBuffer - Efficient pixel manipulation for drawing tools
+ * Now uses dependency injection instead of singleton pattern
  */
 export class PixelBuffer {
-  private canvas: CanvasManager
-  private layer: Layer
-  private pixelData: ImageData | null = null
-  private workingCanvas: HTMLCanvasElement
-  private workingContext: CanvasRenderingContext2D
-  private typedEventBus = getTypedEventBus()
-  
-  constructor(canvas: CanvasManager, layer: Layer) {
-    this.canvas = canvas
-    this.layer = layer
-    
-    // Create working canvas for pixel operations
-    this.workingCanvas = document.createElement('canvas')
-    this.workingContext = this.workingCanvas.getContext('2d', {
-      willReadFrequently: true,
-      alpha: true
-    })!
-    
-    this.initializeBuffer()
+  private typedEventBus: TypedEventBus
+  private buffer: ImageData | null = null
+  private canvas: HTMLCanvasElement | null = null
+  private context: CanvasRenderingContext2D | null = null
+
+  constructor(typedEventBus: TypedEventBus) {
+    this.typedEventBus = typedEventBus
   }
   
   /**
    * Initialize the pixel buffer from the layer
    */
   private initializeBuffer(): void {
-    const stage = this.canvas.stage
+    const stage = this.canvas
     const stageSize = stage.size()
     
     // Set working canvas size
-    this.workingCanvas.width = stageSize.width
-    this.workingCanvas.height = stageSize.height
+    this.canvas.width = stageSize.width
+    this.canvas.height = stageSize.height
     
     // Clear the canvas
-    this.workingContext.clearRect(0, 0, stageSize.width, stageSize.height)
+    this.context.clearRect(0, 0, stageSize.width, stageSize.height)
     
     // Draw the layer to the working canvas
     const layerCanvas = this.layer.konvaLayer.toCanvas()
-    this.workingContext.drawImage(layerCanvas, 0, 0)
+    this.context.drawImage(layerCanvas, 0, 0)
     
     // Get pixel data
-    this.pixelData = this.workingContext.getImageData(
+    this.buffer = this.context.getImageData(
       0, 0, 
       stageSize.width, 
       stageSize.height
@@ -62,24 +50,24 @@ export class PixelBuffer {
   getPixelData(x?: number, y?: number, width?: number, height?: number): ImageData {
     if (x === undefined || y === undefined || width === undefined || height === undefined) {
       // Return entire canvas data
-      return this.workingContext.getImageData(
+      return this.context.getImageData(
         0, 0,
-        this.workingCanvas.width,
-        this.workingCanvas.height
+        this.canvas.width,
+        this.canvas.height
       )
     }
     
-    if (!this.pixelData) {
+    if (!this.buffer) {
       throw new Error('Pixel buffer not initialized')
     }
     
     // Ensure bounds are within canvas
     const clampedX = Math.max(0, Math.floor(x))
     const clampedY = Math.max(0, Math.floor(y))
-    const clampedWidth = Math.min(width, this.workingCanvas.width - clampedX)
-    const clampedHeight = Math.min(height, this.workingCanvas.height - clampedY)
+    const clampedWidth = Math.min(width, this.canvas.width - clampedX)
+    const clampedHeight = Math.min(height, this.canvas.height - clampedY)
     
-    return this.workingContext.getImageData(
+    return this.context.getImageData(
       clampedX, 
       clampedY, 
       clampedWidth, 
@@ -91,13 +79,13 @@ export class PixelBuffer {
    * Update pixels with new image data
    */
   updatePixels(imageData: ImageData): void {
-    this.workingContext.putImageData(imageData, 0, 0)
+    this.context.putImageData(imageData, 0, 0)
     
     // Update our cached pixel data
-    this.pixelData = this.workingContext.getImageData(
+    this.buffer = this.context.getImageData(
       0, 0,
-      this.workingCanvas.width,
-      this.workingCanvas.height
+      this.canvas.width,
+      this.canvas.height
     )
   }
   
@@ -105,13 +93,13 @@ export class PixelBuffer {
    * Set pixel data for a specific region
    */
   setPixelData(imageData: ImageData, x: number, y: number): void {
-    this.workingContext.putImageData(imageData, Math.floor(x), Math.floor(y))
+    this.context.putImageData(imageData, Math.floor(x), Math.floor(y))
     
     // Update our cached pixel data
-    this.pixelData = this.workingContext.getImageData(
+    this.buffer = this.context.getImageData(
       0, 0,
-      this.workingCanvas.width,
-      this.workingCanvas.height
+      this.canvas.width,
+      this.canvas.height
     )
   }
   
@@ -134,25 +122,25 @@ export class PixelBuffer {
     const coloredStamp = this.colorizeStamp(stamp, color)
     
     // Save current composite operation
-    const prevComposite = this.workingContext.globalCompositeOperation
-    const prevAlpha = this.workingContext.globalAlpha
+    const prevComposite = this.context.globalCompositeOperation
+    const prevAlpha = this.context.globalAlpha
     
     // Set blend mode and opacity
-    this.workingContext.globalCompositeOperation = blendMode
-    this.workingContext.globalAlpha = opacity
+    this.context.globalCompositeOperation = blendMode
+    this.context.globalAlpha = opacity
     
     // Apply stamp
-    this.workingContext.putImageData(coloredStamp, stampX, stampY)
+    this.context.putImageData(coloredStamp, stampX, stampY)
     
     // Restore previous state
-    this.workingContext.globalCompositeOperation = prevComposite
-    this.workingContext.globalAlpha = prevAlpha
+    this.context.globalCompositeOperation = prevComposite
+    this.context.globalAlpha = prevAlpha
     
     // Update pixel data
-    this.pixelData = this.workingContext.getImageData(
+    this.buffer = this.context.getImageData(
       0, 0,
-      this.workingCanvas.width,
-      this.workingCanvas.height
+      this.canvas.width,
+      this.canvas.height
     )
   }
   
@@ -184,7 +172,7 @@ export class PixelBuffer {
   async commitStroke(): Promise<void> {
     // Create a Konva image from the stroke data
     const imageObj = new Image()
-    const dataUrl = this.workingCanvas.toDataURL()
+    const dataUrl = this.canvas.toDataURL()
     
     return new Promise((resolve) => {
       imageObj.onload = () => {
@@ -208,8 +196,8 @@ export class PixelBuffer {
           bounds: {
             x: 0,
             y: 0,
-            width: this.workingCanvas.width,
-            height: this.workingCanvas.height
+            width: this.canvas.width,
+            height: this.canvas.height
           }
         })
         
@@ -224,23 +212,23 @@ export class PixelBuffer {
    * Get the full pixel data
    */
   getFullPixelData(): ImageData | null {
-    return this.pixelData
+    return this.buffer
   }
   
   /**
    * Clear the pixel buffer
    */
   clear(): void {
-    this.workingContext.clearRect(
+    this.context.clearRect(
       0, 0,
-      this.workingCanvas.width,
-      this.workingCanvas.height
+      this.canvas.width,
+      this.canvas.height
     )
     
-    this.pixelData = this.workingContext.getImageData(
+    this.buffer = this.context.getImageData(
       0, 0,
-      this.workingCanvas.width,
-      this.workingCanvas.height
+      this.canvas.width,
+      this.canvas.height
     )
   }
   
@@ -248,7 +236,7 @@ export class PixelBuffer {
    * Dispose of resources
    */
   dispose(): void {
-    this.pixelData = null
+    this.buffer = null
     // Canvas will be garbage collected
   }
   
@@ -257,8 +245,8 @@ export class PixelBuffer {
    */
   getDimensions(): { width: number; height: number } {
     return {
-      width: this.workingCanvas.width,
-      height: this.workingCanvas.height
+      width: this.canvas.width,
+      height: this.canvas.height
     }
   }
 } 

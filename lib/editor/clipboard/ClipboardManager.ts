@@ -1,5 +1,7 @@
 import type { CanvasManager } from '@/lib/editor/canvas/types'
 import type { CanvasObject } from '@/lib/editor/objects/types'
+import type { EventStore } from '@/lib/events/core/EventStore'
+import type { TypedEventBus } from '@/lib/events/core/TypedEventBus'
 import { nanoid } from 'nanoid'
 
 export interface ClipboardData {
@@ -8,27 +10,71 @@ export interface ClipboardData {
 }
 
 /**
+ * Configuration for ClipboardManager
+ */
+export interface ClipboardManagerConfig {
+  persistence?: boolean
+  validation?: boolean
+  systemClipboard?: boolean
+  maxClipboardSize?: number
+}
+
+/**
  * Manages clipboard operations for the canvas
  * Handles copy, cut, and paste operations with proper serialization
  */
 export class ClipboardManager {
-  private static instance: ClipboardManager
   private clipboard: ClipboardData | null = null
+  private disposed = false
   
-  private constructor() {}
+  constructor(
+    private eventStore: EventStore,
+    private typedEventBus: TypedEventBus,
+    private config: ClipboardManagerConfig = {}
+  ) {
+    this.initialize()
+  }
   
-  static getInstance(): ClipboardManager {
-    if (!ClipboardManager.instance) {
-      ClipboardManager.instance = new ClipboardManager()
-    }
-    return ClipboardManager.instance
+  private initialize(): void {
+    this.setupEventHandlers()
+    this.setupValidation()
+  }
+  
+  private setupEventHandlers(): void {
+    // Listen for clipboard events
+    this.typedEventBus.on('clipboard.cut', (event) => {
+      if (this.config.validation) {
+        console.log(`[ClipboardManager] Cut operation: ${event.objects.length} objects`)
+      }
+    })
+    
+    this.typedEventBus.on('clipboard.paste', (event) => {
+      if (this.config.validation) {
+        console.log(`[ClipboardManager] Paste operation: ${event.objects.length} objects`)
+      }
+    })
+  }
+  
+  private setupValidation(): void {
+    if (!this.config.validation) return
+    
+    // Setup clipboard validation middleware
   }
   
   /**
    * Copy objects to clipboard
    */
   async copy(objects: CanvasObject[]): Promise<void> {
+    if (this.disposed) {
+      throw new Error('ClipboardManager has been disposed')
+    }
+    
     if (objects.length === 0) return
+    
+    // Check size limit
+    if (this.config.maxClipboardSize && objects.length > this.config.maxClipboardSize) {
+      throw new Error(`Cannot copy more than ${this.config.maxClipboardSize} objects`)
+    }
     
     // Deep clone objects for clipboard
     const clonedObjects = objects.map(obj => this.cloneObject(obj))
@@ -38,8 +84,8 @@ export class ClipboardManager {
       timestamp: Date.now()
     }
     
-    // Also copy to system clipboard as JSON if possible
-    if (navigator.clipboard && navigator.clipboard.writeText) {
+    // Copy to system clipboard if enabled
+    if (this.config.systemClipboard && navigator.clipboard && navigator.clipboard.writeText) {
       try {
         const json = JSON.stringify(this.clipboard)
         await navigator.clipboard.writeText(json)
@@ -47,13 +93,24 @@ export class ClipboardManager {
         console.warn('Failed to copy to system clipboard')
       }
     }
+    
+    // Emit copy event
+    this.typedEventBus.emit('clipboard.cut', { objects: clonedObjects })
   }
   
   /**
    * Cut objects (copy and mark for deletion)
    */
   async cut(objects: CanvasObject[]): Promise<void> {
+    if (this.disposed) {
+      throw new Error('ClipboardManager has been disposed')
+    }
+    
     await this.copy(objects)
+    
+    // Emit cut event
+    this.typedEventBus.emit('clipboard.cut', { objects })
+    
     // The actual deletion is handled by the CutCommand
   }
   
@@ -61,8 +118,12 @@ export class ClipboardManager {
    * Paste objects from clipboard
    */
   async paste(canvas: CanvasManager): Promise<CanvasObject[]> {
-    // Try to read from system clipboard first
-    if (navigator.clipboard && navigator.clipboard.readText) {
+    if (this.disposed) {
+      throw new Error('ClipboardManager has been disposed')
+    }
+    
+    // Try to read from system clipboard first if enabled
+    if (this.config.systemClipboard && navigator.clipboard && navigator.clipboard.readText) {
       try {
         const text = await navigator.clipboard.readText()
         const data = JSON.parse(text) as ClipboardData
@@ -102,6 +163,9 @@ export class ClipboardManager {
       }
     }
     
+    // Emit paste event
+    this.typedEventBus.emit('clipboard.paste', { objects: pastedObjects })
+    
     return pastedObjects
   }
   
@@ -109,14 +173,39 @@ export class ClipboardManager {
    * Check if clipboard has content
    */
   hasContent(): boolean {
+    if (this.disposed) return false
     return this.clipboard !== null && this.clipboard.objects.length > 0
+  }
+  
+  /**
+   * Get clipboard content (read-only)
+   */
+  getContent(): ClipboardData | null {
+    if (this.disposed) return null
+    return this.clipboard ? { ...this.clipboard } : null
   }
   
   /**
    * Clear clipboard
    */
   clear(): void {
+    if (this.disposed) return
     this.clipboard = null
+  }
+  
+  /**
+   * Get clipboard statistics
+   */
+  getStats(): { objectCount: number; timestamp: number | null; age: number | null } {
+    if (this.disposed || !this.clipboard) {
+      return { objectCount: 0, timestamp: null, age: null }
+    }
+    
+    return {
+      objectCount: this.clipboard.objects.length,
+      timestamp: this.clipboard.timestamp,
+      age: Date.now() - this.clipboard.timestamp
+    }
   }
   
   /**
@@ -140,12 +229,10 @@ export class ClipboardManager {
       scaleX: obj.scaleX,
       scaleY: obj.scaleY,
       zIndex: obj.zIndex,
-      layerId: obj.layerId, // Keep for compatibility but will be managed by canvas
-      data: this.cloneData(obj.data),
-      filters: [...obj.filters],
-      adjustments: [...obj.adjustments],
-      children: obj.children ? [...obj.children] : undefined,
-      metadata: obj.metadata ? { ...obj.metadata } : undefined
+      objectId: obj.id,
+      objectType: obj.type,
+      objectData: obj,
+      timestamp: Date.now()
     }
   }
   
@@ -170,5 +257,26 @@ export class ClipboardManager {
       }
     }
     return data
+  }
+  
+  /**
+   * Dispose the ClipboardManager and clean up resources
+   */
+  dispose(): void {
+    if (this.disposed) return
+    
+    this.clear()
+    this.disposed = true
+    
+    // Remove event listeners
+    this.typedEventBus.clear('clipboard.cut')
+    this.typedEventBus.clear('clipboard.paste')
+  }
+  
+  /**
+   * Check if the manager has been disposed
+   */
+  isDisposed(): boolean {
+    return this.disposed
   }
 } 

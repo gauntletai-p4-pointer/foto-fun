@@ -1188,6 +1188,235 @@ After completing this migration, the event and store systems will achieve:
 - ✅ **Event Compression**: Efficient storage and fast queries
 - ✅ **Event Batching**: High-performance event processing
 
+---
+
+## 🚨 **CRITICAL: Domain Model Migration**
+
+### **Layer → Object Architecture Migration**
+
+**IMPORTANT**: During this migration, we are **simultaneously migrating from Layer-based to Object-based architecture**. This affects event names, store structures, and domain terminology.
+
+#### **Legacy (Being Removed):**
+```typescript
+// ❌ OLD: Layer-based (Photoshop-style)
+interface Layer {
+  id: string
+  type: 'image' | 'text' | 'shape'
+  visible: boolean
+  opacity: number
+  blendMode: string
+  zIndex: number
+}
+
+// ❌ OLD Event Names
+'layer.created'
+'layer.updated' 
+'layer.deleted'
+'layer.moved'
+'layer.reordered'
+
+// ❌ OLD Store Names
+LayerStore
+EventLayerStore
+getLayerStore()
+```
+
+#### **Modern (Target Architecture):**
+```typescript
+// ✅ NEW: Object-based (Figma/Sketch-style)
+interface CanvasObject {
+  id: string
+  type: 'image' | 'text' | 'shape' | 'group'
+  position: Point
+  dimensions: Size
+  properties: ObjectProperties
+  parent?: string
+  children?: string[]
+}
+
+// ✅ NEW Event Names
+'object.created'
+'object.updated'
+'object.deleted'
+'object.moved'
+'object.reordered'
+
+// ✅ NEW Store Names
+ObjectStore
+EventObjectStore
+// No singleton functions - use ServiceContainer
+```
+
+### **Migration Rules for Implementers**
+
+#### **1. Event Name Migration**
+```typescript
+// Replace ALL instances:
+'layer.created' → 'object.created'
+'layer.updated' → 'object.updated'
+'layer.deleted' → 'object.deleted'
+'layer.moved' → 'object.moved'
+'layer.reordered' → 'object.reordered'
+'layer.visibility.changed' → 'object.visibility.changed'
+'layer.opacity.changed' → 'object.opacity.changed'
+'layer.blendMode.changed' → 'object.blendMode.changed'
+```
+
+#### **2. Store/Manager Migration**
+```typescript
+// Replace ALL instances:
+LayerStore → ObjectStore
+LayerManager → ObjectManager
+EventLayerStore → EventObjectStore
+getLayerStore() → Remove (use ServiceContainer)
+getLayerManager() → Remove (use ServiceContainer)
+
+// File renames required:
+lib/store/layers/ → lib/store/objects/
+lib/editor/layers/ → lib/editor/objects/
+lib/events/layers/ → lib/events/objects/
+```
+
+#### **3. Variable/Property Migration**
+```typescript
+// Replace ALL instances:
+layerId → objectId
+layerStore → objectStore
+layerManager → objectManager
+currentLayer → currentObject
+selectedLayers → selectedObjects
+layerTree → objectTree
+layerHierarchy → objectHierarchy
+```
+
+#### **4. Interface/Type Migration**
+```typescript
+// Replace ALL instances:
+interface Layer → interface CanvasObject
+type LayerType → type ObjectType
+LayerEvent → ObjectEvent
+LayerState → ObjectState
+LayerConfig → ObjectConfig
+LayerProperties → ObjectProperties
+```
+
+### **Why This Migration is Critical**
+
+#### **Modern Design Tool Pattern**
+- **Figma/Sketch Model**: Objects with parent-child relationships
+- **Flexible Hierarchy**: Groups, nested objects, complex compositions
+- **Performance**: Better for complex documents with many elements
+- **User Mental Model**: Users think in terms of "objects" not "layers"
+
+#### **Technical Benefits**
+- **Composition**: Objects can contain other objects
+- **Flexibility**: Dynamic parent-child relationships
+- **Performance**: Better memory usage and rendering
+- **Extensibility**: Easier to add new object types
+
+### **Implementation Priority**
+
+#### **Phase 1: Core Infrastructure** 
+```typescript
+// FIRST: Update event system with object events
+container.registerSingleton('ObjectStore', () => {
+  return new EventObjectStore(
+    container.getSync<EventStore>('EventStore'),
+    container.getSync<TypedEventBus>('TypedEventBus'),
+    { persistence: true, validation: true }
+  )
+}, {
+  dependencies: ['EventStore', 'TypedEventBus'],
+  phase: 'infrastructure'
+})
+
+// NOT: LayerStore (remove entirely)
+```
+
+#### **Phase 2: Event Definitions**
+```typescript
+// lib/events/objects/ObjectEvents.ts (NEW FILE)
+export class ObjectCreatedEvent extends Event {
+  constructor(
+    canvasId: string,
+    object: CanvasObject,
+    metadata: Event['metadata']
+  ) {
+    super('object.created', canvasId, 'object', metadata)
+  }
+}
+
+// Remove: lib/events/layers/ (entire directory)
+```
+
+#### **Phase 3: Store Implementation**
+```typescript
+// lib/store/objects/ObjectStore.ts (NEW FILE)
+export class EventObjectStore extends BaseStore<ObjectState> {
+  constructor(
+    eventStore: EventStore,
+    typedEventBus: TypedEventBus,
+    config: ObjectStoreConfig = {}
+  ) {
+    super(initialObjectState, eventStore)
+    // Object-specific logic, not layer logic
+  }
+}
+
+// Remove: lib/store/layers/ (entire directory)
+```
+
+### **File Structure Changes Required**
+
+```bash
+# REMOVE these directories entirely:
+lib/store/layers/
+lib/editor/layers/
+lib/events/layers/
+components/editor/Panels/LayersPanel/
+
+# CREATE these new directories:
+lib/store/objects/
+lib/editor/objects/
+lib/events/objects/
+components/editor/Panels/ObjectsPanel/
+
+# RENAME these files:
+LayerManager.ts → ObjectManager.ts
+LayerStore.ts → ObjectStore.ts
+LayerEvents.ts → ObjectEvents.ts
+```
+
+### **Testing Strategy for Domain Migration**
+
+```typescript
+describe('Layer to Object Migration', () => {
+  test('no layer references remain in codebase', () => {
+    // Scan all files for 'layer' references
+    // Ensure only intentional layer references (like CSS layers)
+  })
+  
+  test('all object events are properly defined', () => {
+    // Verify object event types exist
+    // Verify object event handlers work
+  })
+  
+  test('object store replaces layer store functionality', () => {
+    // Verify object CRUD operations
+    // Verify object hierarchy management
+  })
+})
+```
+
+### **Validation Checklist**
+
+- [ ] **Zero "layer" references** in TypeScript files (except CSS/styling)
+- [ ] **All object events** properly defined and registered
+- [ ] **Object store** handles hierarchy and composition
+- [ ] **UI components** use "object" terminology
+- [ ] **Event names** use object.* pattern
+- [ ] **File structure** reflects object-based architecture
+
 
 
 This foundation will support all subsequent refactoring phases (Commands, Tools, Adapters) with a rock-solid, enterprise-grade event and store architecture. 

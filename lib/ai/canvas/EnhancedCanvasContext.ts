@@ -1,9 +1,11 @@
 import type { CanvasContext } from './CanvasContext'
 import type { WorkflowSelectionContext } from '@/lib/editor/selection/SelectionContextManager'
 import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
+import type { Selection } from '@/lib/editor/canvas/types'
+import type { SelectionContextManager } from '@/lib/editor/selection/SelectionContextManager'
+import type { ServiceContainer } from '@/lib/core/ServiceContainer'
 import { CanvasContextProvider } from './CanvasContext'
 import { SelectionSnapshotFactory } from '@/lib/ai/execution/SelectionSnapshot'
-import { SelectionContextManager } from '@/lib/editor/selection/SelectionContextManager'
 
 /**
  * Tracks objects created/modified/deleted during a workflow
@@ -38,9 +40,21 @@ export interface EnhancedCanvasContext extends CanvasContext {
 }
 
 /**
- * Provider for creating enhanced canvas context
+ * Enhanced Canvas Context for AI tools
+ * Now uses dependency injection instead of singleton pattern
  */
-export class EnhancedCanvasContextProvider {
+export class EnhancedCanvasContext {
+  private canvasManager: CanvasManager
+  private selectionManager: SelectionContextManager
+  
+  constructor(
+    canvasManager: CanvasManager,
+    serviceContainer: ServiceContainer
+  ) {
+    this.canvasManager = canvasManager
+    this.selectionManager = serviceContainer.getSync<SelectionContextManager>('SelectionContextManager')
+  }
+
   /**
    * Create enhanced context from canvas with workflow tracking
    */

@@ -4,60 +4,42 @@ import type { Event } from '@/lib/events/core/Event'
 import type { Layer, Selection, Point } from '@/lib/editor/canvas/types'
 import type { CanvasObject } from '@/lib/editor/objects/types'
 
-export interface CanvasStoreState {
-  // Document properties
-  documentId: string | null
-  documentName: string
-  width: number
-  height: number
-  backgroundColor: string
+export interface CanvasState {
+  // Canvas objects (infinite canvas)
+  objects: CanvasObject[]
+  selectedObjectIds: string[]
   
-  // Canvas state
-  isLoading: boolean
-  isSaving: boolean
-  isDirty: boolean
+  // Project properties (not document)
+  projectId: string | null
+  projectName: string
   
-  // Objects and layers
-  objects: Record<string, CanvasObject>
-  layers: Layer[]
-  activeLayerId: string | null
-  
-  // Selection
-  selection: Selection | null
-  
-  // View state
+  // Infinite canvas viewport
   zoom: number
-  pan: Point
+  pan: { x: number; y: number }
   
-  // Metadata
-  lastModified: number
+  // Canvas properties
+  version: number
   createdAt: number
+  lastModified: number
 }
 
-const initialState: CanvasStoreState = {
-  documentId: null,
-  documentName: 'Untitled',
-  width: 800,
-  height: 600,
-  backgroundColor: '#ffffff',
-  isLoading: false,
-  isSaving: false,
-  isDirty: false,
-  objects: {},
-  layers: [],
-  activeLayerId: null,
-  selection: null,
+const initialState: CanvasState = {
+  objects: [],
+  selectedObjectIds: [],
+  projectId: null,
+  projectName: 'Untitled Project',
   zoom: 1,
   pan: { x: 0, y: 0 },
-  lastModified: Date.now(),
-  createdAt: Date.now()
+  version: 1,
+  createdAt: Date.now(),
+  lastModified: Date.now()
 }
 
 /**
  * Event-driven Canvas Store
  * Maintains canvas state by listening to events
  */
-export class CanvasStore extends BaseStore<CanvasStoreState> {
+export class CanvasStore extends BaseStore<CanvasState> {
   constructor(eventStore: EventStore) {
     super(initialState, eventStore)
   }
@@ -68,165 +50,103 @@ export class CanvasStore extends BaseStore<CanvasStoreState> {
       ['ObjectModifiedEvent', this.handleObjectModified.bind(this)],
       ['ObjectRemovedEvent', this.handleObjectRemoved.bind(this)],
       ['ObjectsBatchModifiedEvent', this.handleBatchModified.bind(this)],
-      ['LayerCreatedEvent', this.handleLayerCreated.bind(this)],
-      ['LayerRemovedEvent', this.handleLayerRemoved.bind(this)],
-      ['LayerModifiedEvent', this.handleLayerModified.bind(this)],
-      ['SelectionChangedEvent', this.handleSelectionChanged.bind(this)],
-      ['CanvasResizedEvent', this.handleCanvasResized.bind(this)],
       ['ViewportChangedEvent', this.handleViewportChanged.bind(this)],
-      ['DocumentLoadedEvent', this.handleDocumentLoaded.bind(this)],
-      ['DocumentSavedEvent', this.handleDocumentSaved.bind(this)]
+      ['ProjectLoadedEvent', this.handleProjectLoaded.bind(this)],
+      ['ProjectSavedEvent', this.handleProjectSaved.bind(this)]
     ])
   }
   
-  // Event Handlers
+  // Event Handlers for Infinite Canvas
   
   private handleObjectAdded(event: Event): void {
-    // TODO: Update for new event structure
-    // const addEvent = event as ObjectAddedEvent
-    // For now, skip implementation as events need migration
-    
+    const objEvent = event as Event & { object: CanvasObject }
     this.setState(state => ({
       ...state,
-      isDirty: true,
+      objects: [...state.objects, objEvent.object],
+      version: state.version + 1,
       lastModified: event.timestamp
     }))
   }
   
   private handleObjectModified(event: Event): void {
-    // TODO: Update for new event structure
-    // For now, skip implementation as events need migration
-    
+    const modEvent = event as Event & { objectId: string; previousState: Record<string, unknown>; newState: Record<string, unknown> }
     this.setState(state => ({
       ...state,
-      isDirty: true,
+      objects: state.objects.map(obj =>
+        obj.id === modEvent.objectId
+          ? { ...obj, ...modEvent.newState }
+          : obj
+      ),
+      version: state.version + 1,
       lastModified: event.timestamp
     }))
   }
   
   private handleObjectRemoved(event: Event): void {
-    // TODO: Update for new event structure
-    // For now, skip implementation as events need migration
-    
-    this.setState(state => {
-      // TODO: Handle removed object
-      // const removed = {} // Placeholder
-      
-      return {
-        ...state,
-        isDirty: true,
-        lastModified: event.timestamp
-      }
-    })
+    const remEvent = event as Event & { objectId: string }
+    this.setState(state => ({
+      ...state,
+      objects: state.objects.filter(obj => obj.id !== remEvent.objectId),
+      selectedObjectIds: state.selectedObjectIds.filter(id => id !== remEvent.objectId),
+      version: state.version + 1,
+      lastModified: event.timestamp
+    }))
   }
   
   private handleBatchModified(event: Event): void {
-    // TODO: Update for new event structure
-    // For now, skip implementation as events need migration
-    
-    this.setState(state => ({
-      ...state,
-      isDirty: true,
-      lastModified: event.timestamp
-    }))
-  }
-  
-  private handleLayerCreated(event: Event & { layer: Layer }): void {
-    this.setState(state => ({
-      ...state,
-      layers: [...state.layers, event.layer],
-      activeLayerId: state.activeLayerId || event.layer.id,
-      isDirty: true,
-      lastModified: event.timestamp
-    }))
-  }
-  
-  private handleLayerRemoved(event: Event & { layerId: string }): void {
+    const batchEvent = event as Event & { modifications: Array<{ objectId: string; previousState: Record<string, unknown>; newState: Record<string, unknown> }> }
     this.setState(state => {
-      const layers = state.layers.filter(l => l.id !== event.layerId)
-      const activeLayerId = state.activeLayerId === event.layerId 
-        ? layers[0]?.id || null 
-        : state.activeLayerId
+      const modificationMap = new Map(batchEvent.modifications.map(mod => [mod.objectId, mod.newState]))
       
       return {
         ...state,
-        layers,
-        activeLayerId,
-        isDirty: true,
+        objects: state.objects.map(obj =>
+          modificationMap.has(obj.id)
+            ? { ...obj, ...modificationMap.get(obj.id) }
+            : obj
+        ),
+        version: state.version + 1,
         lastModified: event.timestamp
       }
     })
   }
   
-  private handleLayerModified(event: Event & { layerId: string; modifications: Partial<Layer> }): void {
+  private handleViewportChanged(event: Event): void {
+    const vpEvent = event as Event & { zoom?: number; pan?: { x: number; y: number } }
     this.setState(state => ({
       ...state,
-      layers: state.layers.map(layer =>
-        layer.id === event.layerId
-          ? { ...layer, ...event.modifications }
-          : layer
-      ),
-      isDirty: true,
-      lastModified: event.timestamp
+      zoom: vpEvent.zoom ?? state.zoom,
+      pan: vpEvent.pan ?? state.pan
     }))
   }
   
-  private handleSelectionChanged(event: Event & { selection: Selection | null }): void {
-    this.setState(state => ({
-      ...state,
-      selection: event.selection
-    }))
-  }
-  
-  private handleCanvasResized(event: Event & { width: number; height: number }): void {
-    this.setState(state => ({
-      ...state,
-      width: event.width,
-      height: event.height,
-      isDirty: true,
-      lastModified: event.timestamp
-    }))
-  }
-  
-  private handleViewportChanged(event: Event & { zoom?: number; pan?: Point }): void {
-    this.setState(state => ({
-      ...state,
-      zoom: event.zoom ?? state.zoom,
-      pan: event.pan ?? state.pan
-    }))
-  }
-  
-  private handleDocumentLoaded(event: Event & { document: { id: string; name: string; width: number; height: number; backgroundColor: string; createdAt: number; lastModified: number } }): void {
+  private handleProjectLoaded(event: Event): void {
+    const projEvent = event as Event & { project: { id: string; name: string; createdAt: number; lastModified: number } }
     this.setState(() => ({
       ...initialState,
-      documentId: event.document.id,
-      documentName: event.document.name,
-      width: event.document.width,
-      height: event.document.height,
-      backgroundColor: event.document.backgroundColor,
-      createdAt: event.document.createdAt,
-      lastModified: event.document.lastModified,
-      isDirty: false
+      projectId: projEvent.project.id,
+      projectName: projEvent.project.name,
+      createdAt: projEvent.project.createdAt,
+      lastModified: projEvent.project.lastModified
     }))
   }
   
-  private handleDocumentSaved(event: Event & { documentId: string }): void {
+  private handleProjectSaved(event: Event): void {
+    const saveEvent = event as Event & { projectId: string }
     this.setState(state => ({
       ...state,
-      documentId: event.documentId,
-      isDirty: false,
-      isSaving: false
+      projectId: saveEvent.projectId,
+      lastModified: event.timestamp
     }))
   }
   
-  // Derived values
+  // Infinite Canvas Operations
   
   /**
-   * Get all objects in a specific layer
+   * Get all objects (infinite canvas has no layers)
    */
-  getLayerObjects(layerId: string): CanvasObject[] {
-    const state = this.getState()
-    return Object.values(state.objects).filter(obj => obj.layerId === layerId)
+  getAllObjects(): CanvasObject[] {
+    return this.getState().objects
   }
   
   /**
@@ -234,43 +154,33 @@ export class CanvasStore extends BaseStore<CanvasStoreState> {
    */
   getSelectedObjects(): CanvasObject[] {
     const state = this.getState()
-    if (!state.selection || state.selection.type !== 'objects') {
-      return []
-    }
-    
-    return state.selection.objectIds
-      .map(id => state.objects[id])
-      .filter(Boolean)
+    return state.objects.filter(obj => state.selectedObjectIds.includes(obj.id))
   }
   
   /**
-   * Get active layer - DEPRECATED: Use getSelectedObjects() in object-based architecture
+   * Get object by ID
    */
-  getActiveLayer(): null {
-    // Objects are managed directly now, no active layer concept
-    console.warn('getActiveLayer() is deprecated. Use getSelectedObjects() in object-based architecture.')
-    return null
+  getObjectById(objectId: string): CanvasObject | undefined {
+    return this.getState().objects.find(obj => obj.id === objectId)
   }
   
   /**
    * Check if an object is selected
    */
   isObjectSelected(objectId: string): boolean {
-    const state = this.getState()
-    if (!state.selection || state.selection.type !== 'objects') {
-      return false
-    }
-    
-    return state.selection.objectIds.includes(objectId)
+    return this.getState().selectedObjectIds.includes(objectId)
   }
-}
-
-// Singleton instance
-let instance: CanvasStore | null = null
-
-export function getCanvasStore(eventStore: EventStore): CanvasStore {
-  if (!instance) {
-    instance = new CanvasStore(eventStore)
+  
+  /**
+   * Get objects in viewport bounds
+   */
+  getObjectsInViewport(bounds: { x: number; y: number; width: number; height: number }): CanvasObject[] {
+    return this.getState().objects.filter(obj => {
+      // Simple bounds check - can be optimized with spatial indexing
+      return obj.x < bounds.x + bounds.width &&
+             obj.x + obj.width > bounds.x &&
+             obj.y < bounds.y + bounds.height &&
+             obj.y + obj.height > bounds.y
+    })
   }
-  return instance
 } 

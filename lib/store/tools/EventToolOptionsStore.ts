@@ -262,23 +262,5 @@ export class EventToolOptionsStore extends BaseStore<ToolOptionsState> {
   }
 }
 
-// Export singleton instance and hook
-let eventToolOptionsStore: EventToolOptionsStore | null = null
-
-export function getEventToolOptionsStore(eventStore: EventStore, typedEventBus: TypedEventBus): EventToolOptionsStore {
-  if (!eventToolOptionsStore) {
-    eventToolOptionsStore = new EventToolOptionsStore(eventStore, typedEventBus)
-  }
-  return eventToolOptionsStore
-}
-
-// React hook
-import { useStore } from '../base/BaseStore'
-import { getTypedEventBus } from '@/lib/events/core/TypedEventBus'
-
-export function useEventToolOptionsStore(): ToolOptionsState {
-  const eventStore = EventStore.getInstance()
-  const typedEventBus = getTypedEventBus()
-  const store = getEventToolOptionsStore(eventStore, typedEventBus)
-  return useStore(store)
-} 
+// React hook for compatibility (will be updated to use ServiceContainer)
+import { useStore } from '../base/BaseStore' 

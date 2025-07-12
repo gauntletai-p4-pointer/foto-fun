@@ -1,8 +1,5 @@
-import { Event } from './Event'
+import type { Event } from './Event'
 
-/**
- * Event query options
- */
 export interface EventQuery {
   aggregateId?: string
   aggregateType?: Event['aggregateType']
@@ -17,9 +14,15 @@ export interface EventQuery {
   offset?: number
 }
 
-/**
- * Event subscription callback
- */
+export interface EventStoreConfig {
+  persistence?: boolean
+  indexing?: boolean
+  compression?: boolean
+  maxEvents?: number
+  snapshotInterval?: number
+  batchSize?: number
+}
+
 export type EventHandler = (event: Event) => void | Promise<void>
 
 /**
@@ -27,10 +30,10 @@ export type EventHandler = (event: Event) => void | Promise<void>
  * 
  * This is the single source of truth for all state changes.
  * Events are immutable and append-only.
+ * 
+ * Now uses dependency injection instead of singleton pattern.
  */
 export class EventStore {
-  private static instance: EventStore
-  
   // In-memory storage (can be replaced with IndexedDB or server storage)
   private events: Map<string, Event> = new Map()
   private eventsByAggregate: Map<string, string[]> = new Map()
@@ -43,19 +46,133 @@ export class EventStore {
   // Version tracking for optimistic concurrency
   private aggregateVersions: Map<string, number> = new Map()
   
-  private constructor() {}
+  // Configuration
+  private config: EventStoreConfig
   
-  static getInstance(): EventStore {
-    if (!EventStore.instance) {
-      EventStore.instance = new EventStore()
+  // Disposal tracking
+  private disposed = false
+  private cleanupTimer: NodeJS.Timeout | null = null
+
+  constructor(config: EventStoreConfig = {}) {
+    this.config = {
+      persistence: true,
+      indexing: true,
+      compression: true,
+      maxEvents: 10000,
+      snapshotInterval: 1000,
+      batchSize: 50,
+      ...config
     }
-    return EventStore.instance
+    this.initialize()
   }
   
+  private initialize(): void {
+    this.setupPersistence()
+    this.setupIndexes()
+    this.setupCleanup()
+    console.log('[EventStore] Initialized with config:', this.config)
+  }
+  
+  private setupPersistence(): void {
+    if (this.config.persistence) {
+      // Setup persistence layer
+      console.log('[EventStore] Persistence enabled')
+    }
+  }
+  
+  private setupIndexes(): void {
+    if (this.config.indexing) {
+      // Setup indexing for fast queries
+      console.log('[EventStore] Indexing enabled')
+    }
+  }
+  
+  private setupCleanup(): void {
+    // Setup periodic cleanup
+    if (this.config.maxEvents && this.config.maxEvents > 0) {
+      this.cleanupTimer = setInterval(() => {
+        this.performCleanup()
+      }, 60000) // Every minute
+    }
+  }
+  
+  private performCleanup(): void {
+    if (this.disposed || !this.config.maxEvents) return
+    
+    const currentCount = this.events.size
+    if (currentCount > this.config.maxEvents) {
+      const eventsToRemove = currentCount - this.config.maxEvents
+      const oldestEvents = this.eventsByTimestamp.slice(0, eventsToRemove)
+      
+      for (const event of oldestEvents) {
+        this.events.delete(event.id)
+        // Remove from aggregate index
+        const aggregateKey = `${event.aggregateType}:${event.aggregateId}`
+        const aggregateEvents = this.eventsByAggregate.get(aggregateKey) || []
+        const index = aggregateEvents.indexOf(event.id)
+        if (index > -1) {
+          aggregateEvents.splice(index, 1)
+          if (aggregateEvents.length === 0) {
+            this.eventsByAggregate.delete(aggregateKey)
+          } else {
+            this.eventsByAggregate.set(aggregateKey, aggregateEvents)
+          }
+        }
+      }
+      
+      // Update timestamp index
+      this.eventsByTimestamp = this.eventsByTimestamp.slice(eventsToRemove)
+      
+      console.log(`[EventStore] Cleaned up ${eventsToRemove} old events`)
+    }
+  }
+
+  /**
+   * Dispose of the EventStore and clean up resources
+   */
+  dispose(): void {
+    if (this.disposed) return
+    
+    this.disposed = true
+    this.cleanup()
+    this.persistenceCleanup()
+    
+    console.log('[EventStore] Disposed')
+  }
+  
+  private cleanup(): void {
+    // Clear all handlers
+    this.handlers.clear()
+    this.globalHandlers.clear()
+    
+    // Clear cleanup timer
+    if (this.cleanupTimer) {
+      clearInterval(this.cleanupTimer)
+      this.cleanupTimer = null
+    }
+    
+    // Clear data structures
+    this.events.clear()
+    this.eventsByAggregate.clear()
+    this.eventsByTimestamp = []
+    this.aggregateVersions.clear()
+  }
+  
+  private persistenceCleanup(): void {
+    if (this.config.persistence) {
+      // Cleanup persistence resources
+      console.log('[EventStore] Persistence cleanup completed')
+    }
+  }
+
   /**
    * Append an event to the store
    */
   async append(event: Event): Promise<void> {
+    if (this.disposed) {
+      throw new Error('EventStore has been disposed')
+    }
+    
     // Check version for optimistic concurrency
     const currentVersion = this.aggregateVersions.get(event.aggregateId) || 0
     if (event.version !== currentVersion + 1) {
@@ -84,15 +201,35 @@ export class EventStore {
     await this.notifyHandlers(event)
     
     // Persist to storage (async, non-blocking)
-    this.persistEvent(event).catch(error => {
-      console.error('Failed to persist event:', error)
-    })
+    if (this.config.persistence) {
+      this.persistEvent(event).catch(error => {
+        console.error('Failed to persist event:', error)
+      })
+    }
   }
-  
+
+  /**
+   * Append multiple events in a batch
+   */
+  async appendBatch(events: Event[]): Promise<void> {
+    if (this.disposed) {
+      throw new Error('EventStore has been disposed')
+    }
+    
+    // Process events in order
+    for (const event of events) {
+      await this.append(event)
+    }
+  }
+
   /**
    * Query events based on criteria
    */
   query(options: EventQuery): Event[] {
+    if (this.disposed) {
+      throw new Error('EventStore has been disposed')
+    }
+    
     let results: Event[] = []
     
     if (options.aggregateId && options.aggregateType) {
@@ -151,6 +288,23 @@ export class EventStore {
     
     return results.slice(offset, offset + limit)
   }
+
+  /**
+   * Get all events until a specific timestamp
+   */
+  getEventsUntil(timestamp: number): Promise<Event[]> {
+    return Promise.resolve(this.query({ toTimestamp: timestamp }))
+  }
+
+  /**
+   * Get events by their IDs
+   */
+  getEventsByIds(eventIds: string[]): Promise<Event[]> {
+    const events = eventIds
+      .map(id => this.events.get(id))
+      .filter((event): event is Event => event !== undefined)
+    return Promise.resolve(events)
+  }
   
   /**
    * Get all events for an aggregate
@@ -170,6 +324,10 @@ export class EventStore {
    * Subscribe to events
    */
   subscribe(eventType: string | '*', handler: EventHandler): () => void {
+    if (this.disposed) {
+      throw new Error('EventStore has been disposed')
+    }
+    
     if (eventType === '*') {
       this.globalHandlers.add(handler)
       return () => this.globalHandlers.delete(handler)
@@ -191,6 +349,10 @@ export class EventStore {
    * Create a snapshot at a specific point in time
    */
   async createSnapshot(timestamp: number = Date.now()): Promise<string> {
+    if (this.disposed) {
+      throw new Error('EventStore has been disposed')
+    }
+    
     const snapshotId = `snapshot-${timestamp}`
     
     // Get all events up to timestamp
@@ -204,7 +366,9 @@ export class EventStore {
       events: events.map(e => e.toJSON())
     }
     
-    await this.persistSnapshot(snapshot)
+    if (this.config.persistence) {
+      await this.persistSnapshot(snapshot)
+    }
     
     return snapshotId
   }
@@ -213,6 +377,10 @@ export class EventStore {
    * Restore from a snapshot
    */
   async restoreFromSnapshot(snapshotId: string): Promise<void> {
+    if (this.disposed) {
+      throw new Error('EventStore has been disposed')
+    }
+    
     // In production, load from persistent storage
     console.log(`Restoring from snapshot: ${snapshotId}`)
     // Implementation would load events and rebuild state
@@ -222,37 +390,57 @@ export class EventStore {
    * Get events for undo/redo
    */
   getUndoableEvents(limit: number = 1): Event[] {
+    if (this.disposed) {
+      return []
+    }
+    
     // Get recent events that can be reversed
     const recentEvents = this.eventsByTimestamp.slice(-limit).reverse()
     return recentEvents.filter(event => event.reverse() !== null)
   }
   
   /**
-   * Clear all events (use with caution!)
+   * Get total number of events
+   */
+  getEventCount(): number {
+    return this.events.size
+  }
+  
+  /**
+   * Check if store is disposed
+   */
+  isDisposed(): boolean {
+    return this.disposed
+  }
+  
+  /**
+   * Clear all events (for testing)
    */
   clear(): void {
+    if (this.disposed) {
+      throw new Error('EventStore has been disposed')
+    }
+    
     this.events.clear()
     this.eventsByAggregate.clear()
     this.eventsByTimestamp = []
     this.aggregateVersions.clear()
   }
   
-  // Private methods
-  
   private findInsertIndex(timestamp: number): number {
-    let low = 0
-    let high = this.eventsByTimestamp.length
+    let left = 0
+    let right = this.eventsByTimestamp.length
     
-    while (low < high) {
-      const mid = Math.floor((low + high) / 2)
-      if (this.eventsByTimestamp[mid].timestamp < timestamp) {
-        low = mid + 1
+    while (left < right) {
+      const mid = Math.floor((left + right) / 2)
+      if (this.eventsByTimestamp[mid].timestamp <= timestamp) {
+        left = mid + 1
       } else {
-        high = mid
+        right = mid
       }
     }
     
-    return low
+    return left
   }
   
   private async notifyHandlers(event: Event): Promise<void> {
@@ -279,13 +467,13 @@ export class EventStore {
   }
   
   private async persistEvent(event: Event): Promise<void> {
-    // In production, this would save to IndexedDB or server
+    // In production, this would persist to IndexedDB or server
     // For now, just log
-    console.debug('Persisting event:', event.type, event.id)
+    console.debug('[EventStore] Persisting event:', event.type)
   }
   
-  private async persistSnapshot(snapshot: unknown): Promise<void> {
-    // In production, this would save to storage
-    console.debug('Persisting snapshot:', snapshot)
+  private async persistSnapshot(_snapshot: unknown): Promise<void> {
+    // In production, this would persist to storage
+    console.debug('[EventStore] Persisting snapshot')
   }
 } 

@@ -1,7 +1,8 @@
-export { EventToolStore, useEventToolStore, getEventToolStore } from './EventToolStore'
+// Export only the store classes - singleton pattern eliminated
+export { EventToolStore } from './EventToolStore'
+export { EventToolOptionsStore } from './EventToolOptionsStore'
 export type { ToolState } from './EventToolStore'
-export { EventToolOptionsStore, useEventToolOptionsStore, getEventToolOptionsStore } from './EventToolOptionsStore'
-export type { ToolOptionsState, ToolOption, ToolOptionsConfig, OptionType } from './EventToolOptionsStore'
+export type { ToolOptionsState } from './EventToolOptionsStore'
 
 // React Hook
 import { useService } from '@/lib/core/AppInitializer'
@@ -27,7 +28,4 @@ export function useToolStore() {
     // Alias for compatibility
     setActiveTool: (toolId: string) => store.activateTool(toolId)
   }
-}
-
-// Note: getToolStore() function removed - all classes should receive 
-// EventToolStore through constructor injection instead of using singleton access 
+} 

@@ -2,53 +2,35 @@ import { TypedEventBus } from '@/lib/events/core/TypedEventBus'
 import type { Layer, Selection, Point } from '@/lib/editor/canvas/types'
 import type { CanvasObject } from '@/lib/editor/objects/types'
 
-export interface CanvasStoreState {
-  // Document properties
-  documentId: string | null
-  documentName: string
-  width: number
-  height: number
-  backgroundColor: string
+export interface TypedCanvasState {
+  // Canvas objects (infinite canvas)
+  objects: CanvasObject[]
+  selectedObjectIds: string[]
   
-  // Canvas state
-  isLoading: boolean
-  isSaving: boolean
-  isDirty: boolean
+  // Project properties (not document)
+  projectId: string | null
+  projectName: string
   
-  // Objects and layers
-  objects: Record<string, CanvasObject>
-  layers: Layer[]
-  activeLayerId: string | null
-  
-  // Selection
-  selection: Selection | null
-  
-  // View state
+  // Infinite canvas viewport
   zoom: number
-  pan: Point
+  pan: { x: number; y: number }
   
-  // Metadata
-  lastModified: number
+  // Canvas properties
+  version: number
   createdAt: number
+  lastModified: number
 }
 
-const initialState: CanvasStoreState = {
-  documentId: null,
-  documentName: 'Untitled',
-  width: 800,
-  height: 600,
-  backgroundColor: '#ffffff',
-  isLoading: false,
-  isSaving: false,
-  isDirty: false,
-  objects: {},
-  layers: [],
-  activeLayerId: null,
-  selection: null,
+const initialState: TypedCanvasState = {
+  objects: [],
+  selectedObjectIds: [],
+  projectId: null,
+  projectName: 'Untitled Project',
   zoom: 1,
   pan: { x: 0, y: 0 },
-  lastModified: Date.now(),
-  createdAt: Date.now()
+  version: 1,
+  createdAt: Date.now(),
+  lastModified: Date.now()
 }
 
 /**
@@ -56,9 +38,9 @@ const initialState: CanvasStoreState = {
  * Simpler implementation without complex event sourcing
  */
 export class TypedCanvasStore {
-  private state: CanvasStoreState
+  private state: TypedCanvasState
   private eventBus: TypedEventBus
-  private listeners = new Set<(state: CanvasStoreState) => void>()
+  private listeners = new Set<(state: TypedCanvasState) => void>()
   private subscriptions: Array<() => void> = []
   
   constructor(eventBus: TypedEventBus) {
@@ -68,21 +50,32 @@ export class TypedCanvasStore {
   }
   
   private subscribeToEvents(): void {
-    // Canvas object events
+    // Viewport events (for infinite canvas navigation)
+    this.subscriptions.push(
+      this.eventBus.on('viewport.changed', (data) => {
+        this.setState(state => ({
+          ...state,
+          zoom: data.zoom ?? state.zoom,
+          pan: data.pan ?? state.pan
+        }))
+      })
+    )
+
+    // Object events
     this.subscriptions.push(
       this.eventBus.on('canvas.object.added', (data) => {
         this.setState(state => ({
           ...state,
-          objects: {
+          objects: [
             ...state.objects,
-            [(data.object as { id?: string }).id || data.object.toString()]: {
+            {
               // Spread the object first, then override specific properties if needed
               ...data.object,
               // Only override layerId if not present in the object
-              layerId: (data.object as { layerId?: string }).layerId || data.layerId || state.activeLayerId || ''
+              layerId: (data.object as { layerId?: string }).layerId || data.layerId || ''
             } as CanvasObject
-          },
-          isDirty: true,
+          ],
+          selectedObjectIds: [...state.selectedObjectIds, (data.object as { id?: string }).id || data.object.toString()],
           lastModified: data.timestamp
         }))
       })
@@ -91,7 +84,7 @@ export class TypedCanvasStore {
     this.subscriptions.push(
       this.eventBus.on('canvas.object.modified', (data) => {
         this.setState(state => {
-          const object = state.objects[data.objectId]
+          const object = state.objects.find(obj => obj.id === data.objectId)
           if (!object) return state
           
           // Safely merge the new state
@@ -107,11 +100,8 @@ export class TypedCanvasStore {
           
           return {
             ...state,
-            objects: {
-              ...state.objects,
-              [data.objectId]: updatedObject
-            },
-            isDirty: true,
+            objects: state.objects.map(obj => obj.id === data.objectId ? updatedObject : obj),
+            selectedObjectIds: state.selectedObjectIds.map(id => id === data.objectId ? updatedObject.id || updatedObject.toString() : id),
             lastModified: data.timestamp
           }
         })
@@ -121,13 +111,13 @@ export class TypedCanvasStore {
     this.subscriptions.push(
       this.eventBus.on('canvas.object.removed', (data) => {
         this.setState(state => {
-          const newObjects = { ...state.objects }
-          delete newObjects[data.objectId]
+          const newObjects = state.objects.filter(obj => obj.id !== data.objectId)
+          const newSelectedObjectIds = state.selectedObjectIds.filter(id => id !== data.objectId)
           
           return {
             ...state,
             objects: newObjects,
-            isDirty: true,
+            selectedObjectIds: newSelectedObjectIds,
             lastModified: data.timestamp
           }
         })
@@ -137,81 +127,32 @@ export class TypedCanvasStore {
     this.subscriptions.push(
       this.eventBus.on('canvas.objects.batch.modified', (data) => {
         this.setState(state => {
-          const updatedObjects = { ...state.objects }
-          
-          data.modifications.forEach(mod => {
-            const objectId = (mod.object as { id?: string }).id || mod.object.toString()
-            const object = updatedObjects[objectId]
-            if (object) {
+          const updatedObjects = state.objects.map(obj => {
+            const mod = data.modifications.find(mod => mod.objectId === obj.id)
+            if (mod) {
               // Safely merge the new state
-              const updatedObject = { ...object }
+              const updatedObject = { ...obj }
               
               // If data property exists and is an object, merge it
-              if (object.data && typeof object.data === 'object' && !(object.data instanceof HTMLImageElement)) {
-                updatedObject.data = { ...object.data, ...mod.newState }
+              if (obj.data && typeof obj.data === 'object' && !(obj.data instanceof HTMLImageElement)) {
+                updatedObject.data = { ...obj.data, ...mod.newState }
               } else {
                 // Otherwise, replace properties with new state
                 Object.assign(updatedObject, mod.newState)
               }
               
-              updatedObjects[objectId] = updatedObject
+              return updatedObject
             }
+            return obj
           })
           
           return {
             ...state,
             objects: updatedObjects,
-            isDirty: true,
+            selectedObjectIds: updatedObjects.map(obj => obj.id || obj.toString()).filter(id => data.modifications.some(mod => mod.objectId === id)),
             lastModified: data.timestamp
           }
         })
-      })
-    )
-    
-    // Layer events
-    this.subscriptions.push(
-      this.eventBus.on('layer.created', (data) => {
-        this.setState(state => ({
-          ...state,
-          layers: [...state.layers, data.layer],
-          activeLayerId: state.activeLayerId || data.layer.id,
-          isDirty: true,
-          lastModified: data.timestamp
-        }))
-      })
-    )
-    
-    this.subscriptions.push(
-      this.eventBus.on('layer.removed', (data) => {
-        this.setState(state => {
-          const layers = state.layers.filter(l => l.id !== data.layerId)
-          const activeLayerId = state.activeLayerId === data.layerId 
-            ? layers[0]?.id || null 
-            : state.activeLayerId
-          
-          return {
-            ...state,
-            layers,
-            activeLayerId,
-            isDirty: true,
-            lastModified: data.timestamp
-          }
-        })
-      })
-    )
-    
-    this.subscriptions.push(
-      this.eventBus.on('layer.modified', (data) => {
-        this.setState(state => ({
-          ...state,
-          layers: state.layers.map(layer =>
-            layer.id === data.layerId
-              ? { ...layer, ...data.modifications }
-              : layer
-          ),
-          isDirty: true,
-          lastModified: data.timestamp
-        }))
       })
     )
     
@@ -220,64 +161,13 @@ export class TypedCanvasStore {
       this.eventBus.on('selection.changed', (data) => {
         this.setState(state => ({
           ...state,
-          selection: data.selection
-        }))
-      })
-    )
-    
-    // Canvas state events
-    this.subscriptions.push(
-      this.eventBus.on('canvas.resized', (data) => {
-        this.setState(state => ({
-          ...state,
-          width: data.width,
-          height: data.height,
-          isDirty: true,
-          lastModified: data.timestamp
-        }))
-      })
-    )
-    
-    this.subscriptions.push(
-      this.eventBus.on('viewport.changed', (data) => {
-        this.setState(state => ({
-          ...state,
-          zoom: data.zoom ?? state.zoom,
-          pan: data.pan ?? state.pan
-        }))
-      })
-    )
-    
-    // Document events
-    this.subscriptions.push(
-      this.eventBus.on('document.loaded', (data) => {
-        this.setState(() => ({
-          ...initialState,
-          documentId: data.document.id,
-          documentName: data.document.name,
-          width: data.document.width,
-          height: data.document.height,
-          backgroundColor: data.document.backgroundColor,
-          createdAt: data.document.createdAt,
-          lastModified: data.document.lastModified,
-          isDirty: false
-        }))
-      })
-    )
-    
-    this.subscriptions.push(
-      this.eventBus.on('document.saved', (data) => {
-        this.setState(state => ({
-          ...state,
-          documentId: data.documentId,
-          isDirty: false,
-          isSaving: false
+          selectedObjectIds: data.selection.objectIds
         }))
       })
     )
   }
   
-  private setState(updater: (state: CanvasStoreState) => CanvasStoreState): void {
+  private setState(updater: (state: TypedCanvasState) => TypedCanvasState): void {
     const newState = updater(this.state)
     
     // Only update if state actually changed
@@ -300,7 +190,7 @@ export class TypedCanvasStore {
   /**
    * Subscribe to state changes
    */
-  subscribe(listener: (state: CanvasStoreState) => void): () => void {
+  subscribe(listener: (state: TypedCanvasState) => void): () => void {
     this.listeners.add(listener)
     
     // Call immediately with current state
@@ -315,7 +205,7 @@ export class TypedCanvasStore {
   /**
    * Get current state
    */
-  getState(): CanvasStoreState {
+  getState(): TypedCanvasState {
     return this.state
   }
   
@@ -337,19 +227,15 @@ export class TypedCanvasStore {
    * Get all objects in a specific layer
    */
   getLayerObjects(layerId: string): CanvasObject[] {
-    return Object.values(this.state.objects).filter(obj => obj.layerId === layerId)
+    return this.state.objects.filter(obj => obj.layerId === layerId)
   }
   
   /**
    * Get selected objects
    */
   getSelectedObjects(): CanvasObject[] {
-    if (!this.state.selection || this.state.selection.type !== 'objects') {
-      return []
-    }
-    
-    return this.state.selection.objectIds
-      .map(id => this.state.objects[id])
+    return this.state.selectedObjectIds
+      .map(id => this.state.objects.find(obj => obj.id === id))
       .filter(Boolean)
   }
   
@@ -366,18 +252,14 @@ export class TypedCanvasStore {
    * Check if an object is selected
    */
   isObjectSelected(objectId: string): boolean {
-    if (!this.state.selection || this.state.selection.type !== 'objects') {
-      return false
-    }
-    
-    return this.state.selection.objectIds.includes(objectId)
+    return this.state.selectedObjectIds.includes(objectId)
   }
 }
 
 // React hook
 import { useEffect, useState } from 'react'
 
-export function useCanvasStore(store: TypedCanvasStore): CanvasStoreState {
+export function useCanvasStore(store: TypedCanvasStore): TypedCanvasState {
   const [state, setState] = useState(() => store.getState())
   
   useEffect(() => {

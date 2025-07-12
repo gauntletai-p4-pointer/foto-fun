@@ -1,44 +1,83 @@
-import type { ICommand } from '@/lib/editor/commands/base'
-import { Event } from '../core/Event'
-import { EventStore } from '../core/EventStore'
-import { ExecutionContext } from '../execution/ExecutionContext'
-import { 
-  ObjectAddedEvent, 
-  ObjectRemovedEvent, 
-  ObjectModifiedEvent
-} from '../canvas/CanvasEvents'
-import type { CanvasManager } from '@/lib/editor/canvas/types'
+import type { ICommand } from '@/lib/editor/commands/base/Command'
+import type { ExecutionContext } from '@/lib/events/execution/ExecutionContext'
+import { EventStore } from '@/lib/events/core/EventStore'
+import { ObjectAddedEvent, ObjectRemovedEvent, ObjectModifiedEvent } from '@/lib/events/canvas/CanvasEvents'
+import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
 import type { CanvasObject } from '@/lib/editor/objects/types'
+import type { Event } from '@/lib/events/core/Event'
+
+export interface CommandAdapterConfig {
+  debugging?: boolean
+  errorHandling?: 'log' | 'throw' | 'ignore'
+  enabled?: boolean
+}
 
 /**
- * @deprecated This adapter is being phased out as commands are migrated to event-driven architecture
+ * Adapter to bridge old command pattern with new event sourcing
  * 
- * CommandAdapter - Temporary bridge during migration from Command pattern to Event Sourcing
+ * This adapter intercepts command execution and converts them to events.
+ * It provides backward compatibility while migrating to the new architecture.
  * 
- * This adapter intercepts command executions and converts them to events.
- * Once migration is complete, this adapter will be removed.
+ * Now uses dependency injection instead of singleton pattern.
  */
 export class CommandAdapter {
-  private static instance: CommandAdapter
   private eventStore: EventStore
-  private isEnabled = true
+  private config: CommandAdapterConfig
+  private disposed = false
   
-  private constructor() {
-    this.eventStore = EventStore.getInstance()
-  }
-  
-  static getInstance(): CommandAdapter {
-    if (!CommandAdapter.instance) {
-      CommandAdapter.instance = new CommandAdapter()
+  constructor(eventStore: EventStore, config: CommandAdapterConfig = {}) {
+    this.eventStore = eventStore
+    this.config = {
+      debugging: false,
+      errorHandling: 'log',
+      enabled: true,
+      ...config
     }
-    return CommandAdapter.instance
+    
+    if (this.config.debugging) {
+      console.log('[CommandAdapter] Initialized with config:', this.config)
+    }
   }
   
   /**
    * Enable/disable the adapter
    */
   setEnabled(enabled: boolean): void {
-    this.isEnabled = enabled
+    if (this.disposed) {
+      throw new Error('CommandAdapter has been disposed')
+    }
+    
+    this.config.enabled = enabled
+    
+    if (this.config.debugging) {
+      console.log(`[CommandAdapter] ${enabled ? 'Enabled' : 'Disabled'}`)
+    }
+  }
+  
+  /**
+   * Check if the adapter is enabled
+   */
+  isEnabled(): boolean {
+    return !this.disposed && (this.config.enabled ?? true)
+  }
+  
+  /**
+   * Dispose of the adapter and clean up resources
+   */
+  dispose(): void {
+    if (this.disposed) return
+    
+    this.disposed = true
+    this.config.enabled = false
+    
+    console.log('[CommandAdapter] Disposed')
+  }
+  
+  /**
+   * Check if the adapter is disposed
+   */
+  isDisposed(): boolean {
+    return this.disposed
   }
   
   /**
@@ -48,25 +87,45 @@ export class CommandAdapter {
     command: ICommand,
     context: ExecutionContext
   ): Promise<void> {
-    if (!this.isEnabled) {
+    if (this.disposed) {
+      throw new Error('CommandAdapter has been disposed')
+    }
+    
+    if (!this.isEnabled()) {
       // Just execute the command normally
       await command.execute()
       return
     }
     
-    // Convert command to event based on type
-    const event = this.commandToEvent(command, context)
+    if (this.config.debugging) {
+      console.log(`[CommandAdapter] Intercepting command: ${command.constructor.name}`)
+    }
     
-    if (event) {
-      // Emit the event through the context
-      await context.emit(event)
+    try {
+      // Convert command to event based on type
+      const event = this.commandToEvent(command, context)
       
-      // Execute the original command for backward compatibility
-      // This ensures the canvas is updated immediately
-      await command.execute()
-    } else {
-      // Unknown command type - just execute it
-      console.warn(`Unknown command type: ${command.constructor.name}`)
+      if (event) {
+        // Emit the event through the context
+        await context.emit(event)
+        
+        // Execute the original command for backward compatibility
+        // This ensures the canvas is updated immediately
+        await command.execute()
+        
+        if (this.config.debugging) {
+          console.log(`[CommandAdapter] Successfully processed command: ${command.constructor.name}`)
+        }
+      } else {
+        // Unknown command type - just execute it
+        if (this.config.debugging) {
+          console.warn(`[CommandAdapter] Unknown command type: ${command.constructor.name}`)
+        }
+        await command.execute()
+      }
+    } catch (error) {
+      this.handleError(new Error(`Failed to intercept command ${command.constructor.name}: ${error}`))
+      // Still try to execute the command
       await command.execute()
     }
   }
@@ -74,12 +133,16 @@ export class CommandAdapter {
   /**
    * Convert a command to an event
    */
-  private commandToEvent(command: ICommand, context: ExecutionContext): Event | null {
+  private commandToEvent(command: ICommand, context: ExecutionContext): ObjectAddedEvent | ObjectRemovedEvent | ObjectModifiedEvent | null {
     const metadata = context.getMetadata()
     
     // Use command description and constructor name to determine event type
     const commandName = command.constructor.name
     const description = command.description.toLowerCase()
+    
+    if (this.config.debugging) {
+      console.log(`[CommandAdapter] Converting command: ${commandName} (${description})`)
+    }
     
     // Handle specific command types
     switch (commandName) {
@@ -114,81 +177,49 @@ export class CommandAdapter {
     }
   }
   
-  private createAddObjectEvent(command: ICommand & { object?: CanvasObject; canvasManager?: CanvasManager; layerId?: string }, metadata: Event['metadata']): Event | null {
-    try {
-      // Access private properties through type assertion
-      const object = command.object
-      const canvasManager = command.canvasManager
-      const layerId = command.layerId
-      
-      if (!object || !canvasManager) return null
-      
-      // Create a compatible object for the legacy event
-      const legacyObject = this.createLegacyObject(object)
-      
-      return new ObjectAddedEvent(
-        'main', // Use default canvas ID
-        legacyObject,
-        layerId,
-        metadata
-      )
-    } catch (error) {
-      console.error('Failed to create AddObjectEvent:', error)
+  private createAddObjectEvent(command: ICommand & { object?: CanvasObject; canvasManager?: CanvasManager }, metadata: Event['metadata']): ObjectAddedEvent | null {
+    if (!command.object || !command.canvasManager) {
       return null
     }
+
+    return new ObjectAddedEvent(
+      'main', // Default canvas ID for infinite canvas
+      command.object,
+      metadata
+    )
   }
   
-  private createRemoveObjectEvent(command: ICommand & { object?: CanvasObject; canvasManager?: CanvasManager }, metadata: Event['metadata']): Event | null {
-    try {
-      const object = command.object
-      const canvasManager = command.canvasManager
-      
-      if (!object || !canvasManager) return null
-      
-      const legacyObject = this.createLegacyObject(object)
-      
-      return new ObjectRemovedEvent(
-        'main',
-        legacyObject,
-        metadata
-      )
-    } catch (error) {
-      console.error('Failed to create RemoveObjectEvent:', error)
+  private createRemoveObjectEvent(command: ICommand & { object?: CanvasObject; canvasManager?: CanvasManager }, metadata: Event['metadata']): ObjectRemovedEvent | null {
+    if (!command.object || !command.canvasManager) {
       return null
     }
+
+    return new ObjectRemovedEvent(
+      'main', // Default canvas ID for infinite canvas
+      command.object,
+      metadata
+    )
   }
   
-  private createModifyEvent(command: ICommand & { object?: CanvasObject; canvasManager?: CanvasManager; previousState?: Record<string, unknown>; modifications?: Record<string, unknown> }, metadata: Event['metadata']): Event | null {
-    try {
-      const object = command.object
-      const canvasManager = command.canvasManager
-      const previousState = command.previousState || {}
-      const newState = command.modifications || {}
-      
-      if (!object || !canvasManager) return null
-      
-      const legacyObject = this.createLegacyObject(object)
-      
-      return new ObjectModifiedEvent(
-        'main',
-        legacyObject,
-        previousState,
-        newState,
-        metadata
-      )
-    } catch (error) {
-      console.error('Failed to create ModifyEvent:', error)
+  private createModifyEvent(command: ICommand & { object?: CanvasObject; canvasManager?: CanvasManager; previousState?: Record<string, unknown>; modifications?: Record<string, unknown> }, metadata: Event['metadata']): ObjectModifiedEvent | null {
+    if (!command.object || !command.canvasManager || !command.previousState || !command.modifications) {
       return null
     }
+
+    return new ObjectModifiedEvent(
+      'main', // Default canvas ID for infinite canvas
+      command.object,
+      command.previousState,
+      command.modifications,
+      metadata
+    )
   }
   
-  private createTransformEvent(command: ICommand & { object?: CanvasObject; canvasManager?: CanvasManager; previousState?: Record<string, unknown>; modifications?: Record<string, unknown> }, metadata: Event['metadata']): Event | null {
-    // Transform is a type of modification
+  private createTransformEvent(command: ICommand & { object?: CanvasObject; canvasManager?: CanvasManager; previousState?: Record<string, unknown>; modifications?: Record<string, unknown> }, metadata: Event['metadata']): ObjectModifiedEvent | null {
     return this.createModifyEvent(command, metadata)
   }
   
-  private createCropEvent(command: ICommand & { object?: CanvasObject; canvasManager?: CanvasManager; previousState?: Record<string, unknown>; modifications?: Record<string, unknown> }, metadata: Event['metadata']): Event | null {
-    // Crop modifies the object bounds
+  private createCropEvent(command: ICommand & { object?: CanvasObject; canvasManager?: CanvasManager; previousState?: Record<string, unknown>; modifications?: Record<string, unknown> }, metadata: Event['metadata']): ObjectModifiedEvent | null {
     return this.createModifyEvent(command, metadata)
   }
   
@@ -219,9 +250,9 @@ export class CommandAdapter {
       })
     }
   }
-
+  
   /**
-   * Convert KonvaEvents to Fabric-like format for compatibility
+   * Convert Konva object to Fabric-like object for compatibility
    */
   convertKonvaToFabric(obj: CanvasObject): CanvasObject & {
     left: number
@@ -231,19 +262,19 @@ export class CommandAdapter {
     setCoords: () => void
     getBoundingRect: () => { left: number; top: number; width: number; height: number }
   } {
-    return {
-      ...obj,
-      left: obj.x,
-      top: obj.y,
-      angle: obj.rotation,
-      set: () => {},
-      setCoords: () => {},
-      getBoundingRect: () => ({
-        left: obj.x,
-        top: obj.y,
-        width: obj.width,
-        height: obj.height
-      })
+    return this.createLegacyObject(obj)
+  }
+  
+  private handleError(error: Error): void {
+    switch (this.config.errorHandling) {
+      case 'throw':
+        throw error
+      case 'log':
+        console.error('[CommandAdapter]', error.message)
+        break
+      case 'ignore':
+        // Do nothing
+        break
     }
   }
 } 

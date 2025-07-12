@@ -19,6 +19,62 @@ This document outlines a comprehensive refactoring plan for the command and sele
 4. **Broken Abstractions**: Commands directly manipulating canvas internals
 5. **Inconsistent Error Handling**: 3 different strategies with no standardization
 6. **Poor Separation of Concerns**: Business logic mixed with orchestration
+7. **Legacy Domain Model**: Still using Layer-based architecture instead of Object-based
+
+### 🚨 **CRITICAL: Domain Model Migration Required**
+
+**IMPORTANT**: During this refactoring, we are **simultaneously migrating from Layer-based to Object-based architecture**. This affects command names, event structures, and domain terminology.
+
+#### **Legacy (Being Removed):**
+```typescript
+// ❌ OLD: Layer-based (Photoshop-style)
+interface Layer {
+  id: string
+  type: 'image' | 'text' | 'shape'
+  visible: boolean
+  opacity: number
+  blendMode: string
+  zIndex: number
+}
+
+// ❌ OLD Command Names
+AddLayerCommand
+RemoveLayerCommand
+UpdateLayerCommand
+ReorderLayersCommand
+
+// ❌ OLD Event Names
+'layer.created'
+'layer.updated' 
+'layer.deleted'
+'layer.moved'
+```
+
+#### **Modern (Target Architecture):**
+```typescript
+// ✅ NEW: Object-based (Figma/Sketch-style)
+interface CanvasObject {
+  id: string
+  type: 'image' | 'text' | 'shape' | 'group'
+  position: Point
+  dimensions: Size
+  properties: ObjectProperties
+  parent?: string
+  children?: string[]
+}
+
+// ✅ NEW Command Names
+AddObjectCommand
+RemoveObjectCommand
+UpdateObjectCommand
+ReorderObjectsCommand
+
+// ✅ NEW Event Names
+'object.created'
+'object.updated'
+'object.deleted'
+'object.moved'
+```
 
 ### Architecture Violations
 
@@ -46,7 +102,51 @@ This document outlines a comprehensive refactoring plan for the command and sele
 
 ## Phase 1: Foundation (Sprint 1)
 
-### 1.1 Extract Selection Domain Service
+### 1.1 Domain Model Migration (CRITICAL FIRST STEP)
+
+**Problem**: Commands and events still use legacy Layer-based terminology
+
+**Solution**: Migrate all domain terminology from Layer → Object
+
+**Migration Rules:**
+```typescript
+// Command Names
+AddLayerCommand → AddObjectCommand
+RemoveLayerCommand → RemoveObjectCommand  
+UpdateLayerCommand → UpdateObjectCommand
+ReorderLayersCommand → ReorderObjectsCommand
+GroupLayersCommand → GroupObjectsCommand
+UngroupLayersCommand → UngroupObjectsCommand
+
+// Event Names
+'layer.created' → 'object.created'
+'layer.updated' → 'object.updated'
+'layer.deleted' → 'object.deleted'
+'layer.moved' → 'object.moved'
+'layer.reordered' → 'object.reordered'
+'layer.grouped' → 'object.grouped'
+
+// Variable/Property Names
+layerId → objectId
+selectedLayers → selectedObjects
+layerManager → objectManager
+layerStore → objectStore
+currentLayer → currentObject
+
+// Interface/Type Names
+interface Layer → interface CanvasObject
+LayerEvent → ObjectEvent
+LayerState → ObjectState
+LayerProperties → ObjectProperties
+```
+
+**Files Requiring Domain Migration:**
+- `lib/editor/commands/object/` (all command files)
+- `lib/events/objects/` (create new, remove layers/)
+- `lib/store/objects/` (create new, remove layers/)
+- `components/editor/Panels/ObjectsPanel/` (create new, remove LayersPanel/)
+
+### 1.2 Extract Selection Domain Service
 
 **Problem**: Selection operations duplicated across multiple classes
 
@@ -180,7 +280,7 @@ export abstract class Command implements ICommand {
 
 **Problem**: No standardized way to create commands
 
-**Solution**: Implement factory pattern
+**Solution**: Implement factory pattern with Object-based terminology
 
 ```typescript
 // lib/editor/commands/factory/CommandFactory.ts
@@ -188,6 +288,9 @@ export interface CommandFactory {
   createAddObjectCommand(object: CanvasObject): AddObjectCommand
   createUpdateObjectCommand(objectId: string, updates: Partial<CanvasObject>): UpdateObjectCommand
   createRemoveObjectCommand(objectId: string): RemoveObjectCommand
+  createGroupObjectsCommand(objectIds: string[]): GroupObjectsCommand
+  createUngroupObjectsCommand(groupId: string): UngroupObjectsCommand
+  createReorderObjectsCommand(objectIds: string[], newOrder: number[]): ReorderObjectsCommand
   createSelectionCommand(selection: PixelSelection, mode: SelectionMode): CreateSelectionCommand
   createCompositeCommand(description: string, commands: ICommand[]): CompositeCommand
 }
@@ -197,7 +300,7 @@ export class DefaultCommandFactory implements CommandFactory {
 
   createAddObjectCommand(object: CanvasObject): AddObjectCommand {
     return new AddObjectCommand(
-      `Add ${object.type}`,
+      `Add ${object.type} object`,
       this.context,
       { objectData: object }
     )
@@ -205,13 +308,21 @@ export class DefaultCommandFactory implements CommandFactory {
 
   createUpdateObjectCommand(objectId: string, updates: Partial<CanvasObject>): UpdateObjectCommand {
     return new UpdateObjectCommand(
-      'Update object',
+      'Update object properties',
       this.context,
       { objectId, updates }
     )
   }
 
-  // Standardized creation for all command types
+  createGroupObjectsCommand(objectIds: string[]): GroupObjectsCommand {
+    return new GroupObjectsCommand(
+      `Group ${objectIds.length} objects`,
+      this.context,
+      { objectIds }
+    )
+  }
+
+  // Standardized creation for all object-based command types
 }
 ```
 
