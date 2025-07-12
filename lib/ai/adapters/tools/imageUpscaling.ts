@@ -42,13 +42,13 @@ interface ServerErrorResponse {
 
 /**
  * Tool Adapter for Image Upscaling AI-Native Tool
- * Integrates Google upscaler model with FotoFun's canvas
+ * Integrates Real-ESRGAN model with FotoFun's canvas
  */
 export class ImageUpscalingAdapter extends BaseToolAdapter<ImageUpscalingInput, ImageUpscalingOutput> {
   // Required BaseToolAdapter properties
   aiName = 'upscaleImage'
-  description = `Upscale and enhance image quality using Google's AI-powered upscaler. 
-This tool improves the resolution and quality of existing images on the canvas with 4x upscaling.
+  description = `Upscale and enhance image quality using Real-ESRGAN AI-powered upscaler. 
+This tool improves the resolution and quality of existing images on the canvas with up to 4x upscaling.
 
 Use this tool when the user wants to:
 - Upscale low-resolution images to higher resolution
@@ -104,11 +104,11 @@ The user will then be shown a review modal to compare the original and upscaled 
         }
       }
       
-      // Call our server API with Google upscaler parameters
+      // Call our server API with Real-ESRGAN parameters
       const requestBody = {
         image: imageUrl,
-        upscale_factor: 'x4',
-        compression_quality: 80
+        scale: 4,
+        face_enhance: false
       }
       
       console.log('[ImageUpscalingAdapter] Sending request body:', requestBody)
@@ -153,7 +153,7 @@ The user will then be shown a review modal to compare the original and upscaled 
       
       return {
         success: true,
-        message: 'Successfully upscaled image 4x using Google upscaler',
+        message: 'Successfully upscaled image 4x using Real-ESRGAN',
         originalImageUrl: result.originalImageUrl,
         upscaledImageUrl: result.imageUrl,
         cost: 0.01, // Estimated cost for upscaling
@@ -358,7 +358,7 @@ The user will then be shown a review modal to compare the original and upscaled 
         
         return {
           success: true,
-          message: 'Starting image upscaling with Google upscaler (4x). Please wait...'
+          message: 'Starting image upscaling with Real-ESRGAN (4x). Please wait...'
         }
       }
     })

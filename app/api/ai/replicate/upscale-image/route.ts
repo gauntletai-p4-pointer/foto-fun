@@ -2,15 +2,15 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { serverReplicateClient } from '@/lib/ai/server/replicateClient'
 
-// Input validation schema - Google upscaler parameters
+// Input validation schema - Real-ESRGAN parameters
 const upscaleImageSchema = z.object({
   image: z.string().url('Valid image URL is required'),
-  upscale_factor: z.enum(['x2', 'x4']).optional().default('x4'),
-  compression_quality: z.number().min(1).max(100).optional().default(80)
+  scale: z.number().min(1).max(4).optional().default(2),
+  face_enhance: z.boolean().optional().default(false)
 })
 
-// Using Google upscaler model
-const UPSCALING_MODEL_ID = 'google/upscaler'
+// Using Real-ESRGAN model
+const UPSCALING_MODEL_ID = 'nightmareai/real-esrgan:f121d640bd286e1fdc67f9799164c1d5be36ff74576ee11c803ae5b665dd46aa'
 
 export async function POST(req: NextRequest) {
   try {
@@ -18,18 +18,35 @@ export async function POST(req: NextRequest) {
     
     // Parse and validate request body
     const body = await req.json()
-    const params = upscaleImageSchema.parse(body)
     
-    console.log('[Upscale Image API] Validated params:', params)
+    // Convert old parameters to new format for backward compatibility
+    let params = { ...body }
     
-    // Prepare input for Replicate API with Google upscaler parameters
-    const replicateInput = {
-      image: params.image,
-      upscale_factor: params.upscale_factor,
-      compression_quality: params.compression_quality
+    // Map old upscale_factor to new scale parameter
+    if (params.upscale_factor) {
+      if (params.upscale_factor === 'x2') {
+        params.scale = 2
+      } else if (params.upscale_factor === 'x4') {
+        params.scale = 4
+      }
+      delete params.upscale_factor
     }
     
-    console.log('[Upscale Image API] Sending to Google upscaler:', replicateInput)
+    // Remove compression_quality as it's not used by Real-ESRGAN
+    delete params.compression_quality
+    
+    const validatedParams = upscaleImageSchema.parse(params)
+    
+    console.log('[Upscale Image API] Validated params:', validatedParams)
+    
+    // Prepare input for Replicate API with Real-ESRGAN parameters
+    const replicateInput = {
+      image: validatedParams.image,
+      scale: validatedParams.scale,
+      face_enhance: validatedParams.face_enhance
+    }
+    
+    console.log('[Upscale Image API] Sending to Real-ESRGAN:', replicateInput)
     
     // Call Replicate API through server client
     const startTime = Date.now()
@@ -42,10 +59,16 @@ export async function POST(req: NextRequest) {
     console.log('[Upscale Image API] Raw output type:', typeof output)
     console.log('[Upscale Image API] Raw output constructor:', output?.constructor?.name)
     
-    // Handle ReadableStream output from Google upscaler
+    // Handle output from Real-ESRGAN (usually returns a URL)
     let imageUrl: string
     
-    if (output instanceof ReadableStream) {
+    if (typeof output === 'string') {
+      imageUrl = output
+      console.log('[Upscale Image API] Output is string:', imageUrl)
+    } else if (Array.isArray(output) && output.length > 0) {
+      imageUrl = output[0]
+      console.log('[Upscale Image API] Output is array, using first element:', imageUrl)
+    } else if (output instanceof ReadableStream) {
       console.log('[Upscale Image API] Output is ReadableStream, converting to data URL...')
       
       // Convert ReadableStream to Buffer
@@ -73,13 +96,6 @@ export async function POST(req: NextRequest) {
       imageUrl = `data:image/png;base64,${base64}`
       
       console.log('[Upscale Image API] Converted to data URL, length:', imageUrl.length)
-      
-    } else if (typeof output === 'string') {
-      imageUrl = output
-      console.log('[Upscale Image API] Output is string:', imageUrl)
-    } else if (Array.isArray(output) && output.length > 0) {
-      imageUrl = output[0]
-      console.log('[Upscale Image API] Output is array, using first element:', imageUrl)
     } else {
       console.error('[Upscale Image API] Unexpected output format:', typeof output, output)
       return NextResponse.json(
@@ -104,13 +120,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       imageUrl,
-      originalImageUrl: params.image,
+      originalImageUrl: validatedParams.image,
       metadata: {
         model: UPSCALING_MODEL_ID,
         processingTime,
         parameters: {
-          upscale_factor: params.upscale_factor,
-          compression_quality: params.compression_quality
+          scale: validatedParams.scale,
+          face_enhance: validatedParams.face_enhance
         }
       }
     })
