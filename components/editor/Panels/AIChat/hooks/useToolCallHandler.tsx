@@ -86,8 +86,8 @@ export function useToolCallHandler({
         }
         
         // Capture canvas screenshot using Konva
-        if (canvasManager?.konvaStage) {
-          const screenshot = await canvasManager.konvaStage.toDataURL({
+        if (canvasManager?.stage) {
+          const screenshot = await canvasManager.stage.toDataURL({
             pixelRatio: 1,
             mimeType: 'image/png'
           })
@@ -151,9 +151,9 @@ export function useToolCallHandler({
               // After executing all tools, capture the updated canvas state
               let _canvasScreenshot: string | undefined
               
-              if (canvasManager?.konvaStage) {
+              if (canvasManager?.stage) {
                 // Capture screenshot for evaluation
-                _canvasScreenshot = await canvasManager.konvaStage.toDataURL({
+                _canvasScreenshot = await canvasManager.stage.toDataURL({
                   pixelRatio: 1,
                   mimeType: 'image/png'
                 })
@@ -225,9 +225,9 @@ export function useToolCallHandler({
             // After executing all tools, capture the updated canvas state
             let _canvasScreenshot: string | undefined
             
-            if (canvasManager?.konvaStage) {
+            if (canvasManager?.stage) {
               // Capture screenshot for evaluation
-              _canvasScreenshot = await canvasManager.konvaStage.toDataURL({
+              _canvasScreenshot = await canvasManager.stage.toDataURL({
                 pixelRatio: 1,
                 mimeType: 'image/png'
               })
@@ -497,9 +497,9 @@ Once you've made your selection, just tell me what you'd like to do!`,
       console.log('Executing tool on client:', toolName)
       
       // Double-check canvas is ready
-      console.log('[AIChat] Canvas manager ready:', !!canvasManager?.konvaStage)
+      console.log('[AIChat] Canvas manager ready:', !!canvasManager?.stage)
       
-      if (!canvasManager?.konvaStage) {
+      if (!canvasManager?.stage) {
         throw new Error('Canvas is not available after initialization.')
       }
       

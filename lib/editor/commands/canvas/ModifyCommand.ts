@@ -115,11 +115,7 @@ export class ModifyCommand extends Command {
    * Find object by ID
    */
   private findObject(id: string): CanvasObject | null {
-    for (const layer of this.canvasManager.state.layers) {
-      const obj = layer.objects.find(o => o.id === id)
-      if (obj) return obj
-    }
-    return null
+    return this.canvasManager.getObject(id)
   }
   
   /**

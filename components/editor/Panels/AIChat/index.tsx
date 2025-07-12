@@ -61,14 +61,14 @@ export function AIChat() {
   // Canvas readiness helpers
   const waitForReady = async (): Promise<void> => {
     // Wait for canvas manager to be initialized
-    while (!canvasManager?.konvaStage) {
+    while (!canvasManager?.stage) {
       await new Promise(resolve => setTimeout(resolve, 100))
     }
   }
   
-  const hasContent = () => {
+  const hasContent = useCallback(() => {
     return canvasManager.getAllObjects().length > 0
-  }
+  }, [canvasManager])
   const { settings: aiSettings } = useAISettings()
   
   // Use the custom hook for tool call handling

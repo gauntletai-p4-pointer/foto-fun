@@ -1,7 +1,7 @@
 import { CanvasEvent } from '../core/Event'
-import type { Transform, BlendMode } from '@/lib/editor/canvas/types'
+import type { BlendMode } from '@/lib/editor/canvas/types'
 import type { CanvasObject } from '@/lib/editor/objects/types'
-import type Konva from 'konva'
+// import type Konva from 'konva'
 
 /**
  * Canvas state interface for event application
@@ -461,9 +461,9 @@ export class KonvaObjectAddedEvent extends CanvasEvent {
       scaleX: (this.objectData.scaleX as number) || 1,
       scaleY: (this.objectData.scaleY as number) || 1,
       zIndex: (this.objectData.zIndex as number) || 0,
-      filters: (this.objectData.filters as any[]) || [],
-      adjustments: (this.objectData.adjustments as any[]) || [],
-      data: this.objectData.data as any || { content: '', font: 'Arial', fontSize: 16, color: '#000000', align: 'left' }
+      filters: (this.objectData.filters as Array<import('@/lib/editor/canvas/types').Filter>) || [],
+      adjustments: (this.objectData.adjustments as Array<import('@/lib/editor/objects/types').Adjustment>) || [],
+      data: this.objectData.data as import('@/lib/editor/objects/types').ImageData | import('@/lib/editor/objects/types').TextData | import('@/lib/editor/objects/types').ShapeData || { content: '', font: 'Arial', fontSize: 16, color: '#000000', align: 'left' }
     }
     
     return {

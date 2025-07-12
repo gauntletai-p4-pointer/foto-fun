@@ -112,7 +112,7 @@ export class ZoomTool extends BaseTool {
     
     // Alt key switches to zoom out
     if (event.key === 'Alt') {
-      canvas.konvaStage.container().style.cursor = 'zoom-out'
+      canvas.stage.container().style.cursor = 'zoom-out'
       this.setOption('zoomMode', 'out')
     }
     
@@ -136,7 +136,7 @@ export class ZoomTool extends BaseTool {
     
     // Release Alt key switches back to zoom in
     if (event.key === 'Alt') {
-      canvas.konvaStage.container().style.cursor = 'zoom-in'
+      canvas.stage.container().style.cursor = 'zoom-in'
       this.setOption('zoomMode', 'in')
     }
   }
@@ -144,7 +144,7 @@ export class ZoomTool extends BaseTool {
   protected onOptionChange(key: string, value: unknown): void {
     if (key === 'zoomMode') {
       const canvas = this.getCanvas()
-      canvas.konvaStage.container().style.cursor = value === 'out' ? 'zoom-out' : 'zoom-in'
+      canvas.stage.container().style.cursor = value === 'out' ? 'zoom-out' : 'zoom-in'
     }
   }
   
@@ -185,7 +185,7 @@ export class ZoomTool extends BaseTool {
       this.zoomToPoint(point, newZoom)
     } else {
       // Zoom to center
-      const stage = canvas.konvaStage
+      const stage = canvas.stage
       const centerPoint = {
         x: stage.width() / 2,
         y: stage.height() / 2
@@ -207,7 +207,7 @@ export class ZoomTool extends BaseTool {
       this.zoomToPoint(point, newZoom)
     } else {
       // Zoom from center
-      const stage = canvas.konvaStage
+      const stage = canvas.stage
       const centerPoint = {
         x: stage.width() / 2,
         y: stage.height() / 2
@@ -257,7 +257,7 @@ export class ZoomTool extends BaseTool {
     if (!this.marqueeRect || !this.marqueeStart) return
     
     const canvas = this.getCanvas()
-    const stage = canvas.konvaStage
+    const stage = canvas.stage
     
     // Get marquee bounds in screen coordinates
     const rect = this.marqueeRect.getBoundingClientRect()

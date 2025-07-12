@@ -18,7 +18,7 @@ export abstract class BaseSelectionTool extends BaseTool {
   onActivate(canvas: CanvasManager): void {
     super.onActivate(canvas)
     this.selectionManager = canvas.getSelectionManager()
-    this.overlayLayer = canvas.konvaStage.findOne('.overlay') as Konva.Layer || new Konva.Layer({ name: 'overlay' })
+    this.overlayLayer = canvas.stage.findOne('.overlay') as Konva.Layer || new Konva.Layer({ name: 'overlay' })
     
     // Show modifier hints in status bar
     this.showModifierHints()

@@ -32,17 +32,22 @@ export class EditTextCommand extends Command {
     }
     
     // Update the text object
+    const currentTextData = textObject.data as import('@/lib/editor/objects/types').TextData
     await canvas.updateObject(textObject.id, {
-      data: { text: this.newText }
+      data: {
+        ...currentTextData,
+        content: this.newText
+      }
     })
     
     // Emit event for state tracking
     const eventBus = getTypedEventBus()
+    const newTextData = textObject.data as import('@/lib/editor/objects/types').TextData
     eventBus.emit('canvas.object.modified', {
-      canvasId: canvas.konvaStage.id() || 'main',
+      canvasId: canvas.stage.id() || 'main',
       objectId: textObject.id,
-      previousState: { data: this.oldText },
-      newState: { data: this.newText }
+      previousState: { data: { ...newTextData, content: this.oldText } },
+      newState: { data: newTextData }
     })
   }
   
@@ -59,17 +64,22 @@ export class EditTextCommand extends Command {
     }
     
     // Restore the old text
+    const currentTextData = textObject.data as import('@/lib/editor/objects/types').TextData
     await canvas.updateObject(textObject.id, {
-      data: this.oldText
+      data: {
+        ...currentTextData,
+        content: this.oldText
+      }
     })
     
     // Emit event for state tracking
     const eventBus = getTypedEventBus()
+    const oldTextData = textObject.data as import('@/lib/editor/objects/types').TextData
     eventBus.emit('canvas.object.modified', {
-      canvasId: canvas.konvaStage.id() || 'main',
+      canvasId: canvas.stage.id() || 'main',
       objectId: textObject.id,
-      previousState: { data: this.newText },
-      newState: { data: this.oldText }
+      previousState: { data: { ...oldTextData, content: this.newText } },
+      newState: { data: oldTextData }
     })
   }
   

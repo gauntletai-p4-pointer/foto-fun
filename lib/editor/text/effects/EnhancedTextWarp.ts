@@ -381,16 +381,28 @@ export class EnhancedTextWarp {
       id: 'preview',
       type: 'text',
       name: 'Preview',
-      visible: true,
-      locked: false,
+      x: 0,
+      y: 0,
+      width: 200,
+      height: 50,
+      rotation: 0,
+      scaleX: 1,
+      scaleY: 1,
+      zIndex: 0,
       opacity: 1,
       blendMode: 'normal',
-      transform: {
-        x: 0, y: 0, scaleX: 1, scaleY: 1,
-        rotation: 0, skewX: 0, skewY: 0
+      visible: true,
+      locked: false,
+      filters: [],
+      adjustments: [],
+      data: {
+        content: '',
+        fontSize: 16,
+        font: 'Arial',
+        color: '#000000',
+        align: 'left'
       },
-      node: tempText,
-      layerId: 'preview'
+      node: tempText
     }
     
     // Apply warp

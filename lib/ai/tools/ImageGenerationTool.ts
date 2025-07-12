@@ -83,8 +83,9 @@ export class ImageGenerationTool extends ObjectTool {
       return
     }
     
+    const taskId = `${this.id}-${Date.now()}`
+    
     try {
-      const taskId = `${this.id}-${Date.now()}`
       this.eventBus.emit('ai.processing.started', {
         taskId,
         toolId: this.id,
@@ -96,9 +97,7 @@ export class ImageGenerationTool extends ObjectTool {
       console.log(`Estimated cost: $${tier.cost}`)
       
       // Generate image using the selected model
-      // Note: For now, all models use SDXL. In the future, we'll update ReplicateService
-      // to support different models based on tier.modelId
-      const imageData = await this.replicateService.generateImage(prompt, {
+      const imageData = await this.replicateService.generateImage(prompt, tier.modelId as `${string}/${string}`, {
         width: this.getOption('width') as number,
         height: this.getOption('height') as number,
         // Add model-specific parameters

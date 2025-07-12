@@ -294,7 +294,7 @@ export class EventBasedToolChain {
     
     // Emit selection event for tracking
     this.typedEventBus.emit('selection.changed', {
-      selection: { type: 'objects', objectIds: objects.map(o => o.id) } as any,
+      selection: { type: 'objects', objectIds: objects.map(o => o.id) } as import('@/lib/editor/canvas/types').Selection,
       previousSelection: null
     })
   }
@@ -308,7 +308,7 @@ export class EventBasedToolChain {
     
     if (previousSelection.length > 0) {
       this.typedEventBus.emit('selection.cleared', {
-        previousSelection: { type: 'objects', objectIds: previousSelection } as any
+        previousSelection: { type: 'objects', objectIds: previousSelection } as import('@/lib/editor/canvas/types').Selection
       })
     }
   }

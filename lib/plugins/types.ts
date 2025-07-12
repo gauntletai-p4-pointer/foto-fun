@@ -5,6 +5,7 @@
 
 import type { LucideIcon } from 'lucide-react'
 import type { z } from 'zod'
+import type { CanvasObject } from '@/lib/editor/objects/types'
 
 /**
  * Base plugin interface
@@ -76,9 +77,9 @@ export interface ReplicateToolPlugin extends Plugin {
   
   // Optional processing hooks
   hooks?: {
-    preProcess?: (inputs: any, context: PluginContext) => Promise<any>
-    postProcess?: (output: any, context: PluginContext) => Promise<any>
-    validate?: (inputs: any) => Promise<boolean>
+    preProcess?: (inputs: PluginInputData, context: PluginContext) => Promise<PluginInputData>
+    postProcess?: (output: PluginOutputData, context: PluginContext) => Promise<PluginOutputData>
+    validate?: (inputs: PluginInputData) => Promise<boolean>
   }
   
   // Tool behavior
@@ -113,10 +114,25 @@ export interface WebGLFilterPlugin extends Plugin {
 }
 
 /**
+ * Plugin input data types
+ */
+export type PluginInputData = Record<string, unknown>
+
+/**
+ * Plugin output data types
+ */
+export type PluginOutputData = CanvasObject | CanvasObject[] | ImageData | string
+
+/**
+ * Parameter schema type
+ */
+export type ParameterSchema = z.ZodObject<Record<string, z.ZodTypeAny>>
+
+/**
  * Parameter configuration
  */
 export interface ParameterConfig {
-  schema: z.ZodObject<any>      // Zod schema for validation
+  schema: ParameterSchema      // Zod schema for validation
   ui: Record<string, ParameterUI>  // UI configuration per parameter
 }
 
@@ -140,15 +156,20 @@ export interface ParameterUI {
   accept?: string                // For file input
   
   // Conditional visibility
-  showWhen?: (values: any) => boolean
+  showWhen?: (values: PluginInputData) => boolean
 }
 
 /**
  * Shader uniform configuration
  */
+/**
+ * Uniform value types for WebGL shaders
+ */
+export type UniformValue = number | number[] | Float32Array | WebGLTexture
+
 export interface UniformConfig {
   type: 'float' | 'vec2' | 'vec3' | 'vec4' | 'sampler2D'
-  default: any
+  default: UniformValue
   ui?: ParameterUI
 }
 
@@ -157,7 +178,7 @@ export interface UniformConfig {
  */
 export interface FilterPreset {
   name: string
-  values: Record<string, any>
+  values: PluginInputData
   thumbnail?: string
 }
 
@@ -167,9 +188,9 @@ export interface FilterPreset {
 export interface PluginContext {
   // Canvas access
   canvas: {
-    getSelectedObjects: () => any[]
-    addObject: (object: any) => Promise<string>
-    updateObject: (id: string, updates: any) => Promise<void>
+    getSelectedObjects: () => CanvasObject[]
+    addObject: (object: Partial<CanvasObject>) => Promise<string>
+    updateObject: (id: string, updates: Partial<CanvasObject>) => Promise<void>
     getImageData: (objectId: string) => Promise<ImageData>
   }
   

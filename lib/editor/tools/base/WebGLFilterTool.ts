@@ -64,10 +64,15 @@ export abstract class WebGLFilterTool extends BaseTool {
       return null
     }
     
-    // Apply filter to selected objects
+    // Apply filter to selection - need to get the layer of the first selected object
+    const firstObject = selectedObjects[0]
     return {
-      type: 'objects',
-      objectIds: selectedObjects.map(obj => obj.id)
+      type: 'selection',
+      layerId: firstObject.layerId ?? 'main', // Default to main layer if no layerId
+      selection: {
+        type: 'objects',
+        objectIds: selectedObjects.map(obj => obj.id)
+      }
     }
   }
   

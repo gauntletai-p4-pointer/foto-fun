@@ -4,7 +4,6 @@ import { ReplicateService } from '../services/replicate'
 import { ModelPreferencesManager } from '@/lib/settings/ModelPreferences'
 import { TypedEventBus } from '@/lib/events/core/TypedEventBus'
 import type { CanvasObject } from '@/lib/editor/objects/types'
-import type { ImageData as ReplicateImageData } from '@/lib/ai/services/replicate'
 
 export interface UpscalingOptions {
   scale: 2 | 4
@@ -139,14 +138,14 @@ export class UpscalingTool extends ObjectTool {
     }
   }
 
-  private extractImageUrl(output: any): string {
+  private extractImageUrl(output: unknown): string {
     if (typeof output === 'string') return output
     if (Array.isArray(output) && output.length > 0) {
       const first = output[0]
       if (typeof first === 'string') return first
-      if (first && typeof first === 'object' && 'url' in first) return first.url
+      if (first && typeof first === 'object' && 'url' in first) return (first as { url: string }).url
     }
-    if (output && typeof output === 'object' && 'url' in output) return output.url
+    if (output && typeof output === 'object' && 'url' in output) return (output as { url: string }).url
     throw new Error('Unable to extract image URL from model output')
   }
 

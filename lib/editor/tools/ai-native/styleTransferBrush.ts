@@ -4,7 +4,6 @@ import type { ToolEvent } from '@/lib/editor/canvas/types'
 import type { CanvasObject } from '@/lib/editor/objects/types'
 import { ReplicateService } from '@/lib/ai/services/replicate'
 import { TypedEventBus } from '@/lib/events/core/TypedEventBus'
-import { nanoid } from 'nanoid'
 import { isImageObject } from '@/lib/editor/objects/types'
 import { StyleTransferBrushIcon } from '@/components/editor/icons/AIToolIcons'
 
@@ -138,7 +137,7 @@ export class StyleTransferBrush extends ObjectDrawingTool {
     this.updatePreview(targetObject)
   }
   
-  async onMouseUp(event: ToolEvent): Promise<void> {
+  async onMouseUp(_event: ToolEvent): Promise<void> {
     if (!this.isDrawing || !this.currentStroke || !this.strokeCanvas) return
     
     this.isDrawing = false
@@ -182,7 +181,7 @@ export class StyleTransferBrush extends ObjectDrawingTool {
     this.strokeCtx.fill()
   }
   
-  private updatePreview(targetObject: CanvasObject): void {
+  private updatePreview(_targetObject: CanvasObject): void {
     // Could show a real-time preview overlay
     // For now, just visual feedback through the brush stroke
   }
@@ -196,8 +195,9 @@ export class StyleTransferBrush extends ObjectDrawingTool {
     
     const options = this.getOptions()
     
+    const taskId = `${this.id}-${Date.now()}`
+    
     try {
-      const taskId = `${this.id}-${Date.now()}`
       this.eventBus.emit('ai.processing.started', {
         taskId,
         toolId: this.id,
@@ -333,7 +333,7 @@ export class StyleTransferBrush extends ObjectDrawingTool {
         case 'watercolor':
           // Simulate watercolor with transparency and bleeding
           const luminance = 0.299 * r + 0.587 * g + 0.114 * b
-          const saturation = Math.max(r, g, b) - Math.min(r, g, b)
+          const _saturation = Math.max(r, g, b) - Math.min(r, g, b)
           
           // Reduce saturation and add transparency effect
           newR = r * 0.7 + luminance * 0.3
@@ -427,7 +427,7 @@ export class StyleTransferBrush extends ObjectDrawingTool {
     }
     
     // Simple edge detection using neighboring pixels
-    const current = data[index]
+    const _current = data[index]
     const left = data[index - 4]
     const right = data[index + 4]
     const top = data[index - width * 4]

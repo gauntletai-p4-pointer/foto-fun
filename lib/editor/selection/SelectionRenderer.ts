@@ -28,7 +28,7 @@ export class SelectionRenderer {
    * Initialize or get the overlay layer for selection rendering
    */
   private initializeOverlayLayer(): void {
-    const stage = this.canvasManager.konvaStage
+    const stage = this.canvasManager.stage
     
     // Use the existing selection layer (index 1 after background layer)
     this.overlayLayer = stage.children[1] as Konva.Layer

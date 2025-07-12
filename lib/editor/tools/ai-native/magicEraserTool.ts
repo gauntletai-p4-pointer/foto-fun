@@ -4,7 +4,6 @@ import type { ToolEvent } from '@/lib/editor/canvas/types'
 import type { CanvasObject } from '@/lib/editor/objects/types'
 import { ReplicateService } from '@/lib/ai/services/replicate'
 import { TypedEventBus } from '@/lib/events/core/TypedEventBus'
-import { nanoid } from 'nanoid'
 import { isImageObject } from '@/lib/editor/objects/types'
 import { MagicEraserIcon } from '@/components/editor/icons/AIToolIcons'
 
@@ -15,11 +14,6 @@ export interface MagicEraserOptions {
   fillQuality: 'fast' | 'balanced' | 'best'
 }
 
-interface ErasureArea {
-  objectId: string
-  mask: ImageData
-  bounds: { x: number; y: number; width: number; height: number }
-}
 
 /**
  * AI-powered eraser that intelligently removes objects and fills the background
@@ -121,7 +115,7 @@ export class MagicEraserTool extends ObjectTool {
     }
   }
   
-  async onMouseUp(event: ToolEvent): Promise<void> {
+  async onMouseUp(_event: ToolEvent): Promise<void> {
     if (!this.isErasing) return
     
     this.isErasing = false
@@ -174,8 +168,9 @@ export class MagicEraserTool extends ObjectTool {
       
     } catch (error) {
       console.error('Magic eraser failed:', error)
+      const errorTaskId = `${this.id}-${Date.now()}`
       this.eventBus.emit('ai.processing.failed', {
-        taskId,
+        taskId: errorTaskId,
         toolId: this.id,
         error: error instanceof Error ? error.message : 'Unknown error'
       })
@@ -281,7 +276,7 @@ export class MagicEraserTool extends ObjectTool {
   private async applyErasure(
     object: CanvasObject & { data: import('@/lib/editor/objects/types').ImageData },
     maskData: ImageData,
-    bounds: { x: number; y: number; width: number; height: number }
+    _bounds: { x: number; y: number; width: number; height: number }
   ): Promise<void> {
     const canvas = this.getCanvas()
     if (!canvas) return
@@ -353,8 +348,9 @@ export class MagicEraserTool extends ObjectTool {
       
     } catch (error) {
       console.error('Content-aware fill failed:', error)
+      const errorTaskId = `${this.id}-fill-${Date.now()}`
       this.eventBus.emit('ai.processing.failed', {
-        taskId,
+        taskId: errorTaskId,
         toolId: this.id,
         error: error instanceof Error ? error.message : 'Unknown error'
       })

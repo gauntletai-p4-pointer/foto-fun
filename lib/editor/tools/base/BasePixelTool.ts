@@ -45,8 +45,19 @@ export abstract class BasePixelTool extends BaseTool {
     // Initialize pixel buffer for the canvas (object-based architecture)
     const canvas = this.getCanvas()
     if (canvas) {
-      // In object-based architecture, we work with the canvas content layer
-      this.pixelBuffer = new PixelBuffer(canvas, canvas.contentLayer)
+      // Create a temporary layer wrapper for compatibility
+      const layerWrapper = {
+        id: 'pixel-layer',
+        name: 'Pixel Layer',
+        konvaLayer: canvas.contentLayer,
+        type: 'raster' as const,
+        visible: true,
+        locked: false,
+        opacity: 1,
+        blendMode: 'normal' as const,
+        objects: []
+      }
+      this.pixelBuffer = new PixelBuffer(canvas, layerWrapper)
     }
     
     // Load brush settings from options

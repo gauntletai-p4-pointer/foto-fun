@@ -141,14 +141,14 @@ export class RelightingTool extends ObjectTool {
     return canvas.toDataURL('image/png')
   }
 
-  private extractImageUrl(output: any): string {
+  private extractImageUrl(output: unknown): string {
     if (typeof output === 'string') return output
     if (Array.isArray(output) && output.length > 0) {
       const first = output[0]
       if (typeof first === 'string') return first
-      if (first && typeof first === 'object' && 'url' in first) return first.url
+      if (first && typeof first === 'object' && 'url' in first) return (first as { url: string }).url
     }
-    if (output && typeof output === 'object' && 'url' in output) return output.url
+    if (output && typeof output === 'object' && 'url' in output) return (output as { url: string }).url
     throw new Error('Unable to extract image URL from model output')
   }
 
@@ -218,7 +218,7 @@ export class SmartSelectionTool {
   async execute(
     imageObject: CanvasObject,
     point: { x: number; y: number },
-    options: SmartSelectionOptions = {}
+    _options: SmartSelectionOptions = {}
   ): Promise<CanvasObject> {
     const imageData = imageObject.data as import('@/lib/editor/objects/types').ImageData
     
@@ -340,14 +340,14 @@ export class DepthEstimationTool {
     return canvas.toDataURL('image/png')
   }
 
-  private extractImageUrl(output: any): string {
+  private extractImageUrl(output: unknown): string {
     if (typeof output === 'string') return output
     if (Array.isArray(output) && output.length > 0) {
       const first = output[0]
       if (typeof first === 'string') return first
-      if (first && typeof first === 'object' && 'url' in first) return first.url
+      if (first && typeof first === 'object' && 'url' in first) return (first as { url: string }).url
     }
-    if (output && typeof output === 'object' && 'url' in output) return output.url
+    if (output && typeof output === 'object' && 'url' in output) return (output as { url: string }).url
     throw new Error('Unable to extract image URL from model output')
   }
 
@@ -439,14 +439,14 @@ export class InstructionEditingTool {
     return canvas.toDataURL('image/png')
   }
 
-  private extractImageUrl(output: any): string {
+  private extractImageUrl(output: unknown): string {
     if (typeof output === 'string') return output
     if (Array.isArray(output) && output.length > 0) {
       const first = output[0]
       if (typeof first === 'string') return first
-      if (first && typeof first === 'object' && 'url' in first) return first.url
+      if (first && typeof first === 'object' && 'url' in first) return (first as { url: string }).url
     }
-    if (output && typeof output === 'object' && 'url' in output) return output.url
+    if (output && typeof output === 'object' && 'url' in output) return (output as { url: string }).url
     throw new Error('Unable to extract image URL from model output')
   }
 

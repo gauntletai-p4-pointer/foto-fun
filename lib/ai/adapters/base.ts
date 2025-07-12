@@ -312,8 +312,8 @@ export abstract class CanvasToolAdapter<
         throw new Error('Canvas is required but not provided in context')
       }
       
-      // Use pre-filtered target images from enhanced context
-      const images = context.targetImages as CanvasImage[]
+      // Use pre-filtered target objects from enhanced context
+      const images = context.targetObjects.filter(obj => obj.type === 'image') as CanvasImage[]
       
       console.log(`[${this.constructor.name}] Target images:`, images.length)
       console.log(`[${this.constructor.name}] Targeting mode:`, context.targetingMode)
@@ -335,10 +335,12 @@ export abstract class CanvasToolAdapter<
       }
       
       // Log targeting info for debugging
-      if (context.targetingMode === 'auto-single') {
-        console.log(`[${this.constructor.name}] Auto-targeting single image on canvas`)
-      } else if (context.targetingMode === 'selection') {
+      if (context.targetingMode === 'all') {
+        console.log(`[${this.constructor.name}] Operating on all images on canvas`)
+      } else if (context.targetingMode === 'selected') {
         console.log(`[${this.constructor.name}] Operating on user's selection of ${images.length} images`)
+      } else if (context.targetingMode === 'visible') {
+        console.log(`[${this.constructor.name}] Operating on visible images`)
       }
       
       // Execute tool-specific logic with execution context
@@ -549,7 +551,7 @@ export abstract class FilterToolAdapter<
   protected async applyFilterToImages(
     images: CanvasImage[],
     params: TInput,
-    canvas: CanvasManager,
+    _canvas: CanvasManager,
     _executionContext?: ExecutionContext
   ): Promise<void> {
     const filterType = this.getFilterType()
@@ -569,7 +571,7 @@ export abstract class FilterToolAdapter<
         console.log(`[${this.constructor.name}] Processing ${layerImages.length} images in layer ${layerId}`)
         
         if (this.shouldApplyFilter(params)) {
-          const filter = this.createFilter(params)
+          const _filter = this.createFilter(params)
           
           // Apply filter to objects (new architecture doesn't use layer-based filters)
           console.warn('[FilterToolAdapter] Layer-based filtering deprecated - use object-based filters')

@@ -21,7 +21,7 @@ export class CanvasManagerFactory {
    */
   create(
     container: HTMLDivElement,
-    executionContext?: ExecutionContext
+    _executionContext?: ExecutionContext
   ): CanvasManager {
     // Get services from container
     const serviceContainer = ServiceContainer.getInstance()
@@ -36,7 +36,7 @@ export class CanvasManagerFactory {
     )
     
     // Register for cleanup
-    this.resourceManager.register(`canvas-${canvas.konvaStage.id()}`, {
+    this.resourceManager.register(`canvas-${canvas.stage.id()}`, {
       dispose: () => canvas.destroy()
     })
     

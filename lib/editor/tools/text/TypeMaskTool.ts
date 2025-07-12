@@ -28,7 +28,7 @@ export class TypeMaskTool extends BaseTool {
     
     // Create a dedicated layer for mask creation
     this.maskLayer = new Konva.Layer()
-    canvas.konvaStage.add(this.maskLayer)
+    canvas.stage.add(this.maskLayer)
     this.maskLayer.moveToTop()
     
     // Set default text options

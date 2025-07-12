@@ -3,6 +3,13 @@ import { TOOL_IDS } from '@/constants'
 import { ObjectWebGLFilterTool } from '../base/ObjectWebGLFilterTool'
 
 /**
+ * Hue adjustment value interface
+ */
+interface HueOptions extends Record<string, number> {
+  rotation: number
+}
+
+/**
  * Object-based Hue Tool
  * Rotates colors of selected objects on the color wheel using WebGL
  */
@@ -19,7 +26,7 @@ export class HueTool extends ObjectWebGLFilterTool {
     return 'hue'
   }
   
-  protected getDefaultParams(): Record<string, any> {
+  protected getDefaultParams(): Record<string, number> {
     return {
       rotation: 0 // Range: 0 to 360 degrees
     }
@@ -42,11 +49,11 @@ export class HueTool extends ObjectWebGLFilterTool {
   /**
    * Convert UI value to WebGL parameter
    */
-  protected getAllOptions(): Record<string, any> {
+  protected getAllOptions(): Record<string, number> {
     const rotation = (this.getOption('rotation') as number) || 0
     return {
       rotation: rotation / 360 // Convert to 0-1 range for WebGL shader
-    }
+    } satisfies HueOptions
   }
   
   /**

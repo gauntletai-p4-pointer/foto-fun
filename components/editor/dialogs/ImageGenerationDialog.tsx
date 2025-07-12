@@ -12,6 +12,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Loader2 } from 'lucide-react'
 import { ImageGenerationAdapter } from '@/lib/ai/adapters/tools/ImageGenerationAdapter'
+import { CanvasContextProvider } from '@/lib/ai/canvas/CanvasContext'
 // Toast notifications - TODO: implement proper toast system
 
 const COMMON_DIMENSIONS = [
@@ -61,7 +62,7 @@ export function ImageGenerationDialog() {
       return
     }
     
-    if (!canvasManager || !canvasManager.konvaStage) {
+    if (!canvasManager || !canvasManager.stage) {
       console.error('Canvas not ready')
       alert('Canvas not ready. Please wait for the canvas to load.')
       return
@@ -76,6 +77,9 @@ export function ImageGenerationDialog() {
       // Create adapter instance
       const adapter = new ImageGenerationAdapter()
       
+      // Create proper canvas context
+      const context = CanvasContextProvider.fromClient(canvasManager)
+      
       // Execute generation
       const result = await adapter.execute(
         {
@@ -84,11 +88,7 @@ export function ImageGenerationDialog() {
           width,
           height,
         },
-        {
-          canvas: canvasManager,
-          targetObjects: [],
-          targetingMode: 'selected'
-        }
+        context
       )
       
       if (result.objectId) {

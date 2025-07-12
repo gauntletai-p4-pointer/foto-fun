@@ -3,8 +3,6 @@
  * Provides consistent access to canvas dimensions across the codebase
  */
 
-import type { CanvasState } from './types'
-
 /**
  * Get viewport dimensions (the actual canvas container size)
  */

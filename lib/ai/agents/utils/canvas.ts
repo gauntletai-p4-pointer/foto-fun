@@ -24,8 +24,8 @@ export class CanvasContextManager {
     if (!context) return null
     
     // Update with current canvas state
-    context.targetImages = this.getCurrentTargetImages()
-    context.targetingMode = 'selection' // Always 'selection' - no more 'all-images'
+    context.targetObjects = this.getCurrentTargetImages()
+    context.targetingMode = 'selected' // Use 'selected' instead of 'selection'
     
     return context
   }

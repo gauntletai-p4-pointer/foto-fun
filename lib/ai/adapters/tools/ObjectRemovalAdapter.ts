@@ -98,7 +98,7 @@ export class ObjectRemovalAdapter extends UnifiedToolAdapter<Input, Output> {
   private async createMaskObject(
     area: Input['targetArea'], 
     targetImage: import('@/lib/editor/objects/types').CanvasObject,
-    context: ObjectCanvasContext
+    _context: ObjectCanvasContext
   ): Promise<import('@/lib/editor/objects/types').CanvasObject> {
     // Create a canvas for the mask
     const canvas = document.createElement('canvas')

@@ -189,7 +189,18 @@ export abstract class BaseTextTool extends BaseTool {
       rotation: 0,
       scaleX: 1,
       scaleY: 1,
-      data: textNode.text(),
+      zIndex: 0,
+      filters: [],
+      adjustments: [],
+      data: {
+        content: textNode.text(),
+        font: this.getOption('fontFamily') as string || 'Arial',
+        fontSize: this.getOption('fontSize') as number || 60,
+        color: this.getOption('color') as string || '#000000',
+        align: this.getOption('alignment') as 'left' | 'center' | 'right' || 'left',
+        lineHeight: this.getOption('lineHeight') as number || 1.2,
+        letterSpacing: this.getOption('letterSpacing') as number || 0
+      },
       metadata: {
         konvaNode: textNode
       }
@@ -219,7 +230,7 @@ export abstract class BaseTextTool extends BaseTool {
           scaleY: canvasObject.scaleY,
           data: canvasObject.data
         },
-        null, // No layer ID needed in object-based system
+        'default-layer', // Default layer ID for object-based system
         this.executionContext.getMetadata()
       ))
     }
@@ -251,7 +262,8 @@ export abstract class BaseTextTool extends BaseTool {
     }
     
     // Set textarea properties
-    this.textarea.value = canvasObject.data as string || textNode.text()
+    const textData = canvasObject.data as import('@/lib/editor/objects/types').TextData
+    this.textarea.value = textData.content || textNode.text()
     this.textarea.style.position = 'absolute'
     this.textarea.style.top = `${areaPosition.y}px`
     this.textarea.style.left = `${areaPosition.x}px`
@@ -352,18 +364,24 @@ export abstract class BaseTextTool extends BaseTool {
       }
       
       // Emit event if text changed
-      if (canvasObject && canvasObject.data !== finalText) {
-        const previousData = canvasObject.data
-        canvasObject.data = finalText
+      if (canvasObject) {
+        const currentTextData = canvasObject.data as import('@/lib/editor/objects/types').TextData
+        if (currentTextData.content !== finalText) {
+          const previousData = canvasObject.data
+          canvasObject.data = {
+            ...currentTextData,
+            content: finalText
+          }
         
-        if (this.executionContext) {
-          await this.executionContext.emit(new KonvaObjectModifiedEvent(
-            'canvas',
-            canvasObject.id,
-            { data: previousData },
-            { data: finalText },
-            this.executionContext.getMetadata()
-          ))
+          if (this.executionContext) {
+            await this.executionContext.emit(new KonvaObjectModifiedEvent(
+              'canvas',
+              canvasObject.id,
+              { data: previousData },
+              { data: canvasObject.data },
+              this.executionContext.getMetadata()
+            ))
+          }
         }
       }
       

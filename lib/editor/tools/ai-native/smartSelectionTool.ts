@@ -4,7 +4,6 @@ import type { ToolEvent, Selection } from '@/lib/editor/canvas/types'
 import type { CanvasObject } from '@/lib/editor/objects/types'
 import { ReplicateService } from '@/lib/ai/services/replicate'
 import { TypedEventBus } from '@/lib/events/core/TypedEventBus'
-import { nanoid } from 'nanoid'
 import { SmartSelectionIcon } from '@/components/editor/icons/AIToolIcons'
 
 export interface SmartSelectionOptions {
@@ -35,12 +34,16 @@ export class SmartSelectionTool extends ObjectTool {
     this.eventBus = new TypedEventBus()
   }
   
-  protected setupTool(): void {
+  async setupTool(): Promise<void> {
     // Tool-specific setup
+    this.isProcessing = false
+    this.currentSelection = null
   }
   
-  protected cleanupTool(): void {
+  async cleanupTool(): Promise<void> {
     // Tool-specific cleanup
+    this.isProcessing = false
+    this.currentSelection = null
   }
   
   getOptions(): SmartSelectionOptions {
@@ -61,6 +64,7 @@ export class SmartSelectionTool extends ObjectTool {
     
     if (!this.currentSelection) {
       this.eventBus.emit('tool.message', {
+        toolId: this.id,
         type: 'info',
         message: 'Please make a rough selection first, then activate Smart Selection to refine it'
       })
@@ -84,10 +88,11 @@ export class SmartSelectionTool extends ObjectTool {
     await this.refineSelection()
   }
   
-  private startRoughSelection(point: { x: number; y: number }): void {
+  private startRoughSelection(_point: { x: number; y: number }): void {
     // This would integrate with a basic lasso tool
     // For now, we'll assume the user has already made a selection
     this.eventBus.emit('tool.message', {
+      toolId: this.id,
       type: 'info',
       message: 'Use the Lasso or Marquee tool to make a rough selection first'
     })
@@ -153,8 +158,9 @@ export class SmartSelectionTool extends ObjectTool {
       
     } catch (error) {
       console.error('Smart selection failed:', error)
+      const errorTaskId = `${this.id}-${Date.now()}`
       this.eventBus.emit('ai.processing.failed', {
-        taskId,
+        taskId: errorTaskId,
         toolId: this.id,
         error: error instanceof Error ? error.message : 'Unknown error'
       })

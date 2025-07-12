@@ -61,7 +61,7 @@ export class HorizontalTypeTool extends BaseTool {
     
     // Redraw overlay layer
     const canvas = this.getCanvas()
-    const stage = canvas.konvaStage
+    const stage = canvas.stage
     const overlayLayer = stage.children[2] as Konva.Layer
     if (overlayLayer) {
       overlayLayer.batchDraw()
@@ -185,7 +185,18 @@ export class HorizontalTypeTool extends BaseTool {
       rotation: 0,
       scaleX: 1,
       scaleY: 1,
-      data: text.text(),
+      zIndex: 0,
+      filters: [],
+      adjustments: [],
+      data: {
+        content: text.text(),
+        font: this.getOption('fontFamily') as string || 'Arial',
+        fontSize: this.getOption('fontSize') as number || 16,
+        color: this.getOption('color') as string || '#000000',
+        align: this.getOption('alignment') as 'left' | 'center' | 'right' || 'left',
+        lineHeight: this.getOption('lineHeight') as number || 1.2,
+        letterSpacing: this.getOption('letterSpacing') as number || 0
+      },
       metadata: {
         konvaNode: text,
         fontFamily: this.getOption('fontFamily') as string,
@@ -218,7 +229,7 @@ export class HorizontalTypeTool extends BaseTool {
           scaleY: canvasObject.scaleY,
           data: canvasObject.data
         },
-        null, // No layer ID needed in object-based system
+        'default-layer', // Default layer ID for object-based system
         this.executionContext.getMetadata()
       ))
     }
@@ -374,18 +385,24 @@ export class HorizontalTypeTool extends BaseTool {
     }
     
     // Emit event if text changed
-    if (canvasObject && canvasObject.data !== finalText) {
-      const previousData = canvasObject.data
-      canvasObject.data = finalText
+    if (canvasObject) {
+      const currentTextData = canvasObject.data as import('@/lib/editor/objects/types').TextData
+      if (currentTextData.content !== finalText) {
+        const previousData = canvasObject.data
+        canvasObject.data = {
+          ...currentTextData,
+          content: finalText
+        }
       
-      if (this.executionContext) {
-        await this.executionContext.emit(new KonvaObjectModifiedEvent(
-          'canvas',
-          canvasObject.id,
-          { data: previousData },
-          { data: finalText },
-          this.executionContext.getMetadata()
-        ))
+        if (this.executionContext) {
+          await this.executionContext.emit(new KonvaObjectModifiedEvent(
+            'canvas',
+            canvasObject.id,
+            { data: previousData },
+            { data: canvasObject.data },
+            this.executionContext.getMetadata()
+          ))
+        }
       }
     }
     

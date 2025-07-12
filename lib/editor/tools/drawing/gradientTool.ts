@@ -294,8 +294,8 @@ export class GradientTool extends ObjectTool {
     end: Point
   ): CanvasGradient {
     // Create linear gradient that goes from start to end and back
-    const midX = (start.x + end.x) / 2
-    const midY = (start.y + end.y) / 2
+    const _midX = (start.x + end.x) / 2
+    const _midY = (start.y + end.y) / 2
     
     // Extend the gradient to create reflection
     const dx = end.x - start.x

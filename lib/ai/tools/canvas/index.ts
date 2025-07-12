@@ -15,18 +15,17 @@ export const checkSelectionState = {
       }
     }
     
-    const { targetingMode, selection } = context
-    const totalImages = context.canvas.getObjects().filter(obj => obj.type === 'image').length
+    const { targetingMode, pixelSelection, targetObjects } = context
+    const totalImages = context.canvas.getAllObjects().filter((obj: import('@/lib/editor/objects/types').CanvasObject) => obj.type === 'image').length
     
-    // Calculate selection count based on selection type
+    // Calculate selection count based on selection state
     let selectionCount = 0
-    if (selection) {
-      if (selection.type === 'objects') {
-        selectionCount = selection.objectIds.length
-      } else {
-        // For pixel, rectangle, ellipse selections, count as 1
-        selectionCount = 1
-      }
+    if (pixelSelection) {
+      // For pixel selections, count as 1
+      selectionCount = 1
+    } else if (targetingMode === 'selected') {
+      // Count selected objects
+      selectionCount = targetObjects.length
     }
     
     return {

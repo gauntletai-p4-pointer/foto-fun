@@ -231,12 +231,12 @@ export class ExecutionContext {
     const selectedIds = Array.from(canvas.state.selectedObjectIds)
     
     // Determine targeting mode based on selection and image count
-    let targetingMode: CanvasContext['targetingMode'] = 'none'
+    let targetingMode: CanvasContext['targetingMode'] = 'all'
     if (targetImages.length > 0) {
       if (selectedIds.length > 0 && this.selectionSnapshot.objectIds.size > 0) {
-        targetingMode = 'selection'
+        targetingMode = 'selected'
       } else if (targetImages.length === 1) {
-        targetingMode = 'auto-single'
+        targetingMode = 'selected' // Single object is implicitly selected
       } else {
         targetingMode = 'all'
       }
@@ -244,13 +244,16 @@ export class ExecutionContext {
     
     return {
       canvas,
-      targetImages,
+      targetObjects: targetImages, // Use targetObjects instead of targetImages
       targetingMode,
       dimensions: {
-        width: canvas.state.canvasWidth,
-        height: canvas.state.canvasHeight
+        width: canvas.getWidth(),
+        height: canvas.getHeight()
       },
-      selectedObjectIds: selectedIds
+      hasContent: targetImages.length > 0,
+      objectCount: canvas.getAllObjects().length,
+      pixelSelection: undefined, // Can be added if needed
+      screenshot: undefined // Can be added if needed
     }
   }
   

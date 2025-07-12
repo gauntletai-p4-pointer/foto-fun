@@ -88,7 +88,7 @@ export function Canvas() {
         tool.onActivate?.(canvasManager)
         
         // Set cursor
-        const container = canvasManager.konvaStage.container()
+        const container = canvasManager.stage.container()
         if (container) {
           container.style.cursor = tool.cursor || 'default'
         }
@@ -112,7 +112,7 @@ export function Canvas() {
     if (activeTool) {
       activeTool.onActivate?.(canvasManager)
       // Set initial cursor
-      const container = canvasManager.konvaStage.container()
+      const container = canvasManager.stage.container()
       if (container) {
         container.style.cursor = activeTool.cursor || 'default'
       }
@@ -133,7 +133,7 @@ export function Canvas() {
   useEffect(() => {
     if (!canvasManager || !toolStore) return
     
-    const stage = canvasManager.konvaStage
+    const stage = canvasManager.stage
     const container = stage.container()
     
     // Helper to create ToolEvent from mouse event
@@ -270,7 +270,7 @@ export function Canvas() {
         
         // Calculate zoom with mouse position as center
         const oldZoom = currentZoom
-        const stage = canvasManager.konvaStage
+        const stage = canvasManager.stage
         
         // Get the current stage position (pan)
         const oldPos = stage.position()
@@ -317,7 +317,7 @@ export function Canvas() {
         }
         
         const oldZoom = currentZoom
-        const stage = canvasManager.konvaStage
+        const stage = canvasManager.stage
         
         // Get the current stage position (pan)
         const oldPos = stage.position()
@@ -367,7 +367,7 @@ export function Canvas() {
         if (currentTool && currentTool.id !== TOOL_IDS.HAND) {
           // Temporarily enable dragging
           canvasManager.setDraggable(true)
-          canvasManager.konvaStage.container().style.cursor = 'grab'
+          canvasManager.stage.container().style.cursor = 'grab'
         }
       }
       
@@ -432,7 +432,7 @@ export function Canvas() {
         if (currentTool && currentTool.id !== TOOL_IDS.HAND) {
           // Disable dragging if not hand tool
           canvasManager.setDraggable(false)
-          canvasManager.konvaStage.container().style.cursor = currentTool.cursor || 'default'
+          canvasManager.stage.container().style.cursor = currentTool.cursor || 'default'
         }
       }
       

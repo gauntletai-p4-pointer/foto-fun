@@ -1,4 +1,4 @@
-import type { TypedEventBus } from '@/lib/events/core/TypedEventBus'
+import type { TypedEventBus, EventRegistry } from '@/lib/events/core/TypedEventBus'
 import type { CanvasObject as NewCanvasObject } from '@/lib/editor/objects/types'
 
 export interface ObjectStoreState {
@@ -25,8 +25,9 @@ export class ObjectStore {
   private subscribeToEvents(): void {
     // Subscribe to object events
     this.subscriptions.push(
-      this.eventBus.on('canvas.object.added' as any, (data) => {
-        const { objectId, object } = data
+      this.eventBus.on('canvas.object.added', (data: EventRegistry['canvas.object.added']) => {
+        const { object } = data
+        const objectId = object.id
         this.setState(state => {
           const newObjects = new Map(state.objects)
           newObjects.set(objectId, object)
@@ -46,7 +47,7 @@ export class ObjectStore {
     )
     
     this.subscriptions.push(
-      this.eventBus.on('canvas.object.removed' as any, (data) => {
+      this.eventBus.on('canvas.object.removed', (data: EventRegistry['canvas.object.removed']) => {
         const { objectId } = data
         this.setState(state => {
           const newObjects = new Map(state.objects)
@@ -65,15 +66,19 @@ export class ObjectStore {
     )
     
     this.subscriptions.push(
-      this.eventBus.on('canvas.object.modified' as any, (data) => {
-        const { objectId, object, updates } = data
+      this.eventBus.on('canvas.object.modified', (data: EventRegistry['canvas.object.modified']) => {
+        const { objectId, newState } = data
+        // Get the updated object from the canvas manager since event doesn't include full object
+        const object = this.getUpdatedObjectFromNewState(objectId, newState)
+        if (!object) return // Skip if object doesn't exist
+        
         this.setState(state => {
           const newObjects = new Map(state.objects)
           newObjects.set(objectId, object)
           
           // Re-sort if z-index changed
           let newOrder = state.objectOrder
-          if (updates?.zIndex !== undefined) {
+          if (newState?.zIndex !== undefined) {
             newOrder = [...state.objectOrder].sort((a, b) => {
               const objA = newObjects.get(a)
               const objB = newObjects.get(b)
@@ -91,8 +96,9 @@ export class ObjectStore {
     )
     
     this.subscriptions.push(
-      this.eventBus.on('selection.changed' as any, (data) => {
-        const { selectedIds } = data
+      this.eventBus.on('selection.changed', (data: EventRegistry['selection.changed']) => {
+        // Extract object IDs from selection
+        const selectedIds = this.extractObjectIdsFromSelection(data.selection)
         this.setState(state => ({
           ...state,
           selectedObjectIds: new Set(selectedIds)
@@ -157,6 +163,37 @@ export class ObjectStore {
     return this.state.selectedObjectIds.has(id)
   }
   
+  /**
+   * Helper method to get updated object from new state
+   * Since the event doesn't include the full object, we need to reconstruct it
+   */
+  private getUpdatedObjectFromNewState(objectId: string, newState: Record<string, unknown>): NewCanvasObject | null {
+    const existingObject = this.state.objects.get(objectId)
+    if (!existingObject) return null
+    
+    // Merge the existing object with the new state
+    return {
+      ...existingObject,
+      ...newState
+    } as NewCanvasObject
+  }
+
+  /**
+   * Helper method to extract object IDs from a selection
+   */
+  private extractObjectIdsFromSelection(selection: EventRegistry['selection.changed']['selection']): string[] {
+    if (!selection) return []
+    
+    // Handle different selection types
+    if (selection.type === 'objects' && 'objectIds' in selection && Array.isArray(selection.objectIds)) {
+      return selection.objectIds as string[]
+    }
+    
+    // For other selection types (pixel, rectangle, etc.), return empty array
+    // as they don't directly correspond to object selections
+    return []
+  }
+
   dispose(): void {
     this.subscriptions.forEach(unsubscribe => unsubscribe())
     this.subscriptions = []

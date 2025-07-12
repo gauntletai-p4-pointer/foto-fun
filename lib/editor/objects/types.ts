@@ -1,4 +1,5 @@
 import type { BlendMode, Filter } from '@/lib/editor/canvas/types'
+import type Konva from 'konva'
 
 export interface Adjustment {
   id: string
@@ -24,6 +25,9 @@ export interface CanvasObject {
   scaleX: number
   scaleY: number
   
+  // Optional combined transform for compatibility
+  transform?: import('@/lib/editor/canvas/types').Transform
+  
   // Stacking
   zIndex: number
   
@@ -42,6 +46,9 @@ export interface CanvasObject {
   
   // Type-specific data
   data: ImageData | TextData | ShapeData
+  
+  // Konva node reference (managed by CanvasManager)
+  node?: Konva.Node
   
   // Metadata for selections, effects, etc
   metadata?: {
@@ -85,6 +92,7 @@ export interface ShapeData {
   strokeWidth?: number
   points?: Array<{ x: number; y: number }> // For polygon/path
   radius?: number // For rounded rectangles
+  path?: string // SVG path string for path shapes
 }
 
 // Helper type for effect groups

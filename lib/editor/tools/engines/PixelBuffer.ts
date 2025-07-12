@@ -32,7 +32,7 @@ export class PixelBuffer {
    * Initialize the pixel buffer from the layer
    */
   private initializeBuffer(): void {
-    const stage = this.canvas.konvaStage
+    const stage = this.canvas.stage
     const stageSize = stage.size()
     
     // Set working canvas size

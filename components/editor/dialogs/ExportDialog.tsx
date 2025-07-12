@@ -38,7 +38,7 @@ export function ExportDialog({ open, onOpenChange }: ExportDialogProps) {
   )
   
   // Export settings
-  const [exportType, setExportType] = useState<'document' | 'selection' | 'region'>('document')
+  const [exportType, setExportType] = useState<'canvas' | 'selection' | 'region'>('canvas')
   const [format, setFormat] = useState<ExportFormat>('png')
   const [quality, setQuality] = useState(90)
   const [width, setWidth] = useState<string>('')
@@ -81,7 +81,7 @@ export function ExportDialog({ open, onOpenChange }: ExportDialogProps) {
       }
       
       switch (exportType) {
-        case 'document':
+        case 'canvas':
           blob = await exportManager.exportCanvas(options)
           break
           
@@ -160,9 +160,9 @@ export function ExportDialog({ open, onOpenChange }: ExportDialogProps) {
         
         <Tabs value={exportType} onValueChange={(v) => setExportType(v as typeof exportType)}>
           <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="document">
+            <TabsTrigger value="canvas">
               <FileImage className="h-4 w-4 mr-2" />
-              Document
+              Canvas
             </TabsTrigger>
             <TabsTrigger value="selection" disabled={!hasSelection}>
               <ImageIcon className="h-4 w-4 mr-2" />
@@ -174,7 +174,7 @@ export function ExportDialog({ open, onOpenChange }: ExportDialogProps) {
             </TabsTrigger>
           </TabsList>
           
-          <TabsContent value="document" className="space-y-4">
+          <TabsContent value="canvas" className="space-y-4">
             <div className="space-y-4">
               {/* Presets */}
               <div className="space-y-2">

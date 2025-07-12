@@ -39,11 +39,16 @@ export async function POST(req: Request) {
   const { CanvasToolBridge } = await import('@/lib/ai/tools/canvas-bridge')
   if (canvasContext) {
     // Create a canvas context object from the request data
-    const contextSnapshot = {
-      canvas: {} as CanvasContext['canvas'], // Placeholder for typing - actual canvas managed by bridge
-      targetImages: canvasContext.targetImages || [],
-      targetingMode: canvasContext.targetingMode || 'none' as const
-    } as CanvasContext
+    const contextSnapshot = CanvasContextProvider.fromData({
+      canvas: {} as CanvasManager, // Placeholder for typing - actual canvas managed by bridge
+      targetObjects: canvasContext.targetObjects || [],
+      targetingMode: canvasContext.targetingMode || 'all',
+      dimensions: canvasContext.dimensions || { width: 800, height: 600 },
+      hasContent: canvasContext.hasContent || false,
+      objectCount: canvasContext.objectCount || 0,
+      pixelSelection: canvasContext.pixelSelection,
+      screenshot: canvasContext.screenshot
+    })
     CanvasToolBridge.setRequestSelectionSnapshot(contextSnapshot)
   }
   

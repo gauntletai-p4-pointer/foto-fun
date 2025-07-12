@@ -35,7 +35,15 @@ export class TransformCommand extends Command {
     
     // Store previous transforms
     objects.forEach(obj => {
-      this.previousTransforms.set(obj.id, { ...obj.transform })
+      this.previousTransforms.set(obj.id, {
+        x: obj.transform?.x ?? obj.x,
+        y: obj.transform?.y ?? obj.y,
+        scaleX: obj.transform?.scaleX ?? obj.scaleX,
+        scaleY: obj.transform?.scaleY ?? obj.scaleY,
+        rotation: obj.transform?.rotation ?? obj.rotation,
+        skewX: obj.transform?.skewX ?? 0,
+        skewY: obj.transform?.skewY ?? 0
+      })
     })
   }
   
@@ -136,12 +144,9 @@ export class TransformCommand extends Command {
     const objects: CanvasObject[] = []
     
     for (const id of this.objectIds) {
-      for (const layer of this.canvasManager.state.layers) {
-        const obj = layer.objects.find(o => o.id === id)
-        if (obj) {
-          objects.push(obj)
-          break
-        }
+      const obj = this.canvasManager.getObject(id)
+      if (obj) {
+        objects.push(obj)
       }
     }
     

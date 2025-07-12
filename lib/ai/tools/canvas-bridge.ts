@@ -1,21 +1,9 @@
 import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
-import type { Selection } from '@/lib/editor/canvas/types'
-import type { CanvasObject } from '@/lib/editor/objects/types'
+import type { CanvasContext } from '@/lib/ai/canvas/CanvasContext'
+import { CanvasContextProvider } from '@/lib/ai/canvas/CanvasContext'
 
-/**
- * Enhanced context for AI tools
- * Updated for Konva architecture
- */
-export interface CanvasContext {
-  canvas: CanvasManager
-  targetImages: CanvasObject[]
-  targetingMode: 'selection' | 'auto-single' | 'all' | 'none'
-  dimensions: {
-    width: number
-    height: number
-  }
-  selection: Selection | null
-}
+// Re-export unified CanvasContext
+export type { CanvasContext }
 
 /**
  * Bridge between AI tools and the canvas
@@ -34,7 +22,7 @@ export class CanvasToolBridge {
   }
   
   /**
-   * Get the current canvas context
+   * Get the current canvas context - unified format
    */
   static getCanvasContext(): CanvasContext | null {
     // Return snapshot if available (for AI request context)
@@ -47,44 +35,7 @@ export class CanvasToolBridge {
     }
     
     const canvas = this.canvasInstance
-    
-    // Get selected objects from the new selection system
-    const selection = canvas.state.selection
-    let targetImages: CanvasObject[] = []
-    let targetingMode: CanvasContext['targetingMode'] = 'none'
-    
-    if (selection?.type === 'objects') {
-      // Get selected image objects
-      targetImages = selection.objectIds
-        .map(id => canvas.getObject(id))
-        .filter((obj): obj is CanvasObject => obj !== null && obj.type === 'image')
-      
-      if (targetImages.length > 0) {
-        targetingMode = 'selection'
-      }
-    } else if (!selection) {
-      // No selection - check for single image auto-target
-      const allImages = canvas.getAllObjects().filter(obj => obj.type === 'image')
-      
-      if (allImages.length === 1) {
-        targetingMode = 'auto-single'
-        targetImages = allImages
-      } else if (allImages.length > 1) {
-        targetingMode = 'all'
-        targetImages = allImages
-      }
-    }
-    
-    return {
-      canvas,
-      targetImages,
-      targetingMode,
-      dimensions: {
-        width: canvas.getWidth(),
-        height: canvas.getHeight()
-      },
-      selection
-    }
+    return CanvasContextProvider.fromClient(canvas)
   }
   
   /**

@@ -28,7 +28,7 @@ export class RotateTool extends ObjectTool {
   
   protected setupTool(): void {
     const canvas = this.getCanvas()
-    const stage = canvas.konvaStage
+    const stage = canvas.stage
     
     // Get overlay layer
     this.overlayLayer = stage.children[stage.children.length - 1] as Konva.Layer
@@ -126,7 +126,7 @@ export class RotateTool extends ObjectTool {
     if (selectedObjects.length > 0) {
       // Get Konva nodes for selected objects
       const nodes: Konva.Node[] = []
-      const stage = canvas.konvaStage
+      const stage = canvas.stage
       
       selectedObjects.forEach(obj => {
         const node = stage.findOne(`#${obj.id}`)
@@ -176,7 +176,7 @@ export class RotateTool extends ObjectTool {
     
     // Calculate start angle
     const canvas = this.getCanvas()
-    const pointer = canvas.konvaStage.getPointerPosition()
+    const pointer = canvas.stage.getPointerPosition()
     if (pointer && this.rotationCenter) {
       this.startAngle = Math.atan2(
         pointer.y - this.rotationCenter.y,
@@ -196,7 +196,7 @@ export class RotateTool extends ObjectTool {
     
     // Update current rotation for UI
     if (selectedObjects.length > 0) {
-      const stage = canvas.konvaStage
+      const stage = canvas.stage
       const node = stage.findOne(`#${selectedObjects[0].id}`)
       if (node) {
         const rotation = node.rotation()
@@ -224,7 +224,7 @@ export class RotateTool extends ObjectTool {
     
     // Update all selected objects with their final rotations
     for (const obj of selectedObjects) {
-      const node = canvas.konvaStage.findOne(`#${obj.id}`)
+      const node = canvas.stage.findOne(`#${obj.id}`)
       if (node) {
         await canvas.updateObject(obj.id, {
           rotation: node.rotation()
@@ -276,7 +276,7 @@ export class RotateTool extends ObjectTool {
     this.setOption('angle', Math.round(this.currentRotation))
     
     // Redraw
-    canvas.konvaStage.batchDraw()
+    canvas.stage.batchDraw()
   }
   
   /**

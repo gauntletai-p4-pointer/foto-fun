@@ -3,7 +3,7 @@ import Konva from 'konva'
 import { TOOL_IDS } from '@/constants'
 import { ObjectTool } from '../base/ObjectTool'
 import type { ToolEvent, Point } from '@/lib/editor/canvas/types'
-import type { CanvasObject } from '@/lib/editor/objects/types'
+// import type { CanvasObject } from '@/lib/editor/objects/types'
 
 /**
  * Lasso Tool - Creates freehand selections for objects
@@ -41,7 +41,7 @@ export class LassoTool extends ObjectTool {
   
   onMouseDown(event: ToolEvent): void {
     const canvas = this.getCanvas()
-    const stage = canvas.konvaStage
+    const stage = canvas.stage
     // Use the existing overlay layer
     const overlayLayer = stage.children[2] as Konva.Layer
     if (!overlayLayer) return
@@ -84,7 +84,7 @@ export class LassoTool extends ObjectTool {
     if (!this.isSelecting || !this.selectionPath || !this.selectionGroup) return
     
     const canvas = this.getCanvas()
-    const stage = canvas.konvaStage
+    const stage = canvas.stage
     const overlayLayer = stage.children[2] as Konva.Layer
     if (!overlayLayer) return
     
@@ -122,7 +122,7 @@ export class LassoTool extends ObjectTool {
     }
     
     const canvas = this.getCanvas()
-    const stage = canvas.konvaStage
+    const stage = canvas.stage
     const overlayLayer = stage.children[2] as Konva.Layer
     if (!overlayLayer) return
     
@@ -276,7 +276,7 @@ export class LassoTool extends ObjectTool {
       
       // Redraw the overlay layer
       const canvas = this.getCanvas()
-      const stage = canvas.konvaStage
+      const stage = canvas.stage
       const overlayLayer = stage.children[2] as Konva.Layer
       if (overlayLayer) {
         overlayLayer.batchDraw()

@@ -135,7 +135,19 @@ export class VerticalTypeTool extends BaseTool {
       rotation: 0,
       scaleX: 1,
       scaleY: 1,
-      data: ' ', // Start with space
+      zIndex: 0,
+      filters: [],
+      adjustments: [],
+      data: {
+        content: ' ', // Start with space
+        font: this.getOption('fontFamily') as string || 'Arial',
+        fontSize: this.getOption('fontSize') as number || 16,
+        color: this.getOption('color') as string || '#000000',
+        align: 'left' as const,
+        direction: 'vertical' as const,
+        lineHeight: this.getOption('lineHeight') as number || 1.2,
+        letterSpacing: this.getOption('letterSpacing') as number || 0
+      },
       metadata: {
         konvaNode: group,
         fontFamily: this.getOption('fontFamily') as string,
@@ -168,7 +180,7 @@ export class VerticalTypeTool extends BaseTool {
           scaleY: canvasObject.scaleY,
           data: canvasObject.data
         },
-        null, // No layer ID needed in object-based system
+        'default-layer', // Default layer ID for object-based system
         this.executionContext.getMetadata()
       ))
     }
@@ -188,7 +200,8 @@ export class VerticalTypeTool extends BaseTool {
     textGroup.hide()
     
     // Create textarea for editing
-    this.createTextarea(textGroup, canvasObject.data as string)
+    const textData = canvasObject.data as import('@/lib/editor/objects/types').TextData
+    this.createTextarea(textGroup, textData.content)
     
     // Focus textarea
     if (this.textarea) {
@@ -349,18 +362,24 @@ export class VerticalTypeTool extends BaseTool {
     }
     
     // Emit event if text changed
-    if (canvasObject && canvasObject.data !== finalText) {
-      const previousData = canvasObject.data
-      canvasObject.data = finalText
+    if (canvasObject) {
+      const currentTextData = canvasObject.data as import('@/lib/editor/objects/types').TextData
+      if (currentTextData.content !== finalText) {
+        const previousData = canvasObject.data
+        canvasObject.data = {
+          ...currentTextData,
+          content: finalText
+        }
       
-      if (this.executionContext) {
-        await this.executionContext.emit(new KonvaObjectModifiedEvent(
-          'canvas',
-          canvasObject.id,
-          { data: previousData },
-          { data: finalText },
-          this.executionContext.getMetadata()
-        ))
+        if (this.executionContext) {
+          await this.executionContext.emit(new KonvaObjectModifiedEvent(
+            'canvas',
+            canvasObject.id,
+            { data: previousData },
+            { data: canvasObject.data },
+            this.executionContext.getMetadata()
+          ))
+        }
       }
     }
     

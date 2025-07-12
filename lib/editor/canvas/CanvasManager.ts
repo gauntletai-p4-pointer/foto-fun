@@ -40,9 +40,9 @@ export class CanvasManager implements ICanvasManager {
   public readonly id: string = nanoid()
   
   // Konva internals
-  private stage: Konva.Stage
+  public stage: Konva.Stage
   private backgroundLayer: Konva.Layer
-  private contentLayer: Konva.Layer
+  public contentLayer: Konva.Layer
   private selectionLayer: Konva.Layer
   private overlayLayer: Konva.Layer
   
@@ -116,36 +116,44 @@ export class CanvasManager implements ICanvasManager {
     this.subscribeToEvents()
     
     // Canvas is ready
-    this.typedEventBus.emit('canvas.ready' as any, { canvasId: this.id })
+    this.typedEventBus.emit('canvas.ready', { canvasId: this.id })
   }
   
   get state(): CanvasState {
     return this._state
   }
   
+  // Public stage property is already accessible via this.stage
+  // Legacy compatibility getter
+  // @deprecated Use .stage instead
   get konvaStage(): Konva.Stage {
     return this.stage
   }
   
   private subscribeToEvents(): void {
     // Listen for object events from ObjectManager
-    this.typedEventBus.on('canvas.object.added' as any, (data: unknown) => {
-      const { objectId, object } = data as { objectId: string; object: CanvasObject }
-      this.renderObject(objectId, object)
+    this.typedEventBus.on('canvas.object.added', (data) => {
+      this.renderObject(data.object.id, data.object)
     })
     
-    this.typedEventBus.on('canvas.object.removed' as any, (data: unknown) => {
-      const { objectId } = data as { objectId: string }
-      this.removeObjectFromCanvas(objectId)
+    this.typedEventBus.on('canvas.object.removed', (data) => {
+      this.removeObjectFromCanvas(data.objectId)
     })
     
-    this.typedEventBus.on('canvas.object.modified' as any, (data: unknown) => {
-      const { objectId, object } = data as { objectId: string; object: CanvasObject }
-      this.updateObjectOnCanvas(objectId, object)
+    this.typedEventBus.on('canvas.object.modified', (data) => {
+      // Get the updated object from ObjectManager
+      const object = this.objectManager.getObject(data.objectId)
+      if (object) {
+        this.updateObjectOnCanvas(data.objectId, object)
+      }
     })
     
-    this.typedEventBus.on('selection.changed' as any, (data: unknown) => {
-      const { selectedIds } = data as { selectedIds: string[] }
+    this.typedEventBus.on('selection.changed', (data) => {
+      // Extract object IDs from selection
+      const selectedIds: string[] = []
+      if (data.selection?.type === 'objects' && 'objectIds' in data.selection) {
+        selectedIds.push(...(data.selection.objectIds as string[]))
+      }
       this._state.selectedObjectIds = new Set(selectedIds)
       this.renderSelection()
     })
@@ -1008,5 +1016,79 @@ export class CanvasManager implements ICanvasManager {
     
     const parentGroup = this.findParentGroup(object)
     return parentGroup?.metadata?.isEffectGroup ? parentGroup : null
+  }
+  
+  // Object ordering methods
+  getObjectOrder(): string[] {
+    return [...this._state.objectOrder]
+  }
+  
+  setObjectOrder(ids: string[]): void {
+    this._state.objectOrder = [...ids]
+    
+    // Update z-index of nodes based on order
+    ids.forEach((id, index) => {
+      const node = this.nodeMap.get(id)
+      if (node) {
+        node.zIndex(index)
+      }
+      
+      // Also update object zIndex
+      const object = this.getObject(id)
+      if (object) {
+        this.objectManager.updateObject(id, { zIndex: index })
+      }
+    })
+    
+    this.contentLayer.draw()
+    this.typedEventBus.emit('objectOrderChanged', { objectOrder: ids })
+  }
+  
+  bringObjectToFront(id: string): void {
+    const currentOrder = [...this._state.objectOrder]
+    const index = currentOrder.indexOf(id)
+    
+    if (index !== -1 && index < currentOrder.length - 1) {
+      // Remove from current position
+      currentOrder.splice(index, 1)
+      // Add to end (front)
+      currentOrder.push(id)
+      this.setObjectOrder(currentOrder)
+    }
+  }
+  
+  sendObjectToBack(id: string): void {
+    const currentOrder = [...this._state.objectOrder]
+    const index = currentOrder.indexOf(id)
+    
+    if (index > 0) {
+      // Remove from current position
+      currentOrder.splice(index, 1)
+      // Add to beginning (back)
+      currentOrder.unshift(id)
+      this.setObjectOrder(currentOrder)
+    }
+  }
+  
+  bringObjectForward(id: string): void {
+    const currentOrder = [...this._state.objectOrder]
+    const index = currentOrder.indexOf(id)
+    
+    if (index !== -1 && index < currentOrder.length - 1) {
+      // Swap with next object
+      [currentOrder[index], currentOrder[index + 1]] = [currentOrder[index + 1], currentOrder[index]]
+      this.setObjectOrder(currentOrder)
+    }
+  }
+  
+  sendObjectBackward(id: string): void {
+    const currentOrder = [...this._state.objectOrder]
+    const index = currentOrder.indexOf(id)
+    
+    if (index > 0) {
+      // Swap with previous object
+      [currentOrder[index], currentOrder[index - 1]] = [currentOrder[index - 1], currentOrder[index]]
+      this.setObjectOrder(currentOrder)
+    }
   }
 } 

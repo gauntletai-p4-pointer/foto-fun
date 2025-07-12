@@ -6,6 +6,9 @@ import type { CanvasObject } from '@/lib/editor/objects/types'
  */
 export interface EventRegistry {
   // Canvas events
+  'canvas.ready': {
+    canvasId: string
+  }
   'canvas.object.added': { 
     canvasId: string
     object: CanvasObject
@@ -28,6 +31,9 @@ export interface EventRegistry {
       previousState: Record<string, unknown>
       newState: Record<string, unknown>
     }>
+  }
+  'objectOrderChanged': {
+    objectOrder: string[]
   }
   
   // Layer events

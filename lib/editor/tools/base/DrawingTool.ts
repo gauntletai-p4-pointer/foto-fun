@@ -46,7 +46,7 @@ export abstract class DrawingTool extends BaseTool {
     
     // Create preview layer for drawing
     const previewLayer = new Konva.Layer()
-    this.canvas.konvaStage.add(previewLayer)
+    this.canvas.stage.add(previewLayer)
     this.state.set('previewLayer', previewLayer)
   }
   
@@ -198,33 +198,36 @@ export abstract class DrawingTool extends BaseTool {
     currentStroke.remove()
     previewLayer.batchDraw()
     
-    // Create canvas object
+    // Calculate bounds from path data
+    const bounds = this.calculatePathBounds(pathData)
+    
+    // Create canvas object with proper CanvasObject interface
     const pathObject = {
       id: nanoid(),
-      type: 'path' as const,
+      type: 'shape' as const,
       name: 'Drawing',
       visible: true,
       locked: false,
       opacity: this.opacity,
       blendMode: 'normal' as const,
-      transform: {
-        x: 0,
-        y: 0,
-        scaleX: 1,
-        scaleY: 1,
-        rotation: 0,
-        skewX: 0,
-        skewY: 0
-      },
-      node: null!,
-              layerId: 'main', // Objects are managed directly now
-      data: pathData,
-      style: {
+      x: bounds.x,
+      y: bounds.y,
+      width: bounds.width,
+      height: bounds.height,
+      rotation: 0,
+      scaleX: 1,
+      scaleY: 1,
+      zIndex: 0,
+      filters: [],
+      adjustments: [],
+      data: {
+        type: 'path' as const,
+        path: pathData,
+        fill: 'none',
         stroke: this.strokeColor,
-        strokeWidth: this.strokeWidth,
-        lineCap: 'round',
-        lineJoin: 'round'
-      }
+        strokeWidth: this.strokeWidth
+      },
+      layerId: 'main' // Objects are managed directly now
     }
     
     // Add to canvas
@@ -233,7 +236,7 @@ export abstract class DrawingTool extends BaseTool {
     // Emit event
     const eventBus = getTypedEventBus()
     eventBus.emit('canvas.object.added', {
-      canvasId: this.canvas.konvaStage.id() || 'main',
+      canvasId: this.canvas.stage.id() || 'main',
       object: pathObject,
       layerId: pathObject.layerId
     })
@@ -272,5 +275,44 @@ export abstract class DrawingTool extends BaseTool {
     }
     
     return pathData
+  }
+  
+  /**
+   * Calculate bounds from SVG path data
+   */
+  protected calculatePathBounds(pathData: string): { x: number; y: number; width: number; height: number } {
+    if (!pathData || pathData.length === 0) {
+      return { x: 0, y: 0, width: 0, height: 0 }
+    }
+    
+    // Extract numbers from path data (simplified approach)
+    const numbers = pathData.match(/-?\d*\.?\d+/g)?.map(Number) || []
+    
+    if (numbers.length < 2) {
+      return { x: 0, y: 0, width: 0, height: 0 }
+    }
+    
+    // Get x and y coordinates (every even index is x, odd is y)
+    const xCoords = []
+    const yCoords = []
+    
+    for (let i = 0; i < numbers.length; i += 2) {
+      if (i + 1 < numbers.length) {
+        xCoords.push(numbers[i])
+        yCoords.push(numbers[i + 1])
+      }
+    }
+    
+    const minX = Math.min(...xCoords)
+    const maxX = Math.max(...xCoords)
+    const minY = Math.min(...yCoords)
+    const maxY = Math.max(...yCoords)
+    
+    return {
+      x: minX,
+      y: minY,
+      width: maxX - minX,
+      height: maxY - minY
+    }
   }
 } 

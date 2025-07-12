@@ -2,7 +2,7 @@ import { Maximize2 } from 'lucide-react'
 import { TOOL_IDS } from '@/constants'
 import { ObjectTool } from '../base/ObjectTool'
 import type { CanvasObject } from '@/lib/editor/objects/types'
-import type { Transform } from '@/lib/editor/canvas/types'
+// import type { Transform } from '@/lib/editor/canvas/types'
 import { ObjectsTransformedEvent } from '@/lib/events/canvas/ToolEvents'
 import Konva from 'konva'
 
@@ -34,7 +34,7 @@ export class ResizeTool extends ObjectTool {
     this.setOption('anchorPoint', 'center') // 'center', 'topLeft', 'topRight', 'bottomLeft', 'bottomRight'
     
     // Create transformer for visual feedback
-    const stage = canvas.konvaStage
+    const stage = canvas.stage
     const overlayLayer = stage.children[2] as Konva.Layer
     
     this.transformer = new Konva.Transformer({
@@ -80,7 +80,7 @@ export class ResizeTool extends ObjectTool {
     
     const targets = this.getTargetObjects()
     const canvas = this.getCanvas()
-    const stage = canvas.konvaStage
+    const stage = canvas.stage
     const mainLayer = stage.children[1] as Konva.Layer
     
     if (targets.length === 0) {

@@ -201,7 +201,8 @@ export interface CanvasManager {
   state: CanvasState
   
   // Konva access
-  konvaStage: Konva.Stage
+  stage: Konva.Stage
+  contentLayer: Konva.Layer
   
   // Initialization
   initialize?(): Promise<void>
@@ -224,6 +225,14 @@ export interface CanvasManager {
   clearSelection(): void
   getSelectedObjects(): import('@/lib/editor/objects/types').CanvasObject[]
   getSelectionManager(): SelectionManager
+  
+  // Object ordering operations
+  getObjectOrder(): string[]
+  setObjectOrder(ids: string[]): void
+  bringObjectToFront(id: string): void
+  sendObjectToBack(id: string): void
+  bringObjectForward(id: string): void
+  sendObjectBackward(id: string): void
   
   // Pixel operations
   getImageData(rect?: Rect): ImageData
@@ -252,6 +261,9 @@ export interface CanvasManager {
   // Object finding
   getObjectAtPoint(point: Point): import('@/lib/editor/objects/types').CanvasObject | null
   getObjectsInBounds(bounds: Rect): import('@/lib/editor/objects/types').CanvasObject[]
+  
+  // Konva node access
+  getNode(objectId: string): Konva.Node | null
   
   // Rendering
   render(): void
@@ -362,20 +374,7 @@ export function getTransformScale(transform: Transform): { x: number; y: number 
   return { x: transform.scaleX, y: transform.scaleY }
 }
 
-// Canvas context type for AI operations
-export interface CanvasContext {
-  canvas: CanvasManager
-  targetImages: CanvasObjectType[]
-  targetingMode: 'all' | 'selected' | 'layer' | 'none' | 'auto-single'
-  dimensions: {
-    width: number
-    height: number
-  }
-  selection: {
-    type: 'none' | 'objects' | 'pixels'
-    data?: unknown
-  }
-}
+// Legacy canvas context - REMOVED: Use @/lib/ai/canvas/CanvasContext instead
 
 export interface ToolContext {
   canvas: CanvasManager

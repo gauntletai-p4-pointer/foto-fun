@@ -1,5 +1,5 @@
 import { ObjectTool } from '../base/ObjectTool'
-import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
+import type { CanvasManager } from '@/lib/editor/canvas/types'
 import type { ToolEvent } from '@/lib/editor/canvas/types'
 import type { CanvasObject } from '@/lib/editor/objects/types'
 import { ReplicateService } from '@/lib/ai/services/replicate'
@@ -58,9 +58,10 @@ export class VariationGridTool extends ObjectTool {
   async onActivate(canvas: CanvasManager): Promise<void> {
     await super.onActivate(canvas)
     
-    const selectedObjects = this.getSelectedObjects()
+    const selectedObjects = this.getTargetObjects()
     if (selectedObjects.length === 0) {
       this.eventBus.emit('tool.message', {
+        toolId: this.id,
         type: 'info',
         message: 'Select one or more objects to generate variations'
       })
@@ -73,7 +74,7 @@ export class VariationGridTool extends ObjectTool {
     const canvas = this.getCanvas()
     if (!canvas) return
     
-    const selectedObjects = this.getSelectedObjects()
+    const selectedObjects = this.getTargetObjects()
     if (selectedObjects.length === 0) {
       // Try to select object at click point
       const object = canvas.getObjectAtPoint(event.point)
@@ -82,6 +83,7 @@ export class VariationGridTool extends ObjectTool {
         await this.generateVariations([object])
       } else {
         this.eventBus.emit('tool.message', {
+          toolId: this.id,
           type: 'warning',
           message: 'No object selected. Click on an object or select one first.'
         })
@@ -99,6 +101,7 @@ export class VariationGridTool extends ObjectTool {
     const imageObjects = objects.filter(isImageObject)
     if (imageObjects.length === 0) {
       this.eventBus.emit('tool.message', {
+        toolId: this.id,
         type: 'warning',
         message: 'Please select image objects to generate variations'
       })
@@ -129,8 +132,9 @@ export class VariationGridTool extends ObjectTool {
       
     } catch (error) {
       console.error('Variation generation failed:', error)
+      const errorTaskId = `${this.id}-${Date.now()}`
       this.eventBus.emit('ai.processing.failed', {
-        taskId,
+        taskId: errorTaskId,
         toolId: this.id,
         error: error instanceof Error ? error.message : 'Unknown error'
       })
@@ -168,7 +172,13 @@ export class VariationGridTool extends ObjectTool {
       filters: [],
       adjustments: [],
       children: [],
-      data: { type: 'group' },
+      data: {
+        type: 'rectangle' as const,
+        fill: 'transparent',
+        stroke: 'transparent',
+        strokeWidth: 0,
+        points: [] // Required for shape data
+      } as import('@/lib/editor/objects/types').ShapeData,
       metadata: {
         isVariationGrid: true,
         originalObjectId: imageObject.id,
@@ -202,7 +212,7 @@ export class VariationGridTool extends ObjectTool {
             isOriginalInGrid: true
           }
         })
-        await this.addToGroup(canvas, groupId, originalCopy.id)
+        await this.addToGroup(canvas as CanvasManager, groupId, originalCopy.id)
         currentIndex++
       }
     }
@@ -248,7 +258,7 @@ export class VariationGridTool extends ObjectTool {
         }
       })
       
-      await this.addToGroup(canvas, groupId, variationObject)
+      await this.addToGroup(canvas as CanvasManager, groupId, variationObject)
       currentIndex++
     }
   }
@@ -410,7 +420,7 @@ export class VariationGridTool extends ObjectTool {
       
       if (max !== min) {
         const d = max - min
-        const s = l > 0.5 ? d / (2 - max - min) : d / (max + min)
+        const _s = l > 0.5 ? d / (2 - max - min) : d / (max + min)
         
         // Apply hue rotation (simplified)
         data[i] = Math.min(255, Math.max(0, r * cos - g * sin))

@@ -152,7 +152,7 @@ export class FlipTool extends BaseTool {
   /**
    * Find the layer containing an object (no longer needed with object-based model)
    */
-  private findLayerForObject(obj: CanvasObject) {
+  private findLayerForObject(_obj: CanvasObject) {
     // Objects are managed directly now, no need for layer lookup
     return null
   }

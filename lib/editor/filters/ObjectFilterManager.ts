@@ -90,7 +90,7 @@ export class ObjectFilterManager {
     const object = this.canvas.getObject(objectId)
     if (!object) return
     
-    const filters = object.filters.filter(f => (f as any).id !== filterId)
+    const filters = object.filters.filter(f => f.id !== filterId)
     await this.canvas.updateObject(objectId, { filters })
     
     // Re-render with remaining filters

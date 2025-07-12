@@ -56,8 +56,8 @@ export class SelectionManager {
    * Update the selection canvas size to match the main canvas
    */
   private updateCanvasSize(): void {
-    const width = this.canvasManager.state.documentBounds?.width || 0
-    const height = this.canvasManager.state.documentBounds?.height || 0
+    const width = this.canvasManager.getWidth()
+    const height = this.canvasManager.getHeight()
     
     this.selectionCanvas.width = width
     this.selectionCanvas.height = height

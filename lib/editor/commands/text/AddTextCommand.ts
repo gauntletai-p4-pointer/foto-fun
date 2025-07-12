@@ -51,14 +51,25 @@ export class AddTextCommand extends Command {
         skewY: 0
       },
       node: undefined!, // Will be created by canvas manager
-      layerId: this.canvasManager.state.activeLayerId || this.canvasManager.state.layers[0].id,
-      data: this.text,
-      style: {
-        fontSize: 24,
-        fontFamily: 'Arial',
-        fill: '#000000',
-        ...this.style
-      }
+      // No layerId needed in object-based architecture
+      data: {
+        content: this.text,
+        font: (this.style.fontFamily as string) || 'Arial',
+        fontSize: (this.style.fontSize as number) || 24,
+        color: (this.style.fill as string) || '#000000',
+        align: 'left'
+      },
+      // Using proper CanvasObject structure
+      x: this.position.x,
+      y: this.position.y,
+      width: 200,
+      height: 50,
+      rotation: 0,
+      scaleX: 1,
+      scaleY: 1,
+      zIndex: 0,
+      filters: [],
+      adjustments: []
     }
     
     // Add to canvas
@@ -66,9 +77,8 @@ export class AddTextCommand extends Command {
     
     // Emit event
     this.typedEventBus.emit('canvas.object.added', {
-      canvasId: this.canvasManager.konvaStage.id() || 'main',
-      object: this.textObject,
-      layerId: this.textObject.layerId
+      canvasId: this.canvasManager.stage.id() || 'main',
+      object: this.textObject
     })
   }
   
@@ -79,7 +89,7 @@ export class AddTextCommand extends Command {
     
     // Emit event
     this.typedEventBus.emit('canvas.object.removed', {
-      canvasId: this.canvasManager.konvaStage.id() || 'main',
+      canvasId: this.canvasManager.stage.id() || 'main',
       objectId: this.textObject.id
     })
   }

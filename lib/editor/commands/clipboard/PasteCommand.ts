@@ -28,7 +28,7 @@ export class PasteCommand extends Command {
     // Emit addition events
     for (const obj of this.pastedObjects) {
       this.typedEventBus.emit('canvas.object.added', {
-        canvasId: this.canvasManager.konvaStage.id() || 'main',
+        canvasId: this.canvasManager.stage.id() || 'main',
         object: obj
       })
     }
@@ -49,7 +49,7 @@ export class PasteCommand extends Command {
       
       // Emit removal event
       this.typedEventBus.emit('canvas.object.removed', {
-        canvasId: this.canvasManager.konvaStage.id() || 'main',
+        canvasId: this.canvasManager.stage.id() || 'main',
         objectId: obj.id
       })
     }

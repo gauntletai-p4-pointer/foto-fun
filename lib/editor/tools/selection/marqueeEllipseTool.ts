@@ -32,7 +32,7 @@ export class MarqueeEllipseTool extends ObjectTool {
   
   protected setupTool(): void {
     // Get or create overlay layer for selection preview
-    const stage = this.getCanvas().konvaStage
+    const stage = this.getCanvas().stage
     this.overlayLayer = stage.findOne('.selection-overlay') as Konva.Layer
     
     if (!this.overlayLayer) {
@@ -226,24 +226,11 @@ export class MarqueeEllipseTool extends ObjectTool {
     
     // Store pixel selection in canvas state
     const canvas = this.getCanvas()
-    // @ts-expect-error - We need to update the types
     canvas.state.pixelSelection = {
       type: 'ellipse',
       bounds,
       feather: this.getOption('feather') as number || 0,
       antiAlias: this.getOption('antiAlias') as boolean || true
-    }
-    
-    // Emit event for UI updates
-    if (this.executionContext) {
-      // @ts-expect-error - Event type needs updating
-      this.executionContext.emit({
-        type: 'selection.pixel.created',
-        data: { 
-          objectId: targetObject.id,
-          selection: canvas.state.pixelSelection
-        }
-      })
     }
   }
   

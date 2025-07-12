@@ -42,7 +42,7 @@ export class MoveTool extends ObjectTool {
   
   protected setupTool(): void {
     const canvas = this.getCanvas()
-    const stage = canvas.konvaStage
+    const stage = canvas.stage
     
     // Get overlay layer
     this.overlayLayer = stage.children[stage.children.length - 1] as Konva.Layer
@@ -92,7 +92,7 @@ export class MoveTool extends ObjectTool {
   
   async onMouseDown(event: ToolEvent): Promise<void> {
     const canvas = this.getCanvas()
-    const stage = canvas.konvaStage
+    const stage = canvas.stage
     
     // Check for Alt key (duplication)
     const isDuplicating = event.altKey
@@ -134,7 +134,7 @@ export class MoveTool extends ObjectTool {
   
   onMouseMove(event: ToolEvent): void {
     const canvas = this.getCanvas()
-    const stage = canvas.konvaStage
+    const stage = canvas.stage
     
     // Update cursor based on hover
     if (!this.dragState) {
@@ -226,7 +226,7 @@ export class MoveTool extends ObjectTool {
     this.clearSmartGuides()
     
     // Reset cursor
-    canvas.konvaStage.container().style.cursor = 'default'
+    canvas.stage.container().style.cursor = 'default'
     
     // Clear drag state
     this.dragState = null
@@ -268,7 +268,7 @@ export class MoveTool extends ObjectTool {
       // Show/hide transformer handles
       this.selectionTransformer.visible(value as boolean)
       const canvas = this.getCanvas()
-      canvas.konvaStage.batchDraw()
+      canvas.stage.batchDraw()
     }
   }
   
@@ -286,7 +286,7 @@ export class MoveTool extends ObjectTool {
     } else {
       // Get Konva nodes for selected objects
       const nodes: Konva.Node[] = []
-      const stage = canvas.konvaStage
+      const stage = canvas.stage
       
       // Find Konva nodes by searching the stage
       selectedObjects.forEach(obj => {
@@ -302,7 +302,7 @@ export class MoveTool extends ObjectTool {
     const showTransform = this.getOption('showTransform') as boolean
     this.selectionTransformer.visible(showTransform && selectedObjects.length > 0)
     
-    canvas.konvaStage.batchDraw()
+    canvas.stage.batchDraw()
   }
   
   /**
@@ -336,7 +336,7 @@ export class MoveTool extends ObjectTool {
     }
     
     // Redraw
-    canvas.konvaStage.batchDraw()
+    canvas.stage.batchDraw()
   }
   
   /**
@@ -470,7 +470,7 @@ export class MoveTool extends ObjectTool {
     if (!this.overlayLayer) return
     
     const canvas = this.getCanvas()
-    const stage = canvas.konvaStage
+    const stage = canvas.stage
     
     const guide = new Konva.Line({
       points: [x, 0, x, stage.height()],
@@ -491,7 +491,7 @@ export class MoveTool extends ObjectTool {
     if (!this.overlayLayer) return
     
     const canvas = this.getCanvas()
-    const stage = canvas.konvaStage
+    const stage = canvas.stage
     
     const guide = new Konva.Line({
       points: [0, y, stage.width(), y],

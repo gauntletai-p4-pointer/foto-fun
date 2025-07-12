@@ -50,7 +50,7 @@ export class QuickSelectionTool extends BaseTool {
     
     // Redraw the overlay layer if exists
     const canvas = this.getCanvas()
-    const stage = canvas.konvaStage
+    const stage = canvas.stage
     const overlayLayer = stage.children[2] as Konva.Layer
     if (overlayLayer) {
       overlayLayer.batchDraw()
@@ -66,7 +66,7 @@ export class QuickSelectionTool extends BaseTool {
   
   onMouseDown(event: ToolEvent): void {
     const canvas = this.getCanvas()
-    const stage = canvas.konvaStage
+    const stage = canvas.stage
     const overlayLayer = stage.children[2] as Konva.Layer
     if (!overlayLayer) return
     
@@ -109,7 +109,7 @@ export class QuickSelectionTool extends BaseTool {
     if (!this.selectionGroup || !this.brushCursor) return
     
     const canvas = this.getCanvas()
-    const stage = canvas.konvaStage
+    const stage = canvas.stage
     const overlayLayer = stage.children[2] as Konva.Layer
     if (!overlayLayer) return
     
@@ -132,7 +132,7 @@ export class QuickSelectionTool extends BaseTool {
     if (!this.isSelecting || !this.selectionGroup) return
     
     const canvas = this.getCanvas()
-    const stage = canvas.konvaStage
+    const stage = canvas.stage
     const overlayLayer = stage.children[2] as Konva.Layer
     if (!overlayLayer) return
     
@@ -171,7 +171,7 @@ export class QuickSelectionTool extends BaseTool {
           ))
         } else {
           // For modified selection, we need the previous selection
-          const previousSelection = canvas.state.selection
+          const previousSelection = canvas.state.pixelSelection
           await this.executionContext.emit(new SelectionModifiedEvent(
             'canvas',
             previousSelection || selection,
@@ -402,7 +402,7 @@ export class QuickSelectionTool extends BaseTool {
     if (!this.selectionGroup || !this.currentSelection || !this.selectionBounds) return
     
     const canvas = this.getCanvas()
-    const stage = canvas.konvaStage
+    const stage = canvas.stage
     const overlayLayer = stage.children[2] as Konva.Layer
     if (!overlayLayer) return
     
@@ -445,7 +445,7 @@ export class QuickSelectionTool extends BaseTool {
     
     if (this.selectionGroup) {
       const canvas = this.getCanvas()
-      const stage = canvas.konvaStage
+      const stage = canvas.stage
       const overlayLayer = stage.children[2] as Konva.Layer
       
       this.selectionGroup.children.forEach(child => {

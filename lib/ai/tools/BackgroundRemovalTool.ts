@@ -123,13 +123,13 @@ export class BackgroundRemovalTool extends ObjectTool {
       
       if (tier.modelId.includes('rembg')) {
         // Fast RemBG model
-        processedData = await this.replicateService.removeBackground(imageData, tier.modelId)
+        processedData = await this.replicateService.removeBackground(imageData, tier.modelId as `${string}/${string}`)
       } else if (tier.modelId.includes('sam-2')) {
         // Best quality SAM 2 model
-        processedData = await this.replicateService.removeBackground(imageData, tier.modelId)
+        processedData = await this.replicateService.removeBackground(imageData, tier.modelId as `${string}/${string}`)
       } else {
         // Fallback to default
-        processedData = await this.replicateService.removeBackground(imageData, tier.modelId)
+        processedData = await this.replicateService.removeBackground(imageData, tier.modelId as `${string}/${string}`)
       }
       
       // Create processed image element
@@ -149,8 +149,8 @@ export class BackgroundRemovalTool extends ObjectTool {
           scaleY: object.scaleY,
           data: {
             element: processedImage,
-            naturalWidth: processedData.width,
-            naturalHeight: processedData.height
+            naturalWidth: processedData.naturalWidth,
+            naturalHeight: processedData.naturalHeight
           },
           metadata: {
             source: 'background-removal',
@@ -164,8 +164,8 @@ export class BackgroundRemovalTool extends ObjectTool {
         await canvas.updateObject(object.id, {
           data: {
             element: processedImage,
-            naturalWidth: processedData.width,
-            naturalHeight: processedData.height
+            naturalWidth: processedData.naturalWidth,
+            naturalHeight: processedData.naturalHeight
           },
           metadata: {
             ...object.metadata,

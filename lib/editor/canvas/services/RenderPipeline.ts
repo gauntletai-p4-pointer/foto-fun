@@ -1,7 +1,8 @@
-import type { CanvasManager, CanvasObject, Layer } from '../types'
+import type { CanvasManager, Layer } from '../types'
+import type { CanvasObject } from '@/lib/editor/objects/types'
 
 export interface RenderPlan {
-  layers: Set<string>
+  layers?: Set<string> // Optional for backward compatibility
   objects: Set<string>
   fullRedraw: boolean
   dirtyRegions: DirtyRegion[]
@@ -12,7 +13,7 @@ export interface DirtyRegion {
   y: number
   width: number
   height: number
-  layerId: string
+  objectId: string // Changed from layerId to objectId for object-based architecture
 }
 
 export interface RenderRequest {
@@ -65,7 +66,7 @@ export class RenderPipeline {
       layers: new Set([layer.id]),
       objects: new Set([object.id]),
       fullRedraw: false,
-      dirtyRegions: [this.getObjectBounds(object, layer.id)]
+      dirtyRegions: [this.getObjectBounds(object)]
     }
     
     await this.executePlan(plan)
@@ -74,7 +75,7 @@ export class RenderPipeline {
   /**
    * Render entire document
    */
-  async renderDocument(canvas: CanvasManager): Promise<void> {
+  async renderDocument(_canvas: CanvasManager): Promise<void> {
     const plan: RenderPlan = {
       // No longer needed in object-based architecture
       objects: new Set(),
@@ -102,9 +103,9 @@ export class RenderPipeline {
     const dirtyRegions: DirtyRegion[] = []
     
     for (const obj of objects) {
-      layers.add(obj.layerId)
+      // No longer using layers in object-based architecture
       objectIds.add(obj.id)
-      dirtyRegions.push(this.getObjectBounds(obj, obj.layerId))
+      dirtyRegions.push(this.getObjectBounds(obj))
     }
     
     // Merge overlapping regions
@@ -201,7 +202,7 @@ export class RenderPipeline {
     this.dirtyRegions.clear()
     
     // Batch draw entire stage
-    this.canvas.konvaStage.batchDraw()
+    this.canvas.stage.batchDraw()
   }
   
   private async partialRedraw(plan: RenderPlan): Promise<void> {
@@ -261,7 +262,7 @@ export class RenderPipeline {
         break
       }
       
-      plan.layers.forEach(l => layers.add(l))
+      plan.layers?.forEach(l => layers.add(l))
       plan.objects.forEach(o => objects.add(o))
       dirtyRegions.push(...plan.dirtyRegions)
     }
@@ -274,8 +275,18 @@ export class RenderPipeline {
     }
   }
   
-  private getObjectBounds(object: CanvasObject, layerId: string): DirtyRegion {
-    const node = object.node
+  private getObjectBounds(object: CanvasObject): DirtyRegion {
+    const node = this.canvas.getNode(object.id)
+    if (!node) {
+      // Fallback to object bounds if no node
+      return {
+        x: object.x,
+        y: object.y,
+        width: object.width,
+        height: object.height,
+        objectId: object.id
+      }
+    }
     const rect = node.getClientRect()
     
     // Add some padding for anti-aliasing and effects
@@ -286,42 +297,42 @@ export class RenderPipeline {
       y: rect.y - padding,
       width: rect.width + padding * 2,
       height: rect.height + padding * 2,
-      layerId
+      objectId: object.id
     }
   }
   
   private mergeRegions(regions: DirtyRegion[]): DirtyRegion[] {
     if (regions.length <= 1) return regions
     
-    // Group by layer
-    const byLayer = new Map<string, DirtyRegion[]>()
+    // Group by object
+    const byObject = new Map<string, DirtyRegion[]>()
     for (const region of regions) {
-      if (!byLayer.has(region.layerId)) {
-        byLayer.set(region.layerId, [])
+      if (!byObject.has(region.objectId)) {
+        byObject.set(region.objectId, [])
       }
-      byLayer.get(region.layerId)!.push(region)
+      byObject.get(region.objectId)!.push(region)
     }
     
-    // Merge overlapping regions per layer
+    // Merge overlapping regions per object
     const merged: DirtyRegion[] = []
     
-    for (const [layerId, layerRegions] of byLayer) {
-      const mergedLayerRegions = this.mergeLayerRegions(layerRegions)
-      merged.push(...mergedLayerRegions.map(r => ({ ...r, layerId })))
+    for (const [objectId, objectRegions] of byObject) {
+      const mergedObjectRegions = this.mergeObjectRegions(objectRegions)
+      merged.push(...mergedObjectRegions.map(r => ({ ...r, objectId })))
     }
     
     return merged
   }
   
-  private mergeLayerRegions(regions: DirtyRegion[]): Omit<DirtyRegion, 'layerId'>[] {
+  private mergeObjectRegions(regions: DirtyRegion[]): Omit<DirtyRegion, 'objectId'>[] {
     // Simple merge algorithm - can be optimized
-    const merged: Omit<DirtyRegion, 'layerId'>[] = []
+    const merged: Omit<DirtyRegion, 'objectId'>[] = []
     const used = new Set<number>()
     
     for (let i = 0; i < regions.length; i++) {
       if (used.has(i)) continue
       
-      let current: Omit<DirtyRegion, 'layerId'> = {
+      let current: Omit<DirtyRegion, 'objectId'> = {
         x: regions[i].x,
         y: regions[i].y,
         width: regions[i].width,

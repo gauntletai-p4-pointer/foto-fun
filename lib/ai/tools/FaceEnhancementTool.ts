@@ -4,6 +4,7 @@ import type { CanvasObject } from '@/lib/editor/objects/types'
 import type { ToolEvent } from '@/lib/editor/canvas/types'
 import { ReplicateService } from '@/lib/ai/services/replicate'
 import { TypedEventBus } from '@/lib/events/core/TypedEventBus'
+import { ModelRegistry } from '@/lib/ai/models/ModelRegistry'
 // import { TOOL_IDS } from '@/constants'
 
 /**
@@ -105,8 +106,15 @@ export class FaceEnhancementTool extends ObjectTool {
         throw new Error('Could not get image data from object')
       }
       
+      // Get model configuration
+      const modelConfig = ModelRegistry.getModelConfig('face-enhancement')
+      const tier = modelConfig?.tiers[modelConfig.defaultTier]
+      if (!tier) {
+        throw new Error('Face enhancement model not configured')
+      }
+      
       // Enhance face using Replicate
-      const enhancedImageData = await this.replicateService.enhanceFace(replicateImageData)
+      const enhancedImageData = await this.replicateService.enhanceFace(replicateImageData, tier.modelId as `${string}/${string}`)
       
       // Update the object with enhanced image
       await canvas.updateObject(object.id, {
@@ -209,39 +217,6 @@ export class FaceEnhancementTool extends ObjectTool {
     }
   }
   
-  /**
-   * Convert ImageData to HTMLImageElement
-   */
-  private async imageDataToImage(imageData: ImageData): Promise<HTMLImageElement> {
-    // Create canvas and draw image data
-    const canvas = document.createElement('canvas')
-    canvas.width = imageData.width
-    canvas.height = imageData.height
-    const ctx = canvas.getContext('2d')!
-    ctx.putImageData(imageData, 0, 0)
-    
-    // Convert to blob and create image
-    return new Promise((resolve, reject) => {
-      canvas.toBlob((blob) => {
-        if (!blob) {
-          reject(new Error('Failed to create blob'))
-          return
-        }
-        
-        const url = URL.createObjectURL(blob)
-        const img = new Image()
-        img.onload = () => {
-          URL.revokeObjectURL(url)
-          resolve(img)
-        }
-        img.onerror = () => {
-          URL.revokeObjectURL(url)
-          reject(new Error('Failed to load image'))
-        }
-        img.src = url
-      })
-    })
-  }
   
   /**
    * Apply face enhancement for AI operations

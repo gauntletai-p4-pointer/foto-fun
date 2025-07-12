@@ -3,6 +3,13 @@ import { TOOL_IDS } from '@/constants'
 import { ObjectWebGLFilterTool } from '../base/ObjectWebGLFilterTool'
 
 /**
+ * Exposure adjustment value interface
+ */
+interface ExposureOptions extends Record<string, number> {
+  stops: number
+}
+
+/**
  * Object-based Exposure Tool
  * Adjusts exposure compensation of selected objects using WebGL
  */
@@ -19,7 +26,7 @@ export class ExposureTool extends ObjectWebGLFilterTool {
     return 'exposure'
   }
   
-  protected getDefaultParams(): Record<string, any> {
+  protected getDefaultParams(): Record<string, number> {
     return {
       stops: 0 // Range: -3 to 3 (exposure stops)
     }
@@ -42,11 +49,11 @@ export class ExposureTool extends ObjectWebGLFilterTool {
   /**
    * Convert UI value to WebGL parameter
    */
-  protected getAllOptions(): Record<string, any> {
+  protected getAllOptions(): Record<string, number> {
     const stops = (this.getOption('stops') as number) || 0
     return {
       stops // Pass directly, WebGL shader will handle conversion
-    }
+    } satisfies ExposureOptions
   }
   
   /**

@@ -1,6 +1,6 @@
 import { ObjectTool } from './ObjectTool'
 import type { Filter } from '@/lib/editor/canvas/types'
-import type { CanvasObject } from '@/lib/editor/objects/types'
+// import type { CanvasObject } from '@/lib/editor/objects/types'
 
 /**
  * Base class for WebGL-accelerated filter tools
@@ -8,7 +8,7 @@ import type { CanvasObject } from '@/lib/editor/objects/types'
  */
 export abstract class ObjectWebGLFilterTool extends ObjectTool {
   protected abstract getFilterType(): string
-  protected abstract getDefaultParams(): Record<string, any>
+  protected abstract getDefaultParams(): Record<string, number | string | boolean>
   
   // Debounce timer for real-time preview
   private previewDebounce: NodeJS.Timeout | null = null
@@ -32,7 +32,7 @@ export abstract class ObjectWebGLFilterTool extends ObjectTool {
   /**
    * Apply the WebGL filter to target objects
    */
-  protected async applyFilter(params: Record<string, any>): Promise<void> {
+  protected async applyFilter(params: Record<string, number | string | boolean>): Promise<void> {
     const targets = this.getTargetObjects()
     
     for (const target of targets) {
@@ -51,14 +51,20 @@ export abstract class ObjectWebGLFilterTool extends ObjectTool {
   /**
    * Get all options as filter parameters
    */
-  protected getAllOptions(): Record<string, any> {
-    return { ...this.options }
+  protected getAllOptions(): Record<string, number | string | boolean> {
+    const options: Record<string, number | string | boolean> = {}
+    for (const [key, value] of Object.entries(this.options)) {
+      if (typeof value === 'number' || typeof value === 'string' || typeof value === 'boolean') {
+        options[key] = value
+      }
+    }
+    return options
   }
   
   /**
    * Handle option changes with real-time preview
    */
-  protected onOptionChange(key: string, value: unknown): void {
+  protected onOptionChange(_key: string, _value: unknown): void {
     // Clear existing debounce
     if (this.previewDebounce) {
       clearTimeout(this.previewDebounce)

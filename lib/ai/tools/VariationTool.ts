@@ -4,7 +4,6 @@ import { ReplicateService } from '../services/replicate'
 import { ModelPreferencesManager } from '@/lib/settings/ModelPreferences'
 import { TypedEventBus } from '@/lib/events/core/TypedEventBus'
 import type { CanvasObject } from '@/lib/editor/objects/types'
-import type { ImageData as ReplicateImageData } from '@/lib/ai/services/replicate'
 
 export interface VariationOptions {
   prompt?: string
@@ -150,17 +149,17 @@ export class VariationTool extends ObjectTool {
     return canvas.toDataURL('image/png')
   }
 
-  private extractImageUrls(output: any): string[] {
+  private extractImageUrls(output: unknown): string[] {
     if (Array.isArray(output)) {
       return output.map(item => {
         if (typeof item === 'string') return item
-        if (item && typeof item === 'object' && 'url' in item) return item.url
+        if (item && typeof item === 'object' && 'url' in item) return (item as { url: string }).url
         throw new Error('Invalid output format')
       })
     }
     
     if (typeof output === 'string') return [output]
-    if (output && typeof output === 'object' && 'url' in output) return [output.url]
+    if (output && typeof output === 'object' && 'url' in output) return [(output as { url: string }).url]
     
     throw new Error('Unable to extract image URLs from model output')
   }

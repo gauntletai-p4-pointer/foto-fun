@@ -23,7 +23,11 @@ export class UpdateObjectCommand extends Command {
     this.previousState = {}
     for (const key of Object.keys(this.updates) as (keyof CanvasObject)[]) {
       if (key in object) {
-        (this.previousState as any)[key] = object[key]
+        // Type-safe property assignment using computed property access
+        this.previousState = {
+          ...this.previousState,
+          [key]: object[key]
+        }
       }
     }
     

@@ -4,6 +4,7 @@ import type { CanvasObject } from '@/lib/editor/objects/types'
 import type { ToolEvent } from '@/lib/editor/canvas/types'
 import { ReplicateService } from '@/lib/ai/services/replicate'
 import { TypedEventBus } from '@/lib/events/core/TypedEventBus'
+import { ModelRegistry } from '@/lib/ai/models/ModelRegistry'
 import Konva from 'konva'
 
 /**
@@ -110,7 +111,7 @@ export class OutpaintingTool extends ObjectTool {
    */
   private showExpansionPreview(object: CanvasObject): void {
     const canvas = this.getCanvas()
-    const stage = canvas.konvaStage
+    const stage = canvas.stage
     const overlayLayer = stage.children[2] as Konva.Layer
     
     const expandSize = this.getOption('expandSize') as number
@@ -205,11 +206,19 @@ export class OutpaintingTool extends ObjectTool {
         naturalHeight: maskCanvas.height
       }
       
+      // Get model configuration for outpainting (uses inpainting models)
+      const modelConfig = ModelRegistry.getModelConfig('outpainting')
+      const tier = modelConfig?.tiers[modelConfig.defaultTier]
+      if (!tier) {
+        throw new Error('Outpainting model not configured')
+      }
+      
       // Use inpainting to fill the expanded areas
       const result = await this.replicateService.inpaint(
         imageData,
         maskData,
-        prompt || 'seamlessly extend the image, maintaining style and continuity'
+        prompt || 'seamlessly extend the image, maintaining style and continuity',
+        tier.modelId as `${string}/${string}`
       )
       
       // Calculate new position based on expansion direction
@@ -249,7 +258,8 @@ export class OutpaintingTool extends ObjectTool {
         toolId: this.id,
         objectId: object.id,
         direction: this.expandDirection,
-        expandSize
+        expandSize,
+        success: true
       })
       
       // Emit general completion event
@@ -425,7 +435,7 @@ export class OutpaintingTool extends ObjectTool {
       this.previewRect = null
       
       const canvas = this.getCanvas()
-      const stage = canvas.konvaStage
+      const stage = canvas.stage
       const overlayLayer = stage.children[2] as Konva.Layer
       overlayLayer.batchDraw()
     }

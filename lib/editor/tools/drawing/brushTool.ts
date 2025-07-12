@@ -1,7 +1,7 @@
 import { Brush } from 'lucide-react'
 import { ObjectDrawingTool } from '../base/ObjectDrawingTool'
 import type { ToolEvent, Point } from '@/lib/editor/canvas/types'
-import type { CanvasObject, ImageData as ObjectImageData } from '@/lib/editor/objects/types'
+// Remove unused imports - tool uses ObjectDrawingTool base class
 import { TOOL_IDS } from '@/constants'
 import { BrushEngine } from '../engines/BrushEngine'
 
@@ -250,7 +250,7 @@ export class BrushTool extends ObjectDrawingTool {
     // Update cursor style
     const canvas = this.getCanvas()
     // @ts-expect-error - getStage method exists on implementation
-    const stage = canvas.getStage?.() || canvas.konvaStage
+    const stage = canvas.getStage?.() || canvas.stage
     if (stage && stage.container()) {
       const container = stage.container()
       container.style.cursor = `url(${cursorUrl}) ${cursorCanvas.width / 2} ${cursorCanvas.height / 2}, crosshair`

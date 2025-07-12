@@ -152,8 +152,7 @@ export function ObjectsPanel() {
     const groupId = await canvasManager.addObject({
       type: 'group',
       name: `Group ${objects.filter(o => o.type === 'group').length + 1}`,
-      children: selectedIds,
-      data: {} // Groups don't have specific data
+      children: selectedIds
     })
     
     // Move objects to group

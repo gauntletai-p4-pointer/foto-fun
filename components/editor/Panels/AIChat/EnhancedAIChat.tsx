@@ -22,7 +22,7 @@ export function EnhancedAIChat() {
   // const canvasState = useCanvasStore(canvasStore) // Unused in this component
   const canvasManager = useService<CanvasManager>('CanvasManager')
   
-  const isCanvasReady = !!canvasManager?.konvaStage
+  const isCanvasReady = !!canvasManager?.stage
   
   const _hasContent = () => {
     return canvasManager.getAllObjects().length > 0

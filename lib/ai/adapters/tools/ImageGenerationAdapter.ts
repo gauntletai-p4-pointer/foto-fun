@@ -72,7 +72,6 @@ export class ImageGenerationAdapter extends UnifiedToolAdapter<Input, Output> {
         y = validated.position.y
       } else {
         // Center in viewport
-        // @ts-expect-error - getViewportBounds exists
         const viewport = context.canvas.getViewportBounds()
         x = viewport.x + (viewport.width - imageData.naturalWidth) / 2
         y = viewport.y + (viewport.height - imageData.naturalHeight) / 2

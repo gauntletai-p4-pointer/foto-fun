@@ -1,6 +1,5 @@
 import { z } from 'zod'
 import { tool } from 'ai'
-import type { CanvasManager } from '@/lib/editor/canvas/types'
 import type { CanvasObject } from '@/lib/editor/objects/types'
 import type { CanvasContext } from '@/lib/ai/canvas/CanvasContext'
 

@@ -260,6 +260,10 @@ export class EventDocumentStore extends BaseStore<DocumentStoreState> {
     return this.getState().recentDocuments
   }
 
+  hasUnsavedChanges(): boolean {
+    return this.getState().isDirty
+  }
+
   private addToRecentDocuments(document: Document): void {
     const state = this.getState()
     const existing = state.recentDocuments.findIndex(d => d.id === document.id)
@@ -295,10 +299,10 @@ export class EventDocumentStore extends BaseStore<DocumentStoreState> {
     try {
       const stored = localStorage.getItem('fotofun-recent-documents')
       if (stored) {
-        const recentDocuments = JSON.parse(stored).map((doc: any) => ({
+        const recentDocuments = JSON.parse(stored).map((doc: Record<string, unknown>) => ({
           ...doc,
-          created: new Date(doc.created),
-          modified: new Date(doc.modified)
+          created: new Date(doc.created as string),
+          modified: new Date(doc.modified as string)
         }))
         this.setState(state => ({ ...state, recentDocuments }))
       }

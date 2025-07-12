@@ -1,10 +1,7 @@
 import { CanvasManager } from '../canvas/CanvasManager'
-import type { BlendMode } from '@/lib/editor/canvas/types'
 import type { CanvasObject } from '@/lib/editor/objects/types'
 import { EventDocumentStore, type Document } from '@/lib/store/document/EventDocumentStore'
 import { TypedEventBus } from '@/lib/events/core/TypedEventBus'
-
-import { nanoid } from 'nanoid'
 
 export interface SerializedDocument {
   version: string
@@ -13,16 +10,18 @@ export interface SerializedDocument {
     width: number
     height: number
     backgroundColor: string
-    layers: Array<{
-      id?: string
-      name: string
+    objects: Array<{
+      id: string
+      type: string
+      position: { x: number; y: number }
       visible: boolean
       locked: boolean
       opacity: number
-      blendMode: string
-      objects?: unknown[]
+      data?: unknown
+      metadata?: Record<string, unknown>
     }>
-    selection?: unknown
+    objectOrder: string[]
+    selectedObjectIds?: string[]
   }
   metadata: {
     createdAt: number
@@ -54,7 +53,9 @@ export class DocumentSerializer {
       throw new Error('No document to serialize')
     }
     
-    const canvasData = this.canvasManager.toJSON()
+    // Get canvas state directly
+    const state = this.canvasManager.state
+    const allObjects = this.canvasManager.getAllObjects()
     
     return {
       version: DocumentSerializer.CURRENT_VERSION,
@@ -63,11 +64,21 @@ export class DocumentSerializer {
         modified: new Date()
       },
       canvas: {
-        width: (canvasData.dimensions as { width: number; height: number }).width,
-        height: (canvasData.dimensions as { width: number; height: number }).height,
-        backgroundColor: canvasData.backgroundColor as string,
-        layers: canvasData.layers as Array<{ id?: string; name: string; visible: boolean; locked: boolean; opacity: number; blendMode: string; objects?: unknown[] }>,
-        selection: this.canvasManager.serializeSelection()
+        width: state.canvasWidth,
+        height: state.canvasHeight,
+        backgroundColor: state.backgroundColor,
+        objects: allObjects.map(obj => ({
+          id: obj.id,
+          type: obj.type,
+          position: { x: obj.x, y: obj.y },
+          visible: obj.visible,
+          locked: obj.locked,
+          opacity: obj.opacity,
+          data: obj.data,
+          metadata: obj.metadata || undefined
+        })),
+        objectOrder: this.canvasManager.getObjectOrder(),
+        selectedObjectIds: Array.from(state.selectedObjectIds)
       },
       metadata: {
         createdAt: document.created.getTime(),
@@ -147,8 +158,8 @@ export class DocumentSerializer {
       await this.loadCanvasState(serialized.canvas)
       
       // Restore selection if any
-      if (serialized.canvas.selection && typeof serialized.canvas.selection === 'object' && 'type' in serialized.canvas.selection) {
-        this.canvasManager.deserializeSelection(serialized.canvas.selection as { type: string; objects?: Array<{ id: string }>; objectIds?: string[]; data?: unknown; bounds?: { x: number; y: number; width: number; height: number } })
+      if (serialized.canvas.selectedObjectIds && serialized.canvas.selectedObjectIds.length > 0) {
+        this.canvasManager.selectMultiple(serialized.canvas.selectedObjectIds)
       }
       
       // Mark as saved (just loaded)
@@ -233,10 +244,10 @@ export class DocumentSerializer {
    * Load canvas state from serialized data
    */
   private async loadCanvasState(canvasData: SerializedDocument['canvas']): Promise<void> {
-    // Clear existing canvas
-    const layers = this.canvasManager.state.layers
-    for (const layer of [...layers]) {
-      this.canvasManager.removeLayer(layer.id)
+    // Clear existing objects
+    const existingObjects = this.canvasManager.getAllObjects()
+    for (const obj of existingObjects) {
+      await this.canvasManager.removeObject(obj.id)
     }
     
     // Resize canvas
@@ -245,23 +256,24 @@ export class DocumentSerializer {
     // Set background color
     this.canvasManager.state.backgroundColor = canvasData.backgroundColor
     
-    // Load layers
-    for (const layerData of canvasData.layers) {
-      const layer = this.canvasManager.addLayer({
-        id: layerData.id || nanoid(),
-        name: layerData.name,
-        visible: layerData.visible,
-        locked: layerData.locked,
-        opacity: layerData.opacity,
-        blendMode: layerData.blendMode as BlendMode
-      })
-      
-      // Load objects in the layer
-      if (layerData.objects && Array.isArray(layerData.objects)) {
-        for (const objData of layerData.objects) {
-          await this.canvasManager.addObject(objData as CanvasObject, layer.id)
-        }
-      }
+    // Load objects
+    for (const objData of canvasData.objects) {
+      await this.canvasManager.addObject({
+        id: objData.id,
+        type: objData.type as CanvasObject['type'],
+        x: objData.position.x,
+        y: objData.position.y,
+        visible: objData.visible,
+        locked: objData.locked,
+        opacity: objData.opacity,
+        data: objData.data,
+        metadata: objData.metadata
+      } as Partial<CanvasObject>)
+    }
+    
+    // Restore object order
+    if (canvasData.objectOrder) {
+      this.canvasManager.setObjectOrder(canvasData.objectOrder)
     }
   }
 

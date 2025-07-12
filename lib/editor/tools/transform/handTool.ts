@@ -25,7 +25,7 @@ export class HandTool extends BaseTool {
     canvas.setDraggable(true)
     
     // Set cursor
-    canvas.konvaStage.container().style.cursor = 'grab'
+    canvas.stage.container().style.cursor = 'grab'
   }
   
   protected cleanupTool(): void {
@@ -34,19 +34,19 @@ export class HandTool extends BaseTool {
     canvas.setDraggable(false)
     
     // Reset cursor
-    canvas.konvaStage.container().style.cursor = 'default'
+    canvas.stage.container().style.cursor = 'default'
   }
   
   onMouseDown(): void {
     // Change cursor to grabbing
     const canvas = this.getCanvas()
-    canvas.konvaStage.container().style.cursor = 'grabbing'
+    canvas.stage.container().style.cursor = 'grabbing'
   }
   
   onMouseUp(): void {
     // Change cursor back to grab
     const canvas = this.getCanvas()
-    canvas.konvaStage.container().style.cursor = 'grab'
+    canvas.stage.container().style.cursor = 'grab'
   }
   
   // No need for onMouseMove - Konva handles the dragging

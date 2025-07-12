@@ -73,7 +73,7 @@ export class CanvasContextProvider {
     // The canvas and targetObjects fields will need proper initialization
     // when used in actual operations
     return {
-      canvas: null as any, // Will be set when needed
+      canvas: null as unknown as CanvasManager, // Will be set when needed
       targetObjects: [],
       targetingMode: 'all',
       dimensions: { width: 800, height: 600 },
@@ -87,7 +87,7 @@ export class CanvasContextProvider {
    */
   static fromData(data: Partial<CanvasContext>): CanvasContext {
     return {
-      canvas: data.canvas || null as any,
+      canvas: data.canvas || null as unknown as CanvasManager,
       targetObjects: data.targetObjects || [],
       targetingMode: data.targetingMode || 'all',
       dimensions: data.dimensions || { width: 800, height: 600 },

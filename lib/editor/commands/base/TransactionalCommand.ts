@@ -1,8 +1,13 @@
 import { Command, type ICommand } from './Command'
 import type { CanvasManager, BlendMode } from '@/lib/editor/canvas/types'
-import type { CanvasObject } from '@/lib/editor/objects/types'
+import type { ImageData, TextData, ShapeData } from '@/lib/editor/objects/types'
 import { CommandExecutionError } from '@/lib/ai/errors'
 import { ServiceContainer } from '@/lib/core/ServiceContainer'
+
+/**
+ * Object data union type for snapshots
+ */
+export type SnapshotObjectData = ImageData | TextData | ShapeData
 
 /**
  * Canvas state snapshot for rollback
@@ -24,7 +29,7 @@ export interface CanvasStateSnapshot {
     blendMode: BlendMode
     visible: boolean
     locked: boolean
-    data: any
+    data: SnapshotObjectData
   }>
   selectedObjectIds: string[]
   backgroundColor: string

@@ -48,7 +48,7 @@ export class ImageGenerationTool extends BaseTool {
     
     // Redraw overlay layer
     const canvas = this.getCanvas()
-    const stage = canvas.konvaStage
+    const stage = canvas.stage
     const overlayLayer = stage.children[2] as Konva.Layer
     if (overlayLayer) {
       overlayLayer.batchDraw()
@@ -145,13 +145,9 @@ export class ImageGenerationTool extends BaseTool {
         draggable: true
       })
       
-      // Add to active layer
-      // Objects are managed directly now, no need for active layer
-      if (!activeLayer) {
-        throw new Error('No active layer')
-      }
-      
-      activeLayer.konvaLayer.add(konvaImage)
+      // Add to canvas content layer
+      const contentLayer = canvas.contentLayer
+      contentLayer.add(konvaImage)
       
       // Create canvas object
       const canvasObject: CanvasObject = {
@@ -172,8 +168,22 @@ export class ImageGenerationTool extends BaseTool {
           skewY: 0
         },
         node: konvaImage,
-        layerId: activeLayer.id,
-        data: img,
+        x: pos.x,
+        y: pos.y,
+        width: width,
+        height: height,
+        rotation: 0,
+        scaleX: 1,
+        scaleY: 1,
+        zIndex: 0, // Will be updated by canvas
+        filters: [],
+        adjustments: [],
+        data: {
+          src: imageUrl,
+          naturalWidth: width,
+          naturalHeight: height,
+          element: img
+        },
         metadata: {
           prompt,
           model,
@@ -186,8 +196,8 @@ export class ImageGenerationTool extends BaseTool {
         }
       }
       
-      // Add to layer objects
-      activeLayer.objects.push(canvasObject)
+      // Add object to canvas
+      const objectId = await canvas.addObject(canvasObject)
       
       // Emit events
       if (this.executionContext) {
@@ -212,13 +222,13 @@ export class ImageGenerationTool extends BaseTool {
         await this.executionContext.emit(new ObjectAddedEvent(
           'canvas',
           canvasObject,
-          activeLayer.id,
+          objectId,
           this.executionContext.getMetadata()
         ))
       }
       
       // Redraw
-      activeLayer.konvaLayer.batchDraw()
+      contentLayer.batchDraw()
       
       return canvasObject
       
@@ -250,7 +260,7 @@ export class ImageGenerationTool extends BaseTool {
    */
   private createPlaceholder(pos: Point, width: number, height: number, prompt: string): void {
     const canvas = this.getCanvas()
-    const stage = canvas.konvaStage
+    const stage = canvas.stage
     const overlayLayer = stage.children[2] as Konva.Layer
     if (!overlayLayer) return
     
@@ -329,7 +339,7 @@ export class ImageGenerationTool extends BaseTool {
     
     if (this.generationGroup) {
       const canvas = this.getCanvas()
-      const stage = canvas.konvaStage
+      const stage = canvas.stage
       const overlayLayer = stage.children[2] as Konva.Layer
       if (overlayLayer) {
         overlayLayer.batchDraw()

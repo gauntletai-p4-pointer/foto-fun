@@ -2,7 +2,6 @@ import { nanoid } from 'nanoid'
 import type { TypedEventBus } from '@/lib/events/core/TypedEventBus'
 import type { EventStore } from '@/lib/events/core/EventStore'
 import type { CanvasObject as NewCanvasObject, ImageData, TextData, ShapeData } from './types'
-import type { CanvasObject as OldCanvasObject } from '@/lib/editor/canvas/types'
 import { ObjectAddedEvent, ObjectRemovedEvent, ObjectModifiedEvent } from '@/lib/events/canvas/CanvasEvents'
 
 export class ObjectManager {
@@ -46,41 +45,18 @@ export class ObjectManager {
     this.objectOrder.push(id)
     this.sortByZIndex()
     
-    // Create canvas object for event (old format)
-    const canvasObject: OldCanvasObject = {
-      id,
-      type: newObject.type as OldCanvasObject['type'],
-      name: newObject.name,
-      visible: newObject.visible,
-      locked: newObject.locked,
-      opacity: newObject.opacity,
-      blendMode: newObject.blendMode,
-      transform: {
-        x: newObject.x,
-        y: newObject.y,
-        scaleX: newObject.scaleX,
-        scaleY: newObject.scaleY,
-        rotation: newObject.rotation,
-        skewX: 0,
-        skewY: 0
-      },
-      node: null as any, // Will be set by Konva
-      layerId: 'default', // We don't use layers anymore but need this for compatibility
-      data: newObject.data as any // Type conversion for compatibility
-    }
-    
-    // Emit event
+        // Emit event
     await this.eventStore.append(
       new ObjectAddedEvent(
         this.canvasId,
-        canvasObject,
+        newObject,
         undefined, // layerId
         { source: 'system' }
       )
     )
     
     // Emit on event bus for immediate UI updates
-    this.eventBus.emit('canvas.object.added' as any, { objectId: id, object: newObject })
+    this.eventBus.emit('canvas.object.added', { canvasId: this.canvasId, object: newObject })
     
     return id
   }
@@ -107,39 +83,16 @@ export class ObjectManager {
     this.objects.delete(objectId)
     this.objectOrder = this.objectOrder.filter(id => id !== objectId)
     
-    // Create canvas object for event
-    const canvasObject: OldCanvasObject = {
-      id: objectId,
-      type: object.type as OldCanvasObject['type'],
-      name: object.name,
-      visible: object.visible,
-      locked: object.locked,
-      opacity: object.opacity,
-      blendMode: object.blendMode,
-      transform: {
-        x: object.x,
-        y: object.y,
-        scaleX: object.scaleX,
-        scaleY: object.scaleY,
-        rotation: object.rotation,
-        skewX: 0,
-        skewY: 0
-      },
-      node: null as any,
-      layerId: 'default',
-      data: object.data as any // Type conversion for compatibility
-    }
-    
-    // Emit event
+        // Emit event
     await this.eventStore.append(
       new ObjectRemovedEvent(
         this.canvasId,
-        canvasObject,
+        object,
         { source: 'system' }
       )
     )
     
-    this.eventBus.emit('canvas.object.removed' as any, { objectId, object })
+    this.eventBus.emit('canvas.object.removed', { canvasId: this.canvasId, objectId })
   }
   
   // Update object
@@ -157,41 +110,18 @@ export class ObjectManager {
       this.sortByZIndex()
     }
     
-    // Create canvas object for event
-    const canvasObject: OldCanvasObject = {
-      id: objectId,
-      type: object.type as OldCanvasObject['type'],
-      name: object.name,
-      visible: object.visible,
-      locked: object.locked,
-      opacity: object.opacity,
-      blendMode: object.blendMode,
-      transform: {
-        x: object.x,
-        y: object.y,
-        scaleX: object.scaleX,
-        scaleY: object.scaleY,
-        rotation: object.rotation,
-        skewX: 0,
-        skewY: 0
-      },
-      node: null as any,
-      layerId: 'default',
-      data: object.data as any // Type conversion for compatibility
-    }
-    
-    // Emit event
+        // Emit event
     await this.eventStore.append(
       new ObjectModifiedEvent(
         this.canvasId,
-        canvasObject,
+        object,
         previousState,
         updates,
         { source: 'system' }
       )
     )
     
-    this.eventBus.emit('canvas.object.modified' as any, { objectId, object, previousState, updates })
+    this.eventBus.emit('canvas.object.modified', { canvasId: this.canvasId, objectId, previousState, newState: updates })
   }
   
   // Get object by ID
@@ -213,11 +143,17 @@ export class ObjectManager {
   
   // Selection operations
   selectObject(id: string): void {
-    this.eventBus.emit('selection.changed' as any, { selectedIds: [id] })
+    this.eventBus.emit('selection.changed', { 
+      selection: { type: 'objects', objectIds: [id] } as import('@/lib/editor/canvas/types').Selection, 
+      previousSelection: null 
+    })
   }
   
   selectMultiple(ids: string[]): void {
-    this.eventBus.emit('selection.changed' as any, { selectedIds: ids })
+    this.eventBus.emit('selection.changed', { 
+      selection: { type: 'objects', objectIds: ids } as import('@/lib/editor/canvas/types').Selection, 
+      previousSelection: null 
+    })
   }
   
   // Transform operations
@@ -394,12 +330,14 @@ export class ObjectManager {
   private createDefaultData(type: NewCanvasObject['type']): ImageData | TextData | ShapeData {
     switch (type) {
       case 'text':
+      case 'verticalText':
         return {
           content: 'New Text',
           font: 'Arial',
           fontSize: 16,
           color: '#000000',
-          align: 'left'
+          align: 'left',
+          direction: type === 'verticalText' ? 'vertical' : 'horizontal'
         }
       case 'shape':
         return {
@@ -413,6 +351,8 @@ export class ObjectManager {
         throw new Error('Image data must be provided')
       case 'group':
         return {} as ShapeData // Groups don't need data
+      default:
+        throw new Error(`Unknown object type: ${type}`)
     }
   }
 } 

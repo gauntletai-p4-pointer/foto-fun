@@ -38,7 +38,7 @@ export class MagicWandTool extends ObjectTool {
       
       // Redraw the overlay layer
       const canvas = this.getCanvas()
-      const stage = canvas.konvaStage
+      const stage = canvas.stage
       const overlayLayer = stage.children[2] as Konva.Layer
       if (overlayLayer) {
         overlayLayer.batchDraw()
@@ -77,7 +77,7 @@ export class MagicWandTool extends ObjectTool {
     this.isSelecting = true
     
     // Create selection group in overlay layer
-    const stage = canvas.konvaStage
+    const stage = canvas.stage
     const overlayLayer = stage.children[2] as Konva.Layer
     if (!overlayLayer) {
       this.isSelecting = false
@@ -218,7 +218,7 @@ export class MagicWandTool extends ObjectTool {
     
     // Get the Konva node for this object
     const canvas = this.getCanvas()
-    const stage = canvas.konvaStage
+    const stage = canvas.stage
     const mainLayer = stage.children[1] as Konva.Layer
     
     const node = mainLayer.findOne(`#${object.id}`) as Konva.Image
@@ -461,7 +461,7 @@ export class MagicWandTool extends ObjectTool {
         
         // Redraw the overlay layer
         const canvas = this.getCanvas()
-        const stage = canvas.konvaStage
+        const stage = canvas.stage
         const overlayLayer = stage.children[2] as Konva.Layer
         if (overlayLayer) {
           overlayLayer.batchDraw()

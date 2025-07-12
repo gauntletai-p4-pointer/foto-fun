@@ -34,7 +34,7 @@ export class CutCommand extends Command {
       
       // Emit removal event
       this.typedEventBus.emit('canvas.object.removed', {
-        canvasId: this.canvasManager.konvaStage.id() || 'main',
+        canvasId: this.canvasManager.stage.id() || 'main',
         objectId
       })
     }
@@ -47,7 +47,7 @@ export class CutCommand extends Command {
       
       // Emit addition event
       this.typedEventBus.emit('canvas.object.added', {
-        canvasId: this.canvasManager.konvaStage.id() || 'main',
+        canvasId: this.canvasManager.stage.id() || 'main',
         object: obj
       })
     }

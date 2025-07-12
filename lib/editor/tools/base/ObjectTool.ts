@@ -1,6 +1,7 @@
 import { BaseTool } from './BaseTool'
 import type { CanvasObject } from '@/lib/editor/objects/types'
 import type { Point } from '@/lib/editor/canvas/types'
+import { ObjectModifiedEvent } from '@/lib/events/canvas/CanvasEvents'
 
 /**
  * Base class for all object-based tools
@@ -80,17 +81,24 @@ export abstract class ObjectTool extends BaseTool {
   protected async modifyObject(
     objectId: string, 
     updates: Partial<CanvasObject>,
-    eventType: string = 'modified'
+    _eventType: string = 'modified'
   ): Promise<void> {
     const canvas = this.getCanvas()
+    const object = canvas.getObject(objectId)
+    if (!object) return
+    
+    const previousState = { ...object }
     await canvas.updateObject(objectId, updates)
     
     // Emit event through execution context if available
     if (this.executionContext) {
-      await this.executionContext.emit({
-        type: `canvas.object.${eventType}`,
-        data: { objectId, updates }
-      })
+      await this.executionContext.emit(new ObjectModifiedEvent(
+        'canvas',
+        object,
+        previousState,
+        updates,
+        this.executionContext.getMetadata()
+      ))
     }
   }
 } 

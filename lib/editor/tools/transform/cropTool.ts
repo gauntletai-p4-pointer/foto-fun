@@ -40,7 +40,7 @@ export class CropTool extends ObjectTool {
     const canvas = this.getCanvas()
     
     // Use the existing overlay layer
-    const stage = canvas.konvaStage
+    const stage = canvas.stage
     this.overlayLayer = stage.children[stage.children.length - 1] as Konva.Layer
     
     // Set default options
@@ -122,7 +122,7 @@ export class CropTool extends ObjectTool {
     this.overlayLayer.add(this.cropOverlay)
     
     // Create semi-transparent overlay around the object
-    const stage = this.getCanvas().konvaStage
+    const stage = this.getCanvas().stage
     const opacity = (this.getOption('shieldOpacity') as number) || 0.5
     
     // Create dark overlay rectangles around the crop area
@@ -260,7 +260,7 @@ export class CropTool extends ObjectTool {
       this.isDraggingHandle = false
       this.activeHandle = null
       this.handleType = null
-      const stage = this.getCanvas().konvaStage
+      const stage = this.getCanvas().stage
       stage.container().style.cursor = this.cursor
       return
     }
@@ -343,7 +343,7 @@ export class CropTool extends ObjectTool {
       
       // Handle events
       handle.on('mouseenter', () => {
-        const stage = this.getCanvas().konvaStage
+        const stage = this.getCanvas().stage
         stage.container().style.cursor = config.cursor
         handle.fill('#007AFF')
         this.overlayLayer?.batchDraw()
@@ -351,7 +351,7 @@ export class CropTool extends ObjectTool {
       
       handle.on('mouseleave', () => {
         if (!this.isDraggingHandle) {
-          const stage = this.getCanvas().konvaStage
+          const stage = this.getCanvas().stage
           stage.container().style.cursor = this.cursor
           handle.fill('white')
           this.overlayLayer?.batchDraw()
@@ -564,7 +564,7 @@ export class CropTool extends ObjectTool {
     if (!this.cropOverlay) return
     
     const canvas = this.getCanvas()
-    const stage = canvas.konvaStage
+    const stage = canvas.stage
     const opacity = (this.getOption('shieldOpacity') as number) || 0.5
     
     const overlays = this.cropOverlay.getChildren().filter(child => 

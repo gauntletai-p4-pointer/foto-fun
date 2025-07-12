@@ -34,7 +34,7 @@ export class AIPromptBrush extends ObjectDrawingTool {
   
   private replicateService: ReplicateService
   private eventBus: TypedEventBus
-  private isDrawing = false
+  protected isDrawing = false
   private currentStroke: BrushStroke | null = null
   private strokeCanvas: HTMLCanvasElement | null = null
   private strokeCtx: CanvasRenderingContext2D | null = null
@@ -43,6 +43,20 @@ export class AIPromptBrush extends ObjectDrawingTool {
     super()
     this.replicateService = new ReplicateService()
     this.eventBus = new TypedEventBus()
+  }
+  
+  async setupTool(): Promise<void> {
+    // Initialize stroke canvas
+    this.strokeCanvas = document.createElement('canvas')
+    this.strokeCtx = this.strokeCanvas.getContext('2d')
+  }
+  
+  async cleanupTool(): Promise<void> {
+    // Clean up resources
+    this.isDrawing = false
+    this.currentStroke = null
+    this.strokeCanvas = null
+    this.strokeCtx = null
   }
   
   getOptions(): AIPromptBrushOptions {
@@ -69,6 +83,7 @@ export class AIPromptBrush extends ObjectDrawingTool {
     const options = this.getOptions()
     if (!options.prompt || options.prompt.trim() === '') {
       this.eventBus.emit('tool.message', {
+        toolId: this.id,
         type: 'warning',
         message: 'Please set a prompt in the tool options before painting'
       })
@@ -82,6 +97,7 @@ export class AIPromptBrush extends ObjectDrawingTool {
     const options = this.getOptions()
     if (!options.prompt || options.prompt.trim() === '') {
       this.eventBus.emit('tool.message', {
+        toolId: this.id,
         type: 'error',
         message: 'No prompt set. Please enter a prompt in the tool options.'
       })
@@ -92,6 +108,7 @@ export class AIPromptBrush extends ObjectDrawingTool {
     const targetObject = canvas.getObjectAtPoint(event.point)
     if (!targetObject || !isImageObject(targetObject)) {
       this.eventBus.emit('tool.message', {
+        toolId: this.id,
         type: 'info',
         message: 'Click and drag on an image to apply the AI prompt'
       })
@@ -264,8 +281,9 @@ export class AIPromptBrush extends ObjectDrawingTool {
       
     } catch (error) {
       console.error('AI prompt brush failed:', error)
+      const errorTaskId = `${this.id}-${Date.now()}`
       this.eventBus.emit('ai.processing.failed', {
-        taskId,
+        taskId: errorTaskId,
         toolId: this.id,
         error: error instanceof Error ? error.message : 'Unknown error'
       })

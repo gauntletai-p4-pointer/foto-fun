@@ -3,6 +3,13 @@ import { TOOL_IDS } from '@/constants'
 import { ObjectWebGLFilterTool } from '../base/ObjectWebGLFilterTool'
 
 /**
+ * Saturation adjustment value interface
+ */
+interface SaturationOptions extends Record<string, number> {
+  amount: number
+}
+
+/**
  * Object-based Saturation Tool
  * Adjusts color saturation of selected objects using WebGL
  */
@@ -19,7 +26,7 @@ export class SaturationTool extends ObjectWebGLFilterTool {
     return 'saturation'
   }
   
-  protected getDefaultParams(): Record<string, any> {
+  protected getDefaultParams(): Record<string, number> {
     return {
       amount: 0 // Range: -1 to 1 (-100% to +100%)
     }
@@ -42,11 +49,11 @@ export class SaturationTool extends ObjectWebGLFilterTool {
   /**
    * Convert UI value to WebGL parameter
    */
-  protected getAllOptions(): Record<string, any> {
+  protected getAllOptions(): Record<string, number> {
     const amount = (this.getOption('amount') as number) || 0
     return {
       amount: amount / 100 // Convert percentage to -1 to 1 range
-    }
+    } satisfies SaturationOptions
   }
   
   /**

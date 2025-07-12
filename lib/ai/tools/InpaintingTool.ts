@@ -4,6 +4,7 @@ import type { CanvasObject } from '@/lib/editor/objects/types'
 import type { ToolEvent } from '@/lib/editor/canvas/types'
 import { ReplicateService } from '@/lib/ai/services/replicate'
 import { TypedEventBus } from '@/lib/events/core/TypedEventBus'
+import { ModelRegistry } from '@/lib/ai/models/ModelRegistry'
 import Konva from 'konva'
 
 /**
@@ -94,7 +95,7 @@ export class InpaintingTool extends ObjectTool {
     if (!this.isDrawingMask || !this.maskContext || !this.maskGroup) return
     
     const canvas = this.getCanvas()
-    const stage = canvas.konvaStage
+    const stage = canvas.stage
     const overlayLayer = stage.children[2] as Konva.Layer
     
     // Draw on mask
@@ -151,7 +152,7 @@ export class InpaintingTool extends ObjectTool {
    */
   private startMaskDrawing(object: CanvasObject, startPoint: { x: number; y: number }): void {
     const canvas = this.getCanvas()
-    const stage = canvas.konvaStage
+    const stage = canvas.stage
     const overlayLayer = stage.children[2] as Konva.Layer
     
     // Set up mask canvas
@@ -220,11 +221,19 @@ export class InpaintingTool extends ObjectTool {
       // Convert mask to Replicate format
       const maskReplicateData = await this.maskToReplicateFormat(maskData, object)
       
+      // Get model configuration
+      const modelConfig = ModelRegistry.getModelConfig('inpainting')
+      const tier = modelConfig?.tiers[modelConfig.defaultTier]
+      if (!tier) {
+        throw new Error('Inpainting model not configured')
+      }
+      
       // Apply inpainting
       const result = await this.replicateService.inpaint(
         imageData,
         maskReplicateData,
-        prompt
+        prompt,
+        tier.modelId as `${string}/${string}`
       )
       
       // Update object with result
@@ -335,7 +344,7 @@ export class InpaintingTool extends ObjectTool {
       this.maskGroup = null
       
       const canvas = this.getCanvas()
-      const stage = canvas.konvaStage
+      const stage = canvas.stage
       const overlayLayer = stage.children[2] as Konva.Layer
       overlayLayer.batchDraw()
     }

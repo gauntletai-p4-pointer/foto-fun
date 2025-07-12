@@ -183,8 +183,9 @@ export class PromptAdjustmentTool extends ObjectTool {
     const canvas = this.getCanvas()
     if (!canvas) return
     
+    const taskId = `${this.id}-${Date.now()}`
+    
     try {
-      const taskId = `${this.id}-${Date.now()}`
       this.eventBus.emit('ai.processing.started', {
         taskId,
         toolId: this.id,

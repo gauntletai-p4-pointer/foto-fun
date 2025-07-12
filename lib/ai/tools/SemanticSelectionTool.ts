@@ -142,7 +142,8 @@ export class SemanticSelectionTool extends ObjectTool {
         toolId: this.id,
         query: searchQuery,
         matchedCount: matchedObjectIds.length,
-        objectIds: matchedObjectIds
+        objectIds: matchedObjectIds,
+        confidence: 0.85 // Mock confidence score for now - TODO: implement real confidence scoring
       })
       
       // Emit general completion event
@@ -175,7 +176,7 @@ export class SemanticSelectionTool extends ObjectTool {
     imageData: import('@/lib/ai/services/replicate').ImageData,
     query: string,
     threshold: number
-  ): Promise<any[]> {
+  ): Promise<Array<{ objectId: string; confidence: number }>> {
     // In a real implementation, this would use GroundingDINO or similar
     // For now, we'll use a mock detection based on the query
     
@@ -210,8 +211,13 @@ export class SemanticSelectionTool extends ObjectTool {
       })
     }
     
-    // Filter by confidence threshold
-    return mockDetections.filter(d => d.confidence >= threshold)
+    // Filter by confidence threshold and convert to expected format
+    return mockDetections
+      .filter(d => d.confidence >= threshold)
+      .map(d => ({
+        objectId: `mock-${d.label}-${Math.random().toString(36).substr(2, 9)}`,
+        confidence: d.confidence
+      }))
     
     /* Real implementation would be:
     const output = await this.replicateService.run(
@@ -277,9 +283,9 @@ export class SemanticSelectionTool extends ObjectTool {
     }
   }
   
-  async onMouseDown(event: ToolEvent): Promise<void> {
+  async onMouseDown(_event: ToolEvent): Promise<void> {
     // Could show a search dialog on click
-    const canvas = this.getCanvas()
+    const _canvas = this.getCanvas()
     
     // For now, use the query from options
     const query = this.getOption('query') as string

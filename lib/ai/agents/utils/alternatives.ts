@@ -5,7 +5,6 @@ import { z } from 'zod'
 import { adapterRegistry } from '@/lib/ai/adapters/registry'
 import { CanvasToolBridge } from '@/lib/ai/tools/canvas-bridge'
 import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
-import type { CanvasContext } from '@/lib/ai/canvas/CanvasContext'
 
 // Schema for generating alternatives
 const AlternativesSchema = z.object({
@@ -15,26 +14,6 @@ const AlternativesSchema = z.object({
     reasoning: z.string()
   })).max(3)
 })
-
-/**
- * Convert bridge CanvasContext to unified CanvasContext
- */
-function convertBridgeContext(bridgeContext: ReturnType<typeof CanvasToolBridge.getCanvasContext>): CanvasContext | null {
-  if (!bridgeContext) return null
-  
-  return {
-    canvas: bridgeContext.canvas,
-    targetObjects: bridgeContext.targetImages, // Convert targetImages to targetObjects
-    targetingMode: bridgeContext.targetingMode === 'selection' ? 'selected' : 
-                   bridgeContext.targetingMode === 'auto-single' ? 'selected' :
-                   bridgeContext.targetingMode === 'all' ? 'all' : 'all',
-    dimensions: bridgeContext.dimensions,
-    hasContent: bridgeContext.canvas.getAllObjects().length > 0,
-    objectCount: bridgeContext.canvas.getAllObjects().length,
-    pixelSelection: undefined, // Not available in bridge context
-    screenshot: undefined
-  }
-}
 
 /**
  * Capture the current canvas state as a base64 image
@@ -94,14 +73,13 @@ export async function generateAlternatives(
       const currentState = await captureCanvasState(context.canvas)
       
       // Execute the alternative to generate preview
-      const bridgeContext = CanvasToolBridge.getCanvasContext()
-      const canvasContext = convertBridgeContext(bridgeContext)
+      const canvasContext = CanvasToolBridge.getCanvasContext()
       if (!canvasContext) {
         console.warn('Canvas context not available for alternative generation')
         continue
       }
       
-      await adapter.execute(alt.params, canvasContext as any)
+      await adapter.execute(alt.params, canvasContext)
       const afterState = await captureCanvasState(context.canvas)
       
       // Restore canvas to original state

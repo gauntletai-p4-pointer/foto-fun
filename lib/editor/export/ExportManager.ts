@@ -238,8 +238,8 @@ export class ExportManager {
    * Export a specific bounds area
    */
   private async exportBounds(bounds: ObjectBounds, options: ExportOptions): Promise<Blob> {
-    const konvaStage = this.canvasManager.konvaStage
-    if (!konvaStage) {
+    const stage = this.canvasManager.stage
+    if (!stage) {
       throw new Error('Canvas stage not initialized')
     }
     
@@ -253,7 +253,7 @@ export class ExportManager {
     }
     
     // Export as data URL first
-    const dataUrl = konvaStage.toDataURL(exportConfig)
+    const dataUrl = stage.toDataURL(exportConfig)
     
     // Convert to blob
     const blob = await this.dataUrlToBlob(dataUrl, options.format || 'png')

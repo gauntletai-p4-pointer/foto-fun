@@ -47,7 +47,7 @@ export class ShortcutManager {
       handler: () => {
         // This would trigger the new document dialog
         // For now, just create a default document
-        this.documentStore.createNewDocument('default')
+        this.documentStore.createNewDocument('default', 1920, 1080, '#ffffff')
       }
     })
     

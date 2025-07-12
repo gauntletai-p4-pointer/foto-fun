@@ -68,7 +68,7 @@ export class OutpaintingAdapter extends UnifiedToolAdapter<Input, Output> {
       )
       
       // Calculate new dimensions based on direction
-      let newDimensions = { ...originalDimensions }
+      const newDimensions = { ...originalDimensions }
       
       switch (validated.direction) {
         case 'top':
