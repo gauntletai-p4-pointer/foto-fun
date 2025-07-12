@@ -84,7 +84,8 @@ export class AutoSaveManager {
       
       this.typedEventBus.emit('autosave.failed', {
         projectId: project.id,
-        error: error instanceof Error ? error.message : 'Unknown error'
+        error: error instanceof Error ? error.message : 'Unknown error',
+        timestamp: Date.now()
       })
     }
   }

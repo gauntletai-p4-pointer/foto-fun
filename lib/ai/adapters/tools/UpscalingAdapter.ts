@@ -28,7 +28,17 @@ export class UpscalingAdapter extends UnifiedToolAdapter<Input, Output> {
   description = 'Increase image resolution using AI super-resolution. Makes images larger while enhancing details and preserving quality.'
   inputSchema = inputSchema
   
-  private tool = new UpscalingTool()
+  private tool: UpscalingTool | null = null
+
+  private async initializeTool() {
+    if (!this.tool) {
+      const { ModelPreferencesManager } = await import('@/lib/settings/ModelPreferences')
+      const { TypedEventBus } = await import('@/lib/events/core/TypedEventBus')
+      const preferencesManager = new ModelPreferencesManager()
+      const eventBus = new TypedEventBus()
+      this.tool = new (await import('@/lib/ai/tools/UpscalingTool')).UpscalingTool(preferencesManager, eventBus)
+    }
+  }
   
   async execute(params: Input, context: ObjectCanvasContext): Promise<Output> {
     // Validate input
@@ -52,7 +62,10 @@ export class UpscalingAdapter extends UnifiedToolAdapter<Input, Output> {
       }
       
       // Execute upscaling - tool creates and returns the canvas object
-      const resultObject = await this.tool.execute(targetImage, {
+      // Initialize tool if needed
+      await this.initializeTool()
+      
+      const resultObject = await this.tool!.execute(targetImage, {
         scale: validated.scaleFactor as 2 | 4,
         faceEnhance: validated.enhanceDetails,
         modelTier: validated.modelTier

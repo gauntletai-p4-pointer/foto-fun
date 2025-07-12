@@ -34,7 +34,7 @@ export class ObjectRemovalAdapter extends UnifiedToolAdapter<Input, Output> {
   description = 'Remove unwanted objects from selected images using AI. Specify the area to remove and the AI will intelligently fill it with appropriate background content.'
   inputSchema = inputSchema
   
-  private tool = new ObjectRemovalTool()
+  private tool: ObjectRemovalTool | null = null
   
   async execute(params: Input, context: ObjectCanvasContext): Promise<Output> {
     // Validate input
@@ -50,6 +50,19 @@ export class ObjectRemovalAdapter extends UnifiedToolAdapter<Input, Output> {
     const targetImage = imageTargets[0]
     
     try {
+      // Initialize tool if needed (lazy initialization)
+      if (!this.tool) {
+        // We need to get dependencies from context - for now, create with minimal dependencies
+        const { ModelPreferencesManager } = await import('@/lib/settings/ModelPreferences')
+        const { TypedEventBus } = await import('@/lib/events/core/TypedEventBus')
+        
+        // Use context dependencies or create minimal ones
+        const preferencesManager = new ModelPreferencesManager()
+        const eventBus = new TypedEventBus()
+        
+        this.tool = new ObjectRemovalTool(preferencesManager, eventBus)
+      }
+      
       // Create a mask object based on the target area
       const maskObject = await this.createMaskObject(validated.targetArea, targetImage, context)
       

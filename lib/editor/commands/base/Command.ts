@@ -4,6 +4,8 @@ import type { SelectionSnapshot } from '@/lib/ai/execution/SelectionSnapshot'
 import type { TypedEventBus } from '@/lib/events/core/TypedEventBus'
 import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
 import type { SelectionManager } from '@/lib/editor/selection/SelectionManager'
+import type { CommandResult } from './CommandResult'
+import { ResultUtils } from './CommandResult'
 
 /**
  * Unified Command Context for dependency injection
@@ -56,20 +58,23 @@ export interface ICommand {
   /**
    * Execute the command
    * Should store any necessary state for undo
+   * Returns a Result indicating success or failure
    */
-  execute(): Promise<void>
+  execute(): Promise<CommandResult<void>>
   
   /**
    * Undo the command
    * Should restore the previous state
+   * Returns a Result indicating success or failure
    */
-  undo(): Promise<void>
+  undo(): Promise<CommandResult<void>>
   
   /**
    * Redo the command
    * Re-applies the command after an undo
+   * Returns a Result indicating success or failure
    */
-  redo(): Promise<void>
+  redo(): Promise<CommandResult<void>>
   
   /**
    * Check if the command can be executed
@@ -142,7 +147,9 @@ export abstract class Command implements ICommand {
   /**
    * Enhanced execute with automatic event emission
    */
-  async execute(): Promise<void> {
+  async execute(): Promise<CommandResult<void>> {
+    const startTime = performance.now()
+    
     try {
       // TODO: Emit command started event (waiting for EventRegistry update)
       // this.context.eventBus.emit('command.started', {
@@ -158,11 +165,23 @@ export abstract class Command implements ICommand {
         await this.doExecute()
       }
       
+      const executionTime = performance.now() - startTime
+      
       // TODO: Emit command completed event (waiting for EventRegistry update)
       // this.context.eventBus.emit('command.completed', {
       //   commandId: this.id,
       //   success: true
       // })
+      
+      return {
+        success: true,
+        data: undefined,
+        events: [], // Commands can override to add domain events
+        metadata: {
+          executionTime,
+          affectedObjects: this.getAffectedObjects()
+        }
+      }
       
     } catch (error) {
       // TODO: Emit command failed event (waiting for EventRegistry update)
@@ -170,7 +189,21 @@ export abstract class Command implements ICommand {
       //   commandId: this.id,
       //   error: error instanceof Error ? error.message : 'Unknown error'
       // })
-      throw error
+      
+      const commandError = error instanceof Error 
+        ? new (await import('./CommandResult')).ExecutionError(error.message, { commandId: this.id })
+        : new (await import('./CommandResult')).ExecutionError('Unknown execution error', { commandId: this.id })
+      
+      return {
+        success: false,
+        error: commandError,
+        rollback: this.canUndo() ? async () => {
+          const result = await this.undo()
+          if (ResultUtils.isFailure(result)) {
+            throw result.error
+          }
+        } : undefined
+      }
     }
   }
   
@@ -191,14 +224,14 @@ export abstract class Command implements ICommand {
   /**
    * Undo the command
    */
-  abstract undo(): Promise<void>
+  abstract undo(): Promise<CommandResult<void>>
   
   /**
    * Redo the command (default implementation just calls execute)
    * Override if redo behavior differs from initial execution
    */
-  async redo(): Promise<void> {
-    await this.execute()
+  async redo(): Promise<CommandResult<void>> {
+    return await this.execute()
   }
   
   /**
@@ -233,5 +266,13 @@ export abstract class Command implements ICommand {
   mergeWith(other: ICommand): void {
     void other // Acknowledge parameter to satisfy linter
     throw new Error(`Command ${this.constructor.name} does not support merging`)
+  }
+
+  /**
+   * Get the list of object IDs affected by this command
+   * Override in commands that modify objects
+   */
+  protected getAffectedObjects(): string[] {
+    return []
   }
 } 

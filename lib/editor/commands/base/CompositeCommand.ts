@@ -1,4 +1,5 @@
 import { Command, type ICommand, type CommandContext } from './Command'
+import type { CommandResult } from './CommandResult'
 
 /**
  * Composite command that groups multiple commands together
@@ -46,14 +47,43 @@ export class CompositeCommand extends Command {
   /**
    * Undo all commands in reverse order
    */
-  async undo(): Promise<void> {
-    // Undo in reverse order
-    for (let i = this.commands.length - 1; i >= 0; i--) {
-      const command = this.commands[i]
-      if (command.canUndo()) {
-        await command.undo()
-      } else {
-        throw new Error(`Cannot undo command: ${command.description}`)
+  async undo(): Promise<CommandResult<void>> {
+    try {
+      // Undo in reverse order
+      for (let i = this.commands.length - 1; i >= 0; i--) {
+        const command = this.commands[i]
+        if (command.canUndo()) {
+          const result = await command.undo()
+          if (!result.success) {
+            return result // Return the failure result
+          }
+        } else {
+          return {
+            success: false,
+            error: new (await import('./CommandResult')).ExecutionError(
+              `Cannot undo command: ${command.description}`,
+              { commandId: this.id }
+            )
+          }
+        }
+      }
+
+      return {
+        success: true,
+        data: undefined,
+        events: [],
+        metadata: {
+          executionTime: 0,
+          affectedObjects: []
+        }
+      }
+    } catch (error) {
+      return {
+        success: false,
+        error: new (await import('./CommandResult')).ExecutionError(
+          `Composite undo failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          { commandId: this.id }
+        )
       }
     }
   }
@@ -61,9 +91,32 @@ export class CompositeCommand extends Command {
   /**
    * Redo all commands in order
    */
-  async redo(): Promise<void> {
-    for (const command of this.commands) {
-      await command.redo()
+  async redo(): Promise<CommandResult<void>> {
+    try {
+      for (const command of this.commands) {
+        const result = await command.redo()
+        if (!result.success) {
+          return result // Return the failure result
+        }
+      }
+
+      return {
+        success: true,
+        data: undefined,
+        events: [],
+        metadata: {
+          executionTime: 0,
+          affectedObjects: []
+        }
+      }
+    } catch (error) {
+      return {
+        success: false,
+        error: new (await import('./CommandResult')).ExecutionError(
+          `Composite redo failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          { commandId: this.id }
+        )
+      }
     }
   }
   

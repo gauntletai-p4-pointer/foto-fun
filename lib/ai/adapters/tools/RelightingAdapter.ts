@@ -36,7 +36,7 @@ export class RelightingAdapter extends UnifiedToolAdapter<Input, Output> {
   description = 'Change the lighting conditions in selected images using AI. Adjust light direction, intensity, softness, and color temperature for dramatic lighting effects.'
   inputSchema = inputSchema
   
-  private tool = new RelightingTool()
+  private tool: RelightingTool | null = null
   
   async execute(params: Input, context: ObjectCanvasContext): Promise<Output> {
     // Validate input
@@ -52,6 +52,15 @@ export class RelightingAdapter extends UnifiedToolAdapter<Input, Output> {
     const targetImage = imageTargets[0]
     
     try {
+      // Initialize tool if needed (lazy initialization)
+      if (!this.tool) {
+        const { ModelPreferencesManager } = await import('@/lib/settings/ModelPreferences')
+        const { TypedEventBus } = await import('@/lib/events/core/TypedEventBus')
+        const preferencesManager = new ModelPreferencesManager()
+        const eventBus = new TypedEventBus()
+        this.tool = new RelightingTool(preferencesManager, eventBus)
+      }
+      
       // Convert lightDirection coordinates to direction string
       const lightDirectionStr = this.convertLightDirection(validated.lightDirection)
       

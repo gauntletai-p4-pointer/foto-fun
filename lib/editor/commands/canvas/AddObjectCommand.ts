@@ -1,5 +1,6 @@
 import type { CanvasObject } from '@/lib/editor/objects/types'
 import { Command, type CommandContext } from '../base/Command'
+import type { CommandResult } from '../base/CommandResult'
 
 export interface AddObjectOptions {
   object: Partial<CanvasObject>
@@ -33,10 +34,39 @@ export class AddObjectCommand extends Command {
     }
   }
 
-  async undo(): Promise<void> {
-    if (this.objectId) {
-      await this.context.canvasManager.removeObject(this.objectId)
-      this.objectId = null
+  async undo(): Promise<CommandResult<void>> {
+    try {
+      if (this.objectId) {
+        const removedObjectId = this.objectId
+        await this.context.canvasManager.removeObject(this.objectId)
+        this.objectId = null
+        return {
+          success: true,
+          data: undefined,
+          events: [],
+          metadata: {
+            executionTime: 0,
+            affectedObjects: [removedObjectId]
+          }
+        }
+      }
+      return {
+        success: true,
+        data: undefined,
+        events: [],
+        metadata: {
+          executionTime: 0,
+          affectedObjects: []
+        }
+      }
+    } catch (error) {
+      return {
+        success: false,
+        error: new (await import('../base/CommandResult')).ExecutionError(
+          `Failed to undo add object: ${error instanceof Error ? error.message : String(error)}`,
+          { commandId: this.id }
+        )
+      }
     }
   }
 

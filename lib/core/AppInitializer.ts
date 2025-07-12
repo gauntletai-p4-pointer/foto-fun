@@ -191,6 +191,7 @@ export class AppInitializer {
       // Register ObjectManager
       container.registerSingleton('ObjectManager', () => {
         return new ObjectManager(
+          'default', // canvasId
           container.getSync('TypedEventBus'),
           container.getSync('EventStore')
         )

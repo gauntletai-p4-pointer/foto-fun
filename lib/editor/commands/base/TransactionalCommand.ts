@@ -4,11 +4,12 @@ import type { TypedEventBus } from '@/lib/events/core/TypedEventBus'
 import type { BlendMode } from '@/lib/editor/canvas/types'
 import type { ImageData, TextData, ShapeData } from '@/lib/editor/objects/types'
 import { CommandExecutionError } from '@/lib/ai/errors'
+import type { CommandResult } from './CommandResult'
 
 /**
  * Object data union type for snapshots
  */
-export type SnapshotObjectData = ImageData | TextData | ShapeData
+export type SnapshotObjectData = ImageData | TextData | ShapeData | import('@/lib/editor/objects/types').GroupData
 
 /**
  * Canvas state snapshot for rollback
@@ -71,7 +72,7 @@ export abstract class TransactionalCommand extends Command {
   /**
    * Execute with automatic checkpoint and rollback
    */
-  async execute(): Promise<void> {
+  async execute(): Promise<CommandResult<void>> {
     const startTime = performance.now()
     
     try {
@@ -84,6 +85,16 @@ export abstract class TransactionalCommand extends Command {
       this.executionTime = performance.now() - startTime
       console.log(`[Command] ${this.description} executed in ${this.executionTime.toFixed(2)}ms`)
       
+      return {
+        success: true,
+        data: undefined,
+        events: [],
+        metadata: {
+          executionTime: this.executionTime,
+          affectedObjects: []
+        }
+      }
+      
     } catch (error) {
       // Automatic rollback on error
       console.error(`[Command] ${this.description} failed, rolling back...`, error)
@@ -94,33 +105,51 @@ export abstract class TransactionalCommand extends Command {
           console.log(`[Command] Rollback successful`)
         } catch (rollbackError) {
           console.error(`[Command] Rollback failed!`, rollbackError)
-          // Throw a more serious error if rollback fails
-          throw new CommandExecutionError(
-            this.description,
-            new Error(`Command failed and rollback also failed: ${rollbackError}`)
-          )
+          // Return a more serious error if rollback fails
+          return {
+            success: false,
+            error: new (await import('./CommandResult')).ExecutionError(
+              `Command failed and rollback also failed: ${rollbackError}`,
+              { commandId: this.id }
+            )
+          }
         }
       }
       
-      // Re-throw the original error wrapped in CommandExecutionError
-      throw new CommandExecutionError(
-        this.description,
-        error instanceof Error ? error : new Error(String(error))
-      )
+      // Return the original error wrapped in CommandExecutionError
+      return {
+        success: false,
+        error: new (await import('./CommandResult')).ExecutionError(
+          error instanceof Error ? error.message : String(error),
+          { commandId: this.id }
+        )
+      }
     }
   }
   
   /**
    * Undo the command
    */
-  async undo(): Promise<void> {
+  async undo(): Promise<CommandResult<void>> {
     try {
       await this.doUndo()
+      return {
+        success: true,
+        data: undefined,
+        events: [],
+        metadata: {
+          executionTime: 0,
+          affectedObjects: []
+        }
+      }
     } catch (error) {
-      throw new CommandExecutionError(
-        `Undo ${this.description}`,
-        error instanceof Error ? error : new Error(String(error))
-      )
+      return {
+        success: false,
+        error: new (await import('./CommandResult')).ExecutionError(
+          `Undo ${this.description}: ${error instanceof Error ? error.message : String(error)}`,
+          { commandId: this.id }
+        )
+      }
     }
   }
   

@@ -28,7 +28,17 @@ export class StyleTransferAdapter extends UnifiedToolAdapter<Input, Output> {
   description = 'Apply artistic styles to selected images. Transform photos into paintings, sketches, or other artistic styles using AI.'
   inputSchema = inputSchema
   
-  private tool = new StyleTransferTool()
+  private tool: StyleTransferTool | null = null
+
+  private async initializeTool() {
+    if (!this.tool) {
+      const { ModelPreferencesManager } = await import('@/lib/settings/ModelPreferences')
+      const { TypedEventBus } = await import('@/lib/events/core/TypedEventBus')
+      const preferencesManager = new ModelPreferencesManager()
+      const eventBus = new TypedEventBus()
+      this.tool = new (await import('@/lib/ai/tools/StyleTransferTool')).StyleTransferTool(preferencesManager, eventBus)
+    }
+  }
   
   async execute(params: Input, context: CanvasContext): Promise<Output> {
     // Validate input
@@ -45,7 +55,10 @@ export class StyleTransferAdapter extends UnifiedToolAdapter<Input, Output> {
     
     try {
       // Execute style transfer - tool creates and returns the canvas object
-      const resultObject = await this.tool.execute(targetImage, {
+      // Initialize tool if needed
+      await this.initializeTool()
+      
+      const resultObject = await this.tool!.execute(targetImage, {
         prompt: validated.stylePrompt,
         strength: validated.strength,
         modelTier: validated.modelTier

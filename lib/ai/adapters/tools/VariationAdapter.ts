@@ -27,7 +27,17 @@ export class VariationAdapter extends UnifiedToolAdapter<Input, Output> {
   description = 'Generate multiple AI variations of selected images. Creates new images with similar content but different styles, compositions, or details.'
   inputSchema = inputSchema
   
-  private tool = new VariationTool()
+  private tool: VariationTool | null = null
+
+  private async initializeTool() {
+    if (!this.tool) {
+      const { ModelPreferencesManager } = await import('@/lib/settings/ModelPreferences')
+      const { TypedEventBus } = await import('@/lib/events/core/TypedEventBus')
+      const preferencesManager = new ModelPreferencesManager()
+      const eventBus = new TypedEventBus()
+      this.tool = new (await import('@/lib/ai/tools/VariationTool')).VariationTool(preferencesManager, eventBus)
+    }
+  }
   
   async execute(params: Input, context: ObjectCanvasContext): Promise<Output> {
     // Validate input
@@ -44,7 +54,10 @@ export class VariationAdapter extends UnifiedToolAdapter<Input, Output> {
     
     try {
       // Execute variation generation - tool should create and return canvas objects
-      const variations = await this.tool.execute(targetImage, {
+      // Initialize tool if needed
+      await this.initializeTool()
+      
+      const variations = await this.tool!.execute(targetImage, {
         strength: validated.variationStrength,
         numVariations: validated.count
         // Note: seed and modelTier are not supported by VariationTool interface

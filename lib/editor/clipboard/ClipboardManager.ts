@@ -95,7 +95,11 @@ export class ClipboardManager {
     }
     
     // Emit copy event
-    this.typedEventBus.emit('clipboard.cut', { objects: clonedObjects })
+    this.typedEventBus.emit('clipboard.cut', { 
+      canvasId: 'default',
+      objects: clonedObjects,
+      timestamp: Date.now()
+    })
   }
   
   /**
@@ -109,7 +113,11 @@ export class ClipboardManager {
     await this.copy(objects)
     
     // Emit cut event
-    this.typedEventBus.emit('clipboard.cut', { objects })
+    this.typedEventBus.emit('clipboard.cut', { 
+      canvasId: 'default',
+      objects,
+      timestamp: Date.now()
+    })
     
     // The actual deletion is handled by the CutCommand
   }
@@ -164,7 +172,11 @@ export class ClipboardManager {
     }
     
     // Emit paste event
-    this.typedEventBus.emit('clipboard.paste', { objects: pastedObjects })
+    this.typedEventBus.emit('clipboard.paste', { 
+      canvasId: 'default',
+      objects: pastedObjects,
+      timestamp: Date.now()
+    })
     
     return pastedObjects
   }
@@ -229,17 +241,16 @@ export class ClipboardManager {
       scaleX: obj.scaleX,
       scaleY: obj.scaleY,
       zIndex: obj.zIndex,
-      objectId: obj.id,
-      objectType: obj.type,
-      objectData: obj,
-      timestamp: Date.now()
+      filters: obj.filters || [],
+      adjustments: obj.adjustments || [],
+      data: this.cloneData(obj.data)
     }
   }
   
   /**
    * Clone object data based on type
    */
-  private cloneData(data: import('@/lib/editor/objects/types').ImageData | import('@/lib/editor/objects/types').TextData | import('@/lib/editor/objects/types').ShapeData): import('@/lib/editor/objects/types').ImageData | import('@/lib/editor/objects/types').TextData | import('@/lib/editor/objects/types').ShapeData {
+  private cloneData(data: import('@/lib/editor/objects/types').ImageData | import('@/lib/editor/objects/types').TextData | import('@/lib/editor/objects/types').ShapeData | import('@/lib/editor/objects/types').GroupData): import('@/lib/editor/objects/types').ImageData | import('@/lib/editor/objects/types').TextData | import('@/lib/editor/objects/types').ShapeData | import('@/lib/editor/objects/types').GroupData {
     // Clone based on the actual data type
     if ('element' in data) {
       // ImageData
@@ -249,11 +260,18 @@ export class ClipboardManager {
       // TextData
       return { ...data }
     }
-    if ('type' in data) {
+    if ('type' in data && data.type !== 'group') {
       // ShapeData
       return {
         ...data,
-        points: data.points ? [...data.points] : undefined
+        points: (data as any).points ? [...(data as any).points] : undefined
+      }
+    }
+    if ('children' in data) {
+      // GroupData
+      return {
+        ...data,
+        children: data.children ? [...data.children] : []
       }
     }
     return data

@@ -3,6 +3,8 @@ import type { SelectionSnapshot } from '@/lib/ai/execution/SelectionSnapshot'
 import type { EventStore } from '@/lib/events/core/EventStore'
 import type { TypedEventBus } from '@/lib/events/core/TypedEventBus'
 import type { EventBasedHistoryStore } from '@/lib/events/history/EventBasedHistoryStore'
+import type { CommandResult } from './base/CommandResult'
+import { ResultUtils } from './base/CommandResult'
 
 /**
  * Result of a single command execution
@@ -95,7 +97,7 @@ export class CommandManager {
   /**
    * Execute a single command
    */
-  async executeCommand(command: Command): Promise<void> {
+  async executeCommand(command: Command): Promise<CommandResult<void>> {
     if (this.disposed) {
       throw new Error('CommandManager has been disposed')
     }
@@ -112,25 +114,38 @@ export class CommandManager {
       this.isExecuting = true
       
       // Execute the command with timeout if configured
+      let result: CommandResult<void>
       if (this.config.executionTimeout) {
-        await Promise.race([
+        result = await Promise.race([
           command.execute(),
-          new Promise((_, reject) => 
+          new Promise<CommandResult<void>>((_, reject) => 
             setTimeout(() => reject(new Error('Command execution timeout')), this.config.executionTimeout)
           )
         ])
       } else {
-        await command.execute()
+        result = await command.execute()
       }
       
-      // Emit success event
-      this.typedEventBus.emit('command.completed', { 
-        commandId: command.id || 'unknown',
-        success: true
-      })
+      // Handle result
+      if (ResultUtils.isSuccess(result)) {
+        // Emit success event
+        this.typedEventBus.emit('command.completed', { 
+          commandId: command.id || 'unknown',
+          commandType: command.constructor.name
+        })
+        
+        return result
+      } else {
+        // Emit failure event
+        this.typedEventBus.emit('command.failed', { 
+          commandId: command.id || 'unknown',
+          commandType: command.constructor.name,
+          error: result.error.message
+        })
+        
+        return result
+      }
       
-      // Command will emit its own events through the enhanced execute method
-      // History store will automatically track the command through events
     } catch (error) {
       // Remove from queue on error
       const index = this.executionQueue.indexOf(command)
@@ -141,10 +156,11 @@ export class CommandManager {
       // Emit failure event
       this.typedEventBus.emit('command.failed', { 
         commandId: command.id || 'unknown',
+        commandType: command.constructor.name,
         error: error instanceof Error ? error.message : String(error)
       })
       
-      // Re-throw the error
+      // Re-throw the error for legacy compatibility
       throw error
     } finally {
       this.isExecuting = false
