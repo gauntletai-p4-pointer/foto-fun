@@ -40,6 +40,12 @@
   --error: #ef4444;
   --error-foreground: #FFFFFF;
 
+  /* === POPOVER COLORS === */
+  --popover: #FFFFFF;
+  --popover-foreground: #1A1A1A;
+  --muted: rgb(26 26 26 / 0.5);
+  --muted-foreground: rgb(26 26 26 / 0.7);
+
   /* === TOOL PALETTE COLORS === */
   --tool-inactive: rgb(26 26 26 / 0.6);
   --tool-hover: rgb(26 26 26 / 0.8);
@@ -106,6 +112,12 @@
   --warning-foreground: #000000;
   --error: #ef4444;
   --error-foreground: #FFFFFF;
+
+  /* === POPOVER COLORS DARK === */
+  --popover: #2A2A2A;
+  --popover-foreground: #FAFAFA;
+  --muted: rgb(250 250 250 / 0.5);
+  --muted-foreground: rgb(250 250 250 / 0.7);
 
   /* === TOOL PALETTE COLORS DARK === */
   --tool-inactive: rgb(250 250 250 / 0.6);

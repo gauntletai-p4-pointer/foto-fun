@@ -8,6 +8,7 @@ import { tools } from '@/lib/editor/tools'
 import { cn } from '@/lib/utils'
 import { TOOL_GROUPS } from '@/constants'
 import { Check } from 'lucide-react'
+import type { Tool } from '@/types'
 
 type ToolGroup = {
   id: string
@@ -49,26 +50,29 @@ export function ToolPalette() {
   const toolState = useEventToolStore()
   const activeTool = toolState.activeTool
   const [expandedGroup, setExpandedGroup] = useState<string | null>(null)
-  const [selectedGroupTools, setSelectedGroupTools] = useState<Record<string, string>>({})
   const [dropdownPosition, setDropdownPosition] = useState<{ top: number; left: number } | null>(null)
   const paletteRef = useRef<HTMLDivElement>(null)
   const [mounted, setMounted] = useState(false)
   const [hoverTimeout, setHoverTimeout] = useState<NodeJS.Timeout | null>(null)
-  const [pressTimeout, setPressTimeout] = useState<NodeJS.Timeout | null>(null)
+  const [hoverArea, setHoverArea] = useState<'button' | 'dropdown' | null>(null)
   
   // Handle mounting for portal
   useEffect(() => {
     setMounted(true)
   }, [])
   
-  // Initialize selected tools with defaults
-  useEffect(() => {
-    const initialSelected: Record<string, string> = {}
-    Object.entries(DEFAULT_TOOLS).forEach(([groupId, toolId]) => {
-      initialSelected[groupId] = toolId
-    })
-    setSelectedGroupTools(initialSelected)
-  }, [])
+  /**
+   * Get the current tool for a group based on activeTool or defaults
+   */
+  const getCurrentGroupTool = (group: ToolGroup): Tool => {
+    // If activeTool belongs to this group, find the corresponding UI tool
+    if (activeTool && group.tools.some(t => t.id === activeTool.id)) {
+      return group.tools.find(t => t.id === activeTool.id) || group.primaryTool
+    }
+    // Otherwise use default tool for this group
+    const defaultToolId = DEFAULT_TOOLS[group.id]
+    return group.tools.find(t => t.id === defaultToolId) || group.primaryTool
+  }
   
   // Process all tools into groups and individual tools
   const { toolGroups, individualTools } = (() => {
@@ -84,8 +88,7 @@ export function ToolPalette() {
         
         const config = TOOL_GROUP_CONFIGS[groupName] || { showActiveIcon: true }
         const defaultToolId = DEFAULT_TOOLS[groupName]
-        const primaryToolId = selectedGroupTools[groupName] || defaultToolId || groupTools[0].id
-        const primaryTool = groupTools.find(t => t.id === primaryToolId) || groupTools[0]
+        const primaryTool = groupTools.find(t => t.id === defaultToolId) || groupTools[0]
         
         groups.push({
           id: groupName,
@@ -140,36 +143,43 @@ export function ToolPalette() {
   useEffect(() => {
     return () => {
       if (hoverTimeout) clearTimeout(hoverTimeout)
-      if (pressTimeout) clearTimeout(pressTimeout)
     }
-  }, [hoverTimeout, pressTimeout])
+  }, [hoverTimeout])
   
-  const handleToolClick = async (toolId: string, isImplemented: boolean, groupId?: string) => {
+  const handleToolClick = async (toolId: string, isImplemented: boolean) => {
     if (!isImplemented) {
       alert('This tool is not implemented yet')
       return
     }
     
+    // Simply activate the tool - this will update activeTool in store
     await toolStore.activateTool(toolId)
     
-    if (groupId) {
-      setSelectedGroupTools(prev => ({ ...prev, [groupId]: toolId }))
-      setExpandedGroup(null) // Close dropdown after selection
-      setDropdownPosition(null)
+    // Close dropdown immediately after selection
+    setExpandedGroup(null)
+    setDropdownPosition(null)
+    
+    // Clear hover state
+    setHoverArea(null)
+    if (hoverTimeout) {
+      clearTimeout(hoverTimeout)
+      setHoverTimeout(null)
     }
   }
-  
-  const handleGroupClick = (groupId: string, activeToolId: string, isImplemented: boolean) => {
+
+  const handleGroupClick = (groupId: string) => {
     const group = toolGroups.find(g => g.id === groupId)
     if (!group) return
     
-    // Always activate the current tool on click
-    handleToolClick(activeToolId, isImplemented, groupId)
+    const currentTool = getCurrentGroupTool(group)
+    handleToolClick(currentTool.id, currentTool.isImplemented)
   }
 
   const handleGroupHover = (groupId: string, buttonElement: HTMLButtonElement) => {
     const group = toolGroups.find(g => g.id === groupId)
     if (!group || group.tools.length <= 1) return
+    
+    setHoverArea('button')
     
     // Clear any existing timeout
     if (hoverTimeout) {
@@ -178,46 +188,52 @@ export function ToolPalette() {
     
     // Set new timeout for hover
     const timeout = setTimeout(() => {
-      const rect = buttonElement.getBoundingClientRect()
-      setDropdownPosition({
-        top: rect.top,
-        left: rect.right + 8 // 8px gap
-      })
-      setExpandedGroup(groupId)
-    }, 350) // 350ms hover delay
+      // Only open if still hovering the button area
+      if (hoverArea === 'button') {
+        const rect = buttonElement.getBoundingClientRect()
+        setDropdownPosition({
+          top: rect.top,
+          left: rect.right + 8
+        })
+        setExpandedGroup(groupId)
+      }
+    }, 350)
     
     setHoverTimeout(timeout)
   }
 
   const handleGroupLeave = () => {
+    setHoverArea(null)
+    
+    // Clear hover timeout
+    if (hoverTimeout) {
+      clearTimeout(hoverTimeout)
+      setHoverTimeout(null)
+    }
+    
+    // Close dropdown after small delay to allow moving to dropdown
+    setTimeout(() => {
+      if (hoverArea === null) {
+        setExpandedGroup(null)
+        setDropdownPosition(null)
+      }
+    }, 100)
+  }
+
+  const handleDropdownEnter = () => {
+    setHoverArea('dropdown')
+    // Clear any pending close timeout
     if (hoverTimeout) {
       clearTimeout(hoverTimeout)
       setHoverTimeout(null)
     }
   }
 
-  const handleGroupMouseDown = (groupId: string, buttonElement: HTMLButtonElement) => {
-    const group = toolGroups.find(g => g.id === groupId)
-    if (!group || group.tools.length <= 1) return
-    
-    // Set timeout for long press
-    const timeout = setTimeout(() => {
-      const rect = buttonElement.getBoundingClientRect()
-      setDropdownPosition({
-        top: rect.top,
-        left: rect.right + 8 // 8px gap
-      })
-      setExpandedGroup(groupId)
-    }, 300) // 300ms press delay
-    
-    setPressTimeout(timeout)
-  }
-
-  const handleGroupMouseUp = () => {
-    if (pressTimeout) {
-      clearTimeout(pressTimeout)
-      setPressTimeout(null)
-    }
+  const handleDropdownLeave = () => {
+    setHoverArea(null)
+    // Immediately close dropdown
+    setExpandedGroup(null)
+    setDropdownPosition(null)
   }
   
   const renderIndividualTool = (tool: typeof tools[0]) => {
@@ -237,7 +253,6 @@ export function ToolPalette() {
                 : "text-tool-inactive/50 cursor-not-allowed"
           )}
           onClick={() => handleToolClick(tool.id, isImplemented)}
-          title={tool.name}
         >
           <Icon className="w-5 h-5" />
         </button>
@@ -246,35 +261,16 @@ export function ToolPalette() {
   }
   
   const renderToolGroup = (group: ToolGroup) => {
-    const isActive = group.tools.some(tool => tool.id === activeTool?.id)
-    const hasMultipleTools = group.tools.length > 1
-    const currentSelectedTool = selectedGroupTools[group.id] || group.primaryTool.id
-    const activeGroupTool = group.tools.find(tool => tool.id === currentSelectedTool) || group.primaryTool
-    const isExpanded = expandedGroup === group.id
-    const isImplemented = activeGroupTool.isImplemented
+    const currentTool = getCurrentGroupTool(group)
+    const isActive = activeTool?.id === currentTool.id
+    const isImplemented = currentTool.isImplemented
     
     // Determine which icon to show
-    const IconToShow = group.showActiveIcon ? activeGroupTool.icon : (group.categoryIcon || activeGroupTool.icon)
-    
-    const tooltipText = hasMultipleTools 
-      ? `${activeGroupTool.name} (${group.name} - click for more)`
-      : activeGroupTool.name
+    const IconToShow = group.showActiveIcon ? currentTool.icon : (group.categoryIcon || currentTool.icon)
     
     return (
       <div key={group.id} className="relative">
         <button
-          ref={(el) => {
-            if (el && isExpanded) {
-              // Update position if this button is expanded
-              const rect = el.getBoundingClientRect()
-              if (dropdownPosition?.top !== rect.top || dropdownPosition?.left !== rect.right + 8) {
-                setDropdownPosition({
-                  top: rect.top,
-                  left: rect.right + 8
-                })
-              }
-            }
-          }}
           className={cn(
             "w-10 h-10 flex items-center justify-center rounded-md transition-all relative",
             isActive 
@@ -283,13 +279,10 @@ export function ToolPalette() {
                 ? "text-tool-inactive hover:bg-tool-background-hover hover:text-tool-hover"
                 : "text-tool-inactive/50 cursor-not-allowed"
           )}
-          onClick={() => handleGroupClick(group.id, activeGroupTool.id, isImplemented)}
+          onClick={() => handleGroupClick(group.id)}
           onMouseEnter={(e) => handleGroupHover(group.id, e.currentTarget)}
           onMouseLeave={handleGroupLeave}
-          onMouseDown={(e) => handleGroupMouseDown(group.id, e.currentTarget)}
-          onMouseUp={handleGroupMouseUp}
           disabled={!isImplemented}
-          title={tooltipText}
         >
           <IconToShow className="w-5 h-5" />
         </button>
@@ -304,21 +297,18 @@ export function ToolPalette() {
     const group = toolGroups.find(g => g.id === expandedGroup)
     if (!group || group.tools.length <= 1) return null
     
-    const currentSelectedTool = selectedGroupTools[group.id] || group.primaryTool.id
+    const currentTool = getCurrentGroupTool(group)
     
     return createPortal(
       <div 
-        className="fixed bg-popover border border-border rounded-lg shadow-xl min-w-[180px] p-1 animate-in slide-in-from-left-1 duration-200"
+        className="fixed bg-popover text-popover-foreground border border-border rounded-lg shadow-xl min-w-[180px] p-1 animate-in slide-in-from-left-1 duration-200"
         style={{
           top: dropdownPosition.top,
           left: dropdownPosition.left,
-          zIndex: 50,
-          backgroundColor: 'hsl(var(--popover))'
+          zIndex: 50
         }}
-        onMouseLeave={() => {
-          setExpandedGroup(null)
-          setDropdownPosition(null)
-        }}
+        onMouseEnter={handleDropdownEnter}
+        onMouseLeave={handleDropdownLeave}
       >
         {/* Group header */}
         <div className="text-xs font-medium text-muted-foreground px-2 py-1.5 border-b border-border mb-1">
@@ -329,7 +319,7 @@ export function ToolPalette() {
         {group.tools.map(tool => {
           const ToolIcon = tool.icon
           const isToolActive = tool.id === activeTool?.id
-          const isSelected = tool.id === currentSelectedTool
+          const isSelected = tool.id === currentTool.id
           
           return (
             <button
@@ -342,7 +332,7 @@ export function ToolPalette() {
                     ? "text-popover-foreground hover:bg-tool-background-hover"
                     : "text-muted-foreground cursor-not-allowed opacity-50"
               )}
-              onClick={() => handleToolClick(tool.id, tool.isImplemented, group.id)}
+              onClick={() => handleToolClick(tool.id, tool.isImplemented)}
               disabled={!tool.isImplemented}
             >
               <ToolIcon className="w-4 h-4 flex-shrink-0" />
