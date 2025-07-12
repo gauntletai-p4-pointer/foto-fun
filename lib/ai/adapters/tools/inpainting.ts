@@ -74,9 +74,45 @@ export class InpaintingAdapter extends BaseToolAdapter<InpaintInput, InpaintOutp
       const selectionMask = selection.mask
       const selectionBounds = selection.bounds
       
-      console.log('[InpaintingAdapter] Selection bounds:', selectionBounds)
-      console.log('[InpaintingAdapter] Canvas size:', context.canvas.getWidth(), 'x', context.canvas.getHeight())
-      console.log('[InpaintingAdapter] Selection mask size:', selectionMask.width, 'x', selectionMask.height)
+      console.log('[InpaintingAdapter - MASK PROCESSING] ===== MASK CONSTRUCTION ANALYSIS =====')
+      console.log('[InpaintingAdapter - MASK PROCESSING] Selection bounds received:', selectionBounds)
+      console.log('[InpaintingAdapter - MASK PROCESSING] Canvas size:', context.canvas.getWidth(), 'x', context.canvas.getHeight())
+      console.log('[InpaintingAdapter - MASK PROCESSING] Selection mask size:', selectionMask.width, 'x', selectionMask.height)
+      
+      // Count selected pixels in the original mask
+      let selectedPixelsCount = 0
+      for (let i = 3; i < selectionMask.data.length; i += 4) {
+        if (selectionMask.data[i] > 0) {
+          selectedPixelsCount++
+        }
+      }
+      console.log('[InpaintingAdapter - MASK PROCESSING] Selected pixels found in mask:', selectedPixelsCount)
+      
+      // Debug: Find the actual bounds of selected pixels in the mask
+      let minX = selectionMask.width, minY = selectionMask.height
+      let maxX = 0, maxY = 0
+      
+      for (let y = 0; y < selectionMask.height; y++) {
+        for (let x = 0; x < selectionMask.width; x++) {
+          const index = (y * selectionMask.width + x) * 4 + 3
+          if (selectionMask.data[index] > 0) {
+            minX = Math.min(minX, x)
+            minY = Math.min(minY, y)
+            maxX = Math.max(maxX, x)
+            maxY = Math.max(maxY, y)
+          }
+        }
+      }
+      
+      if (selectedPixelsCount > 0) {
+        console.log('[InpaintingAdapter - MASK PROCESSING] Actual mask pixel bounds:', { 
+          minX, minY, maxX, maxY, 
+          width: maxX - minX + 1, 
+          height: maxY - minY + 1
+        })
+      } else {
+        console.log('[InpaintingAdapter - MASK PROCESSING] NO PIXELS FOUND - mask is empty!')
+      }
       
       const maskCanvas = document.createElement('canvas')
       maskCanvas.width = selectionMask.width
@@ -85,6 +121,8 @@ export class InpaintingAdapter extends BaseToolAdapter<InpaintInput, InpaintOutp
       
       // Convert selection mask to black/white mask
       const maskData = maskCtx.createImageData(selectionMask.width, selectionMask.height)
+      let convertedPixels = 0
+      
       for (let i = 0; i < selectionMask.data.length; i += 4) {
         const alpha = selectionMask.data[i + 3]
         const isSelected = alpha > 128
@@ -95,21 +133,20 @@ export class InpaintingAdapter extends BaseToolAdapter<InpaintInput, InpaintOutp
         maskData.data[i + 1] = color // G
         maskData.data[i + 2] = color // B
         maskData.data[i + 3] = 255   // A (always opaque)
+        
+        if (isSelected) {
+          convertedPixels++
+        }
       }
+      
+      console.log('[InpaintingAdapter - MASK PROCESSING] Converted pixels to white (final mask):', convertedPixels)
+      console.log('[InpaintingAdapter - MASK PROCESSING] ===== END MASK ANALYSIS =====')
       
       maskCtx.putImageData(maskData, 0, 0)
       const maskUrl = maskCanvas.toDataURL('image/png')
-      console.log('[InpaintingAdapter] Generated mask URL length:', maskUrl.length)
       
       // Get image without selection overlay
       const imageUrl = await CanvasToolBridge.getCleanCanvasImage(context.canvas, { format: 'png', multiplier: 1 })
-      
-      // Remove width/height auto-fill logic
-      
-      // Debug: Verify mask positioning
-      console.log('[InpaintingAdapter] Selection bounds:', selectionBounds)
-      console.log('[InpaintingAdapter] Canvas size:', context.canvas.getWidth(), 'x', context.canvas.getHeight())
-      console.log('[InpaintingAdapter] Selection mask size:', selectionMask.width, 'x', selectionMask.height)
       
       // Call API
       const response = await fetch('/api/ai/replicate/inpaint', {
@@ -138,9 +175,7 @@ export class InpaintingAdapter extends BaseToolAdapter<InpaintInput, InpaintOutp
       }
       
       // Show in review modal instead of applying directly
-      console.log('[InpaintingAdapter] Showing result in review modal...')
       await this.showInReviewModal(result.imageUrl, context.canvas, params.prompt, maskUrl)
-      console.log('[InpaintingAdapter] Review modal displayed')
       
       return {
         success: true,
@@ -161,16 +196,12 @@ export class InpaintingAdapter extends BaseToolAdapter<InpaintInput, InpaintOutp
 
 
   private async showInReviewModal(processedImageUrl: string, canvas: fabric.Canvas, prompt: string, maskImage: string): Promise<void> {
-    console.log('[InpaintingAdapter] showInReviewModal called with imageUrl length:', processedImageUrl.length)
-    
     // Get the original canvas as base64 for comparison (without selection overlay)
     const originalImageUrl = await CanvasToolBridge.getCleanCanvasImage(canvas, { format: 'png', multiplier: 1 })
     
     // Get canvas store to show review modal
     const { useCanvasStore } = await import('@/store/canvasStore')
     const canvasStore = useCanvasStore.getState()
-    
-    console.log('[InpaintingAdapter] Setting up review modal...')
     
     canvasStore.setReviewModal({
       isOpen: true,
@@ -179,16 +210,13 @@ export class InpaintingAdapter extends BaseToolAdapter<InpaintInput, InpaintOutp
       processedImage: processedImageUrl,
       maskImage: maskImage,
       onApplyInPlace: () => {
-        console.log('[InpaintingAdapter] User chose to apply inpainting result')
         this.applyToCanvas(processedImageUrl, canvas, prompt)
         canvasStore.setReviewModal(null)
       },
       onRejectChange: () => {
-        console.log('[InpaintingAdapter] User rejected inpainting result')
         canvasStore.setReviewModal(null)
       },
       onAcceptBoth: () => {
-        console.log('[InpaintingAdapter] User chose to keep both images')
         this.applyToCanvas(processedImageUrl, canvas, prompt)
         canvasStore.setReviewModal(null)
       }

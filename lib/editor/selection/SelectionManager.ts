@@ -167,20 +167,65 @@ export class SelectionManager {
     // Create image data for the rectangle
     const imageData = this.selectionContext.createImageData(this.selectionCanvas.width, this.selectionCanvas.height)
     
-    // Fill the rectangle area
-    for (let py = Math.floor(y); py < Math.ceil(y + height); py++) {
-      for (let px = Math.floor(x); px < Math.ceil(x + width); px++) {
+    console.log('[SelectionManager - MASK CONSTRUCTION] Input selection:', { x, y, width, height })
+    console.log('[SelectionManager - MASK CONSTRUCTION] Canvas bounds:', { 
+      width: this.selectionCanvas.width, 
+      height: this.selectionCanvas.height 
+    })
+    
+    // Clip selection to canvas bounds for mask construction
+    const clippedLeft = Math.max(0, Math.floor(x))
+    const clippedTop = Math.max(0, Math.floor(y))
+    const clippedRight = Math.min(imageData.width, Math.ceil(x + width))
+    const clippedBottom = Math.min(imageData.height, Math.ceil(y + height))
+    
+    // Calculate clipped dimensions
+    const clippedWidth = Math.max(0, clippedRight - clippedLeft)
+    const clippedHeight = Math.max(0, clippedBottom - clippedTop)
+    
+    console.log('[SelectionManager - MASK CONSTRUCTION] Clipped to canvas:', { 
+      left: clippedLeft, 
+      top: clippedTop, 
+      right: clippedRight, 
+      bottom: clippedBottom,
+      width: clippedWidth,
+      height: clippedHeight
+    })
+    
+    // Track how many pixels are being set
+    let pixelsSet = 0
+    
+    // Fill the clipped rectangle area
+    for (let py = clippedTop; py < clippedBottom; py++) {
+      for (let px = clippedLeft; px < clippedRight; px++) {
+        // Double check bounds (should always pass now)
         if (px >= 0 && px < imageData.width && py >= 0 && py < imageData.height) {
           const index = (py * imageData.width + px) * 4
           imageData.data[index + 3] = 255 // Set alpha to fully selected
+          pixelsSet++
         }
       }
     }
     
-    // Create shape information
+    console.log('[SelectionManager - MASK CONSTRUCTION] Pixels set in mask:', pixelsSet)
+    console.log('[SelectionManager - MASK CONSTRUCTION] Expected pixels (clipped):', clippedWidth * clippedHeight)
+    
+    // Create shape information (keep original bounds for shape data)
     const shape: SelectionShape = { type: 'rectangle', x, y, width, height }
     
     this.applySelectionMode(imageData, bounds, mode, shape)
+    
+    const finalSelection = this.getSelection()
+    if (finalSelection) {
+      // Count non-zero pixels in final mask for verification
+      let finalPixelsSet = 0
+      for (let i = 3; i < finalSelection.mask.data.length; i += 4) {
+        if (finalSelection.mask.data[i] > 0) {
+          finalPixelsSet++
+        }
+      }
+      console.log('[SelectionManager - MASK CONSTRUCTION] Final mask verification - pixels set:', finalPixelsSet)
+    }
   }
   
   /**

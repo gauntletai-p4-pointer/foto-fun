@@ -13,8 +13,6 @@ class AdapterRegistry {
    */
   register(adapter: ToolAdapter): void {
     this.adapters.set(adapter.aiName, adapter)
-    console.log(`[AdapterRegistry] Registered AI adapter: ${adapter.aiName}`)
-    console.log(`[AdapterRegistry] Adapter description: ${adapter.description}`)
   }
   
   /**

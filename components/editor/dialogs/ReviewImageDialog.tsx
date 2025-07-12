@@ -132,7 +132,35 @@ export function ReviewImageDialog() {
             </div>
           </div>
           
-
+          {/* Mask Image Display (only for inpainting operations) */}
+          {reviewModal.maskImage && (
+            <div className="space-y-4">
+              <div className="flex justify-between items-center">
+                <h3 className="text-sm font-medium text-foreground/80">Inpainting Mask</h3>
+                <span className="text-xs text-foreground/60">Shows the area that was modified</span>
+              </div>
+              
+              <div className="relative aspect-[4/3] bg-foreground/5 rounded-lg overflow-hidden border border-foreground/10">
+                <Image
+                  src={reviewModal.maskImage}
+                  alt="Inpainting mask"
+                  fill
+                  className="object-contain"
+                  sizes="800px"
+                  unoptimized
+                />
+                
+                {/* Mask Label */}
+                <div className="absolute top-2 left-2 px-2 py-1 bg-black/50 text-white text-xs rounded">
+                  Mask
+                </div>
+              </div>
+              
+              <div className="text-xs text-foreground/60">
+                White areas show where AI inpainting was applied, black areas were preserved from the original image.
+              </div>
+            </div>
+          )}
 
           {/* Action Buttons */}
           <div className="flex justify-end gap-3 pt-4 border-t border-foreground/10">

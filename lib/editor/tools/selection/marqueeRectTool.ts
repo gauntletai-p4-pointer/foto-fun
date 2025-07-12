@@ -146,5 +146,7 @@ class MarqueeRectTool extends SelectionTool {
   }
 }
 
+export { MarqueeRectTool }
+
 // Export singleton instance
 export const marqueeRectTool = new MarqueeRectTool() 
