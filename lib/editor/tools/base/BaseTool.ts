@@ -1,36 +1,13 @@
-import type { Tool, ToolEvent } from '@/lib/editor/canvas/types'
-import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
-import type { TypedEventBus } from '@/lib/events/core/TypedEventBus'
-import type { CommandManager } from '@/lib/editor/commands/CommandManager'
-import type { ResourceManager } from '@/lib/core/ResourceManager'
-import type { SelectionManager } from '@/lib/editor/selection/SelectionManager'
-import type { FilterManager } from '@/lib/editor/filters/FilterManager'
-import type { Command, CommandContext } from '@/lib/editor/commands/base/Command'
+import type { TypedEventBus } from '@/lib/events/core/TypedEventBus';
+import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager';
+import type { CommandManager } from '@/lib/editor/commands/CommandManager';
+import type { ResourceManager } from '@/lib/core/ResourceManager';
+import type { SelectionManager } from '@/lib/editor/selection/SelectionManager';
+import type { FilterManager } from '@/lib/editor/filters/FilterManager';
+import type { Command } from '@/lib/editor/commands/base/Command';
+import type { CommandContext } from '@/lib/editor/commands/base/Command';
+import React from 'react';
 
-/**
- * Tool State Machine States
- */
-export enum ToolState {
-  INACTIVE = 'INACTIVE',
-  ACTIVATING = 'ACTIVATING', 
-  ACTIVE = 'ACTIVE',
-  WORKING = 'WORKING',
-  DEACTIVATING = 'DEACTIVATING'
-}
-
-/**
- * Tool State Transition Record
- */
-export interface ToolStateTransition {
-  from: ToolState;
-  to: ToolState;
-  timestamp: number;
-  reason?: string;
-}
-
-/**
- * Tool Dependencies for Dependency Injection
- */
 export interface ToolDependencies {
   eventBus: TypedEventBus;
   canvasManager: CanvasManager;
@@ -40,276 +17,222 @@ export interface ToolDependencies {
   filterManager?: FilterManager;
 }
 
-/**
- * Tool Option Definition for Type Safety
- */
-export interface ToolOptionDefinition<T = any> {
-  type: 'number' | 'string' | 'boolean' | 'color' | 'enum';
-  default: T;
-  min?: number;
-  max?: number;
-  enum?: T[];
-  validator?: (value: T) => boolean;
-  description?: string;
+export enum ToolState {
+  INACTIVE = 'INACTIVE',
+  ACTIVATING = 'ACTIVATING',
+  ACTIVE = 'ACTIVE',
+  WORKING = 'WORKING',
+  DEACTIVATING = 'DEACTIVATING'
 }
 
-/**
- * Tool Options Interface
- */
+export interface ToolEvent {
+  x: number;
+  y: number;
+  button?: number;
+  ctrlKey?: boolean;
+  shiftKey?: boolean;
+  altKey?: boolean;
+  metaKey?: boolean;
+  type?: string;
+  target?: any;
+  preventDefault?: () => void;
+  stopPropagation?: () => void;
+}
+
 export interface ToolOptions {
-  [key: string]: ToolOptionDefinition;
+  [key: string]: any;
 }
 
-/**
- * Tool with State Machine Interface
- */
-export interface ToolWithState extends Tool {
-  state: ToolState;
-  canTransitionTo(newState: ToolState): boolean;
-  setState(newState: ToolState, reason?: string): void;
-}
-
-/**
- * Enhanced Base Tool with Senior Architecture Patterns
- * - State Machine for proper lifecycle management
- * - Dependency Injection for all services
- * - Event-driven communication
- * - Command pattern integration
- * - Type-safe options system
- */
-export abstract class BaseTool<TOptions extends ToolOptions = {}> implements ToolWithState {
-  // Required Tool interface properties
+export abstract class BaseTool {
   abstract id: string;
   abstract name: string;
   abstract icon: React.ComponentType;
-  abstract cursor: string;
-  shortcut?: string;
   
-  // State machine
-  state: ToolState = ToolState.INACTIVE;
-  private stateHistory: ToolStateTransition[] = [];
+  readonly instanceId: string = '';
+  cursor: string = 'default';
   
-  // Dependencies (injected)
-  protected dependencies: ToolDependencies;
+  private state = ToolState.INACTIVE;
+  private stateTransitions = new Map<string, Set<ToolState>>();
+  private cleanupTasks: Array<() => void> = [];
   
-  // Type-safe options
-  protected options: Record<string, any> = {};
-  
-  constructor(dependencies: ToolDependencies) {
-    this.dependencies = dependencies;
-    this.initializeOptions();
+  constructor(protected dependencies: ToolDependencies) {
+    this.setupStateTransitions();
   }
   
-  // State machine implementation
-  setState(newState: ToolState, reason?: string): void {
-    if (!this.canTransitionTo(newState)) {
-      throw new Error(`Invalid transition from ${this.state} to ${newState}`);
+  private setupStateTransitions(): void {
+    this.stateTransitions.set(ToolState.INACTIVE, new Set([ToolState.ACTIVATING]));
+    this.stateTransitions.set(ToolState.ACTIVATING, new Set([ToolState.ACTIVE, ToolState.INACTIVE]));
+    this.stateTransitions.set(ToolState.ACTIVE, new Set([ToolState.WORKING, ToolState.DEACTIVATING]));
+    this.stateTransitions.set(ToolState.WORKING, new Set([ToolState.ACTIVE, ToolState.DEACTIVATING]));
+    this.stateTransitions.set(ToolState.DEACTIVATING, new Set([ToolState.INACTIVE]));
+  }
+  
+  transitionTo(newState: ToolState): void {
+    const allowedTransitions = this.stateTransitions.get(this.state);
+    if (!allowedTransitions?.has(newState)) {
+      throw new Error(`Invalid state transition: ${this.state} -> ${newState} for tool ${this.id}`);
     }
     
-    const transition: ToolStateTransition = {
-      from: this.state,
-      to: newState,
-      timestamp: Date.now(),
-      reason
-    };
-    
+    const oldState = this.state;
     this.state = newState;
-    this.stateHistory.push(transition);
+    this.onStateChange(oldState, newState);
     
-    // Emit tool message event with state change information
-    this.dependencies.eventBus.emit('tool.message', {
+    // Emit state change event
+    this.dependencies.eventBus.emit('tool.state.changed', {
       toolId: this.id,
-      message: `State changed from ${transition.from} to ${transition.to}`,
-      type: 'info',
-      metadata: { transition }
-    });
-  }
-  
-  canTransitionTo(newState: ToolState): boolean {
-    const validTransitions: Record<ToolState, ToolState[]> = {
-      [ToolState.INACTIVE]: [ToolState.ACTIVATING],
-      [ToolState.ACTIVATING]: [ToolState.ACTIVE, ToolState.INACTIVE],
-      [ToolState.ACTIVE]: [ToolState.WORKING, ToolState.DEACTIVATING],
-      [ToolState.WORKING]: [ToolState.ACTIVE, ToolState.DEACTIVATING],
-      [ToolState.DEACTIVATING]: [ToolState.INACTIVE]
-    };
-    
-    return validTransitions[this.state]?.includes(newState) ?? false;
-  }
-  
-  // Safe event handlers with state guards
-  onMouseDown?(event: ToolEvent): void {
-    if (this.state !== ToolState.ACTIVE) return;
-    this.setState(ToolState.WORKING, 'Mouse interaction started');
-    this.handleMouseDown(event);
-  }
-  
-  onMouseMove?(event: ToolEvent): void {
-    if (this.state !== ToolState.ACTIVE && this.state !== ToolState.WORKING) return;
-    this.handleMouseMove(event);
-  }
-  
-  onMouseUp?(event: ToolEvent): void {
-    if (this.state !== ToolState.WORKING) return;
-    this.handleMouseUp(event);
-    this.setState(ToolState.ACTIVE, 'Mouse interaction completed');
-  }
-  
-  // Abstract methods for tool-specific logic
-  protected abstract getOptionDefinitions(): TOptions;
-  protected abstract handleMouseDown(event: ToolEvent): void;
-  protected abstract handleMouseMove(event: ToolEvent): void;
-  protected abstract handleMouseUp(event: ToolEvent): void;
-  
-  // Command pattern integration
-  protected async executeCommand(command: Command): Promise<void> {
-    const result = await this.dependencies.commandManager.executeCommand(command);
-    if (result.success) {
-      this.dependencies.eventBus.emit('tool.message', {
-        toolId: this.id,
-        message: `Command executed: ${command.constructor.name}`,
-        type: 'success'
-      });
-    } else {
-      this.dependencies.eventBus.emit('tool.message', {
-        toolId: this.id,
-        message: `Command failed: ${result.error.message}`,
-        type: 'error'
-      });
-    }
-  }
-
-  // Command context creation for tools
-  protected getCommandContext(): CommandContext {
-    if (!this.dependencies.selectionManager) {
-      throw new Error(`Tool ${this.id} requires SelectionManager dependency for command execution`);
-    }
-    
-    return {
-      eventBus: this.dependencies.eventBus,
-      canvasManager: this.dependencies.canvasManager,
-      selectionManager: this.dependencies.selectionManager,
-      executionId: this.generateExecutionId(),
+      instanceId: this.instanceId,
+      from: oldState,
+      to: newState,
       timestamp: Date.now()
-    };
-  }
-
-  private generateExecutionId(): string {
-    return `${this.id}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-  }
-  
-  // Type-safe options system
-  private initializeOptions(): void {
-    const definitions = this.getOptionDefinitions();
-    Object.entries(definitions).forEach(([key, definition]) => {
-      this.options[key] = definition.default;
     });
   }
   
-  setOption<K extends keyof TOptions>(
-    key: K, 
-    value: TOptions[K]['default']
-  ): void {
-    const definition = this.getOptionDefinitions()[key];
-    if (definition.validator && !definition.validator(value)) {
-      throw new Error(`Invalid value for option ${String(key)}: ${value}`);
-    }
-    
-    this.options[String(key)] = value;
-    this.dependencies.eventBus.emit('tool.option.changed', {
-      toolId: this.id,
-      optionId: String(key),
-      optionKey: String(key),
-      value
-    });
+  getState(): ToolState {
+    return this.state;
   }
   
-  getOption<K extends keyof TOptions>(key: K): TOptions[K]['default'] {
-    return this.options[String(key)];
-  }
-  
-  // Tool lifecycle methods
-  async onActivate(): Promise<void> {
-    this.setState(ToolState.ACTIVATING, 'Tool activation requested');
-    await this.setupTool();
-    this.setState(ToolState.ACTIVE, 'Tool activation completed');
-  }
-  
-  async onDeactivate(): Promise<void> {
-    this.setState(ToolState.DEACTIVATING, 'Tool deactivation requested');
-    await this.cleanupTool();
-    this.setState(ToolState.INACTIVE, 'Tool deactivation completed');
-  }
-  
-  protected abstract setupTool(): Promise<void>;
-  protected abstract cleanupTool(): Promise<void>;
-  
-  // Utility methods for accessing dependencies
-  protected getCanvas(): CanvasManager {
-    return this.dependencies.canvasManager;
-  }
-  
-  protected getEventBus(): TypedEventBus {
-    return this.dependencies.eventBus;
-  }
-  
-  protected getCommandManager(): CommandManager {
-    return this.dependencies.commandManager;
-  }
-  
-  protected getResourceManager(): ResourceManager {
-    return this.dependencies.resourceManager;
-  }
-  
-  protected getSelectionManager(): SelectionManager | undefined {
-    return this.dependencies.selectionManager;
-  }
-  
-  protected getFilterManager(): FilterManager | undefined {
-    return this.dependencies.filterManager;
-  }
-  
-  // Resource management helpers
-  protected registerEventListener<K extends keyof WindowEventMap>(
-    id: string,
-    target: EventTarget,
-    event: K,
-    handler: (ev: WindowEventMap[K]) => void,
-    options?: AddEventListenerOptions
-  ): void {
-    this.getResourceManager().registerEventListener(id, target, event, handler, options);
-  }
-  
-  protected registerCleanup(id: string, cleanup: () => void | Promise<void>): void {
-    this.getResourceManager().registerCleanup(id, cleanup);
-  }
-  
-  protected registerInterval(id: string, callback: () => void, delay: number): NodeJS.Timeout {
-    return this.getResourceManager().registerInterval(id, callback, delay);
-  }
-  
-  protected registerTimeout(id: string, callback: () => void, delay: number): NodeJS.Timeout {
-    return this.getResourceManager().registerTimeout(id, callback, delay);
-  }
-  
-  protected registerAnimationFrame(id: string, callback: (time: number) => void): number {
-    return this.getResourceManager().registerAnimationFrame(id, callback);
-  }
-  
-  // State introspection
-  getStateHistory(): ToolStateTransition[] {
-    return [...this.stateHistory];
-  }
-  
-  getLastTransition(): ToolStateTransition | null {
-    return this.stateHistory[this.stateHistory.length - 1] || null;
-  }
-  
-  isActive(): boolean {
+  protected canHandleEvents(): boolean {
     return this.state === ToolState.ACTIVE || this.state === ToolState.WORKING;
   }
   
-  isWorking(): boolean {
-    return this.state === ToolState.WORKING;
+  // Event handlers with state guards
+  onMouseMove(event: ToolEvent): void {
+    if (!this.canHandleEvents()) return;
+    this.handleMouseMove(event);
   }
-} 
+  
+  onMouseDown(event: ToolEvent): void {
+    if (!this.canHandleEvents()) return;
+    this.transitionTo(ToolState.WORKING);
+    this.handleMouseDown(event);
+  }
+  
+  onMouseUp(event: ToolEvent): void {
+    if (this.state === ToolState.WORKING) {
+      this.transitionTo(ToolState.ACTIVE);
+    }
+    this.handleMouseUp(event);
+  }
+  
+  onKeyDown(event: KeyboardEvent): void {
+    if (!this.canHandleEvents()) return;
+    this.handleKeyDown(event);
+  }
+  
+  onKeyUp(event: KeyboardEvent): void {
+    if (!this.canHandleEvents()) return;
+    this.handleKeyUp(event);
+  }
+  
+  // Lifecycle methods
+  async onActivate(): Promise<void> {
+    this.transitionTo(ToolState.ACTIVATING);
+    try {
+      await this.setupTool();
+      this.transitionTo(ToolState.ACTIVE);
+    } catch (error) {
+      this.transitionTo(ToolState.INACTIVE);
+      throw error;
+    }
+  }
+  
+  async onDeactivate(): Promise<void> {
+    this.transitionTo(ToolState.DEACTIVATING);
+    try {
+      await this.cleanupTool();
+    } finally {
+      this.transitionTo(ToolState.INACTIVE);
+    }
+  }
+  
+  // Command execution helper
+  protected async executeCommand(command: Command): Promise<void> {
+    const result = await this.dependencies.commandManager.executeCommand(command);
+    if (!result.success) {
+      throw new Error(result.error.message);
+    }
+  }
+  
+  // Helper to get command context
+  protected getCommandContext(): CommandContext {
+    return {
+      canvasManager: this.dependencies.canvasManager,
+      selectionManager: this.dependencies.selectionManager!,
+      eventBus: this.dependencies.eventBus,
+      executionId: `${this.id}-${Date.now()}`,
+      timestamp: Date.now()
+    };
+  }
+  
+  // Tool operation event emission methods - NEW
+  protected emitOperation(operation: string, params: any): void {
+    this.dependencies.eventBus.emit('tool.operation.requested', {
+      toolId: this.id,
+      instanceId: this.instanceId,
+      operation,
+      params,
+      timestamp: Date.now()
+    });
+  }
+
+  protected emitIntent(intent: string, context: any): void {
+    this.dependencies.eventBus.emit('tool.intent', {
+      toolId: this.id,
+      instanceId: this.instanceId,
+      intent,
+      context,
+      timestamp: Date.now()
+    });
+  }
+  
+  // Resource cleanup system
+  protected registerCleanup(cleanup: () => void): void {
+    this.cleanupTasks.push(cleanup);
+  }
+  
+  async dispose(): Promise<void> {
+    // Run all cleanup tasks
+    for (const task of this.cleanupTasks) {
+      try {
+        await task();
+      } catch (error) {
+        console.error('Tool cleanup error:', error);
+      }
+    }
+    
+    // Clear references
+    this.cleanupTasks = [];
+    (this.dependencies as any) = null;
+  }
+  
+  // Options system (to be implemented by subclasses)
+  protected getDefaultOptions(): Record<string, any> {
+    return {};
+  }
+  
+  protected getOptionDefinitions(): Record<string, any> {
+    return {};
+  }
+  
+  protected getAllOptions(): Record<string, any> {
+    const defaults = this.getDefaultOptions();
+    // TODO: Integrate with EventToolOptionsStore when available
+    // const current = this.dependencies.toolOptionsStore?.getOptions(this.id) || {};
+    // return { ...defaults, ...current };
+    return defaults;
+  }
+  
+  // Abstract methods that must be implemented by subclasses
+  protected abstract onStateChange(from: ToolState, to: ToolState): void;
+  protected abstract handleMouseMove(event: ToolEvent): void;
+  protected abstract handleMouseDown(event: ToolEvent): void;
+  protected abstract handleMouseUp(event: ToolEvent): void;
+  protected abstract handleKeyDown(event: KeyboardEvent): void;
+  protected abstract handleKeyUp(event: KeyboardEvent): void;
+  protected abstract setupTool(): Promise<void>;
+  protected abstract cleanupTool(): Promise<void>;
+}
+
+export interface ToolWithState {
+  getState(): ToolState;
+}

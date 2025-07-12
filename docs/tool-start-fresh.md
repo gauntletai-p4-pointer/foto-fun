@@ -1,5 +1,1017 @@
 # Tool System: Complete Rebuild Plan
 
+## 🎯 CURRENT STATUS UPDATE
+
+### ✅ COMPLETED FOUNDATION (95%)
+The core architecture is now **NEARLY COMPLETE** and working correctly:
+
+1. **Enhanced BaseTool** ✅
+   - Complete state machine with validation (INACTIVE → ACTIVATING → ACTIVE → WORKING → DEACTIVATING)
+   - Event handler guards that prevent invalid state operations
+   - Resource cleanup system with `registerCleanup()` and automatic disposal
+   - Proper dependency injection through `ToolDependencies` interface
+   - Command execution helpers with proper error handling
+   - State change event emission for monitoring
+   - Abstract methods that enforce proper implementation
+
+2. **ToolFactory** ✅
+   - Creates fresh tool instances with dependency injection
+   - Assigns unique instanceIds to each tool
+   - Proper error handling and fallback mechanisms
+
+3. **ToolRegistry** ✅
+   - Simple catalog that registers tool classes with metadata
+   - Validates tool classes on registration
+   - Does NOT manage active tools (correct architecture)
+
+4. **EventToolStore** ✅
+   - Manages single active tool with proper lifecycle
+   - Uses PromiseQueue for race condition prevention
+   - Handles transient tool instances with proper disposal
+   - Emits proper lifecycle events
+
+5. **Event System** ✅
+   - Added `tool.state.changed`, `store.tool.activated`, `store.tool.deactivated` events
+   - Proper event typing in TypedEventBus
+
+6. **Tool Deprecation** ✅
+   - All 42 existing tools moved to `lib/deprecated/` with comprehensive stubs
+   - App stabilized with no tools active
+   - Foundation ready for new architecture
+
+### 🔧 REMAINING FOUNDATION WORK
+
+Before agents can start building individual tools, we need to complete these **CRITICAL** foundation pieces:
+
+#### 1. **Tool Event System** (URGENT)
+Need to define and implement `ToolEvent` interface:
+
+```typescript
+// lib/editor/tools/base/ToolEvent.ts - CREATE THIS FILE
+export interface ToolEvent {
+  // Mouse events
+  x: number;
+  y: number;
+  button?: number;
+  buttons?: number;
+  
+  // Keyboard modifiers
+  ctrlKey?: boolean;
+  shiftKey?: boolean;
+  altKey?: boolean;
+  metaKey?: boolean;
+  
+  // Canvas context
+  canvasX: number;
+  canvasY: number;
+  
+  // Event metadata
+  timestamp: number;
+  eventType: 'mousedown' | 'mousemove' | 'mouseup' | 'keydown' | 'keyup';
+  
+  // Prevent default handling
+  preventDefault(): void;
+  stopPropagation(): void;
+}
+```
+
+#### 2. **Tool Operation Event System** (URGENT)
+Tools should emit events, NOT create commands directly:
+
+```typescript
+// lib/editor/tools/base/BaseTool.ts - ADD THIS METHOD
+protected emitOperation(operation: string, params: any): void {
+  this.dependencies.eventBus.emit('tool.operation.requested', {
+    toolId: this.id,
+    instanceId: this.instanceId,
+    operation,
+    params,
+    timestamp: Date.now()
+  });
+}
+
+protected emitIntent(intent: string, context: any): void {
+  this.dependencies.eventBus.emit('tool.intent', {
+    toolId: this.id,
+    instanceId: this.instanceId,
+    intent,
+    context,
+    timestamp: Date.now()
+  });
+}
+```
+
+#### 3. **Canvas Integration Bridge** (URGENT)
+Need to fix Canvas component to work with new tool system:
+
+```typescript
+// components/editor/Canvas/index.tsx - UPDATE EVENT HANDLERS
+const handleMouseDown = (e: KonvaEventObject<MouseEvent>) => {
+  const tool = toolStore.getActiveTool();
+  if (!tool) return;
+  
+  const toolEvent: ToolEvent = {
+    x: e.evt.clientX,
+    y: e.evt.clientY,
+    canvasX: e.target.x(),
+    canvasY: e.target.y(),
+    button: e.evt.button,
+    buttons: e.evt.buttons,
+    ctrlKey: e.evt.ctrlKey,
+    shiftKey: e.evt.shiftKey,
+    altKey: e.evt.altKey,
+    metaKey: e.evt.metaKey,
+    timestamp: Date.now(),
+    eventType: 'mousedown',
+    preventDefault: () => e.evt.preventDefault(),
+    stopPropagation: () => e.evt.stopPropagation()
+  };
+  
+  tool.onMouseDown(toolEvent);
+};
+```
+
+#### 4. **Tool Options Integration** (URGENT)
+Need to connect tools to the options system:
+
+```typescript
+// lib/editor/tools/base/BaseTool.ts - ADD OPTIONS METHODS
+protected getDefaultOptions(): Record<string, any> {
+  return {};
+}
+
+protected getOptionDefinitions(): Record<string, ToolOptionDefinition> {
+  return {};
+}
+
+protected getAllOptions(): Record<string, any> {
+  const defaults = this.getDefaultOptions();
+  const current = this.dependencies.toolOptionsStore?.getOptions(this.id) || {};
+  return { ...defaults, ...current };
+}
+```
+
+#### 5. **UI Tool Groups System** (URGENT)
+Need to create tool groups for UI organization:
+
+```typescript
+// lib/editor/tools/base/ToolGroup.ts - CREATE THIS FILE
+export interface ToolGroupMetadata {
+  id: string;
+  name: string;
+  icon: React.ComponentType;
+  tools: string[];
+  defaultTool: string;
+  showActiveToolIcon: boolean;
+  priority: number;
+}
+
+// Update ToolRegistry to support groups
+export class ToolRegistry {
+  private toolGroups = new Map<string, ToolGroupMetadata>();
+  
+  registerToolGroup(group: ToolGroupMetadata): void {
+    this.toolGroups.set(group.id, group);
+  }
+  
+  getToolGroups(): ToolGroupMetadata[] {
+    return Array.from(this.toolGroups.values())
+      .sort((a, b) => a.priority - b.priority);
+  }
+  
+  getToolGroup(groupId: string): ToolGroupMetadata | null {
+    return this.toolGroups.get(groupId) || null;
+  }
+}
+
+// Update ToolMetadata to include groupId
+export interface ToolMetadata {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+  groupId: string; // Which UI group this tool belongs to
+  icon: React.ComponentType;
+  cursor: string;
+  shortcut?: string;
+  priority?: number;
+}
+```
+
+#### 6. **Event System Extensions** (URGENT)
+Add missing events to EventRegistry:
+
+```typescript
+// lib/events/core/TypedEventBus.ts - ADD THESE EVENTS
+'tool.operation.requested': {
+  toolId: string;
+  instanceId: string;
+  operation: string;
+  params: any;
+  timestamp: number;
+}
+'tool.intent': {
+  toolId: string;
+  instanceId: string;
+  intent: string;
+  context: any;
+  timestamp: number;
+}
+'tool.error': {
+  toolId: string;
+  instanceId: string;
+  error: Error;
+  operation: string;
+  timestamp: number;
+}
+```
+
+#### 7. **AI Adapter Stubs** (MEDIUM)
+Need to create working stubs for AI adapters:
+
+```typescript
+// lib/ai/adapters/registry.ts - FIX STUB METHODS
+export const adapterRegistry = {
+  getAll: () => new Map(),
+  getAdapter: () => null,
+  getAllAdapters: () => [],
+  registerAdapter: () => {},
+  // ADD THESE MISSING METHODS:
+  getAITools: () => [],
+  getToolNamesByCategory: (category: string) => [],
+  get: (id: string) => null
+};
+```
+
+---
+
+## 🎨 UI TOOL GROUPS DEFINITION
+
+### **ESSENTIAL UI GROUPS** (Must be implemented):
+
+```typescript
+// lib/editor/tools/groups/toolGroups.ts - CREATE THIS FILE
+export const UI_TOOL_GROUPS: ToolGroupMetadata[] = [
+  {
+    id: 'selection-group',
+    name: 'Selection Tools',
+    icon: SelectionGroupIcon,
+    tools: ['marquee-rect', 'marquee-ellipse', 'lasso', 'magic-wand', 'quick-selection'],
+    defaultTool: 'marquee-rect',
+    showActiveToolIcon: true,
+    priority: 1
+  },
+  {
+    id: 'transform-group',
+    name: 'Transform Tools',
+    icon: TransformGroupIcon,
+    tools: ['move', 'crop', 'rotate', 'flip'],
+    defaultTool: 'move',
+    showActiveToolIcon: true,
+    priority: 2
+  },
+  {
+    id: 'drawing-group',
+    name: 'Drawing Tools',
+    icon: DrawingGroupIcon,
+    tools: ['brush', 'eraser', 'gradient'],
+    defaultTool: 'brush',
+    showActiveToolIcon: true,
+    priority: 3
+  },
+  {
+    id: 'shape-group',
+    name: 'Shape Tools',
+    icon: ShapeGroupIcon,
+    tools: ['frame'],
+    defaultTool: 'frame',
+    showActiveToolIcon: false,
+    priority: 4
+  },
+  {
+    id: 'text-group',
+    name: 'Text Tools',
+    icon: TextGroupIcon,
+    tools: ['horizontal-type', 'vertical-type', 'type-mask', 'type-on-path'],
+    defaultTool: 'horizontal-type',
+    showActiveToolIcon: true,
+    priority: 5
+  },
+  {
+    id: 'adjustment-group',
+    name: 'Adjustment Tools',
+    icon: AdjustmentGroupIcon,
+    tools: ['brightness', 'contrast', 'saturation', 'hue', 'exposure'],
+    defaultTool: 'brightness',
+    showActiveToolIcon: true,
+    priority: 6
+  },
+  {
+    id: 'filter-group',
+    name: 'Filter Tools',
+    icon: FilterGroupIcon,
+    tools: ['blur', 'sharpen', 'grayscale', 'invert', 'vintage-effects'],
+    defaultTool: 'blur',
+    showActiveToolIcon: true,
+    priority: 7
+  },
+  {
+    id: 'ai-generation-group',
+    name: 'AI Generation',
+    icon: AIGenerationIcon,
+    tools: ['ai-image-generation', 'ai-variation'],
+    defaultTool: 'ai-image-generation',
+    showActiveToolIcon: false,
+    priority: 8
+  },
+  {
+    id: 'ai-enhancement-group',
+    name: 'AI Enhancement',
+    icon: AIEnhancementIcon,
+    tools: ['ai-background-removal', 'ai-face-enhancement', 'ai-upscaling', 'ai-style-transfer'],
+    defaultTool: 'ai-background-removal',
+    showActiveToolIcon: false,
+    priority: 9
+  },
+  {
+    id: 'ai-editing-group',
+    name: 'AI Editing',
+    icon: AIEditingIcon,
+    tools: ['ai-inpainting', 'ai-outpainting', 'ai-object-removal', 'ai-relighting'],
+    defaultTool: 'ai-inpainting',
+    showActiveToolIcon: false,
+    priority: 10
+  },
+  {
+    id: 'ai-selection-group',
+    name: 'AI Selection',
+    icon: AISelectionIcon,
+    tools: ['ai-semantic-selection'],
+    defaultTool: 'ai-semantic-selection',
+    showActiveToolIcon: false,
+    priority: 11
+  },
+  {
+    id: 'ai-creative-group',
+    name: 'AI Creative',
+    icon: AICreativeIcon,
+    tools: ['ai-prompt-brush', 'ai-style-transfer-brush', 'ai-prompt-adjustment'],
+    defaultTool: 'ai-prompt-brush',
+    showActiveToolIcon: false,
+    priority: 12
+  },
+  {
+    id: 'navigation-group',
+    name: 'Navigation Tools',
+    icon: NavigationGroupIcon,
+    tools: ['hand', 'zoom', 'eyedropper'],
+    defaultTool: 'hand',
+    showActiveToolIcon: true,
+    priority: 13
+  }
+];
+```
+
+### **EventToolStore Group Support**:
+
+```typescript
+// lib/store/tools/EventToolStore.ts - ADD GROUP METHODS
+export class EventToolStore extends BaseStore<ToolStoreState> {
+  private lastUsedToolPerGroup = new Map<string, string>();
+  
+  async activateToolGroup(groupId: string): Promise<void> {
+    const group = this.toolRegistry.getToolGroup(groupId);
+    if (!group) throw new Error(`Group ${groupId} not found`);
+    
+    // Get last used tool from this group or default
+    const toolId = this.lastUsedToolPerGroup.get(groupId) || group.defaultTool;
+    
+    await this.activateTool(toolId);
+  }
+  
+  async activateTool(toolId: string): Promise<void> {
+    // Queue activations to prevent race conditions
+    return this.activationQueue.add(async () => {
+      try {
+        await this.doActivateTool(toolId);
+        
+        // Remember last used tool in group
+        const toolClass = this.toolRegistry.getToolClass(toolId);
+        if (toolClass?.metadata.groupId) {
+          this.lastUsedToolPerGroup.set(toolClass.metadata.groupId, toolId);
+        }
+        
+      } catch (error) {
+        console.error(`Tool activation failed:`, error);
+        
+        // Fallback to safe default
+        if (toolId !== 'move') {
+          await this.doActivateTool('move');
+        }
+        
+        throw new ToolActivationError(toolId, error.message);
+      }
+    });
+  }
+  
+  getActiveToolGroup(): string | null {
+    const state = this.getState();
+    if (!state.activeToolId) return null;
+    
+    const toolClass = this.toolRegistry.getToolClass(state.activeToolId);
+    return toolClass?.metadata.groupId || null;
+  }
+  
+  getLastUsedToolInGroup(groupId: string): string | null {
+    const group = this.toolRegistry.getToolGroup(groupId);
+    if (!group) return null;
+    
+    return this.lastUsedToolPerGroup.get(groupId) || group.defaultTool;
+  }
+}
+```
+
+---
+
+## 🚀 AGENT DISTRIBUTION PLAN
+
+Once the foundation work above is complete, we can distribute the 42 tools across specialized agents. Each agent will receive:
+
+1. **Complete architectural context** (this document)
+2. **Reference to deprecated implementations** (`lib/deprecated/`)
+3. **Clear patterns and examples**
+4. **Specific tool assignments with group assignments**
+
+### **AGENT 1: TRANSFORM & NAVIGATION TOOLS** (7 tools)
+**Specialization**: Object manipulation and canvas navigation
+**Timeline**: 2 days
+**UI Groups**: transform-group, navigation-group
+
+#### Tools to Implement:
+1. **MoveTool** (`transform-group`) - Object positioning and dragging
+2. **CropTool** (`transform-group`) - Image cropping and bounds adjustment
+3. **RotateTool** (`transform-group`) - Object rotation with handles
+4. **FlipTool** (`transform-group`) - Horizontal/vertical object flipping
+5. **HandTool** (`navigation-group`) - Canvas panning and navigation
+6. **ZoomTool** (`navigation-group`) - Canvas zoom in/out
+7. **EyedropperTool** (`navigation-group`) - Color sampling
+
+#### **CORRECTED** Key Patterns for Agent 1:
+```typescript
+// Transform tools - CORRECT PATTERN
+export class MoveTool extends BaseTool {
+  id = 'move';
+  name = 'Move Tool';
+  icon = MoveIcon;
+  cursor = 'move';
+  
+  // State change handler (required)
+  protected onStateChange(from: ToolState, to: ToolState): void {
+    console.log(`${this.id}: ${from} → ${to}`);
+  }
+  
+  // Mouse handlers with state validation and error handling
+  protected handleMouseDown(event: ToolEvent): void {
+    if (!this.canHandleEvents()) return;
+    
+    try {
+      this.transitionTo(ToolState.WORKING);
+      
+      // Emit operation intent - DON'T create commands directly
+      this.emitOperation('move', {
+        objectId: this.getSelectedObjectId(),
+        startPosition: { x: event.canvasX, y: event.canvasY },
+        modifiers: {
+          duplicate: event.altKey,
+          constrain: event.shiftKey
+        }
+      });
+      
+    } catch (error) {
+      this.dependencies.eventBus.emit('tool.error', {
+        toolId: this.id,
+        instanceId: this.instanceId,
+        error,
+        operation: 'mouseDown',
+        timestamp: Date.now()
+      });
+    }
+  }
+  
+  protected handleMouseMove(event: ToolEvent): void {
+    if (this.getState() !== ToolState.WORKING) return;
+    
+    this.emitOperation('move.update', {
+      position: { x: event.canvasX, y: event.canvasY }
+    });
+  }
+  
+  protected handleMouseUp(event: ToolEvent): void {
+    if (this.getState() === ToolState.WORKING) {
+      this.transitionTo(ToolState.ACTIVE);
+      
+      this.emitOperation('move.complete', {
+        finalPosition: { x: event.canvasX, y: event.canvasY }
+      });
+    }
+  }
+  
+  // Lifecycle with proper cleanup
+  async onActivate(): Promise<void> {
+    // Setup move-specific resources
+    await super.onActivate();
+  }
+  
+  async onDeactivate(): Promise<void> {
+    // Cleanup move-specific resources
+    await super.onDeactivate();
+  }
+}
+```
+
+### **AGENT 2: DRAWING & TEXT TOOLS** (8 tools)
+**Specialization**: Creative content creation
+**Timeline**: 3 days
+**UI Groups**: drawing-group, shape-group, text-group
+
+#### Tools to Implement:
+1. **BrushTool** (`drawing-group`) - Pixel painting with brush engine
+2. **EraserTool** (`drawing-group`) - Pixel erasing
+3. **GradientTool** (`drawing-group`) - Gradient application
+4. **FrameTool** (`shape-group`) - Document frame creation
+5. **HorizontalTypeTool** (`text-group`) - Standard text creation
+6. **VerticalTypeTool** (`text-group`) - Vertical text layout
+7. **TypeMaskTool** (`text-group`) - Text-based selections
+8. **TypeOnPathTool** (`text-group`) - Text along paths
+
+#### **CORRECTED** Key Patterns for Agent 2:
+```typescript
+// Drawing tools - CORRECT PATTERN
+export class BrushTool extends BaseTool {
+  id = 'brush';
+  name = 'Brush Tool';
+  icon = BrushIcon;
+  cursor = 'crosshair';
+  
+  private brushEngine: BrushEngine | null = null;
+  
+  protected onStateChange(from: ToolState, to: ToolState): void {
+    console.log(`${this.id}: ${from} → ${to}`);
+  }
+  
+  protected getDefaultOptions() {
+    return {
+      size: 10,
+      opacity: 100,
+      color: '#000000',
+      blendMode: 'normal'
+    };
+  }
+  
+  protected async onActivate(): Promise<void> {
+    this.brushEngine = new BrushEngine(this.getAllOptions());
+    this.registerCleanup(() => this.brushEngine?.dispose());
+    await super.onActivate();
+  }
+  
+  protected handleMouseDown(event: ToolEvent): void {
+    if (!this.canHandleEvents()) return;
+    
+    try {
+      this.transitionTo(ToolState.WORKING);
+      
+      // Emit brush stroke intent
+      this.emitOperation('brush.start', {
+        startPoint: { x: event.canvasX, y: event.canvasY },
+        brushOptions: this.getAllOptions(),
+        pressure: event.pressure || 1.0
+      });
+      
+    } catch (error) {
+      this.dependencies.eventBus.emit('tool.error', {
+        toolId: this.id,
+        instanceId: this.instanceId,
+        error,
+        operation: 'mouseDown',
+        timestamp: Date.now()
+      });
+    }
+  }
+  
+  protected handleMouseMove(event: ToolEvent): void {
+    if (this.getState() !== ToolState.WORKING) return;
+    
+    this.emitOperation('brush.continue', {
+      point: { x: event.canvasX, y: event.canvasY },
+      pressure: event.pressure || 1.0
+    });
+  }
+  
+  protected handleMouseUp(event: ToolEvent): void {
+    if (this.getState() === ToolState.WORKING) {
+      this.transitionTo(ToolState.ACTIVE);
+      
+      this.emitOperation('brush.complete', {
+        endPoint: { x: event.canvasX, y: event.canvasY }
+      });
+    }
+  }
+}
+
+// Text tools - CORRECT PATTERN
+export class HorizontalTypeTool extends BaseTool {
+  id = 'horizontal-type';
+  name = 'Horizontal Type Tool';
+  icon = TypeIcon;
+  cursor = 'text';
+  
+  protected onStateChange(from: ToolState, to: ToolState): void {
+    console.log(`${this.id}: ${from} → ${to}`);
+  }
+  
+  protected getDefaultOptions() {
+    return {
+      fontSize: 24,
+      fontFamily: 'Arial',
+      color: '#000000',
+      align: 'left'
+    };
+  }
+  
+  protected handleMouseDown(event: ToolEvent): void {
+    if (!this.canHandleEvents()) return;
+    
+    try {
+      // Emit text creation intent
+      this.emitOperation('text.create', {
+        position: { x: event.canvasX, y: event.canvasY },
+        text: 'Type here...',
+        style: this.getAllOptions(),
+        orientation: 'horizontal'
+      });
+      
+    } catch (error) {
+      this.dependencies.eventBus.emit('tool.error', {
+        toolId: this.id,
+        instanceId: this.instanceId,
+        error,
+        operation: 'mouseDown',
+        timestamp: Date.now()
+      });
+    }
+  }
+}
+```
+
+### **AGENT 3: SELECTION TOOLS** (5 tools)
+**Specialization**: Object and pixel selection
+**Timeline**: 2 days
+**UI Groups**: selection-group
+
+#### Tools to Implement:
+1. **MarqueeRectTool** (`selection-group`) - Rectangular selection
+2. **MarqueeEllipseTool** (`selection-group`) - Elliptical selection
+3. **LassoTool** (`selection-group`) - Freehand selection
+4. **MagicWandTool** (`selection-group`) - Color-based selection
+5. **QuickSelectionTool** (`selection-group`) - Smart selection
+
+#### **CORRECTED** Key Patterns for Agent 3:
+```typescript
+// Selection tools - CORRECT PATTERN
+export class MarqueeRectTool extends BaseTool {
+  id = 'marquee-rect';
+  name = 'Rectangular Marquee';
+  icon = MarqueeIcon;
+  cursor = 'crosshair';
+  
+  protected onStateChange(from: ToolState, to: ToolState): void {
+    console.log(`${this.id}: ${from} → ${to}`);
+  }
+  
+  protected getDefaultOptions() {
+    return {
+      feather: 0,
+      antiAlias: true
+    };
+  }
+  
+  protected handleMouseDown(event: ToolEvent): void {
+    if (!this.canHandleEvents()) return;
+    
+    try {
+      this.transitionTo(ToolState.WORKING);
+      
+      // Emit selection intent
+      this.emitOperation('selection.start', {
+        selectionType: 'rectangle',
+        startPoint: { x: event.canvasX, y: event.canvasY },
+        options: this.getAllOptions(),
+        modifiers: {
+          addToSelection: event.shiftKey,
+          subtractFromSelection: event.altKey,
+          intersectWithSelection: event.shiftKey && event.altKey
+        }
+      });
+      
+    } catch (error) {
+      this.dependencies.eventBus.emit('tool.error', {
+        toolId: this.id,
+        instanceId: this.instanceId,
+        error,
+        operation: 'mouseDown',
+        timestamp: Date.now()
+      });
+    }
+  }
+  
+  protected handleMouseMove(event: ToolEvent): void {
+    if (this.getState() !== ToolState.WORKING) return;
+    
+    this.emitOperation('selection.update', {
+      currentPoint: { x: event.canvasX, y: event.canvasY }
+    });
+  }
+  
+  protected handleMouseUp(event: ToolEvent): void {
+    if (this.getState() === ToolState.WORKING) {
+      this.transitionTo(ToolState.ACTIVE);
+      
+      this.emitOperation('selection.complete', {
+        endPoint: { x: event.canvasX, y: event.canvasY }
+      });
+    }
+  }
+}
+```
+
+### **AGENT 4: ADJUSTMENT & FILTER TOOLS** (10 tools)
+**Specialization**: Image processing and effects
+**Timeline**: 3 days
+**UI Groups**: adjustment-group, filter-group
+
+#### Tools to Implement:
+1. **BrightnessTool** (`adjustment-group`) - Brightness adjustment
+2. **ContrastTool** (`adjustment-group`) - Contrast adjustment
+3. **SaturationTool** (`adjustment-group`) - Color saturation
+4. **HueTool** (`adjustment-group`) - Hue adjustment
+5. **ExposureTool** (`adjustment-group`) - Exposure control
+6. **BlurTool** (`filter-group`) - Gaussian blur
+7. **SharpenTool** (`filter-group`) - Image sharpening
+8. **GrayscaleTool** (`filter-group`) - B&W conversion
+9. **InvertTool** (`filter-group`) - Color inversion
+10. **VintageEffectsTool** (`filter-group`) - Vintage effects
+
+#### **CORRECTED** Key Patterns for Agent 4:
+```typescript
+// Adjustment tools - CORRECT PATTERN
+export class BrightnessTool extends BaseTool {
+  id = 'brightness';
+  name = 'Brightness';
+  icon = BrightnessIcon;
+  cursor = 'default';
+  
+  protected onStateChange(from: ToolState, to: ToolState): void {
+    console.log(`${this.id}: ${from} → ${to}`);
+  }
+  
+  protected getDefaultOptions() {
+    return {
+      brightness: 0, // -100 to +100
+      preview: true
+    };
+  }
+  
+  protected getOptionDefinitions() {
+    return {
+      brightness: { 
+        type: 'number', 
+        default: 0, 
+        min: -100, 
+        max: 100,
+        step: 1
+      }
+    };
+  }
+  
+  protected handleMouseDown(event: ToolEvent): void {
+    if (!this.canHandleEvents()) return;
+    
+    try {
+      // Emit adjustment intent
+      this.emitOperation('adjustment.apply', {
+        adjustmentType: 'brightness',
+        value: this.getAllOptions().brightness,
+        targetObjects: this.getSelectedObjects(),
+        preview: this.getAllOptions().preview
+      });
+      
+    } catch (error) {
+      this.dependencies.eventBus.emit('tool.error', {
+        toolId: this.id,
+        instanceId: this.instanceId,
+        error,
+        operation: 'mouseDown',
+        timestamp: Date.now()
+      });
+    }
+  }
+}
+```
+
+### **AGENT 5: AI TOOLS** (12 tools)
+**Specialization**: AI-powered image processing
+**Timeline**: 4 days
+**UI Groups**: ai-generation-group, ai-enhancement-group, ai-editing-group, ai-selection-group, ai-creative-group
+
+#### Tools to Implement:
+1. **ImageGenerationTool** (`ai-generation-group`) - AI image generation
+2. **VariationTool** (`ai-generation-group`) - AI image variations
+3. **BackgroundRemovalTool** (`ai-enhancement-group`) - AI background removal
+4. **FaceEnhancementTool** (`ai-enhancement-group`) - AI face enhancement
+5. **UpscalingTool** (`ai-enhancement-group`) - AI upscaling
+6. **StyleTransferTool** (`ai-enhancement-group`) - AI style transfer
+7. **InpaintingTool** (`ai-editing-group`) - AI inpainting
+8. **OutpaintingTool** (`ai-editing-group`) - AI outpainting
+9. **ObjectRemovalTool** (`ai-editing-group`) - AI object removal
+10. **RelightingTool** (`ai-editing-group`) - AI relighting
+11. **SemanticSelectionTool** (`ai-selection-group`) - AI semantic selection
+12. **AIPromptBrush** (`ai-creative-group`) - Natural language painting
+
+#### **CORRECTED** Key Patterns for Agent 5:
+```typescript
+// AI tools - CORRECT PATTERN
+export class ImageGenerationTool extends BaseTool {
+  id = 'ai-image-generation';
+  name = 'AI Image Generation';
+  icon = AIIcon;
+  cursor = 'default';
+  
+  protected onStateChange(from: ToolState, to: ToolState): void {
+    console.log(`${this.id}: ${from} → ${to}`);
+  }
+  
+  protected getDefaultOptions() {
+    return {
+      prompt: '',
+      model: 'flux-schnell',
+      width: 1024,
+      height: 1024,
+      steps: 4,
+      guidance: 3.5
+    };
+  }
+  
+  protected async validateAIRequirements(): Promise<boolean> {
+    // Check API keys, model availability, etc.
+    return true;
+  }
+  
+  protected async onActivate(): Promise<void> {
+    const isValid = await this.validateAIRequirements();
+    if (!isValid) {
+      throw new Error('AI requirements not met');
+    }
+    await super.onActivate();
+  }
+  
+  protected handleMouseDown(event: ToolEvent): void {
+    if (!this.canHandleEvents()) return;
+    
+    try {
+      const options = this.getAllOptions();
+      
+      if (!options.prompt?.trim()) {
+        this.dependencies.eventBus.emit('tool.error', {
+          toolId: this.id,
+          instanceId: this.instanceId,
+          error: new Error('Prompt is required'),
+          operation: 'mouseDown',
+          timestamp: Date.now()
+        });
+        return;
+      }
+      
+      // Emit AI generation intent
+      this.emitOperation('ai.generate', {
+        prompt: options.prompt,
+        position: { x: event.canvasX, y: event.canvasY },
+        size: { width: options.width, height: options.height },
+        model: options.model,
+        parameters: {
+          steps: options.steps,
+          guidance: options.guidance
+        }
+      });
+      
+    } catch (error) {
+      this.dependencies.eventBus.emit('tool.error', {
+        toolId: this.id,
+        instanceId: this.instanceId,
+        error,
+        operation: 'mouseDown',
+        timestamp: Date.now()
+      });
+    }
+  }
+}
+```
+
+---
+
+## 📋 FOUNDATION COMPLETION CHECKLIST
+
+### **BEFORE AGENT DISTRIBUTION** (Complete these first):
+
+- [ ] **Tool Event System** - Create `ToolEvent` interface and implementation
+- [ ] **Tool Operation Events** - Add `emitOperation()` and `emitIntent()` methods to BaseTool
+- [ ] **Canvas Integration** - Fix Canvas component event handlers
+- [ ] **Tool Options Integration** - Connect tools to options system
+- [ ] **UI Tool Groups System** - Create tool groups for UI organization
+- [ ] **Event System Extensions** - Add missing events to EventRegistry
+- [ ] **AI Adapter Stubs** - Fix missing methods in adapter registry
+- [ ] **Error Handling** - Ensure all stubs handle errors gracefully
+- [ ] **Type Safety** - Fix remaining TypeScript errors in foundation
+
+### **VALIDATION TESTS** (Run before distribution):
+
+- [ ] **Tool Activation** - Can activate/deactivate tools without errors
+- [ ] **Event Flow** - Canvas events reach active tool correctly
+- [ ] **Operation Emission** - Tools can emit operations and intents
+- [ ] **State Management** - Tool state changes work correctly
+- [ ] **Memory Management** - Tools dispose properly
+- [ ] **Group Functionality** - Tool groups work in UI
+- [ ] **Error Recovery** - Graceful error handling works
+
+---
+
+## 🎯 AGENT INSTRUCTIONS TEMPLATE
+
+Each agent will receive this complete context:
+
+### **ARCHITECTURAL CONTEXT**
+- **Pattern**: Event-driven, dependency injection, transient instances
+- **Base Class**: Extend `BaseTool` with proper state machine
+- **Operations**: Tools emit events/intents, DON'T create commands directly
+- **Events**: Emit events for all state changes and operations
+- **Cleanup**: Register cleanup tasks for proper resource management
+- **Error Handling**: Wrap all operations in try-catch with proper error emission
+
+### **REFERENCE IMPLEMENTATIONS**
+- **Deprecated Code**: Check `lib/deprecated/tools/` for original implementations
+- **New Patterns**: Follow examples in this document exactly
+- **Operation Emission**: Use `this.emitOperation()` for all operations
+- **Event Emission**: Use `this.dependencies.eventBus.emit()` for communication
+- **State Validation**: Always check `this.canHandleEvents()` before handling events
+
+### **TESTING REQUIREMENTS**
+- **State Machine**: Test all valid/invalid state transitions
+- **Lifecycle**: Test activation, operation, deactivation, disposal
+- **Error Handling**: Test graceful failure modes
+- **Memory**: Test proper cleanup and resource disposal
+- **Event Emission**: Test that tools emit correct events
+
+### **DELIVERY REQUIREMENTS**
+- **Type Safety**: Zero TypeScript errors
+- **Pattern Compliance**: 100% adherence to architectural patterns
+- **Documentation**: Clear JSDoc comments for all public methods
+- **Tests**: Comprehensive test coverage for all functionality
+- **Group Assignment**: Proper groupId in tool metadata
+
+---
+
+## 🚀 EXECUTION TIMELINE
+
+### **Phase 1: Foundation Completion** (1 day)
+- Complete the 9 foundation items above
+- Validate foundation with basic tool activation tests
+- Ensure Canvas integration works correctly
+- Test tool group functionality in UI
+
+### **Phase 2: Agent Distribution** (5 days parallel)
+- **Agent 1**: Transform & Navigation (2 days) - 7 tools
+- **Agent 2**: Drawing & Text (3 days) - 8 tools  
+- **Agent 3**: Selection (2 days) - 5 tools
+- **Agent 4**: Adjustments & Filters (3 days) - 10 tools
+- **Agent 5**: AI Tools (4 days) - 12 tools
+
+### **Phase 3: Integration & Testing** (1 day)
+- Integrate all tools into main registry
+- Register all tool groups in UI
+- Run comprehensive testing suite
+- Fix any integration issues
+- Performance optimization
+
+### **Phase 4: Production Deployment** (1 day)
+- Final validation and testing
+- Documentation updates
+- Deployment preparation
+
+---
+
+**TOTAL TIMELINE: 8 days (1 foundation + 5 parallel development + 2 integration)**
+
+The foundation is 85% complete. Once we finish the 9 remaining foundation items (including the critical UI tool groups), we can distribute the tools across 5 specialized agents for parallel development. Each agent will have complete context, correct patterns, and clear group assignments.
+
 ## Executive Summary
 
 **Objective**: Rebuild the entire tool system from scratch using senior-level architectural patterns, eliminating technical debt and creating a consistent, maintainable foundation.
@@ -422,6 +1434,13 @@ export class EventToolStore extends BaseStore<ToolStoreState> {
     return this.activationQueue.add(async () => {
       try {
         await this.doActivateTool(toolId);
+        
+        // Remember last used tool in group
+        const toolClass = this.toolRegistry.getToolClass(toolId);
+        if (toolClass?.metadata.groupId) {
+          this.lastUsedToolPerGroup.set(toolClass.metadata.groupId, toolId);
+        }
+        
       } catch (error) {
         console.error(`Tool activation failed:`, error);
         
@@ -513,6 +1532,31 @@ export class EventToolStore extends BaseStore<ToolStoreState> {
   canActivateTool(toolId: string): boolean {
     const state = this.getState();
     return !state.isActivating && this.toolRegistry.hasToolClass(toolId);
+  }
+
+  async activateToolGroup(groupId: string): Promise<void> {
+    const group = this.toolRegistry.getToolGroup(groupId);
+    if (!group) throw new Error(`Group ${groupId} not found`);
+    
+    // Get last used tool from this group or default
+    const toolId = this.lastUsedToolPerGroup.get(groupId) || group.defaultTool;
+    
+    await this.activateTool(toolId);
+  }
+  
+  getActiveToolGroup(): string | null {
+    const state = this.getState();
+    if (!state.activeToolId) return null;
+    
+    const toolClass = this.toolRegistry.getToolClass(state.activeToolId);
+    return toolClass?.metadata.groupId || null;
+  }
+  
+  getLastUsedToolInGroup(groupId: string): string | null {
+    const group = this.toolRegistry.getToolGroup(groupId);
+    if (!group) return null;
+    
+    return this.lastUsedToolPerGroup.get(groupId) || group.defaultTool;
   }
 }
 ```

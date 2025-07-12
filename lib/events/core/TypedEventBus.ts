@@ -253,6 +253,46 @@ export interface EventRegistry {
     type?: 'info' | 'warning' | 'error' | 'success'
     metadata?: Record<string, unknown>
   }
+  'tool.state.changed': {
+    toolId: string
+    instanceId: string
+    from: string
+    to: string
+    timestamp: number
+  }
+  'store.tool.activated': {
+    toolId: string
+    instanceId: string
+    timestamp: number
+  }
+  'store.tool.deactivated': {
+    toolId: string
+    instanceId: string
+    timestamp: number
+  }
+  
+  // Tool operation events - NEW
+  'tool.operation.requested': {
+    toolId: string
+    instanceId: string
+    operation: string
+    params: any
+    timestamp: number
+  }
+  'tool.intent': {
+    toolId: string
+    instanceId: string
+    intent: string
+    context: any
+    timestamp: number
+  }
+  'tool.error': {
+    toolId: string
+    instanceId: string
+    error: Error
+    operation: string
+    timestamp: number
+  }
   
   // Drawing events
   'drawing.started': {

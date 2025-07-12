@@ -1,91 +1,86 @@
-import type { ServiceContainer } from '@/lib/core/ServiceContainer'
-import type { BaseTool, ToolDependencies } from './BaseTool'
-import type { TypedEventBus } from '@/lib/events/core/TypedEventBus'
-import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
-import type { CommandManager } from '@/lib/editor/commands/CommandManager'
-import type { ResourceManager } from '@/lib/core/ResourceManager'
-import type { SelectionManager } from '@/lib/editor/selection/SelectionManager'
-import type { FilterManager } from '@/lib/editor/filters/FilterManager'
+import type { ServiceContainer } from '@/lib/core/ServiceContainer';
+import type { TypedEventBus } from '@/lib/events/core/TypedEventBus';
+import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager';
+import type { CommandManager } from '@/lib/editor/commands/CommandManager';
+import type { ResourceManager } from '@/lib/core/ResourceManager';
+import type { SelectionManager } from '@/lib/editor/selection/SelectionManager';
+import type { FilterManager } from '@/lib/editor/filters/FilterManager';
+import { ToolRegistry } from './ToolRegistry';
+import { BaseTool, type ToolDependencies } from './BaseTool';
 
 /**
- * Tool Factory with Dependency Injection
- * Creates tools with all required dependencies properly injected
+ * Tool factory that creates fresh tool instances with proper dependency injection.
+ * Does NOT manage active tools - that's EventToolStore's job.
  */
 export class ToolFactory {
-  constructor(private serviceContainer: ServiceContainer) {}
-  
+  constructor(
+    private readonly container: ServiceContainer,
+    private readonly toolRegistry: ToolRegistry
+  ) {}
+
   /**
-   * Create a tool instance with dependency injection
+   * Create a fresh tool instance with dependency injection
    */
-  async createTool<T extends BaseTool>(
-    ToolClass: new (deps: ToolDependencies) => T
-  ): Promise<T> {
-    const dependencies = await this.resolveToolDependencies();
-    return new ToolClass(dependencies);
+  async createTool(toolId: string): Promise<BaseTool> {
+    const toolClass = this.toolRegistry.getToolClass(toolId);
+    if (!toolClass) {
+      throw new Error(`Tool ${toolId} not registered`);
+    }
+
+    const dependencies = await this.resolveDependencies();
+    const tool = new toolClass.ToolClass(dependencies);
+    
+    // Assign unique instance ID for tracking
+    const instanceId = `${toolId}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    (tool as any).instanceId = instanceId;
+    
+    return tool;
   }
-  
+
   /**
-   * Resolve all tool dependencies from the service container
+   * Get tool metadata without creating instance
    */
-  private async resolveToolDependencies(): Promise<ToolDependencies> {
-    // Core dependencies (required)
-    const eventBus = await this.serviceContainer.get<TypedEventBus>('TypedEventBus');
-    const canvasManager = await this.serviceContainer.get<CanvasManager>('CanvasManager');
-    const commandManager = await this.serviceContainer.get<CommandManager>('CommandManager');
-    const resourceManager = await this.serviceContainer.get<ResourceManager>('ResourceManager');
-    
-    // Optional dependencies
-    let selectionManager: SelectionManager | undefined;
-    let filterManager: FilterManager | undefined;
-    
-    try {
-      selectionManager = await this.serviceContainer.get<SelectionManager>('SelectionManager');
-    } catch {
-      // SelectionManager is optional for some tools
-    }
-    
-    try {
-      filterManager = await this.serviceContainer.get<FilterManager>('FilterManager');
-    } catch {
-      // FilterManager is optional for non-filter tools
-    }
-    
-    return {
-      eventBus,
-      canvasManager,
-      commandManager,
-      resourceManager,
-      selectionManager,
-      filterManager
+  getToolMetadata(toolId: string) {
+    const toolClass = this.toolRegistry.getToolClass(toolId);
+    return toolClass?.metadata || null;
+  }
+
+  /**
+   * Check if tool can be created
+   */
+  canCreateTool(toolId: string): boolean {
+    return this.toolRegistry.hasToolClass(toolId);
+  }
+
+  /**
+   * Get all available tools
+   */
+  getAvailableTools() {
+    return this.toolRegistry.getAllToolClasses();
+  }
+
+  private async resolveDependencies(): Promise<ToolDependencies> {
+    // Core dependencies that all tools need
+    const dependencies: ToolDependencies = {
+      eventBus: this.container.getSync<TypedEventBus>('TypedEventBus'),
+      canvasManager: this.container.getSync<CanvasManager>('CanvasManager'),
+      commandManager: this.container.getSync<CommandManager>('CommandManager'),
+      resourceManager: this.container.getSync<ResourceManager>('ResourceManager')
     };
-  }
-  
-  /**
-   * Create multiple tool instances
-   */
-  async createTools<T extends BaseTool>(
-    toolClasses: Array<new (deps: ToolDependencies) => T>
-  ): Promise<T[]> {
-    const dependencies = await this.resolveToolDependencies();
-    return toolClasses.map(ToolClass => new ToolClass(dependencies));
-  }
-  
-  /**
-   * Check if all required dependencies are available
-   */
-  async canCreateTools(): Promise<boolean> {
+
+    // Optional dependencies - only inject if available
     try {
-      await this.resolveToolDependencies();
-      return true;
+      dependencies.selectionManager = this.container.getSync<SelectionManager>('SelectionManager');
     } catch {
-      return false;
+      // Optional dependency not available
     }
+
+    try {
+      dependencies.filterManager = this.container.getSync<FilterManager>('FilterManager');
+    } catch {
+      // Optional dependency not available
+    }
+
+    return dependencies;
   }
-  
-  /**
-   * Get the service container
-   */
-  getServiceContainer(): ServiceContainer {
-    return this.serviceContainer;
-  }
-} 
+}

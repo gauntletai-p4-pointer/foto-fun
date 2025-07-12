@@ -35,7 +35,7 @@ import { SelectionContextManager } from '@/lib/editor/selection/SelectionContext
 import { ClipboardManager } from '@/lib/editor/clipboard/ClipboardManager'
 
 // Tools
-// STUB: Tools disabled during refactor
+// STUB: // STUB: import { MoveTool } from '@/lib/editor/tools/transform/moveTool'
 
 // AI System
 import { ClientToolExecutor } from '@/lib/ai/client/tool-executor'
@@ -223,19 +223,10 @@ export class AppInitializer {
         phase: 'infrastructure'
       })
       
-      // Tool System - ToolRegistry first
-      container.registerSingleton('ToolRegistry', () => {
-        const { ToolRegistry } = require('@/lib/editor/tools/base/ToolRegistry')
-        return new ToolRegistry()
-      }, {
-        dependencies: [],
-        phase: 'infrastructure'
-      })
-      
       // Tool System - ToolFactory with pure DI
       container.registerSingleton('ToolFactory', () => 
-        new ToolFactory(container, container.getSync('ToolRegistry')), {
-        dependencies: ['ToolRegistry'], // ToolFactory gets container directly for service resolution
+        new ToolFactory(container), {
+        dependencies: [], // ToolFactory gets container directly for service resolution
         phase: 'infrastructure'
       })
       
@@ -345,27 +336,30 @@ export class AppInitializer {
           container.getSync('EventStore'),
           container.getSync('TypedEventBus'),
           container.getSync('ToolFactory'),
-          container.getSync('ToolRegistry'),
           container.getSync('CanvasManager') // This will be set by Canvas component
         )
         
         // Register core tools
         console.log('[AppInitializer] Registering core tools...')
         
-        // STUB: Tool registration disabled during refactor
-        // TODO: Register tools after refactor is complete
-        console.log('[AppInitializer] Tool registration disabled during refactor')
+        // Import and register MoveTool (the only migrated tool so far)
+// STUB: // STUB:         store.registerTool(MoveTool).catch((error: Error) => {
+          console.error('[AppInitializer] Failed to register MoveTool:', error)
+        })
         
         // TODO: Register other tools as they are migrated
         // For now, we'll register only MoveTool to avoid errors
         
-        // STUB: Tool activation disabled during refactor
-        // TODO: Activate default tool after refactor is complete
-        console.log('[AppInitializer] Tool activation disabled during refactor')
+        // Activate default tool after registration
+        setTimeout(() => {
+// STUB:           store.activateTool('move').catch((error: Error) => {
+            console.error('[AppInitializer] Failed to activate move tool:', error)
+          })
+        }, 100)
         
         return store
       }, {
-        dependencies: ['EventStore', 'TypedEventBus', 'ToolFactory', 'ToolRegistry', 'CanvasManager'],
+        dependencies: ['EventStore', 'TypedEventBus', 'ToolFactory', 'CanvasManager'],
         phase: 'application'
       })
       

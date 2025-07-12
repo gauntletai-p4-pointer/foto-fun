@@ -1,347 +1,366 @@
-import { BaseStore } from '../base/BaseStore'
-import { ToolWithState, ToolState, BaseTool, type ToolDependencies } from '@/lib/editor/tools/base/BaseTool'
-import type { ToolEvent, CanvasManager } from '@/lib/editor/canvas/types'
-import type { TypedEventBus } from '@/lib/events/core/TypedEventBus'
-import type { ToolFactory } from '@/lib/editor/tools/base/ToolFactory'
-import type { EventStore } from '@/lib/events/core/EventStore'
+import { BaseStore } from '../base/BaseStore';
+import type { EventStore } from '@/lib/events/core/EventStore';
+import type { TypedEventBus } from '@/lib/events/core/TypedEventBus';
+import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager';
+import type { ToolFactory } from '@/lib/editor/tools/base/ToolFactory';
+import type { ToolRegistry, ToolClassMetadata } from '@/lib/editor/tools/base/ToolRegistry';
+import { BaseTool, ToolState } from '@/lib/editor/tools/base/BaseTool';
 
-// Re-export types from EventToolOptionsStore for backwards compatibility
-export type { ToolOption, ToolOptionsConfig } from './EventToolOptionsStore'
-// Re-export ToolState from BaseTool
-export type { ToolState } from '@/lib/editor/tools/base/BaseTool'
-
-/**
- * Tool Store State
- */
-export interface ToolStoreState {
+interface ToolStoreState {
   activeToolId: string | null;
-  tools: Map<string, ToolWithState>;
-  eventQueue: ToolEvent[];
+  previousToolId: string | null;
   isActivating: boolean;
+  toolHistory: string[];
 }
 
 /**
- * Event-Driven Tool Store with Senior Architecture Patterns
- * - State machine for proper tool lifecycle
- * - Event queuing during activation to prevent race conditions  
- * - Dependency injection through ToolFactory
- * - Event-driven communication
+ * Custom error for tool activation failures
+ */
+class ToolActivationError extends Error {
+  constructor(
+    public toolId: string,
+    public originalError: Error
+  ) {
+    super(`Failed to activate tool ${toolId}: ${originalError.message}`);
+    this.name = 'ToolActivationError';
+  }
+}
+
+/**
+ * Promise queue for preventing race conditions during tool activation
+ */
+class PromiseQueue {
+  private queue: Array<() => Promise<void>> = [];
+  private isProcessing = false;
+
+  add<T>(task: () => Promise<T>): Promise<T> {
+    return new Promise((resolve, reject) => {
+      this.queue.push(async () => {
+        try {
+          const result = await task();
+          resolve(result);
+        } catch (error) {
+          reject(error);
+        }
+      });
+      
+      this.processQueue();
+    });
+  }
+
+  private async processQueue(): Promise<void> {
+    if (this.isProcessing || this.queue.length === 0) return;
+    
+    this.isProcessing = true;
+    
+    while (this.queue.length > 0) {
+      const task = this.queue.shift()!;
+      await task();
+    }
+    
+    this.isProcessing = false;
+  }
+}
+
+/**
+ * EventToolStore manages the single active tool instance with proper lifecycle management.
+ * Follows the plan: transient tool instances, race condition prevention, command-first operations.
  */
 export class EventToolStore extends BaseStore<ToolStoreState> {
+  private activeTool: BaseTool | null = null;
+  private activationQueue = new PromiseQueue();
+  private lastUsedToolPerGroup = new Map<string, string>();
+
   constructor(
     eventStore: EventStore,
-    private eventBus: TypedEventBus,
-    private toolFactory: ToolFactory,
-    private canvasManager: CanvasManager
+    private readonly eventBus: TypedEventBus,
+    private readonly toolFactory: ToolFactory,
+    private readonly toolRegistry: ToolRegistry,
+    private readonly canvasManager: CanvasManager
   ) {
     super({
       activeToolId: null,
-      tools: new Map(),
-      eventQueue: [],
-      isActivating: false
+      previousToolId: null,
+      isActivating: false,
+      toolHistory: []
     }, eventStore);
-    
-    this.setupEventHandlers();
   }
-  
-  protected getEventHandlers(): Map<string, (event: any) => void> {
-    return new Map();
-  }
-  
-  /**
-   * Register a tool with the store
-   */
-  async registerTool<T extends BaseTool>(
-    ToolClass: new (deps: ToolDependencies) => T
-  ): Promise<void> {
-    const tool = await this.toolFactory.createTool(ToolClass);
-    
-    this.setState(state => ({
-      ...state,
-      tools: new Map(state.tools).set(tool.id, tool)
-    }));
-    
-    this.eventBus.emit('tool.message', {
-      toolId: tool.id,
-      message: `Tool registered: ${tool.name}`,
-      type: 'info'
-    });
-  }
-  
+
   /**
    * Activate a tool with proper state management and race condition prevention
    */
   async activateTool(toolId: string): Promise<void> {
-    const state = this.getState();
-    const tool = state.tools.get(toolId);
-    if (!tool) {
-      throw new Error(`Tool ${toolId} not found`);
+    return this.activationQueue.add(async () => {
+      await this.doActivateTool(toolId);
+    });
+  }
+
+  /**
+   * Activate a tool group - activates the last used tool in the group or default
+   */
+  async activateToolGroup(groupId: string): Promise<void> {
+    const group = this.toolRegistry.getToolGroup(groupId);
+    if (!group) {
+      throw new Error(`Tool group ${groupId} not found`);
     }
     
-    // Prevent concurrent activations
-    if (state.isActivating) {
-      throw new Error('Another tool is currently activating');
+    // Get last used tool from this group or default
+    const toolId = this.lastUsedToolPerGroup.get(groupId) || group.defaultTool;
+    
+    await this.activateTool(toolId);
+  }
+
+  /**
+   * Deactivate the currently active tool
+   */
+  async deactivateTool(): Promise<void> {
+    if (!this.activeTool) {
+      return;
     }
+
+    const currentState = this.getState();
+    const toolId = currentState.activeToolId;
+    const instanceId = this.activeTool.instanceId; // Store before disposal
     
-    // Check if tool can be activated
-    if (!tool.canTransitionTo(ToolState.ACTIVATING)) {
-      throw new Error(`Tool ${toolId} cannot be activated from state ${tool.state}`);
-    }
-    
-    this.setState(currentState => ({
-      ...currentState,
-      isActivating: true
-    }));
-    
-    try {
-      // Deactivate current tool first
-      if (state.activeToolId && state.activeToolId !== toolId) {
-        await this.deactivateCurrentTool();
+          try {
+        // Transition tool to deactivating state with lifecycle events
+        this.activeTool.transitionTo(ToolState.DEACTIVATING);
+        this.eventBus.emit('tool.state.changed', {
+          toolId: toolId || 'unknown',
+          from: ToolState.ACTIVE,
+          to: ToolState.DEACTIVATING,
+          instanceId: instanceId,
+          timestamp: Date.now()
+        });
+        
+        await this.activeTool.onDeactivate();
+        
+        this.activeTool.transitionTo(ToolState.INACTIVE);
+        this.eventBus.emit('tool.state.changed', {
+          toolId: toolId || 'unknown',
+          from: ToolState.DEACTIVATING,
+          to: ToolState.INACTIVE,
+          instanceId: instanceId,
+          timestamp: Date.now()
+        });
+      
+      // Dispose tool instance
+      await this.activeTool.dispose();
+      
+      // Clear active tool
+      this.activeTool = null;
+      
+      // Update state
+      this.setState(state => ({
+        ...state,
+        previousToolId: state.activeToolId,
+        activeToolId: null
+      }));
+
+      // Emit deactivation event
+      if (toolId) {
+        this.eventBus.emit('store.tool.deactivated', {
+          toolId,
+          instanceId: instanceId,
+          timestamp: Date.now()
+        });
       }
-      
-      // Activate the new tool
-      await tool.onActivate?.(this.canvasManager);
-      
-      this.setState(currentState => ({
-        ...currentState,
-        activeToolId: toolId,
-        isActivating: false
-      }));
-      
-      // Process any queued events
-      this.processEventQueue();
-      
-      this.eventBus.emit('tool.activated', { 
-        toolId,
-        previousToolId: state.activeToolId !== toolId ? state.activeToolId : undefined
-      });
-      
     } catch (error) {
-      // Reset tool state on activation failure
-      tool.setState(ToolState.INACTIVE, `Activation failed: ${(error as Error).message}`);
-      
-      this.setState(currentState => ({
-        ...currentState,
-        isActivating: false
-      }));
-      
+      console.error(`Error deactivating tool ${toolId}:`, error);
       throw error;
     }
   }
 
   /**
-   * Deactivate a tool by ID - alias for compatibility
+   * Get the currently active tool instance
    */
-  async deactivateTool(toolId?: string): Promise<void> {
-    if (toolId) {
-      const state = this.getState();
-      if (state.activeToolId === toolId) {
-        await this.deactivateCurrentTool();
-      }
-    } else {
-      await this.deactivateCurrentTool();
-    }
+  getActiveTool(): BaseTool | null {
+    return this.activeTool;
   }
 
   /**
-   * Update tool option - delegates to EventToolOptionsStore
-   * @deprecated Use EventToolOptionsStore directly via dependency injection
+   * Get a tool by ID (legacy method for compatibility)
    */
-  async updateOption(toolId: string, optionKey: string, value: unknown): Promise<void> {
-    // This method is deprecated - tools should use EventToolOptionsStore directly
-    this.eventBus.emit('tool.option.changed', {
-      toolId,
-      optionId: optionKey, // Using optionKey as optionId for backward compatibility
-      optionKey,
-      value
-    });
-  }
-  
-  /**
-   * Deactivate the currently active tool
-   */
-  async deactivateCurrentTool(): Promise<void> {
-    const state = this.getState();
-    if (!state.activeToolId) return;
-    
-    const tool = state.tools.get(state.activeToolId);
-    if (!tool) return;
-    
-    await tool.onDeactivate?.(this.canvasManager);
-    
-    this.eventBus.emit('tool.deactivated', { 
-      toolId: state.activeToolId 
-    });
-    
-    this.setState(currentState => ({
-      ...currentState,
-      activeToolId: null
-    }));
-  }
-  
-  /**
-   * Get the currently active tool
-   */
-  getActiveTool(): ToolWithState | null {
-    const state = this.getState();
-    if (!state.activeToolId) return null;
-    
-    const tool = state.tools.get(state.activeToolId);
-    return tool?.state === ToolState.ACTIVE ? tool : null;
-  }
-  
-  /**
-   * Get a tool by ID
-   */
-  getTool(toolId: string): ToolWithState | null {
-    const state = this.getState();
-    return state.tools.get(toolId) || null;
-  }
-  
-  /**
-   * Get all registered tools
-   */
-  getAllTools(): ToolWithState[] {
-    const state = this.getState();
-    return Array.from(state.tools.values());
-  }
-  
-  /**
-   * Queue events during tool activation to prevent race conditions
-   */
-  queueEvent(event: ToolEvent): void {
-    const activeTool = this.getActiveTool();
-    if (!activeTool) {
-      // Tool not active yet, queue the event
-      this.setState(state => ({
-        ...state,
-        eventQueue: [...state.eventQueue, event]
-      }));
-      return;
+  getTool(toolId: string): BaseTool | null {
+    // For the new architecture, we only have one active tool at a time
+    const currentState = this.getState();
+    if (currentState.activeToolId === toolId) {
+      return this.activeTool;
     }
-    
-    // Tool is active, process immediately
-    this.processEvent(activeTool, event);
+    return null;
   }
-  
-  /**
-   * Process all queued events once tool is active
-   */
-  private processEventQueue(): void {
-    const activeTool = this.getActiveTool();
-    if (!activeTool) return;
-    
-    const state = this.getState();
-    const events = [...state.eventQueue];
-    
-    // Clear the queue
-    this.setState(currentState => ({
-      ...currentState,
-      eventQueue: []
-    }));
-    
-    // Process each event
-    events.forEach(event => {
-      this.processEvent(activeTool, event);
-    });
-  }
-  
-  /**
-   * Process a single event with the active tool
-   */
-  private processEvent(tool: ToolWithState, event: ToolEvent): void {
-    try {
-      switch (event.type) {
-        case 'mousedown':
-          tool.onMouseDown?.(event);
-          break;
-        case 'mousemove':
-          tool.onMouseMove?.(event);
-          break;
-        case 'mouseup':
-          tool.onMouseUp?.(event);
-          break;
-        case 'keydown':
-          tool.onKeyDown?.(event.nativeEvent as KeyboardEvent);
-          break;
-        case 'keyup':
-          tool.onKeyUp?.(event.nativeEvent as KeyboardEvent);
-          break;
-      }
-    } catch (error) {
-      this.eventBus.emit('tool.message', {
-        toolId: tool.id,
-        message: `Error processing ${event.type} event: ${(error as Error).message}`,
-        type: 'error'
-      });
-    }
-  }
-  
-  /**
-   * Check if a tool is currently active
-   */
-  isToolActive(toolId: string): boolean {
-    const state = this.getState();
-    return state.activeToolId === toolId;
-  }
-  
+
   /**
    * Get the active tool ID
    */
   getActiveToolId(): string | null {
+    return this.getState().activeToolId;
+  }
+
+  /**
+   * Get the currently active tool group
+   */
+  getActiveToolGroup(): string | null {
     const state = this.getState();
-    return state.activeToolId;
-  }
-  
-  /**
-   * Clear the event queue (useful for cleanup)
-   */
-  clearEventQueue(): void {
-    this.setState(state => ({
-      ...state,
-      eventQueue: []
-    }));
-  }
-  
-  /**
-   * Setup event handlers for tool communication
-   */
-  private setupEventHandlers(): void {
-    // Listen for tool option changes
-    this.eventBus.on('tool.option.changed', (data) => {
-      const state = this.getState();
-      const tool = state.tools.get(data.toolId);
-      if (tool) {
-        // Tool option was changed, could trigger UI updates
-        this.eventBus.emit('tool.message', {
-          toolId: data.toolId,
-          message: `Option ${data.optionKey} changed to ${data.value}`,
-          type: 'info'
-        });
-      }
-    });
+    if (!state.activeToolId) return null;
     
-    // Listen for command execution results
-    this.eventBus.on('command.completed', (data) => {
-      const state = this.getState();
-      if (state.activeToolId) {
-        this.eventBus.emit('tool.message', {
-          toolId: state.activeToolId,
-          message: `Command completed: ${data.commandType}`,
-          type: 'success'
-        });
-      }
-    });
-    
-    this.eventBus.on('command.failed', (data) => {
-      const state = this.getState();
-      if (state.activeToolId) {
-        this.eventBus.emit('tool.message', {
-          toolId: state.activeToolId,
-          message: `Command failed: ${data.error}`,
-          type: 'error'
-        });
-      }
-    });
+    const toolClass = this.toolRegistry.getToolClass(state.activeToolId);
+    return toolClass?.metadata.groupId || null;
   }
-} 
+
+  /**
+   * Get the last used tool in a group
+   */
+  getLastUsedToolInGroup(groupId: string): string | null {
+    const group = this.toolRegistry.getToolGroup(groupId);
+    if (!group) return null;
+    
+    return this.lastUsedToolPerGroup.get(groupId) || group.defaultTool;
+  }
+
+  /**
+   * Check if a specific tool can be activated
+   */
+  canActivateTool(toolId: string): boolean {
+    const currentState = this.getState();
+    
+    // Can't activate during activation process
+    if (currentState.isActivating) {
+      return false;
+    }
+
+    // Check if tool is registered
+    return this.toolFactory.canCreateTool(toolId);
+  }
+
+  /**
+   * Get all available tools
+   */
+  getAvailableTools(): ToolClassMetadata[] {
+    return this.toolFactory.getAvailableTools();
+  }
+
+  /**
+   * Check if tool is currently active
+   */
+  isToolActive(toolId: string): boolean {
+    const currentState = this.getState();
+    return currentState.activeToolId === toolId && 
+           this.activeTool?.getState() === ToolState.ACTIVE;
+  }
+
+  private async doActivateTool(toolId: string): Promise<void> {
+    const currentState = this.getState();
+    
+    // Check if already active
+    if (currentState.activeToolId === toolId && this.activeTool?.getState() === ToolState.ACTIVE) {
+      return;
+    }
+
+    // Mark as activating
+    this.setState(state => ({ ...state, isActivating: true }));
+
+    try {
+      // Deactivate current tool first
+      if (this.activeTool) {
+        await this.deactivateTool();
+      }
+
+      // Create fresh tool instance
+      const tool = await this.toolFactory.createTool(toolId);
+      
+      // Activate the tool with lifecycle events
+      tool.transitionTo(ToolState.ACTIVATING);
+      this.eventBus.emit('tool.state.changed', {
+        toolId,
+        from: ToolState.INACTIVE,
+        to: ToolState.ACTIVATING,
+        instanceId: tool.instanceId,
+        timestamp: Date.now()
+      });
+      
+      await tool.onActivate();
+      
+      tool.transitionTo(ToolState.ACTIVE);
+      this.eventBus.emit('tool.state.changed', {
+        toolId,
+        from: ToolState.ACTIVATING,
+        to: ToolState.ACTIVE,
+        instanceId: tool.instanceId,
+        timestamp: Date.now()
+      });
+      
+      // Store as active tool
+      this.activeTool = tool;
+      
+      // Remember last used tool in group
+      const toolClass = this.toolRegistry.getToolClass(toolId);
+      if (toolClass?.metadata.groupId) {
+        this.lastUsedToolPerGroup.set(toolClass.metadata.groupId, toolId);
+      }
+      
+      // Update state
+      this.setState(state => ({
+        ...state,
+        previousToolId: state.activeToolId,
+        activeToolId: toolId,
+        isActivating: false,
+        toolHistory: [toolId, ...state.toolHistory.slice(0, 9)]
+      }));
+
+      // Emit activation event
+      this.eventBus.emit('store.tool.activated', {
+        toolId,
+        instanceId: tool.instanceId,
+        timestamp: Date.now()
+      });
+
+          } catch (error) {
+        // Reset activating state on error
+        this.setState(state => ({ ...state, isActivating: false }));
+        
+        // Create typed error
+        const toolError = error instanceof Error ? error : new Error(String(error));
+        const activationError = new ToolActivationError(toolId, toolError);
+        
+        // Fallback to move tool if not already trying move tool
+        if (toolId !== 'move') {
+          console.warn(`Tool activation failed for ${toolId}, falling back to move tool`, activationError);
+          try {
+            await this.doActivateTool('move');
+          } catch (fallbackError) {
+            console.error('Fallback to move tool also failed:', fallbackError);
+          }
+        }
+        
+        throw activationError;
+      }
+  }
+
+  /**
+   * Required by BaseStore - setup event handlers
+   */
+  protected getEventHandlers(): Map<string, (event: any) => void> {
+    const handlers = new Map<string, (event: any) => void>();
+
+    // Handle canvas state changes that might affect tools
+    handlers.set('canvas.cleared', () => {
+      // Optionally deactivate tools when canvas is cleared
+    });
+
+    handlers.set('canvas.object.selected', (event: any) => {
+      // Tools might need to respond to selection changes
+      if (this.activeTool) {
+        // Could emit tool-specific events here
+      }
+    });
+
+    return handlers;
+  }
+}
+
+// Export stub types
+export interface ToolOption {
+  type: string;
+  default: any;
+}

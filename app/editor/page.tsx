@@ -77,12 +77,12 @@ function EditorContent() {
       
       // Tool shortcuts (when not holding modifiers)
       if (!isMeta && !e.altKey && !e.shiftKey) {
-        // Find tool by shortcut
-        const tools = toolState.tools
-        for (const [, tool] of tools) {
-          if (tool.shortcut?.toLowerCase() === e.key.toLowerCase()) {
+        // Find tool by shortcut from ToolRegistry
+        const availableTools = toolStore.getAvailableTools()
+        for (const toolClass of availableTools) {
+          if (toolClass.metadata.shortcut?.toLowerCase() === e.key.toLowerCase()) {
             e.preventDefault()
-            toolStore.activateTool(tool.id)
+            toolStore.activateTool(toolClass.id)
             break
           }
         }
@@ -91,7 +91,7 @@ function EditorContent() {
     
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [toolState.tools, toolStore])
+  }, [toolStore])
   
   return (
     <div className="h-screen flex flex-col bg-background text-foreground overflow-hidden">

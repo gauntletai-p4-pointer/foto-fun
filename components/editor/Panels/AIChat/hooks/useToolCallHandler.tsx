@@ -456,8 +456,9 @@ export function useToolCallHandler({
       }
       
       // SELECTION ENFORCEMENT: Check if tool requires selection
-      const requiresSelection = adapter.metadata?.category === 'canvas-editing' && 
-                              adapter.metadata?.worksOn !== 'new-image'
+      // Note: During refactor, all adapters are stubs, so skip selection enforcement
+      const requiresSelection = adapter?.metadata?.category === 'canvas-editing' && 
+                              adapter?.metadata?.worksOn !== 'new-image'
       
       if (requiresSelection) {
         // Check current selection state

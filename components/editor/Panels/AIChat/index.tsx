@@ -103,8 +103,8 @@ export function AIChat() {
     const loadAdapters = async () => {
       try {
         const { autoDiscoverAdapters } = await import('@/lib/ai/adapters/registry')
-        // Pass the ServiceContainer to autoDiscoverAdapters
-        await autoDiscoverAdapters(container)
+        // Auto-discover adapters (stub implementation)
+        await autoDiscoverAdapters()
         const names = getAIToolNames()
         setToolNames(names)
       } catch (error) {

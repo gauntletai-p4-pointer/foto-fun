@@ -5,7 +5,11 @@ import { adapterRegistry } from '@/lib/ai/adapters/registry'
 export const getAIToolNames = () => {
   try {
     const adapters = Array.from(adapterRegistry.getAll())
-    return adapters.map(adapter => adapter.aiName)
+    // Handle stub registry that returns empty Map
+    if (adapters.length === 0) {
+      return []
+    }
+    return adapters.map(([key, adapter]) => adapter.aiName || key)
   } catch {
     // Return empty array if adapters not loaded yet
     return []

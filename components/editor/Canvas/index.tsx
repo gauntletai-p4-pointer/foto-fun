@@ -8,7 +8,7 @@ import { EventToolStore } from '@/lib/store/tools/EventToolStore'
 import { TypedCanvasStore, useCanvasStore as useTypedCanvasStore } from '@/lib/store/canvas/TypedCanvasStore'
 
 import { CanvasManagerFactory } from '@/lib/editor/canvas/CanvasManagerFactory'
-import type { ToolEvent } from '@/lib/editor/canvas/types'
+import type { ToolEvent } from '@/lib/editor/tools/base/BaseTool'
 import { TOOL_IDS } from '@/constants'
 import type { TypedEventBus } from '@/lib/events/core/TypedEventBus'
 
@@ -75,17 +75,8 @@ export function Canvas() {
     
     const typedEventBus = eventBus
     const unsubscribe = typedEventBus.on('tool.activated', (data) => {
-      const tool = toolStore.getTool(data.toolId)
+      const tool = toolStore.getActiveTool()
       if (tool) {
-        // Deactivate previous tool
-        const previousTool = toolStore.getActiveTool()
-        if (previousTool && previousTool.id !== tool.id) {
-          previousTool.onDeactivate?.(canvasManager)
-        }
-        
-        // Activate new tool
-        tool.onActivate?.(canvasManager)
-        
         // Set cursor
         const container = canvasManager.stage.container()
         if (container) {
@@ -97,20 +88,15 @@ export function Canvas() {
     // Listen for option changes
     const unsubscribeOptions = typedEventBus.on('tool.option.changed', (data) => {
       const activeTool = toolStore.getActiveTool()
-      if (activeTool && activeTool.id === data.toolId && 'setOption' in activeTool) {
-        const tool = activeTool as { setOption: (key: string, value: unknown) => void }
-        const optionKey = data.optionId || data.optionKey || ''
-        if (optionKey) {
-          tool.setOption(optionKey, data.value)
-        }
+      if (activeTool && activeTool.id === data.toolId) {
+        // Tools now handle options internally through their options system
+        // The tool will be notified through the event system
       }
     })
     
-    // Activate initial tool if any
+    // Set initial cursor if tool is active
     const activeTool = toolStore.getActiveTool()
     if (activeTool) {
-      activeTool.onActivate?.(canvasManager)
-      // Set initial cursor
       const container = canvasManager.stage.container()
       if (container) {
         container.style.cursor = activeTool.cursor || 'default'
@@ -120,11 +106,6 @@ export function Canvas() {
     return () => {
       unsubscribe()
       unsubscribeOptions()
-      // Deactivate current tool
-      const currentTool = toolStore.getActiveTool()
-      if (currentTool) {
-        currentTool.onDeactivate?.(canvasManager)
-      }
     }
   }, [canvasManager, toolStore, eventBus])
   
@@ -151,22 +132,23 @@ export function Canvas() {
       }
       
       // Canvas coordinates (considering zoom and pan)
-      const point = {
+      const canvasPoint = {
         x: (screenPoint.x - pan.x) / zoom,
         y: (screenPoint.y - pan.y) / zoom
       }
       
       return {
-        type,
-        point,
-        screenPoint,
-        pressure: 1, // TODO: Support pressure-sensitive devices
-        shiftKey: e.shiftKey,
+        x: canvasPoint.x,
+        y: canvasPoint.y,
+        button: e.button,
         ctrlKey: e.ctrlKey,
+        shiftKey: e.shiftKey,
         altKey: e.altKey,
         metaKey: e.metaKey,
-        button: e.button,
-        nativeEvent: e
+        type: type,
+        target: e.target,
+        preventDefault: () => e.preventDefault(),
+        stopPropagation: () => e.stopPropagation()
       }
     }
     
