@@ -2,31 +2,130 @@ import { Event } from '../core/Event'
 import type { Selection, Rect } from '@/lib/editor/canvas/types'
 import type { CanvasObject } from '@/lib/editor/objects/types'
 
-// Define state interfaces
+/**
+ * ToolEvent interface - THE SINGLE SOURCE OF TRUTH
+ * This replaces all scattered ToolEvent interfaces across the codebase
+ */
+export interface ToolEvent {
+  // Mouse coordinates (viewport space)
+  x: number;
+  y: number;
+  button?: number;
+  buttons?: number;
+  
+  // Keyboard modifiers
+  ctrlKey?: boolean;
+  shiftKey?: boolean;
+  altKey?: boolean;
+  metaKey?: boolean;
+  
+  // Canvas coordinates (canvas space, transformed)
+  canvasX: number;
+  canvasY: number;
+  
+  // Touch/pressure support
+  pressure?: number;
+  
+  // Event metadata
+  timestamp: number;
+  eventType: 'mousedown' | 'mousemove' | 'mouseup' | 'keydown' | 'keyup' | 'wheel';
+  
+  // Event control
+  preventDefault(): void;
+  stopPropagation(): void;
+  
+  // Additional context
+  target?: any; // Konva.Node
+  nativeEvent?: MouseEvent | KeyboardEvent;
+}
+
+/**
+ * Helper function to create a ToolEvent from a Konva event
+ */
+export function createToolEvent(
+  konvaEvent: any,
+  eventType: ToolEvent['eventType']
+): ToolEvent {
+  const stage = konvaEvent.target?.getStage();
+  const pointerPosition = stage?.getPointerPosition() || { x: 0, y: 0 };
+  
+  // Get canvas coordinates (considering zoom and pan)
+  const camera = stage?.getCamera?.() || { x: 0, y: 0, zoom: 1 };
+  const canvasX = (pointerPosition.x - camera.x) / camera.zoom;
+  const canvasY = (pointerPosition.y - camera.y) / camera.zoom;
+  
+  return {
+    x: konvaEvent.evt?.clientX || pointerPosition.x,
+    y: konvaEvent.evt?.clientY || pointerPosition.y,
+    button: konvaEvent.evt?.button,
+    buttons: konvaEvent.evt?.buttons,
+    ctrlKey: konvaEvent.evt?.ctrlKey || false,
+    shiftKey: konvaEvent.evt?.shiftKey || false,
+    altKey: konvaEvent.evt?.altKey || false,
+    metaKey: konvaEvent.evt?.metaKey || false,
+    canvasX,
+    canvasY,
+    pressure: (konvaEvent.evt as any)?.pressure || 1.0,
+    timestamp: Date.now(),
+    eventType,
+    preventDefault: () => konvaEvent.evt?.preventDefault(),
+    stopPropagation: () => konvaEvent.evt?.stopPropagation(),
+    target: konvaEvent.target,
+    nativeEvent: konvaEvent.evt
+  };
+}
+
+/**
+ * Helper function to create a keyboard ToolEvent
+ */
+export function createKeyboardToolEvent(
+  keyboardEvent: KeyboardEvent,
+  eventType: 'keydown' | 'keyup'
+): ToolEvent {
+  return {
+    x: 0,
+    y: 0,
+    canvasX: 0,
+    canvasY: 0,
+    ctrlKey: keyboardEvent.ctrlKey,
+    shiftKey: keyboardEvent.shiftKey,
+    altKey: keyboardEvent.altKey,
+    metaKey: keyboardEvent.metaKey,
+    timestamp: Date.now(),
+    eventType,
+    preventDefault: () => keyboardEvent.preventDefault(),
+    stopPropagation: () => keyboardEvent.stopPropagation(),
+    nativeEvent: keyboardEvent
+  };
+}
+
+// Define state interfaces for events
 interface SelectionState {
   selection: Selection | null
   version: number
 }
 
-interface CanvasObjectState {
+interface CanvasState {
   objects: CanvasObject[]
-  version: number
+  selectedObjectIds: string[]
+  camera: { x: number; y: number; zoom: number }
 }
 
 /**
- * Selection Events
+ * SELECTION EVENTS
  */
 export class SelectionCreatedEvent extends Event {
   constructor(
-    private canvasId: string,
-    private selection: Selection,
+    public readonly canvasId: string,
+    public readonly selection: Selection,
     metadata: Event['metadata']
   ) {
-    super('selection.created', canvasId, 'selection', metadata)
+    super('selection.created', canvasId, 'canvas', metadata)
   }
 
   apply(currentState: SelectionState): SelectionState {
     return {
+      ...currentState,
       selection: this.selection,
       version: currentState.version + 1
     }
@@ -36,15 +135,17 @@ export class SelectionCreatedEvent extends Event {
     return currentState.selection === null
   }
 
-  reverse(): SelectionClearedEvent | null {
-    return new SelectionClearedEvent(this.canvasId, this.selection, this.metadata)
+  reverse(): SelectionClearedEvent {
+    return new SelectionClearedEvent(
+      this.canvasId,
+      this.selection,
+      null,
+      this.metadata
+    )
   }
 
   getDescription(): string {
-    if (this.selection.type === 'objects') {
-      return `Select ${this.selection.objectIds.length} objects`
-    }
-    return `Create ${this.selection.type} selection`
+    return `Create selection in canvas ${this.canvasId}`
   }
 
   protected getEventData(): Record<string, unknown> {
@@ -57,16 +158,17 @@ export class SelectionCreatedEvent extends Event {
 
 export class SelectionModifiedEvent extends Event {
   constructor(
-    private canvasId: string,
-    private previousSelection: Selection,
-    private newSelection: Selection,
+    public readonly canvasId: string,
+    public readonly oldSelection: Selection,
+    public readonly newSelection: Selection,
     metadata: Event['metadata']
   ) {
-    super('selection.modified', canvasId, 'selection', metadata)
+    super('selection.modified', canvasId, 'canvas', metadata)
   }
 
   apply(currentState: SelectionState): SelectionState {
     return {
+      ...currentState,
       selection: this.newSelection,
       version: currentState.version + 1
     }
@@ -76,23 +178,23 @@ export class SelectionModifiedEvent extends Event {
     return currentState.selection !== null
   }
 
-  reverse(): SelectionModifiedEvent | null {
+  reverse(): SelectionModifiedEvent {
     return new SelectionModifiedEvent(
       this.canvasId,
       this.newSelection,
-      this.previousSelection,
+      this.oldSelection,
       this.metadata
     )
   }
 
   getDescription(): string {
-    return `Modify selection`
+    return `Modify selection in canvas ${this.canvasId}`
   }
 
   protected getEventData(): Record<string, unknown> {
     return {
       canvasId: this.canvasId,
-      previousSelection: this.previousSelection,
+      oldSelection: this.oldSelection,
       newSelection: this.newSelection
     }
   }
@@ -100,15 +202,17 @@ export class SelectionModifiedEvent extends Event {
 
 export class SelectionClearedEvent extends Event {
   constructor(
-    private canvasId: string,
-    private previousSelection: Selection | null,
+    public readonly canvasId: string,
+    public readonly clearedSelection: Selection,
+    public readonly previousSelection: Selection | null,
     metadata: Event['metadata']
   ) {
-    super('selection.cleared', canvasId, 'selection', metadata)
+    super('selection.cleared', canvasId, 'canvas', metadata)
   }
 
   apply(currentState: SelectionState): SelectionState {
     return {
+      ...currentState,
       selection: null,
       version: currentState.version + 1
     }
@@ -119,302 +223,45 @@ export class SelectionClearedEvent extends Event {
   }
 
   reverse(): SelectionCreatedEvent | null {
-    if (!this.previousSelection) return null
-    return new SelectionCreatedEvent(this.canvasId, this.previousSelection, this.metadata)
+    if (this.previousSelection) {
+      return new SelectionCreatedEvent(
+        this.canvasId,
+        this.previousSelection,
+        this.metadata
+      )
+    }
+    return null
   }
 
   getDescription(): string {
-    return 'Clear selection'
+    return `Clear selection in canvas ${this.canvasId}`
   }
 
   protected getEventData(): Record<string, unknown> {
     return {
       canvasId: this.canvasId,
+      clearedSelection: this.clearedSelection,
       previousSelection: this.previousSelection
     }
   }
 }
 
 /**
- * Filter Events
+ * DRAWING EVENTS
  */
-export class FilterAppliedEvent extends Event {
+export class DrawingStartedEvent extends Event {
   constructor(
-    private canvasId: string,
-    private filterType: string,
-    private filterParams: Record<string, unknown>,
-    private targetObjectIds: string[],
+    public readonly toolId: string,
+    public readonly canvasId: string,
+    public readonly position: { x: number; y: number },
+    public readonly point: { x: number; y: number; pressure?: number },
+    public readonly options: Record<string, unknown>,
     metadata: Event['metadata']
   ) {
-    super('filter.applied', canvasId, 'canvas', metadata)
+    super('drawing.started', `${canvasId}.${toolId}`, 'tool', metadata)
   }
 
-  apply(currentState: CanvasObjectState): CanvasObjectState {
-    // In a real implementation, this would apply the filter to the objects
-    // For now, we just increment version
-    return {
-      ...currentState,
-      version: currentState.version + 1
-    }
-  }
-
-  canApply(currentState: CanvasObjectState): boolean {
-    // Check if all target objects exist
-    const objectIds = new Set(currentState.objects.map(obj => obj.id))
-    return this.targetObjectIds.every(id => objectIds.has(id))
-  }
-
-  reverse(): FilterRemovedEvent | null {
-    return new FilterRemovedEvent(
-      this.canvasId,
-      this.filterType,
-      this.targetObjectIds,
-      this.metadata
-    )
-  }
-
-  getDescription(): string {
-    return `Apply ${this.filterType} filter to ${this.targetObjectIds.length} objects`
-  }
-
-  protected getEventData(): Record<string, unknown> {
-    return {
-      canvasId: this.canvasId,
-      filterType: this.filterType,
-      filterParams: this.filterParams,
-      targetObjectIds: this.targetObjectIds
-    }
-  }
-}
-
-export class FilterRemovedEvent extends Event {
-  constructor(
-    private canvasId: string,
-    private filterType: string,
-    private targetObjectIds: string[],
-    metadata: Event['metadata']
-  ) {
-    super('filter.removed', canvasId, 'canvas', metadata)
-  }
-
-  apply(currentState: CanvasObjectState): CanvasObjectState {
-    // In a real implementation, this would remove the filter from the objects
-    return {
-      ...currentState,
-      version: currentState.version + 1
-    }
-  }
-
-  canApply(currentState: CanvasObjectState): boolean {
-    const objectIds = new Set(currentState.objects.map(obj => obj.id))
-    return this.targetObjectIds.every(id => objectIds.has(id))
-  }
-
-  reverse(): null {
-    // Cannot reverse filter removal without params
-    return null
-  }
-
-  getDescription(): string {
-    return `Remove ${this.filterType} filter from ${this.targetObjectIds.length} objects`
-  }
-
-  protected getEventData(): Record<string, unknown> {
-    return {
-      canvasId: this.canvasId,
-      filterType: this.filterType,
-      targetObjectIds: this.targetObjectIds
-    }
-  }
-}
-
-/**
- * Drawing Events
- */
-export class StrokeAddedEvent extends Event {
-  constructor(
-    private canvasId: string,
-    private strokeId: string,
-    private strokeData: {
-      points: number[]
-      color: string
-      width: number
-      opacity: number
-      objectId: string
-    },
-    metadata: Event['metadata']
-  ) {
-    super('stroke.added', canvasId, 'canvas', metadata)
-  }
-
-  apply(currentState: CanvasObjectState): CanvasObjectState {
-    // In real implementation, would add stroke as object
-    return {
-      ...currentState,
-      version: currentState.version + 1
-    }
-  }
-
-  canApply(): boolean {
-    return true
-  }
-
-  reverse(): StrokeRemovedEvent | null {
-    return new StrokeRemovedEvent(this.canvasId, this.strokeId, this.metadata)
-  }
-
-  getDescription(): string {
-    return 'Add brush stroke'
-  }
-
-  protected getEventData(): Record<string, unknown> {
-    return {
-      canvasId: this.canvasId,
-      strokeId: this.strokeId,
-      strokeData: this.strokeData
-    }
-  }
-}
-
-export class StrokeRemovedEvent extends Event {
-  constructor(
-    private canvasId: string,
-    private strokeId: string,
-    metadata: Event['metadata']
-  ) {
-    super('stroke.removed', canvasId, 'canvas', metadata)
-  }
-
-  apply(currentState: CanvasObjectState): CanvasObjectState {
-    return {
-      ...currentState,
-      version: currentState.version + 1
-    }
-  }
-
-  canApply(currentState: CanvasObjectState): boolean {
-    return currentState.objects.some(obj => obj.id === this.strokeId)
-  }
-
-  reverse(): null {
-    // Cannot reverse without stroke data
-    return null
-  }
-
-  getDescription(): string {
-    return 'Remove brush stroke'
-  }
-
-  protected getEventData(): Record<string, unknown> {
-    return {
-      canvasId: this.canvasId,
-      strokeId: this.strokeId
-    }
-  }
-}
-
-export class StrokeModifiedEvent extends Event {
-  constructor(
-    private canvasId: string,
-    private strokeId: string,
-    private previousData: Record<string, unknown>,
-    private newData: Record<string, unknown>,
-    metadata: Event['metadata']
-  ) {
-    super('stroke.modified', canvasId, 'canvas', metadata)
-  }
-
-  apply(currentState: CanvasObjectState): CanvasObjectState {
-    return {
-      ...currentState,
-      version: currentState.version + 1
-    }
-  }
-
-  canApply(currentState: CanvasObjectState): boolean {
-    return currentState.objects.some(obj => obj.id === this.strokeId)
-  }
-
-  reverse(): StrokeModifiedEvent | null {
-    return new StrokeModifiedEvent(
-      this.canvasId,
-      this.strokeId,
-      this.newData,
-      this.previousData,
-      this.metadata
-    )
-  }
-
-  getDescription(): string {
-    return 'Modify brush stroke'
-  }
-
-  protected getEventData(): Record<string, unknown> {
-    return {
-      canvasId: this.canvasId,
-      strokeId: this.strokeId,
-      previousData: this.previousData,
-      newData: this.newData
-    }
-  }
-}
-
-/**
- * Generation Events
- */
-export class ImageGeneratedEvent extends Event {
-  constructor(
-    private canvasId: string,
-    private imageId: string,
-    private prompt: string,
-    private options: Record<string, unknown>,
-    metadata: Event['metadata']
-  ) {
-    super('image.generated', canvasId, 'canvas', metadata)
-  }
-
-  apply(currentState: CanvasObjectState): CanvasObjectState {
-    return {
-      ...currentState,
-      version: currentState.version + 1
-    }
-  }
-
-  canApply(): boolean {
-    return true
-  }
-
-  reverse(): null {
-    // Generation cannot be reversed, only the added image can be removed
-    return null
-  }
-
-  getDescription(): string {
-    return `Generate image: "${this.prompt.slice(0, 50)}..."`
-  }
-
-  protected getEventData(): Record<string, unknown> {
-    return {
-      canvasId: this.canvasId,
-      imageId: this.imageId,
-      prompt: this.prompt,
-      options: this.options
-    }
-  }
-}
-
-export class GenerationFailedEvent extends Event {
-  constructor(
-    private canvasId: string,
-    private prompt: string,
-    private error: string,
-    metadata: Event['metadata']
-  ) {
-    super('generation.failed', canvasId, 'canvas', metadata)
-  }
-
-  apply(currentState: CanvasObjectState): CanvasObjectState {
-    // No state change for failed generation
+  apply(currentState: unknown): unknown {
     return currentState
   }
 
@@ -427,118 +274,102 @@ export class GenerationFailedEvent extends Event {
   }
 
   getDescription(): string {
-    return `Failed to generate image: ${this.error}`
+    return `Start drawing with ${this.toolId} at (${this.position.x}, ${this.position.y})`
   }
 
   protected getEventData(): Record<string, unknown> {
     return {
+      toolId: this.toolId,
       canvasId: this.canvasId,
-      prompt: this.prompt,
-      error: this.error
+      position: this.position,
+      point: this.point,
+      options: this.options
     }
   }
 }
 
-/**
- * Transform Events
- */
-export class ObjectsTransformedEvent extends Event {
+export class DrawingUpdatedEvent extends Event {
   constructor(
-    private canvasId: string,
-    private transformations: Array<{
-      objectId: string
-      previousTransform: Record<string, unknown>
-      newTransform: Record<string, unknown>
-    }>,
+    public readonly toolId: string,
+    public readonly canvasId: string,
+    public readonly position: { x: number; y: number },
     metadata: Event['metadata']
   ) {
-    super('objects.transformed', canvasId, 'canvas', metadata)
+    super('drawing.updated', `${canvasId}.${toolId}`, 'tool', metadata)
   }
 
-  apply(currentState: CanvasObjectState): CanvasObjectState {
-    // In real implementation, would apply transforms to objects
-    return {
-      ...currentState,
-      version: currentState.version + 1
-    }
-  }
-
-  canApply(currentState: CanvasObjectState): boolean {
-    const objectIds = new Set(currentState.objects.map(obj => obj.id))
-    return this.transformations.every(t => objectIds.has(t.objectId))
-  }
-
-  reverse(): ObjectsTransformedEvent | null {
-    const reversed = this.transformations.map(t => ({
-      objectId: t.objectId,
-      previousTransform: t.newTransform,
-      newTransform: t.previousTransform
-    }))
-    return new ObjectsTransformedEvent(this.canvasId, reversed, this.metadata)
-  }
-
-  getDescription(): string {
-    return `Transform ${this.transformations.length} objects`
-  }
-
-  protected getEventData(): Record<string, unknown> {
-    return {
-      canvasId: this.canvasId,
-      transformations: this.transformations
-    }
-  }
-}
-
-export class CanvasCroppedEvent extends Event {
-  constructor(
-    private canvasId: string,
-    private previousBounds: Rect,
-    private newBounds: Rect,
-    metadata: Event['metadata']
-  ) {
-    super('canvas.cropped', canvasId, 'canvas', metadata)
-  }
-
-  apply(currentState: CanvasObjectState): CanvasObjectState {
-    return {
-      ...currentState,
-      version: currentState.version + 1
-    }
+  apply(currentState: unknown): unknown {
+    return currentState
   }
 
   canApply(): boolean {
     return true
   }
 
-  reverse(): CanvasCroppedEvent | null {
-    return new CanvasCroppedEvent(
-      this.canvasId,
-      this.newBounds,
-      this.previousBounds,
-      this.metadata
-    )
+  reverse(): null {
+    return null
   }
 
   getDescription(): string {
-    return `Crop canvas to ${this.newBounds.width}x${this.newBounds.height}`
+    return `Update drawing with ${this.toolId} at (${this.position.x}, ${this.position.y})`
   }
 
   protected getEventData(): Record<string, unknown> {
     return {
+      toolId: this.toolId,
       canvasId: this.canvasId,
-      previousBounds: this.previousBounds,
-      newBounds: this.newBounds
+      position: this.position
+    }
+  }
+}
+
+export class DrawingCompletedEvent extends Event {
+  constructor(
+    public readonly toolId: string,
+    public readonly canvasId: string,
+    public readonly path: string | Record<string, unknown>,
+    public readonly result: Record<string, unknown>,
+    public readonly pathId: string,
+    metadata: Event['metadata']
+  ) {
+    super('drawing.completed', `${canvasId}.${toolId}`, 'tool', metadata)
+  }
+
+  apply(currentState: unknown): unknown {
+    return currentState
+  }
+
+  canApply(): boolean {
+    return true
+  }
+
+  reverse(): null {
+    return null
+  }
+
+  getDescription(): string {
+    return `Complete drawing with ${this.toolId} (path: ${this.pathId})`
+  }
+
+  protected getEventData(): Record<string, unknown> {
+    return {
+      toolId: this.toolId,
+      canvasId: this.canvasId,
+      path: this.path,
+      result: this.result,
+      pathId: this.pathId
     }
   }
 }
 
 /**
- * Tool Events
+ * TOOL EVENTS
  */
 export class ToolActivatedEvent extends Event {
   constructor(
     public readonly toolId: string,
     public readonly toolName: string,
+    public readonly instanceId: string,
     metadata: Event['metadata']
   ) {
     super('tool.activated', toolId, 'tool', metadata)
@@ -563,7 +394,86 @@ export class ToolActivatedEvent extends Event {
   protected getEventData(): Record<string, unknown> {
     return {
       toolId: this.toolId,
-      toolName: this.toolName
+      toolName: this.toolName,
+      instanceId: this.instanceId
+    }
+  }
+}
+
+export class ToolDeactivatedEvent extends Event {
+  constructor(
+    public readonly toolId: string,
+    public readonly toolName: string,
+    public readonly instanceId: string,
+    metadata: Event['metadata']
+  ) {
+    super('tool.deactivated', toolId, 'tool', metadata)
+  }
+
+  apply(currentState: unknown): unknown {
+    return currentState
+  }
+
+  canApply(): boolean {
+    return true
+  }
+
+  reverse(): null {
+    return null
+  }
+
+  getDescription(): string {
+    return `Deactivate ${this.toolName} tool`
+  }
+
+  protected getEventData(): Record<string, unknown> {
+    return {
+      toolId: this.toolId,
+      toolName: this.toolName,
+      instanceId: this.instanceId
+    }
+  }
+}
+
+export class ToolStateChangedEvent extends Event {
+  constructor(
+    public readonly toolId: string,
+    public readonly instanceId: string,
+    public readonly from: string,
+    public readonly to: string,
+    metadata: Event['metadata']
+  ) {
+    super('tool.state.changed', toolId, 'tool', metadata)
+  }
+
+  apply(currentState: unknown): unknown {
+    return currentState
+  }
+
+  canApply(): boolean {
+    return true
+  }
+
+  reverse(): ToolStateChangedEvent {
+    return new ToolStateChangedEvent(
+      this.toolId,
+      this.instanceId,
+      this.to,
+      this.from,
+      this.metadata
+    )
+  }
+
+  getDescription(): string {
+    return `Tool ${this.toolId} state changed from ${this.from} to ${this.to}`
+  }
+
+  protected getEventData(): Record<string, unknown> {
+    return {
+      toolId: this.toolId,
+      instanceId: this.instanceId,
+      from: this.from,
+      to: this.to
     }
   }
 }
@@ -607,6 +517,121 @@ export class ToolOptionChangedEvent extends Event {
       optionId: this.optionId,
       value: this.value,
       previousValue: this.previousValue
+    }
+  }
+}
+
+export class ToolOperationRequestedEvent extends Event {
+  constructor(
+    public readonly toolId: string,
+    public readonly instanceId: string,
+    public readonly operation: string,
+    public readonly params: any,
+    metadata: Event['metadata']
+  ) {
+    super('tool.operation.requested', toolId, 'tool', metadata)
+  }
+
+  apply(currentState: unknown): unknown {
+    return currentState
+  }
+
+  canApply(): boolean {
+    return true
+  }
+
+  reverse(): null {
+    return null
+  }
+
+  getDescription(): string {
+    return `Tool ${this.toolId} requested operation: ${this.operation}`
+  }
+
+  protected getEventData(): Record<string, unknown> {
+    return {
+      toolId: this.toolId,
+      instanceId: this.instanceId,
+      operation: this.operation,
+      params: this.params
+    }
+  }
+}
+
+export class ToolIntentEvent extends Event {
+  constructor(
+    public readonly toolId: string,
+    public readonly instanceId: string,
+    public readonly intent: string,
+    public readonly context: any,
+    metadata: Event['metadata']
+  ) {
+    super('tool.intent', toolId, 'tool', metadata)
+  }
+
+  apply(currentState: unknown): unknown {
+    return currentState
+  }
+
+  canApply(): boolean {
+    return true
+  }
+
+  reverse(): null {
+    return null
+  }
+
+  getDescription(): string {
+    return `Tool ${this.toolId} intent: ${this.intent}`
+  }
+
+  protected getEventData(): Record<string, unknown> {
+    return {
+      toolId: this.toolId,
+      instanceId: this.instanceId,
+      intent: this.intent,
+      context: this.context
+    }
+  }
+}
+
+export class ToolErrorEvent extends Event {
+  constructor(
+    public readonly toolId: string,
+    public readonly instanceId: string,
+    public readonly error: Error,
+    public readonly operation: string,
+    metadata: Event['metadata']
+  ) {
+    super('tool.error', toolId, 'tool', metadata)
+  }
+
+  apply(currentState: unknown): unknown {
+    return currentState
+  }
+
+  canApply(): boolean {
+    return true
+  }
+
+  reverse(): null {
+    return null
+  }
+
+  getDescription(): string {
+    return `Tool ${this.toolId} error in ${this.operation}: ${this.error.message}`
+  }
+
+  protected getEventData(): Record<string, unknown> {
+    return {
+      toolId: this.toolId,
+      instanceId: this.instanceId,
+      error: {
+        message: this.error.message,
+        stack: this.error.stack,
+        name: this.error.name
+      },
+      operation: this.operation
     }
   }
 } 

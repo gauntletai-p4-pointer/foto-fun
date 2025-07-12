@@ -1,6 +1,7 @@
 import type * as PIXI from 'pixi.js'
 import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
 import type { Point } from '@/lib/editor/canvas/types'
+import type { ToolEvent } from '@/lib/events/canvas/ToolEvents'
 
 // Re-export canvas types from the new location
 export type { 
@@ -21,6 +22,9 @@ export type {
   ShapeData,
   EffectGroup
 } from '@/lib/editor/objects/types'
+
+// Re-export ToolEvent from the canonical location
+export type { ToolEvent } from '@/lib/events/canvas/ToolEvents'
 
 // Selection types for pixel-based selections
 export type SelectionMode = 'replace' | 'add' | 'subtract' | 'intersect'
@@ -67,21 +71,6 @@ export interface Document {
 
 // Layer types - using the new system
 export type LayerType = 'raster' | 'vector' | 'text' | 'adjustment' | 'group'
-
-// Tool event type - updated for Konva
-export interface ToolEvent {
-  type: 'mousedown' | 'mousemove' | 'mouseup' | 'keydown' | 'keyup'
-  point: Point
-  screenPoint: Point
-  pressure: number
-  shiftKey: boolean
-  ctrlKey: boolean
-  altKey: boolean
-  metaKey: boolean
-  button: number
-  nativeEvent?: MouseEvent | KeyboardEvent
-  target?: any // Konva.Node
-}
 
 // Tool types - updated for Konva architecture
 export interface Tool {

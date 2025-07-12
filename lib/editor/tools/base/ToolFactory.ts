@@ -4,7 +4,10 @@ import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager';
 import type { CommandManager } from '@/lib/editor/commands/CommandManager';
 import type { ResourceManager } from '@/lib/core/ResourceManager';
 import type { SelectionManager } from '@/lib/editor/selection/SelectionManager';
-import type { FilterManager } from '@/lib/editor/filters/FilterManager';
+import type { ObjectManager } from '@/lib/editor/canvas/services/ObjectManager';
+import type { EventBasedHistoryStore as HistoryManager } from '@/lib/events/history/EventBasedHistoryStore';
+import type { EventToolOptionsStore } from '@/lib/store/tools/EventToolOptionsStore';
+import type { CommandFactory } from '@/lib/editor/commands/base/CommandFactory';
 import { ToolRegistry } from './ToolRegistry';
 import { BaseTool, type ToolDependencies } from './BaseTool';
 
@@ -27,59 +30,28 @@ export class ToolFactory {
       throw new Error(`Tool ${toolId} not registered`);
     }
 
-    const dependencies = await this.resolveDependencies();
-    const tool = new toolClass.ToolClass(dependencies);
-    
-    // Assign unique instance ID for tracking
-    const instanceId = `${toolId}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    (tool as any).instanceId = instanceId;
+    const dependencies = this.resolveDependencies();
+    const tool = new toolClass.ToolClass(toolId, dependencies);
     
     return tool;
   }
 
   /**
-   * Get tool metadata without creating instance
+   * Resolve all mandatory dependencies for tools
    */
-  getToolMetadata(toolId: string) {
-    const toolClass = this.toolRegistry.getToolClass(toolId);
-    return toolClass?.metadata || null;
-  }
-
-  /**
-   * Check if tool can be created
-   */
-  canCreateTool(toolId: string): boolean {
-    return this.toolRegistry.hasToolClass(toolId);
-  }
-
-  /**
-   * Get all available tools
-   */
-  getAvailableTools() {
-    return this.toolRegistry.getAllToolClasses();
-  }
-
-  private async resolveDependencies(): Promise<ToolDependencies> {
-    // Core dependencies that all tools need
+  private resolveDependencies(): ToolDependencies {
+    // All dependencies are mandatory - use strict getSync for all
     const dependencies: ToolDependencies = {
       eventBus: this.container.getSync<TypedEventBus>('TypedEventBus'),
       canvasManager: this.container.getSync<CanvasManager>('CanvasManager'),
       commandManager: this.container.getSync<CommandManager>('CommandManager'),
-      resourceManager: this.container.getSync<ResourceManager>('ResourceManager')
+      resourceManager: this.container.getSync<ResourceManager>('ResourceManager'),
+      selectionManager: this.container.getSync<SelectionManager>('SelectionManager'),
+      objectManager: this.container.getSync<ObjectManager>('ObjectManager'),
+      historyManager: this.container.getSync<HistoryManager>('HistoryStore'),
+      toolOptionsStore: this.container.getSync<EventToolOptionsStore>('ToolOptionsStore'),
+      commandFactory: this.container.getSync<CommandFactory>('CommandFactory')
     };
-
-    // Optional dependencies - only inject if available
-    try {
-      dependencies.selectionManager = this.container.getSync<SelectionManager>('SelectionManager');
-    } catch {
-      // Optional dependency not available
-    }
-
-    try {
-      dependencies.filterManager = this.container.getSync<FilterManager>('FilterManager');
-    } catch {
-      // Optional dependency not available
-    }
 
     return dependencies;
   }

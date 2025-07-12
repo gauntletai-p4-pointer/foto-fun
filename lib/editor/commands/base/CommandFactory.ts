@@ -1,7 +1,12 @@
 import type { CanvasObject, TextData } from '@/lib/editor/objects/types'
-import type { PixelSelection, SelectionMode } from '@/types'
+import type { PixelSelection, SelectionMode, Point } from '@/types'
 import type { CommandContext } from './Command'
 import type { Command } from './Command'
+import type { ServiceContainer } from '@/lib/core/ServiceContainer'
+import type { TypedEventBus } from '@/lib/events/core/TypedEventBus'
+import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
+import type { SelectionManager } from '@/lib/editor/selection/SelectionManager'
+import type { SelectionMask } from '@/lib/editor/selection/SelectionMask'
 import { AddObjectCommand } from '../object/AddObjectCommand'
 import { UpdateObjectCommand } from '../object/UpdateObjectCommand'
 import { RemoveObjectCommand } from '../object/RemoveObjectCommand'
@@ -15,7 +20,10 @@ import { CutCommand } from '../clipboard/CutCommand'
 import { PasteCommand } from '../clipboard/PasteCommand'
 import { CreateSelectionCommand } from '../selection/CreateSelectionCommand'
 import { ClearSelectionCommand } from '../selection/ClearSelectionCommand'
+import { CreateBrushStrokeCommand } from '../drawing/CreateBrushStrokeCommand'
 import { CompositeCommand } from './CompositeCommand'
+import { CropCommand, type CropOptions } from '../canvas/CropCommand'
+import { UpdateImageDataCommand, type UpdateImageDataOptions } from '../canvas/UpdateImageDataCommand'
 
 /**
  * Command Factory Pattern with Dependency Injection
@@ -42,23 +50,53 @@ export interface CommandFactory {
   // Selection commands
   createSelectionCommand(selection: PixelSelection, mode: SelectionMode): CreateSelectionCommand
   createClearSelectionCommand(): ClearSelectionCommand
+  createApplySelectionCommand(selectionMask: SelectionMask, mode: SelectionMode): CreateSelectionCommand
+
+  // Drawing commands
+  createDrawCommand(objectId: string, imageData: ImageData, strokePath: Point[]): CreateBrushStrokeCommand
+
+  // Canvas commands
+  createCropCommand(cropOptions: CropOptions): CropCommand
+  createUpdateImageDataCommand(options: UpdateImageDataOptions): UpdateImageDataCommand
 
   // Composite commands
   createCompositeCommand(description: string, commands: Command[]): CompositeCommand
 }
 
 /**
- * Default implementation of CommandFactory
- * Uses dependency injection through CommandContext
+ * Service implementation of CommandFactory with dependency injection
+ * Gets all dependencies from ServiceContainer and creates commands with proper context
  */
-export class DefaultCommandFactory implements CommandFactory {
-  constructor(private context: CommandContext) {}
+export class ServiceCommandFactory implements CommandFactory {
+  private eventBus: TypedEventBus
+  private canvasManager: CanvasManager
+  private selectionManager: SelectionManager
+
+  constructor(serviceContainer: ServiceContainer) {
+    // Inject all required dependencies
+    this.eventBus = serviceContainer.getSync<TypedEventBus>('TypedEventBus')
+    this.canvasManager = serviceContainer.getSync<CanvasManager>('CanvasManager')
+    this.selectionManager = serviceContainer.getSync<SelectionManager>('SelectionManager')
+  }
+
+  /**
+   * Create command context with injected dependencies
+   */
+  private createCommandContext(): CommandContext {
+    return {
+      eventBus: this.eventBus,
+      canvasManager: this.canvasManager,
+      selectionManager: this.selectionManager,
+      executionId: `cmd-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      timestamp: Date.now()
+    }
+  }
 
   // Object commands
   createAddObjectCommand(object: Partial<CanvasObject>): AddObjectCommand {
     return new AddObjectCommand(
       `Add ${object.type || 'object'}`,
-      this.context,
+      this.createCommandContext(),
       { object }
     )
   }
@@ -66,7 +104,7 @@ export class DefaultCommandFactory implements CommandFactory {
   createUpdateObjectCommand(objectId: string, updates: Partial<CanvasObject>): UpdateObjectCommand {
     return new UpdateObjectCommand(
       'Update object',
-      this.context,
+      this.createCommandContext(),
       { objectId, updates }
     )
   }
@@ -74,7 +112,7 @@ export class DefaultCommandFactory implements CommandFactory {
   createRemoveObjectCommand(objectId: string): RemoveObjectCommand {
     return new RemoveObjectCommand(
       'Remove object',
-      this.context,
+      this.createCommandContext(),
       { objectId }
     )
   }
@@ -82,7 +120,7 @@ export class DefaultCommandFactory implements CommandFactory {
   createGroupObjectsCommand(objectIds: string[], groupName?: string): GroupObjectsCommand {
     return new GroupObjectsCommand(
       `Group ${objectIds.length} objects`,
-      this.context,
+      this.createCommandContext(),
       { objectIds, groupName }
     )
   }
@@ -90,7 +128,7 @@ export class DefaultCommandFactory implements CommandFactory {
   createUngroupObjectsCommand(groupId: string): UngroupObjectsCommand {
     return new UngroupObjectsCommand(
       'Ungroup objects',
-      this.context,
+      this.createCommandContext(),
       { groupId }
     )
   }
@@ -98,7 +136,7 @@ export class DefaultCommandFactory implements CommandFactory {
   createReorderObjectsCommand(objectIds: string[], direction: ReorderDirection): ReorderObjectsCommand {
     return new ReorderObjectsCommand(
       `Move objects ${direction}`,
-      this.context,
+      this.createCommandContext(),
       { objectIds, direction }
     )
   }
@@ -107,7 +145,7 @@ export class DefaultCommandFactory implements CommandFactory {
   createAddTextCommand(text: string, position: { x: number; y: number }, style?: Partial<TextData>): AddTextCommand {
     return new AddTextCommand(
       'Add text',
-      this.context,
+      this.createCommandContext(),
       { text, position, style }
     )
   }
@@ -115,7 +153,7 @@ export class DefaultCommandFactory implements CommandFactory {
   createEditTextCommand(objectId: string, newText: string, newStyle?: Partial<TextData>): EditTextCommand {
     return new EditTextCommand(
       'Edit text',
-      this.context,
+      this.createCommandContext(),
       { objectId, newText, newStyle }
     )
   }
@@ -124,7 +162,7 @@ export class DefaultCommandFactory implements CommandFactory {
   createCopyCommand(objects?: CanvasObject[]): CopyCommand {
     return new CopyCommand(
       'Copy objects',
-      this.context,
+      this.createCommandContext(),
       { objects }
     )
   }
@@ -132,7 +170,7 @@ export class DefaultCommandFactory implements CommandFactory {
   createCutCommand(objects?: CanvasObject[]): CutCommand {
     return new CutCommand(
       'Cut objects',
-      this.context,
+      this.createCommandContext(),
       { objects }
     )
   }
@@ -140,7 +178,7 @@ export class DefaultCommandFactory implements CommandFactory {
   createPasteCommand(position?: { x: number; y: number }, offset?: number): PasteCommand {
     return new PasteCommand(
       'Paste objects',
-      this.context,
+      this.createCommandContext(),
       { position, offset }
     )
   }
@@ -149,7 +187,7 @@ export class DefaultCommandFactory implements CommandFactory {
   createSelectionCommand(selection: PixelSelection, mode: SelectionMode): CreateSelectionCommand {
     return new CreateSelectionCommand(
       `Create ${mode} selection`,
-      this.context,
+      this.createCommandContext(),
       { selection, mode }
     )
   }
@@ -157,12 +195,79 @@ export class DefaultCommandFactory implements CommandFactory {
   createClearSelectionCommand(): ClearSelectionCommand {
     return new ClearSelectionCommand(
       'Clear selection',
-      this.context
+      this.createCommandContext()
+    )
+  }
+
+  createApplySelectionCommand(selectionMask: SelectionMask, mode: SelectionMode): CreateSelectionCommand {
+    // Convert SelectionMask to PixelSelection format
+    const pixelSelection: PixelSelection = {
+      type: 'pixel',
+      mask: new ImageData(selectionMask.bounds.width, selectionMask.bounds.height), // Placeholder
+      bounds: selectionMask.bounds
+    };
+    
+    return new CreateSelectionCommand(
+      `Apply ${mode} selection`,
+      this.createCommandContext(),
+      { selection: pixelSelection, mode }
+    )
+  }
+
+  // Drawing commands
+  createDrawCommand(objectId: string, imageData: ImageData, strokePath: Point[]): CreateBrushStrokeCommand {
+    // Convert Point[] to BrushStrokePoint[]
+    const brushStrokePoints = strokePath.map((point, index) => ({
+      x: point.x,
+      y: point.y,
+      pressure: 1.0, // Default pressure
+      timestamp: Date.now() + index // Incremental timestamps
+    }));
+    
+    return new CreateBrushStrokeCommand(
+      'Draw brush stroke',
+      this.createCommandContext(),
+      { 
+        strokeData: {
+          id: `stroke-${Date.now()}`,
+          targetObjectId: objectId,
+          points: brushStrokePoints,
+          options: {
+            size: 10,
+            opacity: 100,
+            color: '#000000',
+            blendMode: 'normal',
+            pressure: false,
+            flow: 100,
+            hardness: 100,
+            spacing: 25,
+            roundness: 100,
+            angle: 0
+          },
+          startTime: Date.now()
+        },
+        targetObjectId: objectId
+      }
+    )
+  }
+
+  // Canvas commands
+  createCropCommand(cropOptions: CropOptions): CropCommand {
+    return new CropCommand(
+      cropOptions,
+      this.createCommandContext()
+    )
+  }
+
+  createUpdateImageDataCommand(options: UpdateImageDataOptions): UpdateImageDataCommand {
+    return new UpdateImageDataCommand(
+      options,
+      this.createCommandContext()
     )
   }
 
   // Composite commands
   createCompositeCommand(description: string, commands: Command[]): CompositeCommand {
-    return new CompositeCommand(description, this.context, commands)
+    return new CompositeCommand(description, this.createCommandContext(), commands)
   }
 } 

@@ -1,12 +1,5 @@
 // STUB: Canvas types disabled during refactor
-export interface ToolEvent {
-  x: number;
-  y: number;
-  button?: number;
-  altKey?: boolean;
-  ctrlKey?: boolean;
-  shiftKey?: boolean;
-}
+// ToolEvent has been moved to lib/events/canvas/ToolEvents.ts
 
 // STUB: Additional canvas types
 export interface Point {
@@ -41,9 +34,19 @@ export interface Selection {
 }
 
 export interface CanvasState {
-  objects: any[];
-  selectedObjectIds: string[];
+  viewport: {
+    width: number;
+    height: number;
+  };
   camera: { x: number; y: number; zoom: number };
+  objects: any[];
+  objectOrder: string[];
+  selectedObjectIds: string[];
+  pixelSelection?: Selection;
+  backgroundColor: string;
+  isLoading: boolean;
+  canUndo: boolean;
+  canRedo: boolean;
 }
 
 export interface CanvasManager {

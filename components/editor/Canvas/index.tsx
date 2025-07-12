@@ -8,7 +8,8 @@ import { EventToolStore } from '@/lib/store/tools/EventToolStore'
 import { TypedCanvasStore, useCanvasStore as useTypedCanvasStore } from '@/lib/store/canvas/TypedCanvasStore'
 
 import { CanvasManagerFactory } from '@/lib/editor/canvas/CanvasManagerFactory'
-import type { ToolEvent } from '@/lib/editor/tools/base/BaseTool'
+import type { ToolEvent } from '@/lib/events/canvas/ToolEvents'
+import { createToolEvent, createKeyboardToolEvent } from '@/lib/events/canvas/ToolEvents'
 import { TOOL_IDS } from '@/constants'
 import type { TypedEventBus } from '@/lib/events/core/TypedEventBus'
 
@@ -117,7 +118,7 @@ export function Canvas() {
     const container = stage.container()
     
     // Helper to create ToolEvent from mouse event
-    const createToolEvent = (type: 'mousedown' | 'mousemove' | 'mouseup', e: MouseEvent): ToolEvent => {
+    const createCanvasToolEvent = (eventType: 'mousedown' | 'mousemove' | 'mouseup', e: MouseEvent): ToolEvent => {
       const rect = container.getBoundingClientRect()
       
       // Calculate canvas coordinates considering zoom and pan
@@ -138,15 +139,32 @@ export function Canvas() {
       }
       
       return {
-        x: canvasPoint.x,
-        y: canvasPoint.y,
+        // Screen coordinates
+        x: e.clientX,
+        y: e.clientY,
+        
+        // Canvas coordinates (transformed)
+        canvasX: canvasPoint.x,
+        canvasY: canvasPoint.y,
+        
+        // Mouse button data
         button: e.button,
+        buttons: e.buttons,
+        
+        // Keyboard modifiers
         ctrlKey: e.ctrlKey,
         shiftKey: e.shiftKey,
         altKey: e.altKey,
         metaKey: e.metaKey,
-        type: type,
-        target: e.target,
+        
+        // Event metadata
+        eventType,
+        timestamp: Date.now(),
+        
+        // Touch/pressure support
+        pressure: 1.0,
+        
+        // Event control
         preventDefault: () => e.preventDefault(),
         stopPropagation: () => e.stopPropagation()
       }
@@ -156,7 +174,7 @@ export function Canvas() {
     const handleMouseDown = (e: MouseEvent) => {
       const activeTool = toolStore.getActiveTool()
       if (activeTool?.onMouseDown) {
-        const toolEvent = createToolEvent('mousedown', e)
+        const toolEvent = createCanvasToolEvent('mousedown', e)
         activeTool.onMouseDown(toolEvent)
       }
     }
@@ -164,7 +182,7 @@ export function Canvas() {
     const handleMouseMove = (e: MouseEvent) => {
       const activeTool = toolStore.getActiveTool()
       if (activeTool?.onMouseMove) {
-        const toolEvent = createToolEvent('mousemove', e)
+        const toolEvent = createCanvasToolEvent('mousemove', e)
         activeTool.onMouseMove(toolEvent)
       }
     }
@@ -172,7 +190,7 @@ export function Canvas() {
     const handleMouseUp = (e: MouseEvent) => {
       const activeTool = toolStore.getActiveTool()
       if (activeTool?.onMouseUp) {
-        const toolEvent = createToolEvent('mouseup', e)
+        const toolEvent = createCanvasToolEvent('mouseup', e)
         activeTool.onMouseUp(toolEvent)
       }
     }
@@ -346,7 +364,7 @@ export function Canvas() {
         e.preventDefault()
         // Store current tool
         const currentTool = toolStore.getActiveTool()
-        if (currentTool && currentTool.id !== TOOL_IDS.HAND) {
+        if (currentTool && currentTool.id !== 'hand') {
           // Temporarily enable dragging
           canvasManager.setDraggable(true)
           canvasManager.stage.container().style.cursor = 'grab'
@@ -411,7 +429,7 @@ export function Canvas() {
       // Release spacebar - restore previous tool
       if (e.code === 'Space') {
         const currentTool = toolStore.getActiveTool()
-        if (currentTool && currentTool.id !== TOOL_IDS.HAND) {
+        if (currentTool && currentTool.id !== 'hand') {
           // Disable dragging if not hand tool
           canvasManager.setDraggable(false)
           canvasManager.stage.container().style.cursor = currentTool.cursor || 'default'

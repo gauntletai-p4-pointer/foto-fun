@@ -31,14 +31,19 @@ import { ToolFactory } from '@/lib/editor/tools/base/ToolFactory'
 import { ModelPreferencesManager } from '@/lib/settings/ModelPreferences'
 import { FeatureManager } from '@/lib/config/features'
 import { CommandManager } from '@/lib/editor/commands/CommandManager'
+import { ServiceCommandFactory } from '@/lib/editor/commands/base/CommandFactory'
 import { SelectionContextManager } from '@/lib/editor/selection/SelectionContextManager'
 import { ClipboardManager } from '@/lib/editor/clipboard/ClipboardManager'
 
 // Tools
-// STUB: Tools disabled during refactor
+// STUB: More tools to be registered here
 
 // AI System
 import { ClientToolExecutor } from '@/lib/ai/client/tool-executor'
+import { AdapterFactory } from '@/lib/ai/adapters/base/AdapterFactory'
+import { AdapterRegistry } from '@/lib/ai/adapters/base/AdapterRegistry'
+import { ParameterConverter } from '@/lib/ai/adapters/base/ParameterConverter'
+import { createAdapterRegistry } from '@/lib/ai/adapters/registry'
 
 /**
  * Application initializer
@@ -226,7 +231,31 @@ export class AppInitializer {
       // Tool System - ToolRegistry first
       container.registerSingleton('ToolRegistry', () => {
         const { ToolRegistry } = require('@/lib/editor/tools/base/ToolRegistry')
-        return new ToolRegistry()
+        const { registerUIToolGroups } = require('@/lib/editor/tools/groups/toolGroups')
+        
+        const registry = new ToolRegistry()
+        
+        // Register UI tool groups
+        registerUIToolGroups(registry)
+        console.log('[AppInitializer] Registered UI tool groups')
+        
+        // Register individual tools
+        // registry.registerToolClass(
+        //   'move',
+        //   MoveTool,
+        //   {
+        //     id: 'move',
+        //     name: 'Move',
+        //     description: 'Move, rotate, and scale objects',
+        //     category: 'transform',
+        //     groupId: 'selection',
+        //     icon: require('@/components/editor/icons/MoveToolIcon').default,
+        //     cursor: 'move',
+        //     priority: 1
+        //   }
+        // )
+        
+        return registry
       }, {
         dependencies: [],
         phase: 'infrastructure'
@@ -258,13 +287,18 @@ export class AppInitializer {
         new CommandManager(
           container.getSync('EventStore'),
           container.getSync('TypedEventBus'),
-          container.getSync('HistoryStore'),
-          { validation: true, middleware: true, metrics: true }
+          container.getSync('HistoryStore')
         ), {
         dependencies: ['EventStore', 'TypedEventBus', 'HistoryStore'],
         phase: 'infrastructure'
       })
       
+      container.registerSingleton('CommandFactory', () =>
+        new ServiceCommandFactory(container), {
+        dependencies: [], // Gets container directly
+        phase: 'infrastructure'
+      })
+
       // Selection Context System
       container.registerSingleton('SelectionContextManager', () => 
         new SelectionContextManager(
@@ -314,6 +348,25 @@ export class AppInitializer {
         phase: 'infrastructure'
       })
       
+      // AI Adapter System
+      container.registerSingleton('ParameterConverter', () => 
+        new ParameterConverter(), {
+        dependencies: [],
+        phase: 'infrastructure'
+      })
+      
+      container.registerSingleton('AdapterFactory', () => 
+        new AdapterFactory(container), {
+        dependencies: [],
+        phase: 'infrastructure'
+      })
+      
+      container.registerSingleton('AdapterRegistry', () => 
+        createAdapterRegistry(container), {
+        dependencies: ['AdapterFactory'],
+        phase: 'infrastructure'
+      })
+      
       // Initialize infrastructure services
       await container.get('EventStoreBridge')
       await container.get('CanvasStore')
@@ -328,10 +381,14 @@ export class AppInitializer {
       await container.get('ModelPreferencesManager')
       await container.get('FeatureManager')
       await container.get('CommandManager')
+      await container.get('CommandFactory')
       await container.get('SelectionContextManager')
       await container.get('ClipboardManager')
       await container.get('WebGLFilterEngine')
       await container.get('ToolExecutor')
+      await container.get('ParameterConverter')
+      await container.get('AdapterFactory')
+      await container.get('AdapterRegistry')
       
       // Phase 3: Application Services (Services that depend on canvas or user interaction)
       container.setInitializationPhase('application')
@@ -339,7 +396,7 @@ export class AppInitializer {
       
       // Tool Store - Now with proper dependencies (deferred to application phase)
       // Note: ToolStore requires CanvasManager which is set by Canvas component
-      container.registerSingleton('ToolStore', () => {
+      container.registerSingleton('ToolStore', async () => {
         console.log('[AppInitializer] Creating ToolStore with all dependencies...')
         const store = new EventToolStore(
           container.getSync('EventStore'),
@@ -352,16 +409,26 @@ export class AppInitializer {
         // Register core tools
         console.log('[AppInitializer] Registering core tools...')
         
-        // STUB: Tool registration disabled during refactor
-        // TODO: Register tools after refactor is complete
-        console.log('[AppInitializer] Tool registration disabled during refactor')
+        // Register Agent 1 tools (Transform & Navigation)
+        const toolRegistry = container.getSync<any>('ToolRegistry')
         
-        // TODO: Register other tools as they are migrated
-        // For now, we'll register only MoveTool to avoid errors
+        // Register tool groups first
+        const { registerUIToolGroups } = await import('@/lib/editor/tools/groups/toolGroups')
+        registerUIToolGroups(toolRegistry)
         
-        // STUB: Tool activation disabled during refactor
-        // TODO: Activate default tool after refactor is complete
-        console.log('[AppInitializer] Tool activation disabled during refactor')
+        // Register MoveTool
+        const { MoveTool, moveToolMetadata } = await import('@/lib/editor/tools/transform/MoveTool')
+        toolRegistry.registerToolClass('move', MoveTool, moveToolMetadata)
+        
+        console.log('[AppInitializer] Agent 1 tools registered successfully')
+        
+        // Activate default tool (MoveTool)
+        try {
+          await store.activateTool('move')
+          console.log('[AppInitializer] MoveTool activated as default')
+        } catch (error) {
+          console.warn('[AppInitializer] Failed to activate default tool:', error)
+        }
         
         return store
       }, {

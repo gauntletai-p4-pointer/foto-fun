@@ -107,7 +107,7 @@ export abstract class BaseExecutionAgent {
       system: `${systemPrompt}
       
 You are analyzing a photo editing workflow request. Consider:
-- Available tools: ${Array.from(adapterRegistry.getAll()).map(a => a.aiName).join(', ')}
+      - Available tools: ${Array.from(adapterRegistry.getAll()).map(([key, adapter]) => adapter && typeof adapter === 'object' && 'aiName' in adapter ? adapter.aiName : key).join(', ')}
 - Canvas state: ${this.context.canvasAnalysis.hasContent ? 'has content' : 'empty'}
 - Canvas size: ${this.context.canvasAnalysis.dimensions.width}x${this.context.canvasAnalysis.dimensions.height}
 

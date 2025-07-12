@@ -120,27 +120,25 @@ export class EventToolStore extends BaseStore<ToolStoreState> {
 
     const currentState = this.getState();
     const toolId = currentState.activeToolId;
-    const instanceId = this.activeTool.instanceId; // Store before disposal
     
           try {
-        // Transition tool to deactivating state with lifecycle events
-        this.activeTool.transitionTo(ToolState.DEACTIVATING);
+        // Emit deactivating state event (tool handles internal state)
         this.eventBus.emit('tool.state.changed', {
           toolId: toolId || 'unknown',
           from: ToolState.ACTIVE,
           to: ToolState.DEACTIVATING,
-          instanceId: instanceId,
+          instanceId: `${toolId}-${Date.now()}`,
           timestamp: Date.now()
         });
         
-        await this.activeTool.onDeactivate();
+        await this.activeTool.onDeactivate(this.canvasManager);
         
-        this.activeTool.transitionTo(ToolState.INACTIVE);
+        // Emit inactive state event (tool handles internal state)
         this.eventBus.emit('tool.state.changed', {
           toolId: toolId || 'unknown',
           from: ToolState.DEACTIVATING,
           to: ToolState.INACTIVE,
-          instanceId: instanceId,
+          instanceId: `${toolId}-${Date.now()}`,
           timestamp: Date.now()
         });
       
@@ -161,7 +159,7 @@ export class EventToolStore extends BaseStore<ToolStoreState> {
       if (toolId) {
         this.eventBus.emit('store.tool.deactivated', {
           toolId,
-          instanceId: instanceId,
+          instanceId: `${toolId}-${Date.now()}`,
           timestamp: Date.now()
         });
       }
@@ -229,15 +227,15 @@ export class EventToolStore extends BaseStore<ToolStoreState> {
       return false;
     }
 
-    // Check if tool is registered
-    return this.toolFactory.canCreateTool(toolId);
+    // Check if tool is registered in the registry
+    return this.toolRegistry.getToolClass(toolId) !== null;
   }
 
   /**
    * Get all available tools
    */
   getAvailableTools(): ToolClassMetadata[] {
-    return this.toolFactory.getAvailableTools();
+    return this.toolRegistry.getAllToolClasses();
   }
 
   /**
@@ -269,24 +267,23 @@ export class EventToolStore extends BaseStore<ToolStoreState> {
       // Create fresh tool instance
       const tool = await this.toolFactory.createTool(toolId);
       
-      // Activate the tool with lifecycle events
-      tool.transitionTo(ToolState.ACTIVATING);
+      // Activate the tool with lifecycle events (tool handles internal state)
       this.eventBus.emit('tool.state.changed', {
         toolId,
         from: ToolState.INACTIVE,
         to: ToolState.ACTIVATING,
-        instanceId: tool.instanceId,
+        instanceId: `${toolId}-${Date.now()}`,
         timestamp: Date.now()
       });
       
-      await tool.onActivate();
+      await tool.onActivate(this.canvasManager);
       
-      tool.transitionTo(ToolState.ACTIVE);
+      // Emit active state event (tool handles internal state)
       this.eventBus.emit('tool.state.changed', {
         toolId,
         from: ToolState.ACTIVATING,
         to: ToolState.ACTIVE,
-        instanceId: tool.instanceId,
+        instanceId: `${toolId}-${Date.now()}`,
         timestamp: Date.now()
       });
       
@@ -311,7 +308,7 @@ export class EventToolStore extends BaseStore<ToolStoreState> {
       // Emit activation event
       this.eventBus.emit('store.tool.activated', {
         toolId,
-        instanceId: tool.instanceId,
+        instanceId: `${toolId}-${Date.now()}`,
         timestamp: Date.now()
       });
 

@@ -1,5 +1,5 @@
 import type { AgentStep, AgentContext, StepResult } from '../types'
-import { adapterRegistry } from '@/lib/ai/adapters/registry'
+import type { AdapterRegistry } from '@/lib/ai/adapters/base/AdapterRegistry'
 
 export interface ToolStepConfig {
   id: string
@@ -15,7 +15,7 @@ export class ToolStep implements AgentStep {
   private toolName: string
   private params: Record<string, unknown>
   
-  constructor(config: ToolStepConfig) {
+  constructor(config: ToolStepConfig, private adapterRegistry: AdapterRegistry) {
     this.id = config.id
     this.toolName = config.tool
     this.params = config.params
@@ -29,7 +29,7 @@ export class ToolStep implements AgentStep {
   async execute(context: AgentContext): Promise<StepResult> {
     try {
       // Get the tool adapter to validate it exists
-      const adapter = adapterRegistry.get(this.toolName)
+      const adapter = await this.adapterRegistry.getAdapterByAiName(this.toolName)
       if (!adapter) {
         throw new Error(`Tool not found: ${this.toolName}`)
       }

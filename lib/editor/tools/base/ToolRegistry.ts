@@ -1,5 +1,6 @@
 import React from 'react';
 import { BaseTool, type ToolDependencies } from './BaseTool';
+import { ToolGroupRegistry, type ToolGroupMetadata as ToolGroupMeta } from './ToolGroup';
 
 export interface ToolMetadata {
   id: string;
@@ -13,19 +14,11 @@ export interface ToolMetadata {
   priority?: number;
 }
 
-export interface ToolGroupMetadata {
-  id: string;
-  name: string;
-  icon: React.ComponentType;
-  tools: string[];
-  defaultTool: string;
-  showActiveToolIcon: boolean;
-  priority: number;
-}
+// ToolGroupMetadata is imported from ToolGroup.ts as ToolGroupMeta
 
 export interface ToolClassMetadata {
   id: string;
-  ToolClass: new (deps: ToolDependencies) => BaseTool;
+  ToolClass: new (id: string, deps: ToolDependencies) => BaseTool;
   metadata: ToolMetadata;
 }
 
@@ -35,14 +28,14 @@ export interface ToolClassMetadata {
  */
 export class ToolRegistry {
   private readonly toolClasses = new Map<string, ToolClassMetadata>();
-  private readonly toolGroups = new Map<string, ToolGroupMetadata>();
+  private readonly toolGroupRegistry = new ToolGroupRegistry();
 
   /**
    * Register a tool class with metadata
    */
   registerToolClass(
     id: string,
-    ToolClass: new (deps: ToolDependencies) => BaseTool,
+    ToolClass: new (id: string, deps: ToolDependencies) => BaseTool,
     metadata: ToolMetadata
   ): void {
     if (this.toolClasses.has(id)) {
@@ -64,34 +57,30 @@ export class ToolRegistry {
   /**
    * Register a tool group for UI organization
    */
-  registerToolGroup(group: ToolGroupMetadata): void {
-    this.toolGroups.set(group.id, group);
-    console.log(`✅ Registered tool group: ${group.id}`);
+  registerToolGroup(group: ToolGroupMeta): void {
+    this.toolGroupRegistry.registerToolGroup(group);
   }
 
   /**
    * Get all tool groups sorted by priority
    */
-  getToolGroups(): ToolGroupMetadata[] {
-    return Array.from(this.toolGroups.values())
-      .sort((a, b) => a.priority - b.priority);
+  getToolGroups(): ToolGroupMeta[] {
+    return this.toolGroupRegistry.getToolGroups();
   }
 
   /**
    * Get a specific tool group by ID
    */
-  getToolGroup(groupId: string): ToolGroupMetadata | null {
-    return this.toolGroups.get(groupId) || null;
+  getToolGroup(groupId: string): ToolGroupMeta | null {
+    return this.toolGroupRegistry.getToolGroup(groupId);
   }
 
   /**
    * Get all tools in a specific group
    */
   getToolsInGroup(groupId: string): ToolClassMetadata[] {
-    const group = this.toolGroups.get(groupId);
-    if (!group) return [];
-    
-    return group.tools
+    const toolIds = this.toolGroupRegistry.getToolsInGroup(groupId);
+    return toolIds
       .map(toolId => this.toolClasses.get(toolId))
       .filter((tool): tool is ToolClassMetadata => tool !== undefined);
   }
@@ -118,10 +107,35 @@ export class ToolRegistry {
   }
 
   /**
-   * Get tools by category
+   * Get tool metadata without creating instance
    */
-  getToolsByCategory(category: string): ToolClassMetadata[] {
-    return this.getAllToolClasses().filter(tool => tool.metadata.category === category);
+  getToolMetadata(toolId: string): ToolMetadata | null {
+    const toolClass = this.toolClasses.get(toolId);
+    return toolClass?.metadata || null;
+  }
+
+  /**
+   * Get all tool metadata for UI display
+   */
+  getAllToolMetadata(): ToolMetadata[] {
+    return Array.from(this.toolClasses.values()).map(tc => tc.metadata);
+  }
+
+  /**
+   * Get tools by category with metadata
+   */
+  getToolsByCategory(category: string): ToolMetadata[] {
+    return this.getAllToolMetadata().filter(tool => tool.category === category);
+  }
+
+  /**
+   * Get tools in group with metadata
+   */
+  getToolsInGroupWithMetadata(groupId: string): ToolMetadata[] {
+    const toolIds = this.toolGroupRegistry.getToolsInGroup(groupId);
+    return toolIds
+      .map(toolId => this.getToolMetadata(toolId))
+      .filter((metadata): metadata is ToolMetadata => metadata !== null);
   }
 
   /**
@@ -149,10 +163,10 @@ export class ToolRegistry {
       throw new Error(`Tool ${id} must be a constructor function`);
     }
 
-    const requiredMethods = ['onActivate', 'onDeactivate', 'handleMouseMove', 'handleMouseDown', 'handleMouseUp'];
+    const requiredMethods = ['onActivate', 'onDeactivate'];
     for (const method of requiredMethods) {
-      if (!ToolClass.prototype[method]) {
-        throw new Error(`Tool ${id} must implement ${method} method`);
+      if (typeof ToolClass.prototype[method] !== 'function') {
+        throw new Error(`Tool ${id} must implement the abstract method: ${method}`);
       }
     }
   }

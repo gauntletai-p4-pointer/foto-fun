@@ -2,7 +2,7 @@ import type { AgentContext, Alternative } from '../types'
 import { generateObject } from 'ai'
 import { openai } from '@ai-sdk/openai'
 import { z } from 'zod'
-import { adapterRegistry } from '@/lib/ai/adapters/registry'
+import type { AdapterRegistry } from '@/lib/ai/adapters/base/AdapterRegistry'
 import { CanvasToolBridge } from '@/lib/ai/tools/canvas-bridge'
 import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
 
@@ -36,12 +36,18 @@ async function captureCanvasState(canvas: CanvasManager): Promise<string> {
 export async function generateAlternatives(
   toolName: string,
   originalParams: Record<string, unknown>,
-  context: AgentContext
+  context: AgentContext,
+  adapterRegistry: AdapterRegistry
 ): Promise<Alternative[]> {
   try {
     // Get the adapter to understand the tool better
-    const adapter = adapterRegistry.get(toolName)
+    const adapter = await adapterRegistry.getAdapterByAiName(toolName)
     if (!adapter) return []
+    
+    // Handle stub adapter that may not have description property
+    const description = adapter && typeof adapter === 'object' && 'description' in adapter 
+      ? adapter.description 
+      : `Tool: ${toolName}`;
     
     // Generate alternatives using AI
     const { object } = await generateObject({

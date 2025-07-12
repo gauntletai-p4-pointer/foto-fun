@@ -2,6 +2,7 @@
 export interface CanvasContext {
   canvas: any;
   targetObjects: any[];
+  targetingMode?: 'selected' | 'all' | 'visible';
 }
 
 export class CanvasToolBridge {
@@ -9,7 +10,8 @@ export class CanvasToolBridge {
     console.warn('Canvas bridge disabled during refactor');
     return {
       canvas: null,
-      targetObjects: []
+      targetObjects: [],
+      targetingMode: 'selected'
     };
   }
 
@@ -17,7 +19,8 @@ export class CanvasToolBridge {
     console.warn('Canvas bridge disabled during refactor');
     return {
       canvas: null,
-      targetObjects: []
+      targetObjects: [],
+      targetingMode: 'selected'
     };
   }
 

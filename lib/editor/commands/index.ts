@@ -8,6 +8,7 @@ export * from './CommandManager'
 export { TransformCommand } from './canvas/TransformCommand'
 export { ModifyCommand } from './canvas/ModifyCommand'
 export { CropCommand } from './canvas/CropCommand'
+export { UpdateImageDataCommand } from './canvas/UpdateImageDataCommand'
 
 // Object commands (preferred for object-based architecture)
 export * from './object'
