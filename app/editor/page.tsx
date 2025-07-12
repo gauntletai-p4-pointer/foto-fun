@@ -18,6 +18,8 @@ import { ContrastAdjustmentDialog } from '@/components/editor/dialogs/ContrastAd
 import { SaturationAdjustmentDialog } from '@/components/editor/dialogs/SaturationAdjustmentDialog'
 import { ExposureAdjustmentDialog } from '@/components/editor/dialogs/ExposureAdjustmentDialog'
 import { ColorTemperatureAdjustmentDialog } from '@/components/editor/dialogs/ColorTemperatureAdjustmentDialog'
+import { BlurAdjustmentDialog } from '@/components/editor/dialogs/BlurAdjustmentDialog'
+import { SharpenAdjustmentDialog } from '@/components/editor/dialogs/SharpenAdjustmentDialog'
 import { useDocumentStore } from '@/store/documentStore'
 import { useToolStore } from '@/store/toolStore'
 import { createClient } from '@/lib/db/supabase/client'
@@ -150,6 +152,8 @@ export default function EditorPage() {
       <SaturationAdjustmentDialog />
       <ExposureAdjustmentDialog />
       <ColorTemperatureAdjustmentDialog />
+      <BlurAdjustmentDialog />
+      <SharpenAdjustmentDialog />
     </div>
   )
 } 

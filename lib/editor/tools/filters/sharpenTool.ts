@@ -58,24 +58,22 @@ class SharpenTool extends BaseFilterTool {
     this.originalFilterStates = new Map()
     this.isPreviewMode = false
     
-    // Subscribe to tool options
-    this.subscribeToToolOptions(async () => {
-      const strength = this.getOptionValue('sharpen')
-      console.log('[SharpenTool] Tool option changed, strength:', strength)
-      if (typeof strength === 'number' && strength !== this.state.get('strength')) {
-        await this.applySharpen(strength)
-        this.state.set('strength', strength)
-      }
-    })
+    // Get current filter value
+    const currentValue = this.getCurrentFilterValue()
     
-    // Apply initial value if any
-    const initialStrength = this.getOptionValue('sharpen')
-    console.log('[SharpenTool] Initial strength:', initialStrength)
-    if (typeof initialStrength === 'number' && initialStrength !== 0) {
-      this.applySharpen(initialStrength).then(() => {
-        this.state.set('strength', initialStrength)
-      })
-    }
+    // Update state with current value
+    this.state.set('strength', currentValue.strength || 0)
+    
+    // Find the sharpen tool button element
+    const sharpenButton = document.querySelector(`button[data-tool-id="${this.id}"]`) as HTMLElement
+    
+    // Open the adjustment dialog
+    canvasStore.setActiveAdjustmentTool({
+      toolId: this.id,
+      toolName: this.name,
+      currentValue: currentValue.strength || 0,
+      anchorElement: sharpenButton
+    })
     
     // Show selection indicator on tool activation
     this.showSelectionIndicator()
@@ -84,10 +82,16 @@ class SharpenTool extends BaseFilterTool {
   
   // Required: Cleanup
   protected cleanupFilterTool(): void {
-    // Don't reset the sharpen - let it persist
+    // Close the dialog if it's open
+    const canvasStore = useCanvasStore.getState()
+    if (canvasStore.activeAdjustmentTool?.toolId === this.id) {
+      canvasStore.setActiveAdjustmentTool(null)
+    }
+    
+    // Reset state
     this.state.setState({
-      isApplying: false,
-      strength: this.state.get('strength')
+      strength: 0,
+      isApplying: false
     })
   }
   
@@ -97,10 +101,10 @@ class SharpenTool extends BaseFilterTool {
   }
   
   /**
-   * Apply sharpen filter
+   * Apply sharpen filter (private method for tool options)
    */
-  private async applySharpen(strength: number): Promise<void> {
-    console.log('[SharpenTool] applySharpen called with strength:', strength)
+  private async applySharpenFromOptions(strength: number): Promise<void> {
+    console.log('[SharpenTool] applySharpenFromOptions called with strength:', strength)
     
     if (this.state.get('isApplying')) {
       console.log('[SharpenTool] Already applying, skipping')
@@ -120,6 +124,68 @@ class SharpenTool extends BaseFilterTool {
     } finally {
       this.state.set('isApplying', false)
     }
+  }
+
+  /**
+   * Apply sharpen preview (temporary)
+   */
+  async previewSharpen(strength: number): Promise<void> {
+    if (this.state.get('isApplying')) {
+      return
+    }
+    
+    this.state.set('isApplying', true)
+    
+    try {
+      await this.previewFilter({ strength: strength })
+    } catch (error) {
+      console.error('[SharpenTool] Preview failed:', error)
+    } finally {
+      this.state.set('isApplying', false)
+    }
+  }
+
+  /**
+   * Apply sharpen adjustment (permanent)
+   */
+  async applySharpen(strength: number): Promise<void> {
+    if (this.state.get('isApplying')) {
+      return
+    }
+    
+    this.state.set('isApplying', true)
+    
+    try {
+      await this.applyFilter({ strength: strength })
+    } catch (error) {
+      console.error('[SharpenTool] Apply failed:', error)
+    } finally {
+      this.state.set('isApplying', false)
+    }
+  }
+
+  /**
+   * Reset sharpen to default
+   */
+  resetSharpen(): void {
+    // Reset to the original sharpen value when dialog was opened
+    const originalStrength = this.state.get('strength')
+    
+    // Reset to the original strength value
+    this.previewFilter({ strength: originalStrength }).catch((error: any) => {
+      console.error('[SharpenTool] Reset failed:', error)
+    })
+  }
+
+  // Override onDeactivate to close dialog
+  onDeactivate(canvas: Canvas): void {
+    // Ensure dialog is closed when tool is deactivated
+    const canvasStore = useCanvasStore.getState()
+    if (canvasStore.activeAdjustmentTool?.toolId === this.id) {
+      canvasStore.setActiveAdjustmentTool(null)
+    }
+    
+    super.onDeactivate(canvas)
   }
 }
 

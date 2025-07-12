@@ -69,7 +69,7 @@ class BrightnessTool extends BaseFilterTool {
     canvasStore.setActiveAdjustmentTool({
       toolId: this.id,
       toolName: this.name,
-      currentValue: 0,  // Always start slider at 0 for incremental adjustments
+      currentValue: currentValue.adjustment,  // Start slider at current brightness value
       anchorElement: brightnessButton
     })
   }
@@ -85,13 +85,8 @@ class BrightnessTool extends BaseFilterTool {
     this.state.set('isAdjusting', true)
     
     try {
-      // Get the base adjustment value (what was there when dialog opened)
-      const baseAdjustment = this.state.get('adjustment')
-      // Apply the slider value as an increment to the base
-      const totalAdjustment = baseAdjustment + adjustment
-      
-      // Use the base class preview method
-      await this.previewFilter({ adjustment: totalAdjustment })
+      // Use the slider value directly as the final brightness adjustment
+      await this.previewFilter({ adjustment: adjustment })
     } catch (error) {
       console.error('[BrightnessTool] Preview failed:', error)
     } finally {
@@ -110,13 +105,8 @@ class BrightnessTool extends BaseFilterTool {
     this.state.set('isAdjusting', true)
     
     try {
-      // Get the base adjustment value (what was there when dialog opened)
-      const baseAdjustment = this.state.get('adjustment')
-      // Apply the slider value as an increment to the base
-      const totalAdjustment = baseAdjustment + adjustment
-      
-      // Use the base class apply method
-      await this.applyFilter({ adjustment: totalAdjustment })
+      // Use the slider value directly as the final brightness adjustment
+      await this.applyFilter({ adjustment: adjustment })
     } catch (error) {
       console.error('[BrightnessTool] Apply failed:', error)
     } finally {
@@ -128,11 +118,11 @@ class BrightnessTool extends BaseFilterTool {
    * Reset brightness to default
    */
   resetBrightness(): void {
-    // Get the base adjustment value (what was there when dialog opened)
-    const baseAdjustment = this.state.get('adjustment')
+    // Reset to the original brightness value when dialog was opened
+    const originalAdjustment = this.state.get('adjustment')
     
-    // Reset to the base adjustment (not 0)
-    this.previewFilter({ adjustment: baseAdjustment }).catch((error: any) => {
+    // Reset to the original adjustment value
+    this.previewFilter({ adjustment: originalAdjustment }).catch((error: any) => {
       console.error('[BrightnessTool] Reset failed:', error)
     })
   }

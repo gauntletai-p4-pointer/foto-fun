@@ -106,7 +106,9 @@ export class FilterPipeline {
         image.filters = []
       }
       
-      // Remove existing filters of the same type
+      // Always remove existing filters of the same type first
+      // This ensures that when a filter value is set to 0 (like blur radius = 0)
+      // the existing filter is properly removed
       image.filters = image.filters.filter((f: any) => {
         return f.constructor.name !== fabricFilter.constructor.name
       })

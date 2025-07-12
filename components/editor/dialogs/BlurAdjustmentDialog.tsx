@@ -3,12 +3,12 @@
 import React from 'react'
 import { AdjustmentDialog } from './AdjustmentDialog'
 import { useCanvasStore } from '@/store/canvasStore'
-import { brightnessTool } from '@/lib/editor/tools/adjustments/brightnessTool'
+import { blurTool } from '@/lib/editor/tools/filters/blurTool'
 
-export const BrightnessAdjustmentDialog: React.FC = () => {
+export const BlurAdjustmentDialog: React.FC = () => {
   const activeAdjustmentTool = useCanvasStore((state) => state.activeAdjustmentTool)
   
-  if (!activeAdjustmentTool || activeAdjustmentTool.toolId !== 'brightness') {
+  if (!activeAdjustmentTool || activeAdjustmentTool.toolId !== 'blur') {
     return null
   }
   
@@ -16,28 +16,28 @@ export const BrightnessAdjustmentDialog: React.FC = () => {
   const initialValue = activeAdjustmentTool.currentValue ?? 0
   
   const adjustmentConfig = {
-    id: 'brightness',
-    label: 'Brightness',
-    min: -100,
+    id: 'blur',
+    label: 'Blur Radius',
+    min: 0,
     max: 100,
     step: 1,
     unit: '%',
-    defaultValue: initialValue  // Start at current brightness value
+    defaultValue: 0  // Always start at 0 for incremental adjustments
   }
   
   return (
     <AdjustmentDialog
-      toolId="brightness"
-      toolName="Brightness Adjustment"
+      toolId="blur"
+      toolName="Blur Adjustment"
       adjustmentConfig={adjustmentConfig}
       onApply={async (value) => {
-        await brightnessTool.applyBrightness(value)
+        await blurTool.applyBlur(value)
       }}
       onPreview={(value) => {
-        brightnessTool.previewBrightness(value)
+        blurTool.previewBlur(value)
       }}
       onReset={() => {
-        brightnessTool.resetBrightness()
+        blurTool.resetBlur()
       }}
     />
   )

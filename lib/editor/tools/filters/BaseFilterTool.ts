@@ -27,7 +27,17 @@ export abstract class BaseFilterTool extends BaseTool {
   /**
    * Get default parameters - override in subclasses
    */
-  protected abstract getDefaultParams(): any
+  protected getDefaultParams(): any {
+    const filterName = this.getFilterName()
+    switch (filterName) {
+      case 'blur':
+        return { radius: 0 }
+      case 'sharpen':
+        return { strength: 0 }
+      default:
+        return {}
+    }
+  }
   
   /**
    * Get current filter value from the image
@@ -71,6 +81,7 @@ export abstract class BaseFilterTool extends BaseTool {
         'contrast': { type: 'Contrast', param: 'contrast' },
         'saturation': { type: 'Saturation', param: 'saturation' },
         'blur': { type: 'Blur', param: 'blur' },
+        'sharpen': { type: 'Convolute', param: 'matrix' },
       }
       
       // Check for color temperature filter (ColorMatrix with specific properties)
@@ -106,6 +117,19 @@ export abstract class BaseFilterTool extends BaseTool {
         if (filterName === 'saturation' && filterValue !== undefined) {
           const adjustmentPercentage = filterValue * 100
           return { adjustment: adjustmentPercentage }
+        }
+        
+        // For sharpen, extract strength from the convolute matrix
+        if (filterName === 'sharpen' && filterValue !== undefined) {
+          // The matrix is [0, -1, 0, -1, intensity, -1, 0, -1, 0]
+          // Where intensity = 1 + (strength / 25)
+          const matrix = filterValue as number[]
+          if (matrix && matrix.length === 9) {
+            const intensity = matrix[4] // Center value
+            const strength = Math.max(0, Math.round((intensity - 1) * 25))
+            console.log('[BaseFilterTool] Extracted sharpen strength:', strength)
+            return { strength }
+          }
         }
         
         return { [paramName]: filterValue || this.getDefaultParams()[paramName] }
@@ -164,63 +188,15 @@ export abstract class BaseFilterTool extends BaseTool {
     console.log('[BaseFilterTool] Current filter type:', filterName)
     
     targetImages.forEach((img, index) => {
-      // Remove any existing filters of the current type before saving
-      if (img.filters) {
-        const filtersWithoutCurrentType = img.filters.filter(filter => {
-          // Check filter type - handle different filter identification methods
-          const filterType = filter.type || filter.constructor.name
-          
-          // For hue filter, check both HueRotation and _isHueRotation flag
-          if (filterName === 'hue') {
-            return filterType !== 'HueRotation' && !(filter as any)._isHueRotation
-          }
-          
-          // For other filters, match by type name
-          const filterTypeMap: Record<string, string> = {
-            'brightness': 'Brightness',
-            'contrast': 'Contrast',
-            'saturation': 'Saturation',
-            'blur': 'Blur',
-            'grayscale': 'Grayscale',
-            'sepia': 'Sepia',
-            'invert': 'Invert',
-            'sharpen': 'Convolute'
-          }
-          
-          // For color temperature, check for ColorMatrix type
-          if (filterName === 'colortemperature') {
-            // Remove ColorMatrix filters that are used for color temperature
-            // We identify them by checking if they have the specific matrix pattern
-            if (filterType === 'ColorMatrix' && (filter as any).matrix) {
-              const matrix = (filter as any).matrix
-              // Check if this is a color temperature matrix (red and blue channels adjusted oppositely)
-              const redAdjust = matrix[0] - 1
-              const blueAdjust = 1 - matrix[10]
-              // If both adjustments are roughly equal (within tolerance), it's likely a color temp filter
-              return Math.abs(redAdjust - blueAdjust) < 0.01 // Return false to remove color temp filters
-            }
-            return true // Keep non-ColorMatrix filters
-          }
-          
-          return filterType !== filterTypeMap[filterName]
-        })
-        
-        // Apply the filtered list
-        img.filters = filtersWithoutCurrentType
-        img.applyFilters()
-      }
-      
-      // Now save the cleaned state
+      // Save the current filter state as-is (without removing anything)
+      // This preserves the exact state before any preview changes
       const filters = img.filters ? [...img.filters] : []
       const imgId = img.get('id') as string || img.toString()
       this.originalFilterStates.set(imgId, filters)
       console.log(`[BaseFilterTool] Saved state for image ${index}:`, imgId, 'filters:', filters.length)
     })
     
-    // Render to show the cleaned state
-    if (this.canvas) {
-      this.canvas.renderAll()
-    }
+    console.log('[BaseFilterTool] Original state saved - no changes applied yet')
   }
   
   /**
@@ -254,8 +230,15 @@ export abstract class BaseFilterTool extends BaseTool {
     if (this.canvas) {
       this.canvas.renderAll()
     }
-    this.originalFilterStates.clear()
-    console.log('[BaseFilterTool] State restoration complete')
+    
+    // Only clear the states if we're not in preview mode
+    // This allows multiple preview operations to restore to the same baseline
+    if (!this.isPreviewMode) {
+      this.originalFilterStates.clear()
+      console.log('[BaseFilterTool] State restoration complete - cleared saved states')
+    } else {
+      console.log('[BaseFilterTool] State restoration complete - kept saved states for preview mode')
+    }
   }
   
   /**
@@ -278,6 +261,11 @@ export abstract class BaseFilterTool extends BaseTool {
       console.log('[BaseFilterTool] Entering preview mode')
       this.isPreviewMode = true
       this.saveOriginalState()
+    } else {
+      // If already in preview mode, restore to original state first
+      // This prevents cumulative changes from slider movements
+      console.log('[BaseFilterTool] Already in preview mode, restoring original state before applying new preview')
+      this.restoreOriginalState()
     }
     
     // Apply filter using pipeline

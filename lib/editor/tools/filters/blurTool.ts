@@ -58,24 +58,22 @@ class BlurTool extends BaseFilterTool {
     this.originalFilterStates = new Map()
     this.isPreviewMode = false
     
-    // Subscribe to tool options
-    this.subscribeToToolOptions(async () => {
-      const radius = this.getOptionValue('blur')
-      console.log('[BlurTool] Tool option changed, radius:', radius)
-      if (typeof radius === 'number' && radius !== this.state.get('radius')) {
-        await this.applyBlur(radius)
-        this.state.set('radius', radius)
-      }
-    })
+    // Get current filter value
+    const currentValue = this.getCurrentFilterValue()
     
-    // Apply initial value if any
-    const initialRadius = this.getOptionValue('blur')
-    console.log('[BlurTool] Initial radius:', initialRadius)
-    if (typeof initialRadius === 'number' && initialRadius !== 0) {
-      this.applyBlur(initialRadius).then(() => {
-        this.state.set('radius', initialRadius)
-      })
-    }
+    // Update state with current value
+    this.state.set('radius', currentValue.radius || 0)
+    
+    // Find the blur tool button element
+    const blurButton = document.querySelector(`button[data-tool-id="${this.id}"]`) as HTMLElement
+    
+    // Open the adjustment dialog
+    canvasStore.setActiveAdjustmentTool({
+      toolId: this.id,
+      toolName: this.name,
+      currentValue: currentValue.radius || 0,
+      anchorElement: blurButton
+    })
     
     // Show selection indicator on tool activation
     this.showSelectionIndicator()
@@ -84,10 +82,16 @@ class BlurTool extends BaseFilterTool {
   
   // Required: Cleanup
   protected cleanupFilterTool(): void {
-    // Don't reset the blur - let it persist
+    // Close the dialog if it's open
+    const canvasStore = useCanvasStore.getState()
+    if (canvasStore.activeAdjustmentTool?.toolId === this.id) {
+      canvasStore.setActiveAdjustmentTool(null)
+    }
+    
+    // Reset state
     this.state.setState({
-      isAdjusting: false,
-      radius: this.state.get('radius')
+      radius: 0,
+      isAdjusting: false
     })
   }
   
@@ -97,10 +101,10 @@ class BlurTool extends BaseFilterTool {
   }
   
   /**
-   * Apply blur filter
+   * Apply blur filter (private method for tool options)
    */
-  private async applyBlur(radius: number): Promise<void> {
-    console.log('[BlurTool] applyBlur called with radius:', radius)
+  private async applyBlurFromOptions(radius: number): Promise<void> {
+    console.log('[BlurTool] applyBlurFromOptions called with radius:', radius)
     
     if (this.state.get('isAdjusting')) {
       console.log('[BlurTool] Already adjusting, skipping')
@@ -120,6 +124,68 @@ class BlurTool extends BaseFilterTool {
     } finally {
       this.state.set('isAdjusting', false)
     }
+  }
+
+  /**
+   * Apply blur preview (temporary)
+   */
+  async previewBlur(radius: number): Promise<void> {
+    if (this.state.get('isAdjusting')) {
+      return
+    }
+    
+    this.state.set('isAdjusting', true)
+    
+    try {
+      await this.previewFilter({ radius: radius })
+    } catch (error) {
+      console.error('[BlurTool] Preview failed:', error)
+    } finally {
+      this.state.set('isAdjusting', false)
+    }
+  }
+
+  /**
+   * Apply blur adjustment (permanent)
+   */
+  async applyBlur(radius: number): Promise<void> {
+    if (this.state.get('isAdjusting')) {
+      return
+    }
+    
+    this.state.set('isAdjusting', true)
+    
+    try {
+      await this.applyFilter({ radius: radius })
+    } catch (error) {
+      console.error('[BlurTool] Apply failed:', error)
+    } finally {
+      this.state.set('isAdjusting', false)
+    }
+  }
+
+  /**
+   * Reset blur to default
+   */
+  resetBlur(): void {
+    // Reset to the original blur value when dialog was opened
+    const originalRadius = this.state.get('radius')
+    
+    // Reset to the original radius value
+    this.previewFilter({ radius: originalRadius }).catch((error: any) => {
+      console.error('[BlurTool] Reset failed:', error)
+    })
+  }
+
+  // Override onDeactivate to close dialog
+  onDeactivate(canvas: Canvas): void {
+    // Ensure dialog is closed when tool is deactivated
+    const canvasStore = useCanvasStore.getState()
+    if (canvasStore.activeAdjustmentTool?.toolId === this.id) {
+      canvasStore.setActiveAdjustmentTool(null)
+    }
+    
+    super.onDeactivate(canvas)
   }
 }
 
