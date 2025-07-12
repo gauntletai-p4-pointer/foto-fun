@@ -187,6 +187,126 @@ interface CanvasState {
 - **Zoom:** Scale view from 0.1x to 50x
 - **Viewport:** Fixed container showing portion of infinite canvas
 
+### **🎯 CRITICAL: Tool Operation Categories**
+
+**All tools are categorized by HOW they manipulate the canvas:**
+
+#### **1. Object Creation Tools**
+**Purpose:** Create new `CanvasObject` instances on the infinite canvas
+
+**How They Work:**
+- Create new entries in the canvas object store
+- Generate new `CanvasObject` with unique ID
+- Add to canvas via `canvas.addObject()`
+- Objects become independently selectable and transformable
+
+**Examples:**
+- **Frame Tool:** Creates frame objects with preset dimensions
+- **Text Tool:** Creates text objects with typography
+- **Shape Tools:** Create vector shape objects (rectangle, circle, polygon)
+- **Image Import:** Creates image objects from files
+- **AI Image Generation:** Creates image objects from AI prompts
+
+**Data Structure:**
+```typescript
+// New object added to canvas
+const frameObject: CanvasObject = {
+  id: 'frame-123',
+  type: 'frame',
+  x: 100, y: 100,
+  width: 800, height: 600,
+  data: { preset: 'A4', fill: '#ffffff' }
+};
+```
+
+#### **2. Pixel Manipulation Tools**
+**Purpose:** Directly modify pixel data within existing image objects
+
+**How They Work:**
+- Target existing image objects only
+- Modify the underlying `ImageData` buffer
+- Use `PixelBuffer` for efficient pixel operations
+- Changes are applied destructively to source image
+
+**Examples:**
+- **Brush Tool:** Paints pixels directly onto image objects
+- **Eraser Tool:** Removes pixels from image objects
+- **Clone/Healing:** Copies pixels within image objects
+- **Blur/Sharpen:** Applies pixel-level filters
+- **Color Correction:** Adjusts pixel values (brightness, contrast, etc.)
+
+**Data Structure:**
+```typescript
+// Modifies existing image object's pixel data
+const imageObject = canvas.getObject('img-123');
+imageObject.data.imageData = modifiedPixelBuffer.getImageData();
+```
+
+#### **3. Transform Tools**
+**Purpose:** Modify object properties and spatial relationships
+
+**How They Work:**
+- Operate on any `CanvasObject` type
+- Modify object properties (position, size, rotation)
+- Handle object relationships (grouping, parenting)
+- Changes are non-destructive to object content
+
+**Examples:**
+- **Move Tool:** Transform position, size, rotation
+- **Crop Tool:** Modify image object bounds (non-destructive)
+- **Align Tools:** Arrange multiple objects spatially
+- **Group/Ungroup:** Manage object hierarchies
+
+**Data Structure:**
+```typescript
+// Updates object transform properties
+canvas.updateObject('obj-123', {
+  x: newX, y: newY,
+  width: newWidth, height: newHeight,
+  rotation: newRotation
+});
+```
+
+#### **4. Selection Tools**
+**Purpose:** Create and modify pixel-level selections within image objects
+
+**How They Work:**
+- Create `PixelSelection` masks on image objects
+- Use boolean operations (add, subtract, intersect)
+- Selections constrain other tool operations
+- Selections are temporary overlays, not permanent objects
+
+**Examples:**
+- **Marquee Tool:** Rectangular selections
+- **Lasso Tool:** Freehand selections
+- **Magic Wand:** Color-based selections
+- **AI Selection:** Semantic object selection
+
+**Data Structure:**
+```typescript
+// Creates selection mask on image object
+const selection: PixelSelection = {
+  objectId: 'img-123',
+  mask: selectionMaskData,
+  bounds: { x: 10, y: 10, width: 100, height: 100 }
+};
+```
+
+#### **5. AI-Enhanced Tools (Cross-Category)**
+**Purpose:** AI-powered versions of traditional tools
+
+**How They Work:**
+- Can be any of the above categories
+- Use AI models to enhance or automate operations
+- Accessible through both UI and chat interfaces
+- Maintain same data flow patterns as base tools
+
+**Examples:**
+- **AI Background Removal:** Pixel manipulation with AI selection
+- **AI Image Generation:** Object creation with AI content
+- **AI Style Transfer:** Pixel manipulation with AI processing
+- **AI Auto-Crop:** Transform tool with AI composition analysis
+
 ### **Object-Based Domain Model**
 
 **Location:** `lib/editor/objects/types.ts`
@@ -340,40 +460,130 @@ abstract class BaseTool<TOptions extends ToolOptions = {}> {
 
 ### **Tool Categories**
 
-#### **1. Canvas Tools (UI-Activated)**
-**Location:** `lib/editor/tools/`
+**CRITICAL DISTINCTION:** Tools are categorized by **how they manipulate the canvas**, not just their interface:
 
-**Purpose:** Traditional editing tools activated from tool palette.
+#### **1. Object Creation Tools**
+**Purpose:** Create new `CanvasObject` instances on the infinite canvas
 
-**Examples:**
-- **Frame Tool:** Create document boundaries and backgrounds
-- **Move Tool:** Transform object position and size
-- **Crop Tool:** Trim image content
-- **Brush Tool:** Paint and draw
-- **Text Tool:** Add typography
-
-**Activation:** User clicks tool in palette → Tool becomes active → Handles mouse events
-
-#### **2. AI Tools (Chat-Activated)**
-**Location:** `lib/ai/tools/`
-
-**Purpose:** AI-powered operations called from chat interface.
+**Base Class:** `ObjectTool` → `ObjectDrawingTool`
+**How They Work:** 
+- Create new entries in the canvas object store
+- Generate new `CanvasObject` with unique ID
+- Add to canvas via `canvas.addObject()`
+- Objects become independently selectable and transformable
 
 **Examples:**
-- **Image Generation:** Create images from text prompts
-- **Background Removal:** AI-powered subject isolation
-- **Face Enhancement:** Improve portrait quality
-- **Style Transfer:** Apply artistic styles
+- **Frame Tool:** Creates frame objects with preset dimensions
+- **Text Tool:** Creates text objects with typography
+- **Shape Tools:** Create vector shape objects (rectangle, circle, polygon)
+- **Image Import:** Creates image objects from files
+- **AI Image Generation:** Creates image objects from AI prompts
 
-**Activation:** AI agent calls tool → Tool executes → Results added to canvas
+**Data Flow:**
+```typescript
+// Object creation workflow
+const objectData = tool.createObjectData(userInput);
+const objectId = await canvas.addObject(objectData);
+await canvas.selectObject(objectId);
+```
 
-#### **3. Hybrid Tools (Both Interfaces)**
-**Purpose:** Tools accessible from both UI and AI chat.
+#### **2. Pixel Manipulation Tools**
+**Purpose:** Directly modify pixel data within existing image objects
+
+**Base Class:** `PixelTool` → `EnhancedDrawingTool`
+**How They Work:**
+- Target existing image objects only
+- Modify the underlying `ImageData` buffer
+- Use `PixelBuffer` for efficient pixel operations
+- Changes are applied destructively to source image
 
 **Examples:**
-- **Brightness/Contrast:** UI sliders or "make it brighter" chat
-- **Crop:** UI handles or "crop to square" chat
-- **Rotate:** UI rotation or "rotate 90 degrees" chat
+- **Brush Tool:** Paints pixels directly onto image objects
+- **Eraser Tool:** Removes pixels from image objects
+- **Clone/Healing:** Copies pixels within image objects
+- **Blur/Sharpen:** Applies pixel-level filters
+- **Color Correction:** Adjusts pixel values (brightness, contrast, etc.)
+
+**Data Flow:**
+```typescript
+// Pixel manipulation workflow
+const imageObjects = canvas.getSelectedObjects().filter(obj => obj.type === 'image');
+const pixelBuffer = new PixelBuffer(imageObjects[0].imageData);
+await tool.applyPixelOperation(pixelBuffer, toolOptions);
+await canvas.updateObject(imageObjects[0].id, { imageData: pixelBuffer.getImageData() });
+```
+
+#### **3. Transform Tools**
+**Purpose:** Modify object properties and spatial relationships
+
+**Base Class:** `TransformTool`
+**How They Work:**
+- Operate on any `CanvasObject` type
+- Modify object properties (position, size, rotation)
+- Handle object relationships (grouping, parenting)
+- Changes are non-destructive to object content
+
+**Examples:**
+- **Move Tool:** Transform position, size, rotation
+- **Crop Tool:** Modify image object bounds (non-destructive)
+- **Align Tools:** Arrange multiple objects spatially
+- **Group/Ungroup:** Manage object hierarchies
+
+**Data Flow:**
+```typescript
+// Transform workflow
+const selectedObjects = canvas.getSelectedObjects();
+const transforms = tool.calculateTransforms(selectedObjects, userInput);
+await canvas.updateObjects(transforms);
+```
+
+#### **4. Selection Tools**
+**Purpose:** Create and modify pixel-level selections within image objects
+
+**Base Class:** `SelectionTool`
+**How They Work:**
+- Create `PixelSelection` masks on image objects
+- Use boolean operations (add, subtract, intersect)
+- Selections constrain other tool operations
+- Selections are temporary overlays, not permanent objects
+
+**Examples:**
+- **Marquee Tool:** Rectangular selections
+- **Lasso Tool:** Freehand selections
+- **Magic Wand:** Color-based selections
+- **AI Selection:** Semantic object selection
+
+**Data Flow:**
+```typescript
+// Selection workflow
+const imageObject = canvas.getSelectedObjects()[0];
+const selection = await tool.createSelection(imageObject, userInput);
+await canvas.setSelection(selection);
+```
+
+#### **5. AI-Enhanced Tools (Cross-Category)**
+**Purpose:** AI-powered versions of traditional tools
+
+**How They Work:**
+- Can be any of the above categories
+- Use AI models to enhance or automate operations
+- Accessible through both UI and chat interfaces
+- Maintain same data flow patterns as base tools
+
+**Examples:**
+- **AI Background Removal:** Pixel manipulation with AI selection
+- **AI Image Generation:** Object creation with AI content
+- **AI Style Transfer:** Pixel manipulation with AI processing
+- **AI Auto-Crop:** Transform tool with AI composition analysis
+
+**Interface Patterns:**
+```typescript
+// UI activation (traditional)
+toolPalette.activateTool('ai-background-removal');
+
+// Chat activation (AI agent)
+await aiAdapter.execute('removeBackground', { objectId: 'img-123' });
+```
 
 ### **Tool State Machine**
 

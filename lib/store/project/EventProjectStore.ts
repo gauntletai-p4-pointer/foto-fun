@@ -165,13 +165,14 @@ export class EventProjectStore extends BaseStore<ProjectStoreState> {
 
     this.typedSubscriptions.push(
       this.typedEventBus.on('project.created', (data) => {
+        const now = Date.now()
         this.setState(state => ({
           ...state,
           currentProject: {
             id: data.projectId,
             name: data.name,
-            createdAt: data.metadata.created.getTime(),
-            lastModified: data.metadata.modified.getTime()
+            createdAt: data.metadata?.created?.getTime() || now,
+            lastModified: data.metadata?.modified?.getTime() || now
           },
           isDirty: false,
           isLoading: false
@@ -234,8 +235,6 @@ export class EventProjectStore extends BaseStore<ProjectStoreState> {
       projectId: project.id,
       name: project.name,
       metadata: {
-        id: project.id,
-        name: project.name,
         created: now,
         modified: now
       }
@@ -253,7 +252,8 @@ export class EventProjectStore extends BaseStore<ProjectStoreState> {
     // Simulate save operation
     setTimeout(() => {
       this.typedEventBus.emit('project.saved', {
-        projectId: currentProject.id
+        projectId: currentProject.id,
+        timestamp: Date.now()
       })
     }, 1000)
   }
@@ -272,7 +272,9 @@ export class EventProjectStore extends BaseStore<ProjectStoreState> {
     // Persist to localStorage
     localStorage.setItem('recentProjects', JSON.stringify(updated))
 
+    // Emit both events for compatibility
     this.typedEventBus.emit('recentFiles.updated', { files: updated })
+    this.typedEventBus.emit('project.recent.updated', { recentProjects: updated })
   }
 
   clearRecentProjects(): void {

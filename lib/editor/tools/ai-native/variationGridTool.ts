@@ -114,9 +114,12 @@ export class VariationGridTool extends ObjectTool {
     try {
       const taskId = `${this.id}-${Date.now()}`
       this.eventBus.emit('ai.processing.started', {
-        taskId,
+        operationId: taskId,
+        type: 'image-variation',
         toolId: this.id,
-        description: 'Generating image variations'
+        metadata: {
+          description: 'Generating image variations'
+        }
       })
       
       // Process each selected image
@@ -125,16 +128,18 @@ export class VariationGridTool extends ObjectTool {
       }
       
       this.eventBus.emit('ai.processing.completed', {
-        taskId,
+        operationId: taskId,
         toolId: this.id,
-        success: true
+        result: {
+          success: true
+        }
       })
       
     } catch (error) {
       console.error('Variation generation failed:', error)
       const errorTaskId = `${this.id}-${Date.now()}`
       this.eventBus.emit('ai.processing.failed', {
-        taskId: errorTaskId,
+        operationId: errorTaskId,
         toolId: this.id,
         error: error instanceof Error ? error.message : 'Unknown error'
       })

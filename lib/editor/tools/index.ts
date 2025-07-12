@@ -29,35 +29,36 @@ import { imageGenerationTool } from './ai-native/imageGenerationCanvasTool'
 import { EraserTool } from './drawing/eraserTool'
 import { GradientTool } from './drawing/gradientTool'
 
-// AI Tools - Import all the new AI tools
-import { BackgroundRemovalTool } from '@/lib/ai/tools/BackgroundRemovalTool'
-import { FaceEnhancementTool } from '@/lib/ai/tools/FaceEnhancementTool'
-import { InpaintingTool } from '@/lib/ai/tools/InpaintingTool'
-import { OutpaintingTool } from '@/lib/ai/tools/OutpaintingTool'
-import { SemanticSelectionTool } from '@/lib/ai/tools/SemanticSelectionTool'
-import { SmartSelectionTool } from './ai-native/smartSelectionTool'
-import { VariationGridTool } from './ai-native/variationGridTool'
-import { AIPromptBrush } from './ai-native/aiPromptBrush'
-import { StyleTransferBrush } from './ai-native/styleTransferBrush'
-import { MagicEraserTool } from './ai-native/magicEraserTool'
-import { PromptAdjustmentTool } from './ai-native/promptAdjustmentTool'
+// AI Tools - Temporarily commented out until tool migration is complete
+// import { BackgroundRemovalTool } from '@/lib/ai/tools/BackgroundRemovalTool'
+// import { FaceEnhancementTool } from '@/lib/ai/tools/FaceEnhancementTool'
+// import { InpaintingTool } from '@/lib/ai/tools/InpaintingTool'
+// import { OutpaintingTool } from '@/lib/ai/tools/OutpaintingTool'
+// import { SemanticSelectionTool } from '@/lib/ai/tools/SemanticSelectionTool'
+// import { SmartSelectionTool } from './ai-native/smartSelectionTool'
+// import { VariationGridTool } from './ai-native/variationGridTool'
+// import { AIPromptBrush } from './ai-native/aiPromptBrush'
+// import { StyleTransferBrush } from './ai-native/styleTransferBrush'
+// import { MagicEraserTool } from './ai-native/magicEraserTool'
+// import { PromptAdjustmentTool } from './ai-native/promptAdjustmentTool'
 
 // Create instances
 const eraserTool = new EraserTool()
 const gradientTool = new GradientTool()
 
 // Create AI tool instances
-const backgroundRemovalTool = new BackgroundRemovalTool()
-const faceEnhancementTool = new FaceEnhancementTool()
-const inpaintingTool = new InpaintingTool()
-const outpaintingTool = new OutpaintingTool()
-const semanticSelectionTool = new SemanticSelectionTool()
-const smartSelectionTool = new SmartSelectionTool()
-const variationGridTool = new VariationGridTool()
-const aiPromptBrush = new AIPromptBrush()
-const styleTransferBrush = new StyleTransferBrush()
-const magicEraserTool = new MagicEraserTool()
-const promptAdjustmentTool = new PromptAdjustmentTool()
+// TODO: These will be properly instantiated via ServiceContainer after tool migration
+// const backgroundRemovalTool = new BackgroundRemovalTool()
+// const faceEnhancementTool = new FaceEnhancementTool()
+// const inpaintingTool = new InpaintingTool()
+// const outpaintingTool = new OutpaintingTool()
+// const semanticSelectionTool = new SemanticSelectionTool()
+// const smartSelectionTool = new SmartSelectionTool()
+// const variationGridTool = new VariationGridTool()
+// const aiPromptBrush = new AIPromptBrush()
+// const styleTransferBrush = new StyleTransferBrush()
+// const magicEraserTool = new MagicEraserTool()
+// const promptAdjustmentTool = new PromptAdjustmentTool()
 
 // Helper function to adapt canvas tools to UI tool interface
 function adaptTool(tool: CanvasTool): Tool {
@@ -125,23 +126,27 @@ export const tools: Tool[] = [
   
   // AI Generation tools
   adaptTool(imageGenerationTool),
-  adaptTool(variationGridTool),
-  adaptTool(outpaintingTool),
+  // TODO: Re-enable after tool migration
+  // adaptTool(variationGridTool),
+  // adaptTool(outpaintingTool),
   
   // AI Enhancement tools
-  adaptTool(backgroundRemovalTool),
-  adaptTool(faceEnhancementTool),
-  adaptTool(inpaintingTool),
-  adaptTool(magicEraserTool),
+  // TODO: Re-enable after tool migration
+  // adaptTool(backgroundRemovalTool),
+  // adaptTool(faceEnhancementTool),
+  // adaptTool(inpaintingTool),
+  // adaptTool(magicEraserTool),
   
   // AI Selection tools
-  adaptTool(semanticSelectionTool),
-  adaptTool(smartSelectionTool),
+  // TODO: Re-enable after tool migration
+  // adaptTool(semanticSelectionTool),
+  // adaptTool(smartSelectionTool),
   
   // AI Creative tools
-  adaptTool(aiPromptBrush),
-  adaptTool(styleTransferBrush),
-  adaptTool(promptAdjustmentTool),
+  // TODO: Re-enable after tool migration
+  // adaptTool(aiPromptBrush),
+  // adaptTool(styleTransferBrush),
+  // adaptTool(promptAdjustmentTool),
 ]
 
 // Export individual tools
@@ -192,15 +197,16 @@ export {
   
   // AI tools
   imageGenerationTool,
-  backgroundRemovalTool,
-  faceEnhancementTool,
-  inpaintingTool,
-  outpaintingTool,
-  semanticSelectionTool,
-  smartSelectionTool,
-  variationGridTool,
-  aiPromptBrush,
-  styleTransferBrush,
-  magicEraserTool,
-  promptAdjustmentTool,
+  // TODO: Re-enable after tool migration
+  // backgroundRemovalTool,
+  // faceEnhancementTool,
+  // inpaintingTool,
+  // outpaintingTool,
+  // semanticSelectionTool,
+  // smartSelectionTool,
+  // variationGridTool,
+  // aiPromptBrush,
+  // styleTransferBrush,
+  // magicEraserTool,
+  // promptAdjustmentTool,
 } 

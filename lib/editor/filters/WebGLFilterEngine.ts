@@ -67,15 +67,15 @@ export class WebGLFilterEngine {
   
   private setupEventHandlers(): void {
     // Listen for filter events
-    this.typedEventBus.on('layer.filter.added', (event) => {
+    this.typedEventBus.on('object.filter.added', (event) => {
       if (this.config.optimization) {
-        console.log(`[WebGLFilterEngine] Filter added: ${event.layerId}`)
+        console.log(`[WebGLFilterEngine] Filter added: ${event.objectId}`)
       }
     })
     
-    this.typedEventBus.on('layer.filter.removed', (event) => {
-      // Clear cache for this layer
-      this.clearLayerCache(event.layerId)
+    this.typedEventBus.on('object.filter.removed', (event) => {
+      // Clear cache for this object
+      this.clearObjectCache(event.objectId)
     })
   }
   
@@ -84,13 +84,13 @@ export class WebGLFilterEngine {
     this.resourceManager.register('WebGLFilterEngine', this)
   }
   
-  private clearLayerCache(layerId: string): void {
+  private clearObjectCache(objectId: string): void {
     if (!this.config.caching) return
     
-    // Remove cached results for this layer
+    // Remove cached results for this object
     const keysToDelete: string[] = []
     this.filterCache.forEach((_, key) => {
-      if (key.startsWith(`${layerId}:`)) {
+      if (key.startsWith(`${objectId}:`)) {
         keysToDelete.push(key)
       }
     })
@@ -118,9 +118,10 @@ export class WebGLFilterEngine {
       this.isInitialized = true
       
       // Emit initialization event
-      this.typedEventBus.emit('layer.filter.stack.updated', {
-        layerId: 'system',
-        filterStack: 'WebGL initialized'
+      this.typedEventBus.emit('object.filter.added', {
+        objectId: 'system',
+        filter: { type: 'system', params: {} },
+        position: 0
       })
       
     } catch (error) {
@@ -148,7 +149,7 @@ export class WebGLFilterEngine {
   async applyFilter(
     source: HTMLImageElement | HTMLCanvasElement,
     filter: Filter,
-    layerId?: string
+    objectId?: string
   ): Promise<HTMLCanvasElement> {
     if (this.disposed) {
       throw new Error('WebGLFilterEngine has been disposed')
@@ -163,8 +164,8 @@ export class WebGLFilterEngine {
     }
     
     // Check cache if enabled
-    if (this.config.caching && layerId) {
-      const cacheKey = `${layerId}:${filter.type}:${JSON.stringify(filter.params)}`
+    if (this.config.caching && objectId) {
+      const cacheKey = `${objectId}:${filter.type}:${JSON.stringify(filter.params)}`
       const cached = this.filterCache.get(cacheKey)
       if (cached) {
         return cached
@@ -181,8 +182,8 @@ export class WebGLFilterEngine {
     const result = this.filterInstance.apply(source)
     
     // Cache result if enabled
-    if (this.config.caching && layerId) {
-      const cacheKey = `${layerId}:${filter.type}:${JSON.stringify(filter.params)}`
+    if (this.config.caching && objectId) {
+      const cacheKey = `${objectId}:${filter.type}:${JSON.stringify(filter.params)}`
       this.filterCache.set(cacheKey, result)
       
       // Limit cache size
@@ -195,9 +196,9 @@ export class WebGLFilterEngine {
     }
     
     // Emit filter applied event
-    if (layerId) {
-      this.typedEventBus.emit('layer.filter.added', {
-        layerId,
+    if (objectId) {
+      this.typedEventBus.emit('object.filter.added', {
+        objectId,
         filter,
         position: 0
       })
@@ -212,7 +213,7 @@ export class WebGLFilterEngine {
   async applyFilterChain(
     source: HTMLImageElement | HTMLCanvasElement,
     filters: Filter[],
-    layerId?: string
+    objectId?: string
   ): Promise<HTMLCanvasElement> {
     if (this.disposed) {
       throw new Error('WebGLFilterEngine has been disposed')
@@ -227,8 +228,8 @@ export class WebGLFilterEngine {
     }
     
     // Check cache for entire chain if enabled
-    if (this.config.caching && layerId) {
-      const cacheKey = `${layerId}:chain:${JSON.stringify(filters)}`
+    if (this.config.caching && objectId) {
+      const cacheKey = `${objectId}:chain:${JSON.stringify(filters)}`
       const cached = this.filterCache.get(cacheKey)
       if (cached) {
         return cached
@@ -247,16 +248,19 @@ export class WebGLFilterEngine {
     const result = this.filterInstance.apply(source)
     
     // Cache result if enabled
-    if (this.config.caching && layerId) {
-      const cacheKey = `${layerId}:chain:${JSON.stringify(filters)}`
+    if (this.config.caching && objectId) {
+      const cacheKey = `${objectId}:chain:${JSON.stringify(filters)}`
       this.filterCache.set(cacheKey, result)
     }
     
-    // Emit filter stack updated event
-    if (layerId) {
-      this.typedEventBus.emit('layer.filter.stack.updated', {
-        layerId,
-        filterStack: filters
+    // Emit filter applied events for each filter
+    if (objectId) {
+      filters.forEach((filter, index) => {
+        this.typedEventBus.emit('object.filter.added', {
+          objectId,
+          filter,
+          position: index
+        })
       })
     }
     
@@ -415,8 +419,8 @@ export class WebGLFilterEngine {
     await this.resourceManager.disposeResource('WebGLFilterEngine')
     
     // Remove event listeners
-    this.typedEventBus.clear('layer.filter.added')
-    this.typedEventBus.clear('layer.filter.removed')
+    this.typedEventBus.clear('object.filter.added')
+    this.typedEventBus.clear('object.filter.removed')
   }
   
   /**

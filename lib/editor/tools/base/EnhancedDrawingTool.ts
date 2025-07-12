@@ -38,10 +38,43 @@ export interface DrawingContext {
 export class EnhancedDrawingTool extends DrawingTool {
   protected typedEventBus: TypedEventBus
   private enhancedConfig: EnhancedDrawingToolConfig
+  
+  // Required abstract properties from DrawingTool
+  protected strokeColor: string = '#000000'
+  protected strokeWidth: number = 10
+  protected opacity: number = 1
+  
+  // Private properties for enhanced drawing
+  private tempLayer: Konva.Layer | null = null
+  private drawingLayer: Konva.Layer | null = null
+  private drawingContext: DrawingContext = {
+    points: [],
+    path: null,
+    tempPath: null,
+    lastPoint: null,
+    distance: 0,
+    isDrawing: false
+  }
+  private drawingOptions: DrawingOptions = {
+    color: '#000000',
+    size: 10,
+    opacity: 1,
+    smoothing: 0.5,
+    pressureSensitivity: false,
+    hardness: 100,
+    spacing: 25,
+    blendMode: 'source-over'
+  }
+
+  // Required abstract properties from BaseTool
+  id = 'enhanced-drawing'
+  name = 'Enhanced Drawing'
+  icon = null as any // Will be set by implementing tools
+  cursor = 'crosshair'
 
   constructor(
     dependencies: DrawingToolDependencies,
-    config: EnhancedDrawingToolConfig = {}
+    config: DrawingToolConfig = {}
   ) {
     super(dependencies, config)
     this.typedEventBus = dependencies.typedEventBus
@@ -52,6 +85,30 @@ export class EnhancedDrawingTool extends DrawingTool {
       antiAliasing: true,
       ...config
     }
+  }
+
+  // Required abstract method implementations
+  protected getBlendMode(): GlobalCompositeOperation {
+    return this.drawingOptions.blendMode as GlobalCompositeOperation
+  }
+
+  protected updateToolProperties(options: ToolOption[]): void {
+    options.forEach(option => {
+      switch (option.id) {
+        case 'color':
+          this.strokeColor = option.value as string
+          this.drawingOptions.color = option.value as string
+          break
+        case 'size':
+          this.strokeWidth = option.value as number
+          this.drawingOptions.size = option.value as number
+          break
+        case 'opacity':
+          this.opacity = option.value as number
+          this.drawingOptions.opacity = option.value as number
+          break
+      }
+    })
   }
 
   /**

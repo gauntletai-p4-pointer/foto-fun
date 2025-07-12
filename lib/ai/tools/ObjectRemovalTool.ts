@@ -22,8 +22,12 @@ export class ObjectRemovalTool extends ObjectTool {
   
   private replicateService: ReplicateService | null = null
   private isProcessing = false
-  private preferencesManager = ModelPreferencesManager.getInstance()
-  private eventBus = new TypedEventBus()
+  constructor(
+    private preferencesManager: ModelPreferencesManager,
+    private eventBus: TypedEventBus
+  ) {
+    super()
+  }
   
   protected setupTool(): void {
     // Initialize Replicate service (automatically handles server/client routing)
@@ -55,10 +59,13 @@ export class ObjectRemovalTool extends ObjectTool {
     
     const taskId = `${this.id}-${Date.now()}`
     this.eventBus.emit('ai.processing.started', {
-      taskId,
-      toolId: this.id,
-      description: 'Removing object with AI',
-      targetObjectIds: [imageObject.id]
+      operationId: taskId,
+      type: 'object-removal',
+      metadata: {
+        toolId: this.id,
+        description: 'Removing object with AI',
+        targetObjectIds: [imageObject.id]
+      }
     })
     
     try {
@@ -109,19 +116,25 @@ export class ObjectRemovalTool extends ObjectTool {
       }
       
       this.eventBus.emit('ai.processing.completed', {
-        taskId,
-        toolId: this.id,
-        success: true,
-        affectedObjectIds: [resultObjectId]
+        operationId: taskId,
+        result: {
+          success: true,
+          affectedObjectIds: [resultObjectId]
+        },
+        metadata: {
+          toolId: this.id
+        }
       })
       
       return resultObject
     } catch (error) {
       console.error('Object removal failed:', error)
       this.eventBus.emit('ai.processing.failed', {
-        taskId,
-        toolId: this.id,
-        error: error instanceof Error ? error.message : 'Object removal failed'
+        operationId: taskId,
+        error: error instanceof Error ? error.message : 'Object removal failed',
+        metadata: {
+          toolId: this.id
+        }
       })
       throw error
     } finally {

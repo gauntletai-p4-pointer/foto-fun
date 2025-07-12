@@ -1,81 +1,123 @@
-import { Command } from '../base/Command'
-import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
-import type { TypedEventBus } from '@/lib/events/core/TypedEventBus'
 import type { CanvasObject } from '@/lib/editor/objects/types'
+import { Command, type CommandContext } from '../base/Command'
+
+export interface GroupObjectsOptions {
+  objectIds: string[]
+  groupName?: string
+}
 
 export class GroupObjectsCommand extends Command {
+  private readonly options: GroupObjectsOptions
   private groupId: string | null = null
-  
+  private originalObjects: CanvasObject[] = []
+
   constructor(
-    eventBus: TypedEventBus,
-    private canvas: CanvasManager,
-    private objectIds: string[]
+    description: string,
+    context: CommandContext,
+    options: GroupObjectsOptions
   ) {
-    super(`Group ${objectIds.length} objects`, eventBus)
+    super(description, context, {
+      source: 'user',
+      canMerge: false,
+      affectsSelection: true
+    })
+    this.options = options
   }
-  
-  protected async doExecute(): Promise<void> {
-    if (this.objectIds.length < 2) {
-      throw new Error('Need at least 2 objects to group')
+
+  async doExecute(): Promise<void> {
+    const { objectIds, groupName } = this.options
+
+    if (objectIds.length < 2) {
+      throw new Error('At least 2 objects are required to create a group')
     }
-    
+
+    // Get all objects to group
+    this.originalObjects = objectIds
+      .map(id => this.context.canvasManager.getObject(id))
+      .filter(Boolean) as CanvasObject[]
+
+    if (this.originalObjects.length < 2) {
+      throw new Error('Some objects could not be found')
+    }
+
     // Calculate group bounds
-    const objects = this.objectIds
-      .map(id => this.canvas.getObject(id))
-      .filter((obj): obj is CanvasObject => obj !== null)
-    
-    if (objects.length !== this.objectIds.length) {
-      throw new Error('Some objects not found')
+    const bounds = this.calculateGroupBounds(this.originalObjects)
+
+    // Create group object
+    const groupObject = {
+      type: 'group' as const,
+      name: groupName || `Group of ${this.originalObjects.length} objects`,
+      x: bounds.x,
+      y: bounds.y,
+      width: bounds.width,
+      height: bounds.height,
+      rotation: 0,
+      scaleX: 1,
+      scaleY: 1,
+      zIndex: Math.max(...this.originalObjects.map(obj => obj.zIndex)),
+      opacity: 1,
+      blendMode: 'normal' as const,
+      visible: true,
+      locked: false,
+      filters: [],
+      adjustments: [],
+      children: objectIds,
+      data: {
+        type: 'group' as const,
+        children: objectIds
+      }
     }
-    
-    let minX = Infinity, minY = Infinity
-    let maxX = -Infinity, maxY = -Infinity
-    
+
+    // Add group to canvas
+    this.groupId = await this.context.canvasManager.addObject(groupObject)
+
+    // Select the group
+    this.context.canvasManager.selectObject(this.groupId)
+  }
+
+  async undo(): Promise<void> {
+    if (!this.groupId) return
+
+    // Remove the group
+    await this.context.canvasManager.removeObject(this.groupId)
+
+    // Select the original objects
+    this.context.canvasManager.selectMultiple(this.options.objectIds)
+
+    this.groupId = null
+  }
+
+  canExecute(): boolean {
+    return this.options.objectIds.length >= 2
+  }
+
+  canUndo(): boolean {
+    return this.groupId !== null
+  }
+
+  private calculateGroupBounds(objects: CanvasObject[]): {
+    x: number
+    y: number
+    width: number
+    height: number
+  } {
+    let minX = Infinity
+    let minY = Infinity
+    let maxX = -Infinity
+    let maxY = -Infinity
+
     for (const obj of objects) {
       minX = Math.min(minX, obj.x)
       minY = Math.min(minY, obj.y)
-      maxX = Math.max(maxX, obj.x + obj.width * obj.scaleX)
-      maxY = Math.max(maxY, obj.y + obj.height * obj.scaleY)
+      maxX = Math.max(maxX, obj.x + obj.width)
+      maxY = Math.max(maxY, obj.y + obj.height)
     }
-    
-    // Create group
-    this.groupId = await this.canvas.addObject({
-      type: 'group',
-      name: 'Group',
+
+    return {
       x: minX,
       y: minY,
       width: maxX - minX,
-      height: maxY - minY,
-      scaleX: 1,
-      scaleY: 1,
-      rotation: 0,
-      opacity: 1,
-      visible: true,
-      locked: false,
-      children: this.objectIds
-    })
-    
-    // Move objects to group
-    for (const id of this.objectIds) {
-      await this.canvas.moveObjectToGroup(id, this.groupId)
+      height: maxY - minY
     }
-    
-    // Select the group
-    this.canvas.selectObject(this.groupId)
-  }
-  
-  async undo(): Promise<void> {
-    if (!this.groupId) return
-    
-    // Move objects out of group
-    for (const id of this.objectIds) {
-      await this.canvas.moveObjectToRoot(id)
-    }
-    
-    // Remove the group
-    await this.canvas.removeObject(this.groupId)
-    
-    // Restore selection to original objects
-    this.canvas.selectMultiple(this.objectIds)
   }
 } 

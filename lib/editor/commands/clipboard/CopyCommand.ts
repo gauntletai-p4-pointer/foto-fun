@@ -1,42 +1,58 @@
-import { Command } from '../base'
-import type { ClipboardManager } from '@/lib/editor/clipboard/ClipboardManager'
 import type { CanvasObject } from '@/lib/editor/objects/types'
-import type { TypedEventBus } from '@/lib/events/core/TypedEventBus'
+import { ClipboardManager } from '@/lib/editor/clipboard/ClipboardManager'
+import { Command, type CommandContext } from '../base/Command'
 
-/**
- * Command to copy selection or objects
- * Note: Copy doesn't modify the document, so undo/redo just tracks the operation
- */
+export interface CopyOptions {
+  objects?: CanvasObject[]
+}
+
 export class CopyCommand extends Command {
+  private readonly options: CopyOptions
   private clipboardManager: ClipboardManager
-  private objectsToCopy: CanvasObject[]
-  
+
   constructor(
-    eventBus: TypedEventBus,
-    clipboardManager: ClipboardManager, 
-    objectsToCopy: CanvasObject[]
+    description: string,
+    context: CommandContext,
+    options: CopyOptions = {}
   ) {
-    super('Copy', eventBus)
-    this.clipboardManager = clipboardManager
-    this.objectsToCopy = objectsToCopy
+    super(description, context, {
+      source: 'user',
+      canMerge: false,
+      affectsSelection: false
+    })
+    this.options = options
+    // Get clipboard manager from service container or create one
+    // Note: This should be injected through context in future iterations
+    this.clipboardManager = new ClipboardManager(
+      context.eventBus as any, // TODO: Fix EventStore dependency
+      context.eventBus,
+      { validation: true }
+    )
   }
-  
-  protected async doExecute(): Promise<void> {
-    await this.clipboardManager.copy(this.objectsToCopy)
+
+  async doExecute(): Promise<void> {
+    // Get objects to copy - use provided objects or selected objects
+    const objectsToCopy = this.options.objects || this.context.canvasManager.getSelectedObjects()
+    
+    if (objectsToCopy.length === 0) {
+      throw new Error('No objects to copy')
+    }
+
+    // Copy objects to clipboard
+    await this.clipboardManager.copy(objectsToCopy)
   }
-  
+
   async undo(): Promise<void> {
-    // Copy operation doesn't modify the document
-    // Nothing to undo
+    // Copy operation cannot be undone
+    // The clipboard state is not tracked for undo
   }
-  
-  async redo(): Promise<void> {
-    // Re-execute the copy
-    await this.execute()
-  }
-  
+
   canExecute(): boolean {
-    // Can execute if there's a selection or active object
-    return true
+    const objectsToCopy = this.options.objects || this.context.canvasManager.getSelectedObjects()
+    return objectsToCopy.length > 0
+  }
+
+  canUndo(): boolean {
+    return false // Copy operations cannot be undone
   }
 } 

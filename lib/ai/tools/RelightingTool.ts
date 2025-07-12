@@ -23,8 +23,12 @@ export class RelightingTool extends ObjectTool {
   
   private replicateService: ReplicateService | null = null
   private isProcessing = false
-  private preferencesManager = ModelPreferencesManager.getInstance()
-  private eventBus = new TypedEventBus()
+  constructor(
+    private preferencesManager: ModelPreferencesManager,
+    private eventBus: TypedEventBus
+  ) {
+    super()
+  }
   
   protected setupTool(): void {
     // Initialize Replicate service (automatically handles server/client routing)
@@ -56,10 +60,14 @@ export class RelightingTool extends ObjectTool {
     
     const taskId = `${this.id}-${Date.now()}`
     this.eventBus.emit('ai.processing.started', {
+      operationId: taskId,
+      type: 'relighting',
       taskId,
       toolId: this.id,
-      description: 'Applying AI relighting',
-      targetObjectIds: [imageObject.id]
+      metadata: {
+        description: 'Applying AI relighting',
+        targetObjectIds: [imageObject.id]
+      }
     })
     
     try {
@@ -107,16 +115,19 @@ export class RelightingTool extends ObjectTool {
       }
       
       this.eventBus.emit('ai.processing.completed', {
+        operationId: taskId,
         taskId,
         toolId: this.id,
-        success: true,
-        affectedObjectIds: [relitObjectId]
+        result: {
+          affectedObjectIds: [relitObjectId]
+        }
       })
       
       return relitObject
     } catch (error) {
       console.error('Relighting failed:', error)
       this.eventBus.emit('ai.processing.failed', {
+        operationId: taskId,
         taskId,
         toolId: this.id,
         error: error instanceof Error ? error.message : 'Relighting failed'

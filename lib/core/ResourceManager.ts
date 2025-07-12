@@ -236,11 +236,10 @@ export class ResourceManager implements Disposable {
 
 /**
  * Global resource manager for app-wide resources
+ * Now uses dependency injection instead of singleton pattern
  */
 export class GlobalResourceManager extends ResourceManager {
-  private static instance: GlobalResourceManager | null = null
-  
-  private constructor() {
+  constructor() {
     super()
     
     // Register cleanup on window unload
@@ -249,13 +248,6 @@ export class GlobalResourceManager extends ResourceManager {
         await this.dispose()
       })
     }
-  }
-  
-  static getInstance(): GlobalResourceManager {
-    if (!GlobalResourceManager.instance) {
-      GlobalResourceManager.instance = new GlobalResourceManager()
-    }
-    return GlobalResourceManager.instance
   }
   
   /**

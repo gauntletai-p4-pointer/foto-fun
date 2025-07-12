@@ -97,12 +97,13 @@ export class EventBasedHistoryStore extends BaseStore<HistoryState> {
    */
   private emitStateChange(): void {
     const state = this.getState()
-    this.typedEventBus.emit('history.state.changed', {
-      canUndo: state.canUndo,
-      canRedo: state.canRedo,
-      currentEventId: state.currentEventId,
-      totalEvents: state.totalEvents
-    })
+          this.typedEventBus.emit('history.state.changed', {
+        canUndo: state.canUndo,
+        canRedo: state.canRedo,
+        currentIndex: state.undoStack.length,
+        currentEventId: state.currentEventId || undefined,
+        totalEvents: state.totalEvents
+      })
   }
   
   /**
@@ -138,9 +139,11 @@ export class EventBasedHistoryStore extends BaseStore<HistoryState> {
     
     // Emit navigation event
     this.typedEventBus.emit('history.navigated', {
+      eventId: reverseEvent.id,
+      timestamp: Date.now(),
+      direction: 'undo' as const,
       fromEventId: eventToUndo.id,
-      toEventId: reverseEvent.id,
-      method: 'undo'
+      toEventId: reverseEvent.id
     })
     
     // Emit history event
@@ -176,9 +179,11 @@ export class EventBasedHistoryStore extends BaseStore<HistoryState> {
     
     // Emit navigation event
     this.typedEventBus.emit('history.navigated', {
+      eventId: eventToRedo.id,
+      timestamp: Date.now(),
+      direction: 'redo' as const,
       fromEventId: state.currentEventId,
-      toEventId: eventToRedo.id,
-      method: 'redo'
+      toEventId: eventToRedo.id
     })
     
     // Emit history event

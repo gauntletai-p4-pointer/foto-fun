@@ -1,5 +1,6 @@
 import { EventStore } from './EventStore'
 import { TypedEventBus } from './TypedEventBus'
+import { Event } from './Event'
 import type { Selection } from '@/lib/editor/canvas/types'
 import type { CanvasObject } from '@/lib/editor/objects/types'
 
@@ -16,16 +17,16 @@ export interface EventStoreBridgeConfig {
  * Handles event persistence and real-time notifications
  */
 export class EventStoreBridge {
+  private eventStore: EventStore
+  private typedEventBus: TypedEventBus
   private config: EventStoreBridgeConfig
-  private disposed = false
-  private batchQueue: any[] = []
+  private batchQueue: Event[] = []
   private batchTimer: NodeJS.Timeout | null = null
+  private disposed = false
 
-  constructor(
-    private eventStore: EventStore,
-    private typedEventBus: TypedEventBus,
-    config: EventStoreBridgeConfig = {}
-  ) {
+  constructor(eventStore: EventStore, typedEventBus: TypedEventBus, config: EventStoreBridgeConfig = {}) {
+    this.eventStore = eventStore
+    this.typedEventBus = typedEventBus
     this.config = {
       batchingEnabled: true,
       batchSize: 10,
@@ -34,7 +35,8 @@ export class EventStoreBridge {
       debugging: false,
       ...config
     }
-    this.initialize()
+    
+    this.setupEventHandlers()
   }
 
   private initialize(): void {
@@ -128,26 +130,54 @@ export class EventStoreBridge {
     }
   }
 
-  private createEventForPersistence(eventType: string, eventData: unknown): any {
-    const data = eventData as { canvasId: string; objectData: unknown }
-    
-    return {
-      type: eventType,
-      aggregateId: data.canvasId || 'global',
-      aggregateType: 'canvas',
-      data: eventData,
-      metadata: {
-        timestamp: Date.now(),
-        source: 'EventStoreBridge'
+  private createEventForPersistence(eventType: string, eventData: unknown): Event {
+    // Create a proper Event instance for persistence
+    const event = new (class extends Event {
+      constructor(type: string, data: unknown) {
+        super(type, 'system', 'canvas', {
+          source: 'system',
+          correlationId: `bridge-${Date.now()}`
+        })
+        this.data = data
       }
-    }
+      
+      apply(currentState: unknown): unknown {
+        return currentState
+      }
+      
+      reverse(): Event | null {
+        return null
+      }
+      
+      canApply(currentState: unknown): boolean {
+        return true
+      }
+      
+      getDescription(): string {
+        return `Bridge event: ${this.type}`
+      }
+      
+      getEventData(): Record<string, unknown> {
+        return { data: this.data }
+      }
+      
+      private data: unknown
+    })(eventType, eventData)
+    
+    return event
   }
 
-  private addToBatch(event: any): void {
+  private addToBatch(event: Event): void {
+    if (this.disposed) return
+    
     this.batchQueue.push(event)
     
     if (this.batchQueue.length >= (this.config.batchSize || 10)) {
       this.processBatch()
+    } else if (!this.batchTimer) {
+      this.batchTimer = setTimeout(() => {
+        this.processBatch()
+      }, this.config.batchTimeout || 100)
     }
   }
 
@@ -211,11 +241,11 @@ export class EventStoreBridge {
   }
 
   // Object events (updated from layer events)
-  emitObjectEvent(eventType: 'object.created' | 'object.updated' | 'object.deleted', data: {
+  emitObjectEvent(eventType: 'canvas.object.added' | 'canvas.object.modified' | 'canvas.object.removed', data: {
     canvasId: string
     objectId: string
     objectData?: unknown
   }): void {
-    this.typedEventBus.emit(eventType as any, data)
+    this.typedEventBus.emit(eventType, data)
   }
 } 

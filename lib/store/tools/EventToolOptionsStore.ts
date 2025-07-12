@@ -175,6 +175,12 @@ export class EventToolOptionsStore extends BaseStore<ToolOptionsState> {
         optionConfigs: newConfigs
       }
     })
+    
+    // Emit event for tool options registration
+    this.typedEventBus.emit('tool.options.registered', {
+      toolId: config.toolId,
+      optionCount: config.options.length
+    })
   }
   
   /**
@@ -214,6 +220,9 @@ export class EventToolOptionsStore extends BaseStore<ToolOptionsState> {
    * Toggle section expansion
    */
   toggleSection(sectionId: string): void {
+    const { expandedSections } = this.getState()
+    const isExpanded = expandedSections.has(sectionId)
+    
     this.setState(state => {
       const newExpanded = new Set(state.expandedSections)
       if (newExpanded.has(sectionId)) {
@@ -227,6 +236,13 @@ export class EventToolOptionsStore extends BaseStore<ToolOptionsState> {
         expandedSections: newExpanded
       }
     })
+    
+    // Emit event for section toggle
+    this.typedEventBus.emit('tool.section.toggled', {
+      toolId: sectionId.split(':')[0] || sectionId,
+      sectionId: sectionId,
+      expanded: !isExpanded
+    })
   }
   
   /**
@@ -234,6 +250,9 @@ export class EventToolOptionsStore extends BaseStore<ToolOptionsState> {
    */
   togglePinOption(toolId: string, optionId: string): void {
     const key = `${toolId}:${optionId}`
+    const { pinnedOptions } = this.getState()
+    const isPinned = pinnedOptions.has(key)
+    
     this.setState(state => {
       const newPinned = new Set(state.pinnedOptions)
       if (newPinned.has(key)) {
@@ -246,6 +265,13 @@ export class EventToolOptionsStore extends BaseStore<ToolOptionsState> {
         ...state,
         pinnedOptions: newPinned
       }
+    })
+    
+    // Emit event for option pinning
+    this.typedEventBus.emit('tool.option.pinned', {
+      toolId,
+      optionId,
+      pinned: !isPinned
     })
   }
   

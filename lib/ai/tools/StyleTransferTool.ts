@@ -24,8 +24,12 @@ export class StyleTransferTool extends ObjectTool {
   
   private replicateService: ReplicateService | null = null
   private isProcessing = false
-  private preferencesManager = ModelPreferencesManager.getInstance()
-  private eventBus = new TypedEventBus()
+  constructor(
+    private preferencesManager: ModelPreferencesManager,
+    private eventBus: TypedEventBus
+  ) {
+    super()
+  }
   
   protected setupTool(): void {
     // Initialize Replicate service (automatically handles server/client routing)
@@ -58,10 +62,14 @@ export class StyleTransferTool extends ObjectTool {
     
     const taskId = `${this.id}-${Date.now()}`
     this.eventBus.emit('ai.processing.started', {
+      operationId: taskId,
+      type: 'style-transfer',
       taskId,
       toolId: this.id,
-      description: 'Applying style transfer with AI',
-      targetObjectIds: [imageObject.id]
+      metadata: {
+        description: 'Applying style transfer with AI',
+        targetObjectIds: [imageObject.id]
+      }
     })
     
     try {
@@ -114,16 +122,19 @@ export class StyleTransferTool extends ObjectTool {
       }
       
       this.eventBus.emit('ai.processing.completed', {
+        operationId: taskId,
         taskId,
         toolId: this.id,
-        success: true,
-        affectedObjectIds: [styledObjectId]
+        result: {
+          affectedObjectIds: [styledObjectId]
+        }
       })
       
       return styledObject
     } catch (error) {
       console.error('Style transfer failed:', error)
       this.eventBus.emit('ai.processing.failed', {
+        operationId: taskId,
         taskId,
         toolId: this.id,
         error: error instanceof Error ? error.message : 'Style transfer failed'

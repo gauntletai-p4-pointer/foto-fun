@@ -240,7 +240,7 @@ export class StrokeAddedEvent extends Event {
       color: string
       width: number
       opacity: number
-      layerId: string
+      objectId: string
     },
     metadata: Event['metadata']
   ) {

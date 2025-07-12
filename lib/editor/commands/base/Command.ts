@@ -2,6 +2,20 @@ import { nanoid } from 'nanoid'
 import type { ExecutionContext } from '@/lib/events/execution/ExecutionContext'
 import type { SelectionSnapshot } from '@/lib/ai/execution/SelectionSnapshot'
 import type { TypedEventBus } from '@/lib/events/core/TypedEventBus'
+import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
+import type { SelectionManager } from '@/lib/editor/selection/SelectionManager'
+
+/**
+ * Unified Command Context for dependency injection
+ * All commands receive this context with all required dependencies
+ */
+export interface CommandContext {
+  readonly eventBus: TypedEventBus
+  readonly canvasManager: CanvasManager
+  readonly selectionManager: SelectionManager
+  readonly executionId: string
+  readonly timestamp: number
+}
 
 /**
  * Command metadata for tracking and workflow support
@@ -91,18 +105,18 @@ export abstract class Command implements ICommand {
   // NEW: Command metadata for better tracking
   readonly metadata: CommandMetadata
   
-  // Injected dependencies
-  protected readonly eventBus: TypedEventBus
+  // Unified dependencies through context
+  protected readonly context: CommandContext
   
   constructor(
-    description: string, 
-    eventBus: TypedEventBus,
+    description: string,
+    context: CommandContext,
     metadata?: Partial<CommandMetadata>
   ) {
     this.id = nanoid()
     this.timestamp = Date.now()
     this.description = description
-    this.eventBus = eventBus
+    this.context = context
     this.metadata = {
       source: 'user',
       canMerge: false,
@@ -130,12 +144,12 @@ export abstract class Command implements ICommand {
    */
   async execute(): Promise<void> {
     try {
-      // Emit command started event
-      this.eventBus.emit('command.started', {
-        commandId: this.id,
-        description: this.description,
-        metadata: this.metadata as unknown as Record<string, unknown>
-      })
+      // TODO: Emit command started event (waiting for EventRegistry update)
+      // this.context.eventBus.emit('command.started', {
+      //   commandId: this.id,
+      //   description: this.description,
+      //   metadata: this.metadata as unknown as Record<string, unknown>
+      // })
       
       // Execute with snapshot if available
       if (this.selectionSnapshot) {
@@ -144,18 +158,18 @@ export abstract class Command implements ICommand {
         await this.doExecute()
       }
       
-      // Emit command completed event
-      this.eventBus.emit('command.completed', {
-        commandId: this.id,
-        success: true
-      })
+      // TODO: Emit command completed event (waiting for EventRegistry update)
+      // this.context.eventBus.emit('command.completed', {
+      //   commandId: this.id,
+      //   success: true
+      // })
       
     } catch (error) {
-      // Emit command failed event
-      this.eventBus.emit('command.failed', {
-        commandId: this.id,
-        error: error instanceof Error ? error.message : 'Unknown error'
-      })
+      // TODO: Emit command failed event (waiting for EventRegistry update)
+      // this.context.eventBus.emit('command.failed', {
+      //   commandId: this.id,
+      //   error: error instanceof Error ? error.message : 'Unknown error'
+      // })
       throw error
     }
   }

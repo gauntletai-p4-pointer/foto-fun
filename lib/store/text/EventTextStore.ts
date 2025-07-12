@@ -243,8 +243,8 @@ export class EventTextStore extends BaseStore<TextStoreState> {
     )
 
     this.typedSubscriptions.push(
-      this.typedEventBus.on('text.style.changed', (data) => {
-        if (data.setAsDefault) {
+      this.typedEventBus.on('text.updated', (data) => {
+        if (data.setAsDefault && data.style) {
           this.setState(state => ({
             ...state,
             defaultStyle: { ...state.defaultStyle, ...data.style }
@@ -297,9 +297,8 @@ export class EventTextStore extends BaseStore<TextStoreState> {
       defaultStyle: { ...state.defaultStyle, ...updates }
     }))
 
-    this.typedEventBus.emit('text.style.changed', {
-      style: updates,
-      setAsDefault: true
+    this.typedEventBus.emit('text.style.default.changed', {
+      style: updates
     })
   }
 
@@ -380,6 +379,11 @@ export class EventTextStore extends BaseStore<TextStoreState> {
     if (this.config.persistence) {
       localStorage.setItem('recentFonts', JSON.stringify(updated))
     }
+
+    // Emit event for recent fonts update
+    this.typedEventBus.emit('text.fonts.recent.updated', {
+      recentFonts: updated
+    })
   }
 
   savePreset(name: string, style: Partial<TextStoreState['defaultStyle']>, effects?: Partial<TextStoreState['effects']>): void {
@@ -402,7 +406,11 @@ export class EventTextStore extends BaseStore<TextStoreState> {
       localStorage.setItem('textPresets', JSON.stringify(presets))
     }
 
-    this.typedEventBus.emit('text.preset.saved', { name, style, effects })
+    this.typedEventBus.emit('text.preset.saved', { 
+      name, 
+      style, 
+      effects: effects || {} 
+    })
   }
 
   applyPreset(presetId: string): void {
@@ -425,6 +433,11 @@ export class EventTextStore extends BaseStore<TextStoreState> {
     if (this.storeDisposed) return
     
     this.setState(state => ({ ...state, availableFonts: fonts }))
+    
+    // Emit event for available fonts update
+    this.typedEventBus.emit('text.fonts.available.updated', {
+      availableFonts: fonts
+    })
   }
 
   setLoadingFont(fontFamily: string, loading: boolean): void {
@@ -438,6 +451,12 @@ export class EventTextStore extends BaseStore<TextStoreState> {
         loadingFonts.delete(fontFamily)
       }
       return { ...state, loadingFonts }
+    })
+    
+    // Emit event for font loading state change
+    this.typedEventBus.emit('text.font.loading.changed', {
+      fontFamily,
+      isLoading: loading
     })
   }
 } 

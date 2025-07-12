@@ -20,8 +20,13 @@ export class BackgroundRemovalTool extends ObjectTool {
   shortcut = 'B'
   
   private replicateService = new ReplicateService()
-  private preferencesManager = ModelPreferencesManager.getInstance()
-  private eventBus = new TypedEventBus()
+  
+  constructor(
+    private preferencesManager: ModelPreferencesManager,
+    private eventBus: TypedEventBus
+  ) {
+    super()
+  }
   
   protected setupTool(): void {
     // Set default options from user preferences
@@ -98,12 +103,15 @@ export class BackgroundRemovalTool extends ObjectTool {
     }
     
     try {
-      const taskId = `${this.id}-${Date.now()}`
+      const operationId = `${this.id}-${Date.now()}`
       this.eventBus.emit('ai.processing.started', {
-        taskId,
-        toolId: this.id,
-        description: 'Removing background with AI',
-        targetObjectIds: [object.id]
+        operationId,
+        type: 'background-removal',
+        metadata: {
+          toolId: this.id,
+          description: 'Removing background with AI',
+          targetObjectIds: [object.id]
+        }
       })
       
       // Get the current model tier
@@ -179,17 +187,21 @@ export class BackgroundRemovalTool extends ObjectTool {
       console.log('[BackgroundRemovalTool] Background removed successfully')
       
       this.eventBus.emit('ai.processing.completed', {
-        taskId,
-        toolId: this.id,
-        success: true,
-        affectedObjectIds: [object.id]
+        operationId,
+        metadata: {
+          toolId: this.id,
+          success: true,
+          affectedObjectIds: [object.id]
+        }
       })
     } catch (error) {
       console.error('[BackgroundRemovalTool] Failed to remove background:', error)
       this.eventBus.emit('ai.processing.failed', {
-        taskId: `${this.id}-${Date.now()}`,
-        toolId: this.id,
-        error: error instanceof Error ? error.message : 'Background removal failed'
+        operationId: `${this.id}-${Date.now()}`,
+        error: error instanceof Error ? error.message : 'Background removal failed',
+        metadata: {
+          toolId: this.id
+        }
       })
     }
   }

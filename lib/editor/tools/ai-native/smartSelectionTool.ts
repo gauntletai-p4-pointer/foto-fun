@@ -109,9 +109,12 @@ export class SmartSelectionTool extends ObjectTool {
       // Show processing state
       const taskId = `${this.id}-${Date.now()}`
       this.eventBus.emit('ai.processing.started', {
-        taskId,
+        operationId: taskId,
+        type: 'selection-refinement',
         toolId: this.id,
-        description: 'Refining selection with AI'
+        metadata: {
+          description: 'Refining selection with AI'
+        }
       })
       
       // Get the selection bounds and image data
@@ -151,16 +154,18 @@ export class SmartSelectionTool extends ObjectTool {
       canvas.setSelection(refinedSelection)
       
       this.eventBus.emit('ai.processing.completed', {
-        taskId,
+        operationId: taskId,
         toolId: this.id,
-        success: true
+        result: {
+          success: true
+        }
       })
       
     } catch (error) {
       console.error('Smart selection failed:', error)
       const errorTaskId = `${this.id}-${Date.now()}`
       this.eventBus.emit('ai.processing.failed', {
-        taskId: errorTaskId,
+        operationId: errorTaskId,
         toolId: this.id,
         error: error instanceof Error ? error.message : 'Unknown error'
       })

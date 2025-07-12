@@ -170,10 +170,13 @@ export class OutpaintingTool extends ObjectTool {
     const canvas = this.getCanvas()
     
     this.eventBus.emit('ai.processing.started', {
-      taskId,
-      toolId: this.id,
-      description: `Outpainting image in ${this.expandDirection} direction`,
-      targetObjectIds: [object.id]
+      operationId: taskId,
+      type: 'outpainting',
+      metadata: {
+        toolId: this.id,
+        description: `Outpainting with prompt: ${prompt}`,
+        targetObjectIds: [object.id]
+      }
     })
     
     try {
@@ -253,20 +256,24 @@ export class OutpaintingTool extends ObjectTool {
       
       // Emit tool-specific completion event
       this.eventBus.emit('ai.outpainting.completed', {
-        taskId,
-        toolId: this.id,
-        objectId: object.id,
-        direction: this.expandDirection,
-        expandSize,
-        success: true
+        operationId: taskId,
+        imageId: object.id,
+        result: {
+          toolId: this.id,
+          objectId: object.id,
+          direction: this.expandDirection,
+          expandSize
+        }
       })
       
       // Emit general completion event
       this.eventBus.emit('ai.processing.completed', {
+        operationId: taskId,
         taskId,
         toolId: this.id,
-        success: true,
-        affectedObjectIds: [object.id]
+        result: {
+          affectedObjectIds: [object.id]
+        }
       })
       
     } catch (error) {
@@ -283,6 +290,7 @@ export class OutpaintingTool extends ObjectTool {
       
       // Emit failure event
       this.eventBus.emit('ai.processing.failed', {
+        operationId: taskId,
         taskId,
         toolId: this.id,
         error: error instanceof Error ? error.message : 'Outpainting failed'

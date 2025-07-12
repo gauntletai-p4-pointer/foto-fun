@@ -1,6 +1,5 @@
-import type { ICommand, CommandMetadata } from './Command'
-import { Command } from './Command'
-import type { CanvasManager } from '@/lib/editor/canvas/types'
+import { Command, type CommandMetadata, type CommandContext } from './Command'
+import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
 import type { TypedEventBus } from '@/lib/events/core/TypedEventBus'
 import type { BlendMode } from '@/lib/editor/canvas/types'
 import type { ImageData, TextData, ShapeData } from '@/lib/editor/objects/types'
@@ -49,13 +48,12 @@ export abstract class TransactionalCommand extends Command {
   protected canvasManager: CanvasManager
   
   constructor(
-    description: string, 
-    canvasManager: CanvasManager,
-    eventBus: TypedEventBus,
+    description: string,
+    context: CommandContext,
     metadata?: Partial<CommandMetadata>
   ) {
-    super(description, eventBus, metadata)
-    this.canvasManager = canvasManager
+    super(description, context, metadata)
+    this.canvasManager = context.canvasManager
   }
   
   /**
@@ -231,16 +229,15 @@ export abstract class TransactionalCommand extends Command {
  * All commands execute in a single transaction with collective rollback
  */
 export class CompositeTransactionalCommand extends TransactionalCommand {
-  private commands: ICommand[] = []
-  private executedCommands: ICommand[] = []
+  private commands: Command[] = []
+  private executedCommands: Command[] = []
   
   constructor(
     description: string, 
-    canvasManager: CanvasManager,
-    eventBus: TypedEventBus,
-    commands: ICommand[] = []
+    context: CommandContext,
+    commands: Command[] = []
   ) {
-    super(description, canvasManager, eventBus, {
+    super(description, context, {
       source: 'system'
     })
     this.commands = commands
@@ -249,7 +246,7 @@ export class CompositeTransactionalCommand extends TransactionalCommand {
   /**
    * Add a command to the composite
    */
-  addCommand(command: ICommand): void {
+  addCommand(command: Command): void {
     this.commands.push(command)
   }
   
@@ -304,9 +301,8 @@ export class CompositeTransactionalCommand extends TransactionalCommand {
  */
 export function transaction(
   description: string,
-  canvasManager: CanvasManager,
-  eventBus: TypedEventBus,
-  ...commands: ICommand[]
+  context: CommandContext,
+  ...commands: Command[]
 ): CompositeTransactionalCommand {
-  return new CompositeTransactionalCommand(description, canvasManager, eventBus, commands)
+  return new CompositeTransactionalCommand(description, context, commands)
 } 

@@ -24,8 +24,12 @@ export class VariationTool extends ObjectTool {
   
   private replicateService: ReplicateService | null = null
   private isProcessing = false
-  private preferencesManager = ModelPreferencesManager.getInstance()
-  private eventBus = new TypedEventBus()
+  constructor(
+    private preferencesManager: ModelPreferencesManager,
+    private eventBus: TypedEventBus
+  ) {
+    super()
+  }
   
   protected setupTool(): void {
     // Initialize Replicate service (automatically handles server/client routing)
@@ -58,10 +62,14 @@ export class VariationTool extends ObjectTool {
     
     const taskId = `${this.id}-${Date.now()}`
     this.eventBus.emit('ai.processing.started', {
+      operationId: taskId,
+      type: 'variation',
       taskId,
       toolId: this.id,
-      description: 'Generating image variations with AI',
-      targetObjectIds: [imageObject.id]
+      metadata: {
+        description: 'Generating image variations with AI',
+        targetObjectIds: [imageObject.id]
+      }
     })
     
     try {
@@ -115,16 +123,19 @@ export class VariationTool extends ObjectTool {
       }
       
       this.eventBus.emit('ai.processing.completed', {
+        operationId: taskId,
         taskId,
         toolId: this.id,
-        success: true,
-        affectedObjectIds: variations.map(v => v.id)
+        result: {
+          affectedObjectIds: variations.map(v => v.id)
+        }
       })
       
       return variations
     } catch (error) {
       console.error('Variation generation failed:', error)
       this.eventBus.emit('ai.processing.failed', {
+        operationId: taskId,
         taskId,
         toolId: this.id,
         error: error instanceof Error ? error.message : 'Variation generation failed'

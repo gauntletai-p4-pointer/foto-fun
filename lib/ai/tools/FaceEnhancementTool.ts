@@ -83,10 +83,13 @@ export class FaceEnhancementTool extends ObjectTool {
     
     const taskId = `${this.id}-${Date.now()}`
     this.eventBus.emit('ai.processing.started', {
-      taskId,
-      toolId: this.id,
-      description: 'Enhancing faces with AI',
-      targetObjectIds: [object.id]
+      operationId: taskId,
+      type: 'face-enhancement',
+      metadata: {
+        toolId: this.id,
+        description: 'Enhancing faces with AI',
+        targetObjectIds: [object.id]
+      }
     })
     
     try {
@@ -132,18 +135,24 @@ export class FaceEnhancementTool extends ObjectTool {
       
       // Emit success events
       this.eventBus.emit('ai.face.enhanced', {
-        taskId,
-        toolId: this.id,
-        objectId: object.id,
-        enhancementScale: this.getOption('enhancementScale') as number,
-        success: true
+        operationId: taskId,
+        imageId: object.id,
+        enhancementType: 'face-enhancement',
+        result: {
+          success: true,
+          enhancementScale: this.getOption('enhancementScale') as number
+        }
       })
       
       this.eventBus.emit('ai.processing.completed', {
-        taskId,
-        toolId: this.id,
-        success: true,
-        affectedObjectIds: [object.id]
+        operationId: taskId,
+        result: {
+          success: true,
+          affectedObjectIds: [object.id]
+        },
+        metadata: {
+          toolId: this.id
+        }
       })
       
     } catch (error) {
@@ -160,17 +169,21 @@ export class FaceEnhancementTool extends ObjectTool {
       
       // Emit error events
       this.eventBus.emit('ai.face.error', {
-        taskId,
-        toolId: this.id,
-        objectId: object.id,
+        operationId: taskId,
         error: error instanceof Error ? error.message : 'Unknown error',
-        enhancementScale: this.getOption('enhancementScale') as number
+        metadata: {
+          toolId: this.id,
+          objectId: object.id,
+          enhancementScale: this.getOption('enhancementScale') as number
+        }
       })
       
       this.eventBus.emit('ai.processing.failed', {
-        taskId,
-        toolId: this.id,
-        error: error instanceof Error ? error.message : 'Face enhancement failed'
+        operationId: taskId,
+        error: error instanceof Error ? error.message : 'Face enhancement failed',
+        metadata: {
+          toolId: this.id
+        }
       })
     } finally {
       this.isProcessing = false

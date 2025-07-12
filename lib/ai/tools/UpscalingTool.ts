@@ -24,8 +24,12 @@ export class UpscalingTool extends ObjectTool {
   
   private replicateService: ReplicateService | null = null
   private isProcessing = false
-  private preferencesManager = ModelPreferencesManager.getInstance()
-  private eventBus = new TypedEventBus()
+  constructor(
+    private preferencesManager: ModelPreferencesManager,
+    private eventBus: TypedEventBus
+  ) {
+    super()
+  }
   
   protected setupTool(): void {
     // Initialize Replicate service (automatically handles server/client routing)
@@ -55,10 +59,14 @@ export class UpscalingTool extends ObjectTool {
     
     const taskId = `${this.id}-${Date.now()}`
     this.eventBus.emit('ai.processing.started', {
+      operationId: taskId,
+      type: 'upscaling',
       taskId,
       toolId: this.id,
-      description: 'Upscaling image with AI',
-      targetObjectIds: [imageObject.id]
+      metadata: {
+        description: 'Upscaling image with AI',
+        targetObjectIds: [imageObject.id]
+      }
     })
     
     try {
@@ -117,16 +125,19 @@ export class UpscalingTool extends ObjectTool {
       }
       
       this.eventBus.emit('ai.processing.completed', {
+        operationId: taskId,
         taskId,
         toolId: this.id,
-        success: true,
-        affectedObjectIds: [upscaledObjectId]
+        result: {
+          affectedObjectIds: [upscaledObjectId]
+        }
       })
       
       return upscaledObject
     } catch (error) {
       console.error('Upscaling failed:', error)
       this.eventBus.emit('ai.processing.failed', {
+        operationId: taskId,
         taskId,
         toolId: this.id,
         error: error instanceof Error ? error.message : 'Upscaling failed'

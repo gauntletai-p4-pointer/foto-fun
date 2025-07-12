@@ -10,6 +10,13 @@ export interface EventRegistry {
   'canvas.ready': {
     canvasId: string
   }
+  'canvas.resized': {
+    width: number
+    height: number
+  }
+  'canvas.loading.changed': {
+    isLoading: boolean
+  }
   'canvas.object.added': { 
     canvasId: string
     object: CanvasObject
@@ -45,6 +52,9 @@ export interface EventRegistry {
     zoom?: number
     pan?: { x: number; y: number }
   }
+  'canvas.zoom.reset': Record<string, never>
+  'canvas.zoom.in': Record<string, never>
+  'canvas.zoom.out': Record<string, never>
   
   // Selection events
   'selection.changed': { 
@@ -63,15 +73,61 @@ export interface EventRegistry {
   'selection.cleared': {
     canvasId: string
     clearedSelection: Selection
+    previousSelection?: Selection | null
+  }
+  'selection.mode.changed': {
+    mode: 'select' | 'marquee' | 'lasso' | 'magic'
+    previousMode?: string
+  }
+  'selection.creating': {
+    canvasId: string
+    startPoint: { x: number; y: number }
+    currentPoint: { x: number; y: number }
+  }
+  'selection.completed': {
+    canvasId: string
+    selection: Selection
+    method: 'marquee' | 'lasso' | 'magic' | 'click'
+  }
+  
+  // Color events
+  'color.primary.changed': {
+    color: string
+    previousColor?: string
+  }
+  'color.secondary.changed': {
+    color: string
+    previousColor?: string
+  }
+  'color.swapped': {
+    primaryColor: string
+    secondaryColor: string
+  }
+  'color.favorites.added': {
+    color: string
+    position: number
+  }
+  'color.favorites.removed': {
+    color: string
+    position: number
+  }
+  'color.palette.updated': {
+    colors: string[]
   }
   
   // Tool events
   'tool.activated': { 
     toolId: string
-    previousToolId?: string
+    previousToolId?: string | null
   }
   'tool.deactivated': { 
     toolId: string 
+  }
+  'tool.locked': {
+    toolId: string
+  }
+  'tool.unlocked': {
+    toolId: string
   }
   'tool.option.changed': { 
     toolId: string
@@ -88,12 +144,34 @@ export interface EventRegistry {
     toolId: string
     presetId: string
   }
+  'tool.options.registered': {
+    toolId: string
+    optionCount: number
+  }
+  'tool.section.toggled': {
+    toolId: string
+    sectionId: string
+    expanded: boolean
+  }
+  'tool.option.pinned': {
+    toolId: string
+    optionId: string
+    pinned: boolean
+  }
+  'tool.message': {
+    toolId: string
+    message: string
+    type?: 'info' | 'warning' | 'error' | 'success'
+    metadata?: Record<string, unknown>
+  }
   
   // Drawing events
   'drawing.started': {
     toolId: string
     canvasId: string
     position: { x: number; y: number }
+    point?: { x: number; y: number; pressure?: number }
+    options?: Record<string, unknown>
   }
   'drawing.updated': {
     toolId: string
@@ -105,6 +183,7 @@ export interface EventRegistry {
     canvasId: string
     path?: any
     result?: any
+    pathId?: string
   }
   'drawing.options.changed': {
     toolId: string
@@ -146,18 +225,48 @@ export interface EventRegistry {
     style: Record<string, unknown>
     effects: Record<string, unknown>
   }
+  'text.font.used': {
+    fontFamily: string
+    timestamp: number
+  }
+  'text.fonts.recent.updated': {
+    recentFonts: string[]
+  }
+  'text.fonts.available.updated': {
+    availableFonts: Array<{
+      family: string
+      variants: string[]
+      category: string
+    }>
+  }
+  'text.font.loading.changed': {
+    fontFamily: string
+    isLoading: boolean
+  }
+  'text.style.default.changed': {
+    style: Record<string, unknown>
+  }
+  'text.warped': {
+    textId: string
+    warpType: string
+    parameters: Record<string, unknown>
+  }
   
   // Project events (INFINITE CANVAS - projects don't have canvas size/background)
   'project.created': {
     projectId: string
     name: string
+    metadata?: {
+      created: Date
+      modified: Date
+    }
   }
   'project.loaded': {
     project: {
       id: string
       name: string
-      createdAt: Date
-      lastModified: Date
+      createdAt: number
+      lastModified: number
     }
   }
   'project.saved': {
@@ -171,23 +280,38 @@ export interface EventRegistry {
   'project.deleted': {
     projectId: string
   }
+  'project.recent.updated': {
+    recentProjects: Array<{
+      id: string
+      name: string
+      path?: string
+      lastOpened: Date
+      thumbnail?: string
+    }>
+  }
+  'project.recent.cleared': Record<string, never>
   
   // History events
   'history.navigated': {
     eventId: string
     timestamp: number
     direction: 'undo' | 'redo'
+    fromEventId?: string | null
+    toEventId?: string
   }
   'history.state.changed': {
     canUndo: boolean
     canRedo: boolean
     currentIndex: number
     totalEvents: number
+    currentEventId?: string | null
   }
   'history.snapshot.created': {
     snapshotId: string
     timestamp: number
     eventCount: number
+    name?: string
+    description?: string
   }
   'history.snapshot.loaded': {
     snapshotId: string
@@ -216,7 +340,7 @@ export interface EventRegistry {
   
   // File events
   'recentFiles.updated': {
-    files: Array<{ id: string; name: string; path: string; lastOpened: Date }>
+    files: Array<{ id: string; name: string; path?: string; lastOpened: Date; thumbnail?: string; size?: number }>
   }
   'recentFiles.cleared': Record<string, never>
   
@@ -234,20 +358,68 @@ export interface EventRegistry {
     commandId: string
     commandType: string
   }
+  'command.completed': {
+    commandId: string
+    commandType: string
+    result?: Record<string, unknown>
+    metadata?: Record<string, unknown>
+  }
+  'command.failed': {
+    commandId: string
+    commandType: string
+    error: string
+    metadata?: Record<string, unknown>
+  }
+  
+  // Object filter events
+  'object.filter.added': {
+    objectId: string
+    filter: any
+    position: number
+  }
+  'object.filter.removed': {
+    objectId: string
+    filterId: string
+    position: number
+  }
+  'object.filter.modified': {
+    objectId: string
+    filterId: string
+    changes: Record<string, unknown>
+  }
+  
+  // Object styles events (migrated from layer.styles)
+  'object.styles.applied': {
+    objectId: string
+    styles: Record<string, unknown>
+    effectType: string
+    metadata?: Record<string, unknown>
+  }
+  'object.styles.updated': {
+    objectId: string
+    styles: Record<string, unknown>
+    changes: Record<string, unknown>
+  }
   
   // AI Processing events
   'ai.processing.started': {
     operationId: string
     type: string
+    taskId?: string
+    toolId?: string
     metadata?: Record<string, unknown>
   }
   'ai.processing.completed': {
     operationId: string
+    taskId?: string
+    toolId?: string
     result?: Record<string, unknown>
     metadata?: Record<string, unknown>
   }
   'ai.processing.failed': {
     operationId: string
+    taskId?: string
+    toolId?: string
     error: string
     metadata?: Record<string, unknown>
   }
@@ -319,6 +491,77 @@ export interface EventRegistry {
     imageId: string
     selectionData?: Record<string, unknown>
     result?: Record<string, unknown>
+  }
+  
+  // Autosave events
+  'autosave.completed': {
+    projectId: string
+    timestamp: number
+    size?: number
+  }
+  'autosave.failed': {
+    projectId: string
+    error: string
+    timestamp: number
+  }
+  
+  // Clipboard events
+  'clipboard.cut': {
+    canvasId: string
+    objects: CanvasObject[]
+    timestamp: number
+  }
+  'clipboard.paste': {
+    canvasId: string
+    objects: CanvasObject[]
+    position?: { x: number; y: number }
+    timestamp: number
+  }
+  
+  // Export events
+  'export.started': {
+    format: string
+    filename: string
+    options?: Record<string, unknown>
+  }
+  'export.completed': {
+    format: string
+    filename: string
+    filepath: string
+    size?: number
+  }
+  'export.failed': {
+    format: string
+    filename: string
+    error: string
+  }
+  
+  // Project export/import events
+  'project.exported': {
+    projectId: string
+    format: string
+    filepath: string
+    size?: number
+  }
+  'project.imported': {
+    projectId: string
+    format: string
+    filepath: string
+    project: Record<string, unknown>
+  }
+  
+  // Document events (for backward compatibility)
+  'document.opened': {
+    document: {
+      id: string
+      name: string
+      path?: string
+      size?: number
+    }
+  }
+  'document.saved': {
+    documentId: string
+    timestamp: number
   }
 }
 

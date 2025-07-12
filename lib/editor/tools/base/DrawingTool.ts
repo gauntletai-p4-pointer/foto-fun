@@ -256,7 +256,7 @@ export abstract class DrawingTool extends BaseTool {
         stroke: this.strokeColor,
         strokeWidth: this.strokeWidth
       },
-      layerId: 'main' // Objects are managed directly now
+      // Objects are managed directly now - no layerId needed
     }
     
     // Add to canvas
@@ -265,8 +265,7 @@ export abstract class DrawingTool extends BaseTool {
     // Emit event
     this.typedEventBus.emit('canvas.object.added', {
       canvasId: this.canvas.stage.id() || 'main',
-      object: pathObject,
-      layerId: pathObject.layerId
+      object: pathObject
     })
   }
   

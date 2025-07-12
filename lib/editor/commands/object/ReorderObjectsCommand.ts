@@ -1,68 +1,70 @@
-import { Command } from '../base/Command'
-import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
-import type { TypedEventBus } from '@/lib/events/core/TypedEventBus'
+import type { CanvasObject } from '@/lib/editor/objects/types'
+import { Command, type CommandContext } from '../base/Command'
 
-export type ReorderDirection = 'front' | 'back' | 'forward' | 'backward'
+export type ReorderDirection = 'forward' | 'backward' | 'front' | 'back'
+
+export interface ReorderObjectsOptions {
+  objectIds: string[]
+  direction: ReorderDirection
+}
 
 export class ReorderObjectsCommand extends Command {
+  private readonly options: ReorderObjectsOptions
   private previousOrder: string[] = []
-  
+
   constructor(
-    eventBus: TypedEventBus,
-    private canvas: CanvasManager,
-    private objectIds: string[],
-    private direction: 'forward' | 'backward' | 'front' | 'back'
+    description: string,
+    context: CommandContext,
+    options: ReorderObjectsOptions
   ) {
-    super(`Move ${objectIds.length} object(s) ${direction}`, eventBus)
+    super(description, context, {
+      source: 'user',
+      canMerge: false,
+      affectsSelection: false
+    })
+    this.options = options
   }
-  
-  protected async doExecute(): Promise<void> {
-    // Store current order for undo
-    this.previousOrder = [...this.canvas.getObjectOrder()]
+
+  async doExecute(): Promise<void> {
+    // Store the current order for undo
+    this.previousOrder = [...this.context.canvasManager.getObjectOrder()]
+
+    // Apply the reordering based on direction
+    const { objectIds, direction } = this.options
     
-    // Apply reordering based on direction
-    switch (this.direction) {
-      case 'front':
-        await this.bringToFront()
-        break
-      case 'back':
-        await this.sendToBack()
-        break
-      case 'forward':
-        await this.bringForward()
-        break
-      case 'backward':
-        await this.sendBackward()
-        break
+    for (const objectId of objectIds) {
+      switch (direction) {
+        case 'forward':
+          this.context.canvasManager.bringObjectForward(objectId)
+          break
+        case 'backward':
+          this.context.canvasManager.sendObjectBackward(objectId)
+          break
+        case 'front':
+          this.context.canvasManager.bringObjectToFront(objectId)
+          break
+        case 'back':
+          this.context.canvasManager.sendObjectToBack(objectId)
+          break
+      }
     }
   }
-  
+
   async undo(): Promise<void> {
-    // Restore previous order
-    await this.canvas.setObjectOrder(this.previousOrder)
-  }
-  
-  private async bringToFront(): Promise<void> {
-    for (const id of this.objectIds) {
-      await this.canvas.bringObjectToFront(id)
+    if (this.previousOrder.length > 0) {
+      // Restore the previous order
+      this.context.canvasManager.setObjectOrder(this.previousOrder)
     }
   }
-  
-  private async sendToBack(): Promise<void> {
-    for (const id of this.objectIds) {
-      await this.canvas.sendObjectToBack(id)
-    }
+
+  canExecute(): boolean {
+    return this.options.objectIds.length > 0 &&
+           this.options.objectIds.every(id => 
+             this.context.canvasManager.getObject(id) !== null
+           )
   }
-  
-  private async bringForward(): Promise<void> {
-    for (const id of this.objectIds) {
-      await this.canvas.bringObjectForward(id)
-    }
-  }
-  
-  private async sendBackward(): Promise<void> {
-    for (const id of this.objectIds) {
-      await this.canvas.sendObjectBackward(id)
-    }
+
+  canUndo(): boolean {
+    return this.previousOrder.length > 0
   }
 } 

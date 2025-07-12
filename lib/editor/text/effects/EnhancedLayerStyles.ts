@@ -210,9 +210,10 @@ export class EnhancedLayerStyles {
     
     // Emit event
     if (canvasObject) {
-      this.typedEventBus.emit('layer.styles.applied', {
+      this.typedEventBus.emit('object.styles.applied', {
         objectId: canvasObject.id,
-        styles: styles as Record<string, unknown>
+        styles: styles as Record<string, unknown>,
+        effectType: 'layer-styles'
       })
     }
     
@@ -566,10 +567,10 @@ export class EnhancedLayerStyles {
   ): void {
     // This would require storing the original styles and recreating the group
     // For now, emit an event for the UI to handle
-    this.typedEventBus.emit('layer.styles.updated', {
-      groupId: styledGroup.id(),
-      styleType,
-      newStyle
+    this.typedEventBus.emit('object.styles.updated', {
+      objectId: styledGroup.id(),
+      styles: { [styleType]: newStyle },
+      changes: { [styleType]: newStyle }
     })
   }
   
@@ -598,5 +599,5 @@ export class EnhancedLayerStyles {
   }
 }
 
-// Export singleton instance
-export const enhancedLayerStyles = new EnhancedLayerStyles() 
+// Class is registered in ServiceContainer for dependency injection
+// No singleton export - use container.get<EnhancedLayerStyles>('EnhancedLayerStyles') 

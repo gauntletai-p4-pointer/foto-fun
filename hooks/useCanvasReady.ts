@@ -21,7 +21,7 @@ export function useCanvasReady() {
     const checkReady = () => {
       const state = canvasStore.getState()
       const hasKonvaStage = !!canvasManager.konvaStage
-      setIsReady(state.width > 0 && state.height > 0 && !state.isLoading && hasKonvaStage)
+      setIsReady(!state.isLoading && hasKonvaStage)
     }
     
     // Initial check
@@ -30,7 +30,7 @@ export function useCanvasReady() {
     // Subscribe to canvas changes
     const unsubscribe = canvasStore.subscribe((state) => {
       const hasKonvaStage = !!canvasManager.konvaStage
-      setIsReady(state.width > 0 && state.height > 0 && !state.isLoading && hasKonvaStage)
+      setIsReady(!state.isLoading && hasKonvaStage)
     })
     
     return unsubscribe

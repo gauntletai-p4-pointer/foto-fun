@@ -289,7 +289,7 @@ export class EventToolStore extends BaseStore<ToolState> {
     // Emit tool activation event
     this.typedEventBus.emit('tool.activated', { 
       toolId, 
-      previousToolId: this.getState().activeTool?.id || null 
+      previousToolId: this.getState().activeTool?.id || undefined 
     })
   }
   

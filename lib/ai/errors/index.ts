@@ -265,12 +265,12 @@ export class LayerLockedError extends LayerError {
   }
 }
 
-export class LayerNotFoundError extends LayerError {
-  constructor(layerId: string) {
+export class ObjectNotFoundError extends LayerError {
+  constructor(objectId: string) {
     super(
-      `Layer ${layerId} not found`,
+      `Object ${objectId} not found`,
       'NOT_FOUND',
-      'The requested layer no longer exists.'
+      'The requested object no longer exists.'
     )
   }
 }

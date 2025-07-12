@@ -2,11 +2,9 @@ import Konva from 'konva'
 import type { CanvasObject } from '@/lib/editor/objects/types'
 import { textToPathConverter } from '../services/TextToPathConverter'
 import type { PathData, TextOptions } from '../services/TextToPathConverter'
-import { getTypedEventBus } from '@/lib/events/core/TypedEventBus'
+import { TypedEventBus } from '@/lib/events/core/TypedEventBus'
 import { nanoid } from 'nanoid'
 import { Point } from '@/lib/editor/canvas/types'
-import type { TypedEventBus } from '@/lib/events/core/TypedEventBus'
-import { Effect } from './base/Effect'
 
 // Type for text objects in our system
 interface TextObject extends CanvasObject {
@@ -465,5 +463,5 @@ export class EnhancedTextWarp extends Effect {
   }
 }
 
-// Export singleton instance
-export const enhancedTextWarp = new EnhancedTextWarp() 
+// Class is registered in ServiceContainer for dependency injection
+// No singleton export - use container.get<EnhancedTextWarp>('EnhancedTextWarp') 

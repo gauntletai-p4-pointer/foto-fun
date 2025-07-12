@@ -2,7 +2,7 @@ import type { CanvasContext } from './CanvasContext'
 import type { WorkflowSelectionContext } from '@/lib/editor/selection/SelectionContextManager'
 import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
 import type { Selection } from '@/lib/editor/canvas/types'
-import type { SelectionContextManager } from '@/lib/editor/selection/SelectionContextManager'
+import { SelectionContextManager } from '@/lib/editor/selection/SelectionContextManager'
 import type { ServiceContainer } from '@/lib/core/ServiceContainer'
 import { CanvasContextProvider } from './CanvasContext'
 import { SelectionSnapshotFactory } from '@/lib/ai/execution/SelectionSnapshot'
@@ -29,6 +29,10 @@ export interface TargetingIntent {
  * Maintains selection and object tracking across tool executions
  */
 export interface EnhancedCanvasContext extends CanvasContext {
+  // Required dependencies for AI tools
+  canvasManager: CanvasManager
+  selectionManager: SelectionContextManager
+  
   // Workflow-scoped selection that persists across tool calls
   workflowSelection?: WorkflowSelectionContext
   
@@ -44,8 +48,8 @@ export interface EnhancedCanvasContext extends CanvasContext {
  * Now uses dependency injection instead of singleton pattern
  */
 export class EnhancedCanvasContext {
-  private canvasManager: CanvasManager
-  private selectionManager: SelectionContextManager
+  public canvasManager: CanvasManager
+  public selectionManager: SelectionContextManager
   
   constructor(
     canvasManager: CanvasManager,
@@ -60,10 +64,11 @@ export class EnhancedCanvasContext {
    */
   static fromCanvas(
     canvas: CanvasManager,
+    serviceContainer: ServiceContainer,
     workflowId?: string
   ): EnhancedCanvasContext {
     const baseContext = CanvasContextProvider.fromClient(canvas)
-    const selectionManager = SelectionContextManager.getInstance()
+    const selectionManager = serviceContainer.getSync<SelectionContextManager>('SelectionContextManager')
     
     // Get or create workflow context
     let workflowSelection: WorkflowSelectionContext | undefined
@@ -82,8 +87,11 @@ export class EnhancedCanvasContext {
     // Determine targeting intent
     const targetingIntent = this.determineTargetingIntent(canvas, workflowSelection)
     
-    return {
+    // Create enhanced context with all required properties
+    const enhancedContext: EnhancedCanvasContext = {
       ...baseContext,
+      canvasManager: canvas,
+      selectionManager: selectionManager,
       workflowSelection,
       workflowObjects: {
         created: new Set(),
@@ -92,6 +100,8 @@ export class EnhancedCanvasContext {
       },
       targetingIntent
     }
+    
+    return enhancedContext
   }
   
   /**
@@ -141,13 +151,14 @@ export class EnhancedCanvasContext {
   static trackObjectCreated(
     context: EnhancedCanvasContext,
     objectId: string,
+    serviceContainer: ServiceContainer,
     workflowId?: string
   ): void {
     context.workflowObjects.created.add(objectId)
     
     // Update selection context if in a workflow
     if (workflowId && context.workflowSelection) {
-      const selectionManager = SelectionContextManager.getInstance()
+      const selectionManager = serviceContainer.getSync<SelectionContextManager>('SelectionContextManager')
       // Object was created in this workflow, so it maps to itself
       selectionManager.updateObjectMapping(workflowId, objectId, objectId)
     }
@@ -160,13 +171,14 @@ export class EnhancedCanvasContext {
     context: EnhancedCanvasContext,
     oldId: string,
     newId: string,
+    serviceContainer: ServiceContainer,
     workflowId?: string
   ): void {
     context.workflowObjects.modified.add(newId)
     
     // Update selection context mapping
     if (workflowId && context.workflowSelection) {
-      const selectionManager = SelectionContextManager.getInstance()
+      const selectionManager = serviceContainer.getSync<SelectionContextManager>('SelectionContextManager')
       selectionManager.updateObjectMapping(workflowId, oldId, newId)
     }
   }
@@ -189,9 +201,10 @@ export class EnhancedCanvasContext {
    */
   static getTargetObjects(
     context: EnhancedCanvasContext,
-    canvas: CanvasManager
+    canvas: CanvasManager,
+    serviceContainer: ServiceContainer
   ): string[] {
-    const selectionManager = SelectionContextManager.getInstance()
+    const selectionManager = serviceContainer.getSync<SelectionContextManager>('SelectionContextManager')
     
     switch (context.targetingIntent.mode) {
       case 'user-selection':

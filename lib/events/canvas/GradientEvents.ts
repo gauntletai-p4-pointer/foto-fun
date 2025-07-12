@@ -11,7 +11,7 @@ export class GradientAppliedEvent extends CanvasEvent {
     public readonly startPoint: { x: number; y: number },
     public readonly endPoint: { x: number; y: number },
     public readonly stops: Array<{ offset: number; color: string; opacity: number }>,
-    public readonly layerId: string,
+    public readonly objectId: string,
     metadata: CanvasEvent['metadata']
   ) {
     super('gradient.applied', canvasId, metadata)
@@ -42,7 +42,7 @@ export class GradientAppliedEvent extends CanvasEvent {
       startPoint: this.startPoint,
       endPoint: this.endPoint,
       stops: this.stops,
-      layerId: this.layerId
+      objectId: this.objectId
     }
   }
 } 

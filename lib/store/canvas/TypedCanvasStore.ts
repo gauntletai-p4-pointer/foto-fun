@@ -1,5 +1,8 @@
+import { BaseStore } from '../base/BaseStore'
+import type { EventStore } from '@/lib/events/core/EventStore'
+import type { Event } from '@/lib/events/core/Event'
 import { TypedEventBus } from '@/lib/events/core/TypedEventBus'
-import type { Layer, Selection, Point } from '@/lib/editor/canvas/types'
+// Layer, Selection, Point imports removed - using object-based architecture
 import type { CanvasObject } from '@/lib/editor/objects/types'
 
 export interface TypedCanvasState {
@@ -15,6 +18,20 @@ export interface TypedCanvasState {
   zoom: number
   pan: { x: number; y: number }
   
+  // Canvas dimensions (viewport size)
+  width: number
+  height: number
+  
+  // Loading state
+  isLoading: boolean
+  
+  // Selection state for backward compatibility
+  selection: {
+    count: number
+    hasSelection: boolean
+    types: string[]
+  } | null
+  
   // Canvas properties
   version: number
   createdAt: number
@@ -28,6 +45,10 @@ const initialState: TypedCanvasState = {
   projectName: 'Untitled Project',
   zoom: 1,
   pan: { x: 0, y: 0 },
+  width: 800,
+  height: 600,
+  isLoading: false,
+  selection: null,
   version: 1,
   createdAt: Date.now(),
   lastModified: Date.now()
@@ -35,24 +56,25 @@ const initialState: TypedCanvasState = {
 
 /**
  * Canvas Store using typed event bus
- * Simpler implementation without complex event sourcing
+ * Now extends BaseStore for architectural consistency
  */
-export class TypedCanvasStore {
-  private state: TypedCanvasState
-  private eventBus: TypedEventBus
-  private listeners = new Set<(state: TypedCanvasState) => void>()
-  private subscriptions: Array<() => void> = []
-  
-  constructor(eventBus: TypedEventBus) {
-    this.state = { ...initialState }
-    this.eventBus = eventBus
-    this.subscribeToEvents()
+export class TypedCanvasStore extends BaseStore<TypedCanvasState> {
+  private typedEventBus: TypedEventBus
+  private typedSubscriptions: Array<() => void> = []
+
+  constructor(eventStore: EventStore, typedEventBus: TypedEventBus) {
+    super(initialState, eventStore)
+    this.typedEventBus = typedEventBus
+    this.initializeTypedSubscriptions()
   }
-  
-  private subscribeToEvents(): void {
+
+  /**
+   * Initialize typed event subscriptions for UI events
+   */
+  private initializeTypedSubscriptions(): void {
     // Viewport events (for infinite canvas navigation)
-    this.subscriptions.push(
-      this.eventBus.on('viewport.changed', (data) => {
+    this.typedSubscriptions.push(
+      this.typedEventBus.on('viewport.changed', (data) => {
         this.setState(state => ({
           ...state,
           zoom: data.zoom ?? state.zoom,
@@ -62,17 +84,15 @@ export class TypedCanvasStore {
     )
 
     // Object events
-    this.subscriptions.push(
-      this.eventBus.on('canvas.object.added', (data) => {
+    this.typedSubscriptions.push(
+      this.typedEventBus.on('canvas.object.added', (data) => {
         this.setState(state => ({
           ...state,
           objects: [
             ...state.objects,
             {
-              // Spread the object first, then override specific properties if needed
-              ...data.object,
-              // Only override layerId if not present in the object
-              layerId: (data.object as { layerId?: string }).layerId || data.layerId || ''
+              // Spread the object with all its properties
+              ...data.object
             } as CanvasObject
           ],
           selectedObjectIds: [...state.selectedObjectIds, (data.object as { id?: string }).id || data.object.toString()],
@@ -81,8 +101,8 @@ export class TypedCanvasStore {
       })
     )
     
-    this.subscriptions.push(
-      this.eventBus.on('canvas.object.modified', (data) => {
+    this.typedSubscriptions.push(
+      this.typedEventBus.on('canvas.object.modified', (data) => {
         this.setState(state => {
           const object = state.objects.find(obj => obj.id === data.objectId)
           if (!object) return state
@@ -108,8 +128,8 @@ export class TypedCanvasStore {
       })
     )
     
-    this.subscriptions.push(
-      this.eventBus.on('canvas.object.removed', (data) => {
+    this.typedSubscriptions.push(
+      this.typedEventBus.on('canvas.object.removed', (data) => {
         this.setState(state => {
           const newObjects = state.objects.filter(obj => obj.id !== data.objectId)
           const newSelectedObjectIds = state.selectedObjectIds.filter(id => id !== data.objectId)
@@ -124,11 +144,11 @@ export class TypedCanvasStore {
       })
     )
     
-    this.subscriptions.push(
-      this.eventBus.on('canvas.objects.batch.modified', (data) => {
+    this.typedSubscriptions.push(
+      this.typedEventBus.on('canvas.objects.batch.modified', (data) => {
         this.setState(state => {
           const updatedObjects = state.objects.map(obj => {
-            const mod = data.modifications.find(mod => mod.objectId === obj.id)
+            const mod = data.modifications.find(mod => mod.object.id === obj.id)
             if (mod) {
               // Safely merge the new state
               const updatedObject = { ...obj }
@@ -149,7 +169,7 @@ export class TypedCanvasStore {
           return {
             ...state,
             objects: updatedObjects,
-            selectedObjectIds: updatedObjects.map(obj => obj.id || obj.toString()).filter(id => data.modifications.some(mod => mod.objectId === id)),
+            selectedObjectIds: updatedObjects.map(obj => obj.id).filter(id => data.modifications.some(mod => mod.object.id === id)),
             lastModified: data.timestamp
           }
         })
@@ -157,102 +177,86 @@ export class TypedCanvasStore {
     )
     
     // Selection events
-    this.subscriptions.push(
-      this.eventBus.on('selection.changed', (data) => {
+    this.typedSubscriptions.push(
+      this.typedEventBus.on('selection.changed', (data) => {
+        const selectedObjectIds = data.selection?.type === 'objects' ? data.selection.objectIds : []
+        const selectedObjects = selectedObjectIds
+          .map(id => this.getState().objects.find(obj => obj.id === id))
+          .filter((obj): obj is CanvasObject => obj !== undefined)
+        
         this.setState(state => ({
           ...state,
-          selectedObjectIds: data.selection.objectIds
+          selectedObjectIds,
+          selection: {
+            count: selectedObjects.length,
+            hasSelection: selectedObjects.length > 0,
+            types: [...new Set(selectedObjects.map(obj => obj.type))]
+          }
+        }))
+      })
+    )
+    
+    // Canvas dimension events
+    this.typedSubscriptions.push(
+      this.typedEventBus.on('canvas.resized', (data) => {
+        this.setState(state => ({
+          ...state,
+          width: data.width,
+          height: data.height
+        }))
+      })
+    )
+    
+    // Loading state events
+    this.typedSubscriptions.push(
+      this.typedEventBus.on('canvas.loading.changed', (data) => {
+        this.setState(state => ({
+          ...state,
+          isLoading: data.isLoading
         }))
       })
     )
   }
-  
-  private setState(updater: (state: TypedCanvasState) => TypedCanvasState): void {
-    const newState = updater(this.state)
-    
-    // Only update if state actually changed
-    if (newState !== this.state) {
-      this.state = newState
-      this.notifyListeners()
-    }
-  }
-  
-  private notifyListeners(): void {
-    this.listeners.forEach(listener => {
-      try {
-        listener(this.state)
-      } catch (error) {
-        console.error('Error in canvas store listener:', error)
-      }
-    })
-  }
-  
+
   /**
-   * Subscribe to state changes
+   * Define event handlers for event sourcing (from BaseStore)
    */
-  subscribe(listener: (state: TypedCanvasState) => void): () => void {
-    this.listeners.add(listener)
-    
-    // Call immediately with current state
-    listener(this.state)
-    
-    // Return unsubscribe function
-    return () => {
-      this.listeners.delete(listener)
-    }
+  protected getEventHandlers(): Map<string, (event: Event) => void> {
+    return new Map([
+      // Add event sourcing handlers here if needed
+      // For now, we rely on TypedEventBus for UI events
+    ])
   }
-  
+
   /**
-   * Get current state
-   */
-  getState(): TypedCanvasState {
-    return this.state
-  }
-  
-  /**
-   * Dispose the store
+   * Override dispose to clean up typed subscriptions
    */
   dispose(): void {
-    // Unsubscribe from all events
-    this.subscriptions.forEach(unsubscribe => unsubscribe())
-    this.subscriptions = []
+    // Clean up typed subscriptions
+    this.typedSubscriptions.forEach(unsubscribe => unsubscribe())
+    this.typedSubscriptions = []
     
-    // Clear listeners
-    this.listeners.clear()
+    // Call parent dispose
+    super.dispose()
   }
-  
+
   // Helper methods
-  
-  /**
-   * Get all objects in a specific layer
-   */
-  getLayerObjects(layerId: string): CanvasObject[] {
-    return this.state.objects.filter(obj => obj.layerId === layerId)
-  }
   
   /**
    * Get selected objects
    */
   getSelectedObjects(): CanvasObject[] {
-    return this.state.selectedObjectIds
-      .map(id => this.state.objects.find(obj => obj.id === id))
-      .filter(Boolean)
-  }
-  
-  /**
-   * Get active layer - DEPRECATED: Use getSelectedObjects() in object-based architecture
-   */
-  getActiveLayer(): null {
-    // Objects are managed directly now, no active layer concept
-    console.warn('getActiveLayer() is deprecated. Use getSelectedObjects() in object-based architecture.')
-    return null
+    const state = this.getState()
+    return state.selectedObjectIds
+      .map(id => state.objects.find(obj => obj.id === id))
+      .filter((obj): obj is CanvasObject => obj !== undefined)
   }
   
   /**
    * Check if an object is selected
    */
   isObjectSelected(objectId: string): boolean {
-    return this.state.selectedObjectIds.includes(objectId)
+    return this.getState().selectedObjectIds.includes(objectId)
   }
 }
 

@@ -199,9 +199,12 @@ export class StyleTransferBrush extends ObjectDrawingTool {
     
     try {
       this.eventBus.emit('ai.processing.started', {
-        taskId,
+        operationId: taskId,
+        type: 'style-transfer',
         toolId: this.id,
-        description: `Applying ${options.style} style transfer`
+        metadata: {
+          description: `Applying ${options.style} style transfer`
+        }
       })
       
       // Get the stroke mask
@@ -258,9 +261,11 @@ export class StyleTransferBrush extends ObjectDrawingTool {
         })
         
         this.eventBus.emit('ai.processing.completed', {
-          taskId,
+          operationId: taskId,
           toolId: this.id,
-          success: true
+          result: {
+            success: true
+          }
         })
       }
       
@@ -269,7 +274,7 @@ export class StyleTransferBrush extends ObjectDrawingTool {
     } catch (error) {
       console.error('Style transfer failed:', error)
       this.eventBus.emit('ai.processing.failed', {
-        taskId,
+        operationId: taskId,
         toolId: this.id,
         error: error instanceof Error ? error.message : 'Unknown error'
       })

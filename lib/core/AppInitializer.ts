@@ -6,7 +6,7 @@ import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
 import type { ProjectSerializer } from '@/lib/editor/persistence/ProjectSerializer'
 import type { ExportManager } from '@/lib/editor/export/ExportManager'
 // import type { ImageLoaderService } from '@/lib/editor/canvas/services/ImageLoaderService'
-// import type { LayerManager } from '@/lib/editor/canvas/services/LayerManager'
+// import type { ObjectManager } from '@/lib/editor/canvas/services/ObjectManager'
 // import type { RenderPipeline } from '@/lib/editor/canvas/services/RenderPipeline'
 
 // Event System
@@ -132,8 +132,11 @@ export class AppInitializer {
       
       // Stores
       container.registerSingleton('CanvasStore', () => 
-        new TypedCanvasStore(container.getSync('TypedEventBus')), {
-        dependencies: ['TypedEventBus'],
+        new TypedCanvasStore(
+          container.getSync('EventStore'),
+          container.getSync('TypedEventBus')
+        ), {
+        dependencies: ['EventStore', 'TypedEventBus'],
         phase: 'infrastructure'
       })
       
@@ -175,10 +178,13 @@ export class AppInitializer {
 
       // Register ObjectStore
       container.registerSingleton('ObjectStore', () => {
-        const store = new ObjectStore(container.getSync('TypedEventBus'))
+        const store = new ObjectStore(
+          container.getSync('EventStore'),
+          container.getSync('TypedEventBus')
+        )
         return store
       }, {
-        dependencies: ['TypedEventBus'],
+        dependencies: ['EventStore', 'TypedEventBus'],
         phase: 'infrastructure'
       })
 
@@ -236,6 +242,24 @@ export class AppInitializer {
         )
       }, {
         dependencies: ['TypedEventBus'],
+        phase: 'infrastructure'
+      })
+      
+      // AI Model Preferences
+      container.registerSingleton('ModelPreferencesManager', () => {
+        const { ModelPreferencesManager } = require('@/lib/settings/ModelPreferences')
+        return new ModelPreferencesManager()
+      }, {
+        dependencies: [],
+        phase: 'infrastructure'
+      })
+      
+      // Feature Management
+      container.registerSingleton('FeatureManager', () => {
+        const { FeatureManager } = require('@/lib/config/features')
+        return new FeatureManager()
+      }, {
+        dependencies: [],
         phase: 'infrastructure'
       })
       
@@ -317,6 +341,8 @@ export class AppInitializer {
       await container.get('ProjectStore')
       await container.get('HistoryStore')
       await container.get('FontManager')
+      await container.get('ModelPreferencesManager')
+      await container.get('FeatureManager')
       await container.get('CommandManager')
       await container.get('SelectionContextManager')
       await container.get('ClipboardManager')

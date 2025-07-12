@@ -1,6 +1,6 @@
 // Export only the CanvasStore class - singleton pattern eliminated
 export { CanvasStore } from './CanvasStore'
-export type { CanvasStoreState } from './CanvasStore'
+export type { CanvasState } from './CanvasStore'
 
 // React Hook - Re-export from TypedCanvasStore which already has the proper hook
 export { useCanvasStore } from './TypedCanvasStore'

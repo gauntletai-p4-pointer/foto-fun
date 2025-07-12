@@ -2,7 +2,7 @@ import { CanvasManager } from './CanvasManager'
 import { EventStore } from '@/lib/events/core/EventStore'
 import { ResourceManager } from '@/lib/core/ResourceManager'
 import { TypedEventBus } from '@/lib/events/core/TypedEventBus'
-import { ObjectManager } from '@/lib/editor/objects/ObjectManager'
+// ObjectManager is now created internally by CanvasManager
 import { ExecutionContext } from '@/lib/events/execution/ExecutionContext'
 import { ServiceContainer } from '@/lib/core/ServiceContainer'
 
@@ -26,13 +26,12 @@ export class CanvasManagerFactory {
   ): CanvasManager {
     // Get services from injected container (not singleton)
     const typedEventBus = this.serviceContainer.getSync<TypedEventBus>('TypedEventBus')
-    const objectManager = this.serviceContainer.getSync<ObjectManager>('ObjectManager')
     
     // Create CanvasManager which implements our new object-based architecture
+    // ObjectManager is now created internally by CanvasManager
     const canvas = new CanvasManager(
       container,
       typedEventBus,
-      objectManager,
       this.eventStore,
       this.resourceManager
     )

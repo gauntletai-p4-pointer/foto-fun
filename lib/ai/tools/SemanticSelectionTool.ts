@@ -57,10 +57,14 @@ export class SemanticSelectionTool extends ObjectTool {
     const taskId = `${this.id}-${Date.now()}`
     
     this.eventBus.emit('ai.processing.started', {
+      operationId: taskId,
+      type: 'semantic-selection',
       taskId,
       toolId: this.id,
-      description: `Semantic selection: ${searchQuery}`,
-      targetObjectIds: []
+      metadata: {
+        description: `Semantic selection: ${searchQuery}`,
+        targetObjectIds: []
+      }
     })
     
     try {
@@ -137,20 +141,24 @@ export class SemanticSelectionTool extends ObjectTool {
       
       // Emit tool-specific completion event
       this.eventBus.emit('ai.semantic.selection', {
-        taskId,
-        toolId: this.id,
-        query: searchQuery,
-        matchedCount: matchedObjectIds.length,
-        objectIds: matchedObjectIds,
-        confidence: 0.85 // Mock confidence score for now - TODO: implement real confidence scoring
+        operationId: taskId,
+        imageId: 'canvas-composite',
+        selectionData: {
+          query: searchQuery,
+          matchedCount: matchedObjectIds.length,
+          objectIds: matchedObjectIds,
+          confidence: 0.85 // Mock confidence score for now - TODO: implement real confidence scoring
+        }
       })
       
       // Emit general completion event
       this.eventBus.emit('ai.processing.completed', {
+        operationId: taskId,
         taskId,
         toolId: this.id,
-        success: true,
-        affectedObjectIds: matchedObjectIds
+        result: {
+          affectedObjectIds: matchedObjectIds
+        }
       })
       
       console.log(`[SemanticSelectionTool] Found ${matchedObjectIds.length} objects matching "${searchQuery}"`)
@@ -158,6 +166,7 @@ export class SemanticSelectionTool extends ObjectTool {
     } catch (error) {
       console.error('[SemanticSelectionTool] Selection failed:', error)
       this.eventBus.emit('ai.processing.failed', {
+        operationId: taskId,
         taskId,
         toolId: this.id,
         error: error instanceof Error ? error.message : 'Semantic selection failed'

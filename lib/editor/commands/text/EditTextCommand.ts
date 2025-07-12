@@ -1,88 +1,98 @@
-import { Command } from '../base'
-import type { CanvasManager } from '@/lib/editor/canvas/types'
-import type { TypedEventBus } from '@/lib/events/core/TypedEventBus'
-import type { TextData } from '@/lib/editor/objects/types'
+import type { CanvasObject, TextData } from '@/lib/editor/objects/types'
+import { Command, type CommandContext } from '../base/Command'
 
-interface TextEdit {
-  content?: string
-  font?: string
-  fontSize?: number
-  color?: string
-  align?: 'left' | 'center' | 'right'
+export interface EditTextOptions {
+  objectId: string
+  newText: string
+  newStyle?: Partial<TextData>
 }
 
 export class EditTextCommand extends Command {
-  private canvasManager: CanvasManager
-  private objectId: string
-  private newEdit: TextEdit
-  private oldEdit: TextEdit | null = null
-  
+  private readonly options: EditTextOptions
+  private previousText: string = ''
+  private previousStyle: TextData | null = null
+
   constructor(
-    eventBus: TypedEventBus,
-    canvasManager: CanvasManager,
-    objectId: string,
-    newEdit: TextEdit
+    description: string,
+    context: CommandContext,
+    options: EditTextOptions
   ) {
-    super('Edit text', eventBus)
-    this.canvasManager = canvasManager
-    this.objectId = objectId
-    this.newEdit = newEdit
-  }
-  
-  protected async doExecute(): Promise<void> {
-    const object = this.canvasManager.getObject(this.objectId)
-    if (!object || object.type !== 'text') {
-      throw new Error(`Text object with id ${this.objectId} not found`)
-    }
-    
-    // Store old text data for undo (cast to TextData since we checked type)
-    const textData = object.data as TextData
-    this.oldEdit = {
-      content: textData?.content,
-      font: textData?.font,
-      fontSize: textData?.fontSize,
-      color: textData?.color,
-      align: textData?.align
-    }
-    
-    // Apply new text data
-    const updatedData = {
-      ...object.data,
-      ...this.newEdit
-    }
-    
-    await this.canvasManager.updateObject(this.objectId, { data: updatedData })
-    
-    // Emit event using inherited eventBus
-    this.eventBus.emit('canvas.object.modified', {
-      canvasId: this.canvasManager.stage.id() || 'main',
-      objectId: this.objectId,
-      previousState: { data: this.oldEdit },
-      newState: { data: this.newEdit }
+    super(description, context, {
+      source: 'user',
+      canMerge: true, // Text edits can be merged
+      affectsSelection: false
     })
+    this.options = options
   }
-  
+
+  async doExecute(): Promise<void> {
+    // Get the text object
+    const textObject = this.context.canvasManager.getObject(this.options.objectId)
+    
+    if (!textObject || textObject.type !== 'text') {
+      throw new Error(`Text object with ID ${this.options.objectId} not found`)
+    }
+
+    const textData = textObject.data as TextData
+
+    // Store previous state for undo
+    this.previousText = textData.content
+    this.previousStyle = { ...textData }
+
+    // Create updated text data with proper structure
+    const updatedTextData: TextData = {
+      ...textData,
+      content: this.options.newText,
+      ...this.options.newStyle
+    }
+
+    // Prepare the updates
+    const updates: Partial<CanvasObject> = {
+      data: updatedTextData
+    }
+
+    // Apply the updates
+    await this.context.canvasManager.updateObject(this.options.objectId, updates)
+  }
+
   async undo(): Promise<void> {
-    if (!this.oldEdit) return
-    
-    const object = this.canvasManager.getObject(this.objectId)
-    if (!object) return
-    
-    // Restore old text data
-    const restoredData = {
-      ...object.data,
-      ...this.oldEdit
+    if (!this.previousStyle) return
+
+    // Restore previous text and style
+    const updates: Partial<CanvasObject> = {
+      data: this.previousStyle
+    }
+
+    await this.context.canvasManager.updateObject(this.options.objectId, updates)
+  }
+
+  canExecute(): boolean {
+    const textObject = this.context.canvasManager.getObject(this.options.objectId)
+    return textObject !== null && textObject.type === 'text'
+  }
+
+  canUndo(): boolean {
+    return this.previousStyle !== null
+  }
+
+  canMergeWith(other: Command): boolean {
+    if (!(other instanceof EditTextCommand)) {
+      return false
     }
     
-    await this.canvasManager.updateObject(this.objectId, { data: restoredData })
-    
-    // Emit event using inherited eventBus
-    this.eventBus.emit('canvas.object.modified', {
-      canvasId: this.canvasManager.stage.id() || 'main',
-      objectId: this.objectId,
-      previousState: { data: this.newEdit },
-      newState: { data: this.oldEdit }
-    })
+    // Can merge if editing the same text object
+    return this.options.objectId === other.options.objectId
   }
-  
+
+  mergeWith(other: Command): void {
+    if (!(other instanceof EditTextCommand)) {
+      return
+    }
+
+    // Update with the latest text and style
+    this.options.newText = other.options.newText
+    if (other.options.newStyle) {
+      this.options.newStyle = { ...this.options.newStyle, ...other.options.newStyle }
+    }
+  }
 } 

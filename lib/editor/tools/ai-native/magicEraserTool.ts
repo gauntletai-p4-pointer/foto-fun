@@ -143,10 +143,13 @@ export class MagicEraserTool extends ObjectTool {
     try {
       const taskId = `${this.id}-${Date.now()}`
       this.eventBus.emit('ai.processing.started', {
-        taskId,
+        operationId: taskId,
+        type: 'object-removal',
         toolId: this.id,
-        description: 'Removing object with AI',
-        targetObjectIds: [object.id]
+        metadata: {
+          description: 'Removing object with AI',
+          targetObjectIds: [object.id]
+        }
       })
       
       if (isImageObject(object)) {
@@ -160,17 +163,19 @@ export class MagicEraserTool extends ObjectTool {
       await canvas.removeObject(object.id)
       
       this.eventBus.emit('ai.processing.completed', {
-        taskId,
+        operationId: taskId,
         toolId: this.id,
-        success: true,
-        affectedObjectIds: [object.id]
+        result: {
+          success: true,
+          affectedObjectIds: [object.id]
+        }
       })
       
     } catch (error) {
       console.error('Magic eraser failed:', error)
       const errorTaskId = `${this.id}-${Date.now()}`
       this.eventBus.emit('ai.processing.failed', {
-        taskId: errorTaskId,
+        operationId: errorTaskId,
         toolId: this.id,
         error: error instanceof Error ? error.message : 'Unknown error'
       })
@@ -286,9 +291,12 @@ export class MagicEraserTool extends ObjectTool {
     try {
       const taskId = `${this.id}-fill-${Date.now()}`
       this.eventBus.emit('ai.processing.started', {
-        taskId,
+        operationId: taskId,
+        type: 'content-aware-fill',
         toolId: this.id,
-        description: 'Content-aware fill'
+        metadata: {
+          description: 'Content-aware fill'
+        }
       })
       
       // Get the original image
@@ -338,9 +346,11 @@ export class MagicEraserTool extends ObjectTool {
         })
         
         this.eventBus.emit('ai.processing.completed', {
-          taskId,
+          operationId: taskId,
           toolId: this.id,
-          success: true
+          result: {
+            success: true
+          }
         })
       }
       
@@ -350,7 +360,7 @@ export class MagicEraserTool extends ObjectTool {
       console.error('Content-aware fill failed:', error)
       const errorTaskId = `${this.id}-fill-${Date.now()}`
       this.eventBus.emit('ai.processing.failed', {
-        taskId: errorTaskId,
+        operationId: errorTaskId,
         toolId: this.id,
         error: error instanceof Error ? error.message : 'Unknown error'
       })

@@ -1,5 +1,4 @@
-import { Command, type ICommand } from './Command'
-import type { TypedEventBus } from '@/lib/events/core/TypedEventBus'
+import { Command, type ICommand, type CommandContext } from './Command'
 
 /**
  * Composite command that groups multiple commands together
@@ -9,11 +8,11 @@ export class CompositeCommand extends Command {
   private commands: ICommand[] = []
   
   constructor(
-    eventBus: TypedEventBus,
-    description: string, 
+    description: string,
+    context: CommandContext,
     commands: ICommand[] = []
   ) {
-    super(description, eventBus)
+    super(description, context)
     this.commands = commands
   }
   

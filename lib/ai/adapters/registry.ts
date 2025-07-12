@@ -187,6 +187,7 @@ export async function autoDiscoverAdapters(serviceContainer?: ServiceContainer):
     ]
     
     // Register all AI tool adapters
+    // TODO: Implement proper dependency injection for AI tools that require ModelPreferencesManager and TypedEventBus
     const aiAdapters = [
       new ImageGenerationAdapter(),
       new ObjectRemovalAdapter(),

@@ -29,10 +29,7 @@ export class KonvaTextLayerStyles {
     }
     
     // Force redraw
-    const layer = textNode.getLayer()
-    if (layer) {
-      layer.batchDraw()
-    }
+    textNode.getLayer()?.batchDraw()
   }
   
   static removeStroke(object: CanvasObject | null): void {

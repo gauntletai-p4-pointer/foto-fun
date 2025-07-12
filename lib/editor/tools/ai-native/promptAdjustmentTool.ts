@@ -187,9 +187,12 @@ export class PromptAdjustmentTool extends ObjectTool {
     
     try {
       this.eventBus.emit('ai.processing.started', {
-        taskId,
+        operationId: taskId,
+        type: 'prompt-adjustment',
         toolId: this.id,
-        description: `Adjusting with prompt: ${options.prompt}`
+        metadata: {
+          description: `Adjusting with prompt: ${options.prompt}`
+        }
       })
       
       for (const object of objects) {
@@ -205,15 +208,17 @@ export class PromptAdjustmentTool extends ObjectTool {
       }
       
       this.eventBus.emit('ai.processing.completed', {
-        taskId,
+        operationId: taskId,
         toolId: this.id,
-        success: true
+        result: {
+          success: true
+        }
       })
       
     } catch (error) {
       console.error('Prompt adjustment failed:', error)
       this.eventBus.emit('ai.processing.failed', {
-        taskId,
+        operationId: taskId,
         toolId: this.id,
         error: error instanceof Error ? error.message : 'Unknown error'
       })

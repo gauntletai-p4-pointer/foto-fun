@@ -1,56 +1,64 @@
-import { Command } from '../base/Command'
-import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
 import type { CanvasObject } from '@/lib/editor/objects/types'
-import type { TypedEventBus } from '@/lib/events/core/TypedEventBus'
+import { Command, type CommandContext } from '../base/Command'
+
+export interface UngroupObjectsOptions {
+  groupId: string
+}
 
 export class UngroupObjectsCommand extends Command {
-  private groupData: CanvasObject | null = null
-  private childIds: string[] = []
-  
+  private readonly options: UngroupObjectsOptions
+  private groupObject: CanvasObject | null = null
+  private childObjectIds: string[] = []
+
   constructor(
-    eventBus: TypedEventBus,
-    private canvas: CanvasManager,
-    private groupId: string
+    description: string,
+    context: CommandContext,
+    options: UngroupObjectsOptions
   ) {
-    super(`Ungroup`, eventBus)
+    super(description, context, {
+      source: 'user',
+      canMerge: false,
+      affectsSelection: true
+    })
+    this.options = options
   }
-  
-  protected async doExecute(): Promise<void> {
-    const group = this.canvas.getObject(this.groupId)
-    if (!group || group.type !== 'group') {
-      throw new Error('Object is not a group')
+
+  async doExecute(): Promise<void> {
+    // Get the group object
+    this.groupObject = this.context.canvasManager.getObject(this.options.groupId)
+    
+    if (!this.groupObject || this.groupObject.type !== 'group') {
+      throw new Error(`Group with ID ${this.options.groupId} not found`)
     }
-    
-    // Store group data for undo
-    this.groupData = { ...group }
-    this.childIds = group.children || []
-    
-    // Move children out of group
-    for (const childId of this.childIds) {
-      await this.canvas.moveObjectToRoot(childId)
-    }
-    
-    // Remove the group
-    await this.canvas.removeObject(this.groupId)
-    
-    // Select the ungrouped objects
-    if (this.childIds.length > 0) {
-      this.canvas.selectMultiple(this.childIds)
+
+    // Get the child object IDs
+    this.childObjectIds = this.groupObject.children || []
+
+    // Remove the group object
+    await this.context.canvasManager.removeObject(this.options.groupId)
+
+    // Select the child objects
+    if (this.childObjectIds.length > 0) {
+      this.context.canvasManager.selectMultiple(this.childObjectIds)
     }
   }
-  
+
   async undo(): Promise<void> {
-    if (!this.groupData) return
-    
-    // Re-create the group
-    const newGroupId = await this.canvas.addObject(this.groupData)
-    
-    // Move children back to group
-    for (const childId of this.childIds) {
-      await this.canvas.moveObjectToGroup(childId, newGroupId)
+    if (this.groupObject) {
+      // Re-create the group
+      await this.context.canvasManager.addObject(this.groupObject)
+      
+      // Select the group
+      this.context.canvasManager.selectObject(this.groupObject.id)
     }
-    
-    // Select the group
-    this.canvas.selectObject(newGroupId)
+  }
+
+  canExecute(): boolean {
+    const group = this.context.canvasManager.getObject(this.options.groupId)
+    return group !== null && group.type === 'group'
+  }
+
+  canUndo(): boolean {
+    return this.groupObject !== null
   }
 } 

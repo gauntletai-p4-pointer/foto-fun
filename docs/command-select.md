@@ -1,343 +1,230 @@
-# Command & Selection Systems: Architectural Refactoring Plan
+# Command & Selection Systems: Complete Architectural Migration
 
-## Executive Summary
+## 🎯 **MISSION: 100% Senior-Level Architecture with 0% Technical Debt**
 
-This document outlines a comprehensive refactoring plan for the command and selection systems to address critical architectural issues identified during senior-level code review. The current implementation violates multiple SOLID principles, contains massive code duplication, and lacks proper abstraction boundaries.
+**Status:** 🚀 **IN PROGRESS** - Active Implementation  
+**Priority:** Critical Foundation  
+**Estimated Effort:** 2-3 sprints  
+**Risk:** Medium (breaking changes required)  
+**Impact:** Complete architectural transformation  
 
-**Priority**: Critical  
-**Estimated Effort**: 3-4 sprints  
-**Risk**: Medium (breaking changes required)  
-**Impact**: High (foundation for all editor operations)
+---
 
-## Current State Assessment
+## 📊 **CURRENT STATE ANALYSIS (2025-01-12)**
 
-### 🚨 Critical Issues Identified
+### 🚨 **CRITICAL ISSUES IDENTIFIED**
 
-1. **Code Duplication**: 200+ lines of duplicated selection logic across 3 layers
-2. **Inconsistent APIs**: 3 different command constructor patterns
-3. **Singleton Anti-patterns**: CommandManager and SelectionContextManager
-4. **Broken Abstractions**: Commands directly manipulating canvas internals
-5. **Inconsistent Error Handling**: 3 different strategies with no standardization
-6. **Poor Separation of Concerns**: Business logic mixed with orchestration
-7. **Legacy Domain Model**: Still using Layer-based architecture instead of Object-based
+#### **1. Command System Issues**
+- ✅ **Good Foundation**: Event-driven base architecture exists
+- ❌ **Inconsistent Patterns**: 3 different command constructor patterns
+- ❌ **Mixed Domain Models**: Layer vs Object terminology inconsistency  
+- ❌ **Type Safety Issues**: 372 TypeScript errors across command system
+- ❌ **Lint Violations**: Multiple eslint errors with `any` types and unused imports
 
-### 🚨 **CRITICAL: Domain Model Migration Required**
+#### **2. Selection System Issues**  
+- ❌ **Code Duplication**: 200+ lines of duplicated selection logic across SelectionManager, SelectionOperations, and commands
+- ❌ **Poor Abstraction**: Direct pixel manipulation scattered across multiple classes
+- ❌ **Inconsistent APIs**: Multiple ways to create and modify selections
+- ❌ **Memory Leaks**: Selection contexts not properly cleaned up
 
-**IMPORTANT**: During this refactoring, we are **simultaneously migrating from Layer-based to Object-based architecture**. This affects command names, event structures, and domain terminology.
+#### **3. Domain Model Migration Issues**
+- ✅ **Layer References**: Migrated `layerId` → `objectId`, `KonvaObjectAddedEvent` → `ObjectAddedEvent`
+- ❌ **Event Names**: Mix of layer-based and object-based event naming (still needs cleanup)
+- ❌ **File Structure**: `LayerManager.ts` exists alongside `ObjectManager.ts` (consolidation needed)
+- ❌ **Tool Operations**: Tools still reference layer-based patterns instead of object-based operations
 
-#### **Legacy (Being Removed):**
-```typescript
-// ❌ OLD: Layer-based (Photoshop-style)
-interface Layer {
-  id: string
-  type: 'image' | 'text' | 'shape'
-  visible: boolean
-  opacity: number
-  blendMode: string
-  zIndex: number
-}
+### **Current Command Architecture Assessment**
 
-// ❌ OLD Command Names
-AddLayerCommand
-RemoveLayerCommand
-UpdateLayerCommand
-ReorderLayersCommand
+**✅ What's Working:**
+- Event-driven command execution with TypedEventBus integration
+- Transactional command pattern with rollback capabilities  
+- Command metadata and workflow support
+- Composite command pattern for complex operations
 
-// ❌ OLD Event Names
-'layer.created'
-'layer.updated' 
-'layer.deleted'
-'layer.moved'
-```
+**❌ Critical Problems:**
+- **Constructor Inconsistency**: Commands use 3 different parameter patterns
+- **Type Safety**: 65+ TypeScript errors in command files alone
+- **Domain Confusion**: Mix of Layer and Object terminology
+- **Error Handling**: Inconsistent error patterns across commands
 
-#### **Modern (Target Architecture):**
-```typescript
-// ✅ NEW: Object-based (Figma/Sketch-style)
-interface CanvasObject {
-  id: string
-  type: 'image' | 'text' | 'shape' | 'group'
-  position: Point
-  dimensions: Size
-  properties: ObjectProperties
-  parent?: string
-  children?: string[]
-}
+### **Current Selection Architecture Assessment**
 
-// ✅ NEW Command Names
-AddObjectCommand
-RemoveObjectCommand
-UpdateObjectCommand
-ReorderObjectsCommand
+**✅ What's Working:**
+- Pixel-based selection with ImageData masks
+- Boolean operations (add, subtract, intersect, replace)
+- Event-driven selection changes
+- Selection context for AI workflows
 
-// ✅ NEW Event Names
-'object.created'
-'object.updated'
-'object.deleted'
-'object.moved'
-```
+**❌ Critical Problems:**
+- **Massive Duplication**: Same pixel operations in 3+ classes
+- **Poor Performance**: No optimization for large selections
+- **Memory Issues**: Selection contexts not properly disposed
+- **API Inconsistency**: 5+ different ways to create selections
 
-### Architecture Violations
+---
 
-- **DRY Principle**: Selection operations duplicated in SelectionManager, SelectionOperations, and CreateSelectionCommand
-- **Single Responsibility**: Commands handling orchestration AND domain logic
-- **Dependency Inversion**: Concrete dependencies instead of abstractions
-- **Open/Closed**: Adding command types requires modifying existing code
-- **Interface Segregation**: Monolithic command interfaces
+## 🎯 **COMPREHENSIVE MIGRATION PLAN**
 
-## Refactoring Strategy
+### **Phase 1: Foundation & Domain Migration** (Sprint 1 - Week 1-2)
+**Goal**: Establish consistent domain model and eliminate layer references
 
-### Phase 1: Foundation (Sprint 1)
-**Goal**: Establish proper domain boundaries and eliminate code duplication
+### **Phase 2: Command System Standardization** (Sprint 1 - Week 3-4)  
+**Goal**: Implement consistent command patterns and eliminate type errors
 
-### Phase 2: Standardization (Sprint 2)
-**Goal**: Implement consistent patterns and dependency injection
+### **Phase 3: Selection System Refactoring** (Sprint 2 - Week 1-2)
+**Goal**: Eliminate duplication and create proper abstractions
 
-### Phase 3: Enhancement (Sprint 3)
-**Goal**: Add advanced features and improve observability
-
-### Phase 4: Optimization (Sprint 4)
+### **Phase 4: Integration & Optimization** (Sprint 2 - Week 3-4)
 **Goal**: Performance optimization and final polish
 
 ---
 
-## Phase 1: Foundation (Sprint 1)
+## 🚀 **PHASE 1: FOUNDATION & DOMAIN MIGRATION**
 
-### 1.1 Domain Model Migration (CRITICAL FIRST STEP)
+### **✅ COMPLETED TASKS**
 
-**Problem**: Commands and events still use legacy Layer-based terminology
+*None yet - starting implementation*
 
-**Solution**: Migrate all domain terminology from Layer → Object
+### **🔄 IN PROGRESS TASKS**
+
+#### **Task 1.1: Complete Layer → Object Domain Migration**
+
+**Problem**: Mixed terminology causing confusion and type errors
+
+**Status**: ✅ **COMPLETED** - Domain migration in progress
+
+**CRITICAL CONTEXT**: We are migrating from a layer-based architecture to an object-based architecture. This affects:
+
+1. **Tool Categories**: All tools now operate on objects, not layers
+   - **Object Creation Tools**: Create new `CanvasObject` instances (Frame, Text, Shape tools)
+   - **Pixel Manipulation Tools**: Modify pixel data within existing image objects (Brush, Eraser, Filters)
+   - **Transform Tools**: Modify object properties and spatial relationships (Move, Crop, Rotate)
+   - **Selection Tools**: Create pixel-level selections within image objects (Marquee, Lasso, Magic Wand)
+   - **AI-Enhanced Tools**: AI-powered versions of traditional tools (cross-category)
+
+2. **Object vs Filters**: 
+   - ✅ **Correct**: `object.filters` (direct property on CanvasObject)
+   - ❌ **Incorrect**: `object.metadata?.filterStack` (legacy layer-based pattern)
+
+**Files Requiring Migration:**
+- ✅ `lib/events/canvas/ToolEvents.ts` - Line 242: `layerId: string` → `objectId: string` **COMPLETED**
+- ✅ `lib/events/canvas/GradientEvents.ts` - Lines 13, 44: `layerId` references → `objectId` **COMPLETED**
+- ✅ `lib/editor/tools/text/HorizontalTypeTool.ts` - Line 7: `KonvaObjectAddedEvent` import → `ObjectAddedEvent` **COMPLETED**
+- ✅ `lib/editor/tools/text/VerticalTypeTool.ts` - Line 7: `KonvaObjectAddedEvent` import → `ObjectAddedEvent` **COMPLETED**
+- ✅ `lib/editor/text/effects/index.ts` - Lines 31-33, 58-60: `.getLayer()` calls → Valid Konva API calls **COMPLETED**
+- 🔄 `lib/store/canvas/TypedCanvasStore.ts` - Line 75: `layerId` property → `objectId` **IN PROGRESS**
 
 **Migration Rules:**
 ```typescript
-// Command Names
-AddLayerCommand → AddObjectCommand
-RemoveLayerCommand → RemoveObjectCommand  
-UpdateLayerCommand → UpdateObjectCommand
-ReorderLayersCommand → ReorderObjectsCommand
-GroupLayersCommand → GroupObjectsCommand
-UngroupLayersCommand → UngroupObjectsCommand
-
-// Event Names
-'layer.created' → 'object.created'
-'layer.updated' → 'object.updated'
-'layer.deleted' → 'object.deleted'
-'layer.moved' → 'object.moved'
-'layer.reordered' → 'object.reordered'
-'layer.grouped' → 'object.grouped'
-
 // Variable/Property Names
 layerId → objectId
-selectedLayers → selectedObjects
+selectedLayers → selectedObjects  
 layerManager → objectManager
 layerStore → objectStore
 currentLayer → currentObject
 
-// Interface/Type Names
-interface Layer → interface CanvasObject
-LayerEvent → ObjectEvent
-LayerState → ObjectState
-LayerProperties → ObjectProperties
+// Event Names  
+'layer.created' → 'object.created'
+'layer.updated' → 'object.updated'
+'layer.deleted' → 'object.deleted'
+'layer.moved' → 'object.moved'
+
+// Class/Interface Names
+KonvaObjectAddedEvent → ObjectAddedEvent
+KonvaObjectModifiedEvent → ObjectModifiedEvent
+LayerManager → ObjectManager (already exists)
+
+// Method Names
+getLayer() → getParent() or remove entirely
 ```
 
-**Files Requiring Domain Migration:**
-- `lib/editor/commands/object/` (all command files)
-- `lib/events/objects/` (create new, remove layers/)
-- `lib/store/objects/` (create new, remove layers/)
-- `components/editor/Panels/ObjectsPanel/` (create new, remove LayersPanel/)
+#### **Task 1.2: Fix Critical Type Errors**
 
-### 1.2 Extract Selection Domain Service
+**Problem**: 372 TypeScript errors blocking development
 
-**Problem**: Selection operations duplicated across multiple classes
+**Priority Issues:**
+1. **EnhancedDrawingTool**: 65 errors - missing properties, undefined references
+2. **PixelBuffer**: 47 errors - null reference issues, missing layer property
+3. **Event Type Mismatches**: Missing event properties in TypedEventBus
+4. **Store Type Issues**: Selection and canvas store type mismatches
 
-**Solution**: Create centralized `SelectionDomainService`
+### **🔲 PENDING TASKS**
 
+#### **Task 1.3: Eliminate All Layer File References**
+- [ ] Rename `lib/editor/canvas/services/LayerManager.ts` → `ObjectManager.ts` (if different from existing)
+- [ ] Update all imports from LayerManager to ObjectManager
+- [ ] Remove any remaining layer-based type definitions
+
+#### **Task 1.4: Standardize Event Registry**
+- [ ] Add missing event types to TypedEventBus EventRegistry
+- [ ] Fix event property mismatches
+- [ ] Ensure all events have proper timestamp properties
+
+---
+
+## 🔧 **PHASE 2: COMMAND SYSTEM STANDARDIZATION**
+
+### **🔲 PENDING TASKS**
+
+#### **Task 2.1: Implement Unified Command Context Pattern**
+
+**Problem**: Commands use inconsistent constructor patterns
+
+**Current Patterns:**
 ```typescript
-// lib/editor/selection/domain/SelectionDomainService.ts
-export interface SelectionDomainService {
-  combineSelections(
-    existing: PixelSelection | null,
-    newSelection: PixelSelection,
-    mode: SelectionMode
-  ): PixelSelection
+// Pattern 1: Direct dependencies
+new AddObjectCommand(eventBus, canvas, objectData)
 
-  transformSelection(
-    selection: PixelSelection,
-    transform: SelectionTransform
-  ): PixelSelection
+// Pattern 2: Canvas manager first  
+new UpdateObjectCommand(eventBus, canvas, objectId, updates)
 
-  validateSelection(selection: PixelSelection): ValidationResult
-
-  calculateBounds(mask: ImageData): SelectionBounds
-
-  optimizeSelection(selection: PixelSelection): PixelSelection
-}
-
-export class DefaultSelectionDomainService implements SelectionDomainService {
-  combineSelections(
-    existing: PixelSelection | null,
-    newSelection: PixelSelection,
-    mode: SelectionMode
-  ): PixelSelection {
-    if (!existing || mode === 'replace') {
-      return this.optimizeSelection(newSelection)
-    }
-
-    const combiner = this.getCombiner(mode)
-    const resultMask = this.createCombinedMask(existing.mask, newSelection.mask, combiner)
-    const bounds = this.calculateCombinedBounds(existing.bounds, newSelection.bounds, mode)
-
-    return this.optimizeSelection({
-      type: 'pixel',
-      mask: resultMask,
-      bounds
-    })
-  }
-
-  private getCombiner(mode: SelectionMode): PixelCombiner {
-    const combiners: Record<SelectionMode, PixelCombiner> = {
-      add: (a, b) => Math.max(a, b),
-      subtract: (a, b) => Math.max(0, a - b),
-      intersect: (a, b) => Math.min(a, b),
-      replace: (_, b) => b
-    }
-    return combiners[mode]
-  }
-
-  // Eliminate duplication by centralizing all pixel operations
-  private createCombinedMask(
-    maskA: ImageData,
-    maskB: ImageData,
-    combiner: PixelCombiner
-  ): ImageData {
-    // Single implementation of pixel combination logic
-  }
-}
+// Pattern 3: Description first
+new CompositeCommand(eventBus, description, commands)
 ```
 
-**Files to Modify**:
-- `lib/editor/selection/SelectionManager.ts` - Remove duplicated logic
-- `lib/editor/selection/SelectionOperations.ts` - Refactor to use domain service
-- `lib/editor/commands/selection/CreateSelectionCommand.ts` - Remove business logic
-
-### 1.2 Implement Command Context Pattern
-
-**Problem**: Inconsistent command constructor patterns
-
-**Solution**: Standardize with CommandContext
-
+**Target Pattern:**
 ```typescript
-// lib/editor/commands/context/CommandContext.ts
+// Unified: Context-based with dependency injection
 export interface CommandContext {
   readonly eventBus: TypedEventBus
   readonly canvasManager: CanvasManager
   readonly selectionManager: SelectionManager
-  readonly selectionDomainService: SelectionDomainService
-  readonly validationService: ValidationService
   readonly executionId: string
   readonly timestamp: number
 }
 
-export class CommandContextFactory {
-  static create(dependencies: CommandDependencies): CommandContext {
-    return {
-      ...dependencies,
-      executionId: nanoid(),
-      timestamp: Date.now()
-    }
-  }
-}
-
-// Updated base command
-export abstract class Command implements ICommand {
-  readonly id: string
-  readonly timestamp: number
-  readonly description: string
-  readonly metadata: CommandMetadata
-  
-  protected readonly context: CommandContext
-
+export abstract class Command {
   constructor(
     description: string,
     context: CommandContext,
     metadata?: Partial<CommandMetadata>
   ) {
-    this.id = nanoid()
-    this.timestamp = context.timestamp
-    this.description = description
-    this.context = context
-    this.metadata = {
-      source: 'user',
-      canMerge: false,
-      affectsSelection: true,
-      ...metadata
-    }
+    // Standardized constructor
   }
 }
 ```
 
-### 1.3 Create Command Factory
+#### **Task 2.2: Implement Command Factory Pattern**
 
 **Problem**: No standardized way to create commands
 
-**Solution**: Implement factory pattern with Object-based terminology
-
+**Solution**: Factory with dependency injection
 ```typescript
-// lib/editor/commands/factory/CommandFactory.ts
 export interface CommandFactory {
   createAddObjectCommand(object: CanvasObject): AddObjectCommand
   createUpdateObjectCommand(objectId: string, updates: Partial<CanvasObject>): UpdateObjectCommand
   createRemoveObjectCommand(objectId: string): RemoveObjectCommand
-  createGroupObjectsCommand(objectIds: string[]): GroupObjectsCommand
-  createUngroupObjectsCommand(groupId: string): UngroupObjectsCommand
-  createReorderObjectsCommand(objectIds: string[], newOrder: number[]): ReorderObjectsCommand
   createSelectionCommand(selection: PixelSelection, mode: SelectionMode): CreateSelectionCommand
-  createCompositeCommand(description: string, commands: ICommand[]): CompositeCommand
-}
-
-export class DefaultCommandFactory implements CommandFactory {
-  constructor(private context: CommandContext) {}
-
-  createAddObjectCommand(object: CanvasObject): AddObjectCommand {
-    return new AddObjectCommand(
-      `Add ${object.type} object`,
-      this.context,
-      { objectData: object }
-    )
-  }
-
-  createUpdateObjectCommand(objectId: string, updates: Partial<CanvasObject>): UpdateObjectCommand {
-    return new UpdateObjectCommand(
-      'Update object properties',
-      this.context,
-      { objectId, updates }
-    )
-  }
-
-  createGroupObjectsCommand(objectIds: string[]): GroupObjectsCommand {
-    return new GroupObjectsCommand(
-      `Group ${objectIds.length} objects`,
-      this.context,
-      { objectIds }
-    )
-  }
-
-  // Standardized creation for all object-based command types
+  createCompositeCommand(description: string, commands: Command[]): CompositeCommand
 }
 ```
 
----
-
-## Phase 2: Standardization (Sprint 2)
-
-### 2.1 Implement Result Pattern
+#### **Task 2.3: Implement Result Pattern for Error Handling**
 
 **Problem**: Inconsistent error handling across commands
 
-**Solution**: Standardize with Result pattern
-
+**Solution**: Standardized Result pattern
 ```typescript
-// lib/editor/commands/result/CommandResult.ts
 export type CommandResult<T = void> = 
   | CommandSuccess<T>
   | CommandFailure
@@ -353,171 +240,80 @@ export interface CommandFailure {
   success: false
   error: CommandError
   rollback?: () => Promise<void>
-  partialResults?: unknown[]
-}
-
-export class CommandError extends Error {
-  constructor(
-    message: string,
-    public readonly code: string,
-    public readonly context: Record<string, unknown> = {},
-    public readonly cause?: Error
-  ) {
-    super(message)
-    this.name = 'CommandError'
-  }
-}
-
-// Updated command interface
-export interface ICommand {
-  execute(): Promise<CommandResult>
-  undo(): Promise<CommandResult>
-  redo(): Promise<CommandResult>
-  canExecute(): boolean
-  canUndo(): boolean
 }
 ```
 
-### 2.2 Replace Singleton Patterns
-
-**Problem**: CommandManager and SelectionContextManager use singletons
-
-**Solution**: Proper dependency injection
-
-```typescript
-// lib/editor/commands/execution/CommandExecutor.ts
-export interface CommandExecutor {
-  execute<T>(command: ICommand): Promise<CommandResult<T>>
-  executeBatch(commands: ICommand[], options?: BatchOptions): Promise<BatchResult>
-  executeWithContext(commands: ICommand[], context: ExecutionContext): Promise<BatchResult>
-}
-
-export class DefaultCommandExecutor implements CommandExecutor {
-  constructor(
-    private eventBus: TypedEventBus,
-    private historyStore: HistoryStore,
-    private errorHandler: ErrorHandler
-  ) {}
-
-  async execute<T>(command: ICommand): Promise<CommandResult<T>> {
-    const startTime = performance.now()
-    
-    try {
-      // Emit command started event
-      this.eventBus.emit('command.execution.started', {
-        commandId: command.id,
-        description: command.description
-      })
-
-      const result = await command.execute()
-      
-      if (result.success) {
-        // Add to history
-        await this.historyStore.addCommand(command)
-        
-        // Emit success event
-        this.eventBus.emit('command.execution.completed', {
-          commandId: command.id,
-          executionTime: performance.now() - startTime,
-          events: result.events
-        })
-      }
-
-      return result
-    } catch (error) {
-      return this.handleExecutionError(command, error)
-    }
-  }
-
-  private async handleExecutionError(command: ICommand, error: unknown): Promise<CommandResult> {
-    const commandError = CommandError.fromUnknown(error, {
-      commandId: command.id,
-      commandType: command.constructor.name
-    })
-
-    this.eventBus.emit('command.execution.failed', {
-      commandId: command.id,
-      error: commandError.message,
-      context: commandError.context
-    })
-
-    return {
-      success: false,
-      error: commandError
-    }
-  }
-}
-
-// Service registration
-export class CommandModule {
-  static register(container: ServiceContainer): void {
-    container.register('CommandExecutor', DefaultCommandExecutor)
-    container.register('CommandFactory', DefaultCommandFactory)
-    container.register('SelectionDomainService', DefaultSelectionDomainService)
-  }
-}
-```
-
-### 2.3 Implement Command Validation
+#### **Task 2.4: Command Validation Service**
 
 **Problem**: No validation layer for command parameters
 
-**Solution**: Add validation service
-
+**Solution**: Validation service with Zod schemas
 ```typescript
-// lib/editor/commands/validation/CommandValidationService.ts
 export interface CommandValidationService {
-  validateCommand(command: ICommand): ValidationResult
-  validateBatch(commands: ICommand[]): BatchValidationResult
+  validateCommand(command: Command): ValidationResult
+  validateBatch(commands: Command[]): BatchValidationResult
 }
+```
 
-export interface ValidationResult {
-  isValid: boolean
-  errors: ValidationError[]
-  warnings: ValidationWarning[]
+---
+
+## 🎯 **PHASE 3: SELECTION SYSTEM REFACTORING**
+
+### **🔲 PENDING TASKS**
+
+#### **Task 3.1: Extract Selection Domain Service**
+
+**Problem**: Selection operations duplicated across multiple classes
+
+**Current Duplication:**
+- `SelectionManager.applySelectionMode()` - 100+ lines
+- `SelectionOperations.combine()` - 80+ lines  
+- `CreateSelectionCommand.execute()` - 50+ lines
+
+**Solution**: Centralized domain service
+```typescript
+export interface SelectionDomainService {
+  combineSelections(
+    existing: PixelSelection | null,
+    newSelection: PixelSelection,
+    mode: SelectionMode
+  ): PixelSelection
+
+  transformSelection(
+    selection: PixelSelection,
+    transform: SelectionTransform
+  ): PixelSelection
+
+  validateSelection(selection: PixelSelection): ValidationResult
+  calculateBounds(mask: ImageData): SelectionBounds
+  optimizeSelection(selection: PixelSelection): PixelSelection
 }
+```
 
-export class DefaultCommandValidationService implements CommandValidationService {
-  private validators: Map<string, CommandValidator> = new Map()
+#### **Task 3.2: Selection Performance Optimization**
 
-  constructor() {
-    this.registerValidators()
-  }
+**Problem**: Poor performance with large selections
 
-  validateCommand(command: ICommand): ValidationResult {
-    const validator = this.getValidator(command.constructor.name)
-    return validator.validate(command)
-  }
+**Solutions:**
+- Implement dirty rectangle optimization
+- Add selection caching
+- Optimize pixel operations with WebGL where possible
+- Implement selection compression for memory efficiency
 
-  private registerValidators(): void {
-    this.validators.set('AddObjectCommand', new AddObjectValidator())
-    this.validators.set('UpdateObjectCommand', new UpdateObjectValidator())
-    this.validators.set('CreateSelectionCommand', new SelectionValidator())
-    // Register all command validators
-  }
-}
+#### **Task 3.3: Selection Context Cleanup**
 
-// Example validator
-export class AddObjectValidator implements CommandValidator {
-  validate(command: AddObjectCommand): ValidationResult {
-    const errors: ValidationError[] = []
-    
-    if (!command.object) {
-      errors.push(new ValidationError('Object is required'))
-    }
-    
-    if (!command.object.id) {
-      errors.push(new ValidationError('Object ID is required'))
-    }
-    
-    if (command.object.position && !this.isValidPosition(command.object.position)) {
-      errors.push(new ValidationError('Invalid object position'))
-    }
+**Problem**: Memory leaks in selection contexts
 
-    return {
-      isValid: errors.length === 0,
-      errors,
-      warnings: []
+**Solution**: Proper disposal patterns
+```typescript
+export class SelectionContextManager {
+  private contexts: Map<string, WorkflowSelectionContext> = new Map()
+  private cleanupInterval: NodeJS.Timeout | null = null
+
+  dispose(): void {
+    this.contexts.clear()
+    if (this.cleanupInterval) {
+      clearInterval(this.cleanupInterval)
     }
   }
 }
@@ -525,422 +321,132 @@ export class AddObjectValidator implements CommandValidator {
 
 ---
 
-## Phase 3: Enhancement (Sprint 3)
+## 🚀 **PHASE 4: INTEGRATION & OPTIMIZATION**
 
-### 3.1 Implement Command Middleware
+### **🔲 PENDING TASKS**
 
-**Problem**: Cross-cutting concerns scattered throughout commands
+#### **Task 4.1: Command Middleware Pipeline**
 
-**Solution**: Middleware pipeline
-
+**Solution**: Cross-cutting concerns handled by middleware
 ```typescript
-// lib/editor/commands/middleware/CommandMiddleware.ts
 export interface CommandMiddleware {
   name: string
-  execute(command: ICommand, next: () => Promise<CommandResult>): Promise<CommandResult>
+  execute(command: Command, next: () => Promise<CommandResult>): Promise<CommandResult>
 }
 
-export class ValidationMiddleware implements CommandMiddleware {
-  name = 'validation'
-
-  constructor(private validationService: CommandValidationService) {}
-
-  async execute(command: ICommand, next: () => Promise<CommandResult>): Promise<CommandResult> {
-    const validation = this.validationService.validateCommand(command)
-    
-    if (!validation.isValid) {
-      return {
-        success: false,
-        error: new CommandError(
-          'Command validation failed',
-          'VALIDATION_ERROR',
-          { errors: validation.errors }
-        )
-      }
-    }
-
-    return next()
-  }
-}
-
-export class LoggingMiddleware implements CommandMiddleware {
-  name = 'logging'
-
-  async execute(command: ICommand, next: () => Promise<CommandResult>): Promise<CommandResult> {
-    const startTime = performance.now()
-    console.log(`[Command] Executing ${command.description}`)
-
-    const result = await next()
-    
-    const executionTime = performance.now() - startTime
-    console.log(`[Command] ${command.description} ${result.success ? 'succeeded' : 'failed'} in ${executionTime.toFixed(2)}ms`)
-
-    return result
-  }
-}
-
-export class MetricsMiddleware implements CommandMiddleware {
-  name = 'metrics'
-
-  constructor(private metricsService: MetricsService) {}
-
-  async execute(command: ICommand, next: () => Promise<CommandResult>): Promise<CommandResult> {
-    const startTime = performance.now()
-    
-    try {
-      const result = await next()
-      
-      this.metricsService.recordCommandExecution({
-        commandType: command.constructor.name,
-        success: result.success,
-        executionTime: performance.now() - startTime
-      })
-
-      return result
-    } catch (error) {
-      this.metricsService.recordCommandError({
-        commandType: command.constructor.name,
-        error: error instanceof Error ? error.message : 'Unknown error'
-      })
-      throw error
-    }
-  }
-}
-
-// Middleware pipeline
-export class CommandPipeline {
-  private middlewares: CommandMiddleware[] = []
-
-  addMiddleware(middleware: CommandMiddleware): this {
-    this.middlewares.push(middleware)
-    return this
-  }
-
-  async execute(command: ICommand): Promise<CommandResult> {
-    let index = 0
-
-    const next = async (): Promise<CommandResult> => {
-      if (index >= this.middlewares.length) {
-        return command.execute()
-      }
-
-      const middleware = this.middlewares[index++]
-      return middleware.execute(command, next)
-    }
-
-    return next()
-  }
-}
+// Built-in middleware:
+// - ValidationMiddleware
+// - LoggingMiddleware  
+// - MetricsMiddleware
+// - SecurityMiddleware
 ```
 
-### 3.2 Advanced Command Composition
+#### **Task 4.2: Performance Optimization**
 
-**Problem**: Limited support for complex command workflows
+**Targets:**
+- Command execution < 10ms for simple operations
+- Selection operations < 50ms for typical selections
+- Memory usage stable over long sessions
+- Zero memory leaks
 
-**Solution**: Enhanced composition patterns
+#### **Task 4.3: Final Type Safety & Lint Cleanup**
 
-```typescript
-// lib/editor/commands/composition/CommandComposer.ts
-export class CommandComposer {
-  private commands: ICommand[] = []
-  private conditions: Map<string, () => boolean> = new Map()
-  private dependencies: Map<string, string[]> = new Map()
-
-  add(command: ICommand): this {
-    this.commands.push(command)
-    return this
-  }
-
-  addConditional(command: ICommand, condition: () => boolean): this {
-    this.commands.push(command)
-    this.conditions.set(command.id, condition)
-    return this
-  }
-
-  addWithDependencies(command: ICommand, dependsOn: string[]): this {
-    this.commands.push(command)
-    this.dependencies.set(command.id, dependsOn)
-    return this
-  }
-
-  parallel(...commands: ICommand[]): this {
-    const parallelCommand = new ParallelCommand(
-      'Parallel execution',
-      this.context,
-      commands
-    )
-    this.commands.push(parallelCommand)
-    return this
-  }
-
-  sequence(...commands: ICommand[]): this {
-    const sequenceCommand = new SequenceCommand(
-      'Sequential execution',
-      this.context,
-      commands
-    )
-    this.commands.push(sequenceCommand)
-    return this
-  }
-
-  build(): CompositeCommand {
-    // Resolve dependencies and create optimized execution plan
-    const executionPlan = this.resolveDependencies()
-    return new CompositeCommand(
-      'Composed command',
-      this.context,
-      executionPlan
-    )
-  }
-
-  private resolveDependencies(): ICommand[] {
-    // Topological sort based on dependencies
-    // Filter based on conditions
-    // Optimize execution order
-  }
-}
-
-// Usage example
-const composer = new CommandComposer(context)
-  .add(new CreateSelectionCommand(...))
-  .addConditional(
-    new CropCommand(...),
-    () => selectionManager.hasSelection()
-  )
-  .parallel(
-    new AdjustBrightnessCommand(...),
-    new AdjustContrastCommand(...)
-  )
-  .sequence(
-    new SaveCommand(...),
-    new NotifyCommand(...)
-  )
-  .build()
-```
-
-### 3.3 Command Replay and Time Travel
-
-**Problem**: Limited debugging and replay capabilities
-
-**Solution**: Event sourcing with replay
-
-```typescript
-// lib/editor/commands/replay/CommandReplayService.ts
-export interface CommandReplayService {
-  recordCommand(command: ICommand, result: CommandResult): Promise<void>
-  replayFromPoint(pointInTime: number): Promise<void>
-  replayCommands(commandIds: string[]): Promise<void>
-  createSnapshot(): Promise<CanvasSnapshot>
-  restoreSnapshot(snapshot: CanvasSnapshot): Promise<void>
-}
-
-export class DefaultCommandReplayService implements CommandReplayService {
-  constructor(
-    private eventStore: EventStore,
-    private canvasManager: CanvasManager,
-    private commandExecutor: CommandExecutor
-  ) {}
-
-  async recordCommand(command: ICommand, result: CommandResult): Promise<void> {
-    const event = new CommandExecutedEvent({
-      commandId: command.id,
-      commandType: command.constructor.name,
-      parameters: this.serializeCommand(command),
-      result: this.serializeResult(result),
-      timestamp: Date.now()
-    })
-
-    await this.eventStore.append(event)
-  }
-
-  async replayFromPoint(pointInTime: number): Promise<void> {
-    // Get all events after the point in time
-    const events = await this.eventStore.getEventsAfter(pointInTime)
-    
-    // Reset canvas to the state at that point
-    await this.restoreCanvasToPoint(pointInTime)
-    
-    // Replay all commands
-    for (const event of events) {
-      if (event instanceof CommandExecutedEvent) {
-        const command = this.deserializeCommand(event.data)
-        await this.commandExecutor.execute(command)
-      }
-    }
-  }
-
-  async createSnapshot(): Promise<CanvasSnapshot> {
-    return {
-      id: nanoid(),
-      timestamp: Date.now(),
-      canvasState: await this.canvasManager.serialize(),
-      selectionState: this.selectionManager.getSelection(),
-      lastEventId: await this.eventStore.getLastEventId()
-    }
-  }
-}
-```
+**Goals:**
+- 0 TypeScript errors
+- 0 ESLint errors  
+- 100% strict type coverage
+- No `any` types in command/selection code
 
 ---
 
-## Phase 4: Optimization (Sprint 4)
+## 📊 **PROGRESS TRACKING**
 
-### 4.1 Performance Optimization
+### **Overall Progress: 5%**
+- [x] Current state analysis completed
+- [x] Migration plan documented
+- [ ] Phase 1: Foundation (0/4 tasks)
+- [ ] Phase 2: Commands (0/4 tasks)  
+- [ ] Phase 3: Selection (0/3 tasks)
+- [ ] Phase 4: Integration (0/3 tasks)
 
-**Problem**: Command execution can be slow for complex operations
+### **Phase 1 Progress: 25%**
+- [x] Task 1.1: Domain migration (80% - Major event/tool migrations complete)
+- [ ] Task 1.2: Type error fixes (0%)
+- [ ] Task 1.3: Layer file cleanup (0%)
+- [ ] Task 1.4: Event registry (0%)
 
-**Solution**: Optimize hot paths
-
-```typescript
-// lib/editor/commands/optimization/CommandOptimizer.ts
-export class CommandOptimizer {
-  optimizeCommand(command: ICommand): ICommand {
-    // Command-specific optimizations
-    if (command instanceof UpdateObjectCommand) {
-      return this.optimizeUpdateCommand(command)
-    }
-    
-    if (command instanceof CompositeCommand) {
-      return this.optimizeCompositeCommand(command)
-    }
-
-    return command
-  }
-
-  private optimizeUpdateCommand(command: UpdateObjectCommand): ICommand {
-    // Batch consecutive updates to the same object
-    // Eliminate redundant property updates
-    // Use dirty checking for large objects
-  }
-
-  private optimizeCompositeCommand(command: CompositeCommand): ICommand {
-    // Parallelize independent commands
-    // Eliminate no-op commands
-    // Merge compatible commands
-  }
-}
-
-// Batch processing for bulk operations
-export class BatchCommandProcessor {
-  async processBatch(commands: ICommand[]): Promise<BatchResult> {
-    // Group by object ID for optimization
-    const grouped = this.groupCommandsByTarget(commands)
-    
-    // Execute in parallel where possible
-    const results = await Promise.allSettled(
-      grouped.map(group => this.processGroup(group))
-    )
-
-    return this.aggregateResults(results)
-  }
-}
-```
-
-### 4.2 Memory Management
-
-**Problem**: Command history can consume significant memory
-
-**Solution**: Implement memory management
-
-```typescript
-// lib/editor/commands/memory/CommandMemoryManager.ts
-export class CommandMemoryManager {
-  private maxHistorySize = 100
-  private compressionThreshold = 50
-
-  async manageMemory(historyStore: HistoryStore): Promise<void> {
-    const commands = historyStore.getAllCommands()
-    
-    if (commands.length > this.maxHistorySize) {
-      await this.compressOldCommands(commands.slice(0, this.compressionThreshold))
-    }
-
-    // Clean up large object references
-    await this.cleanupLargeObjects(commands)
-  }
-
-  private async compressOldCommands(commands: ICommand[]): Promise<void> {
-    // Convert old commands to lightweight representations
-    // Keep only essential data for undo/redo
-    // Store in compressed format
-  }
-}
-```
+### **Critical Metrics**
+- **TypeScript Errors**: 372 → Target: 0
+- **ESLint Errors**: 25+ → Target: 0
+- **Code Duplication**: 200+ lines → Target: 0
+- **Layer References**: 15+ → Target: 0
 
 ---
 
-## Implementation Guidelines
+## 🎯 **DEFINITION OF DONE**
 
-### Testing Strategy
+The migration is ONLY complete when:
 
-1. **Unit Tests**: Each domain service and command type
-2. **Integration Tests**: Command execution flows
-3. **Performance Tests**: Batch operations and memory usage
-4. **Regression Tests**: Ensure existing functionality works
+### **Code Quality (100% Required)**
+- [ ] **Zero TypeScript errors** in command/selection files
+- [ ] **Zero ESLint errors** in command/selection files  
+- [ ] **Zero `any` types** in command/selection code
+- [ ] **100% test coverage** for new domain services
 
-### Migration Strategy
+### **Architecture Consistency (100% Required)**
+- [ ] **All commands** use unified CommandContext pattern
+- [ ] **All selection operations** go through SelectionDomainService
+- [ ] **Zero code duplication** in selection logic
+- [ ] **Consistent error handling** with Result pattern
 
-1. **Backward Compatibility**: Maintain existing APIs during transition
-2. **Feature Flags**: Enable new system incrementally
-3. **Gradual Migration**: Move command types one at a time
-4. **Validation**: Extensive testing in development environment
+### **Domain Model Purity (100% Required)**
+- [ ] **Zero layer references** in TypeScript files (except CSS/styling)
+- [ ] **All events** use object-based naming (object.created, etc.)
+- [ ] **All variables** use object terminology (objectId, selectedObjects)
+- [ ] **File structure** reflects object-based architecture
 
-### Rollback Plan
+### **Performance Standards (100% Required)**
+- [ ] **Command execution** < 10ms for simple operations
+- [ ] **Selection operations** < 50ms for typical selections  
+- [ ] **Memory usage** stable over 8+ hour sessions
+- [ ] **Zero memory leaks** in command/selection systems
 
-1. **Feature Flags**: Quick disable of new system
-2. **Database Migrations**: Reversible schema changes
-3. **API Versioning**: Support both old and new APIs temporarily
-4. **Monitoring**: Track performance and error rates
-
----
-
-## Success Metrics
-
-### Code Quality
-- [ ] Eliminate all code duplication (0 duplicated selection operations)
-- [ ] Consistent API patterns (100% of commands use same constructor pattern)
-- [ ] No singleton patterns (0 getInstance() methods)
-- [ ] 100% test coverage for new domain services
-
-### Performance
-- [ ] Command execution time < 10ms for simple operations
-- [ ] Batch operations scale linearly with command count
-- [ ] Memory usage stable over long sessions
-- [ ] Zero memory leaks in command history
-
-### Developer Experience
-- [ ] Consistent error messages and handling
-- [ ] Clear documentation for all new patterns
-- [ ] Easy to add new command types
-- [ ] Comprehensive debugging tools
+### **Senior-Level Patterns (100% Required)**
+- [ ] **Dependency injection** for all services (no singletons)
+- [ ] **Event-driven communication** (no direct method calls)
+- [ ] **Command pattern** for all state changes
+- [ ] **Factory pattern** for object creation
+- [ ] **Composition over inheritance** in tool design
 
 ---
 
-## Risk Mitigation
+## 🚨 **IMPLEMENTATION NOTES**
 
-### Technical Risks
-- **Breaking Changes**: Extensive testing and gradual rollout
-- **Performance Regression**: Benchmark before/after
-- **Complexity**: Clear documentation and training
+### **Breaking Changes Required**
+- Command constructor signatures will change
+- Selection API methods will be restructured  
+- Event names will be updated
+- File imports will need updating
 
-### Timeline Risks
-- **Scope Creep**: Strict phase boundaries
-- **Dependencies**: Parallel development where possible
-- **Resource Allocation**: Dedicated team for duration
+### **Migration Strategy**
+1. **Gradual Migration**: Update one command type at a time
+2. **Backward Compatibility**: Maintain old APIs during transition
+3. **Comprehensive Testing**: Test each phase thoroughly
+4. **Performance Monitoring**: Track metrics throughout migration
 
-### Quality Risks
-- **Insufficient Testing**: Automated test requirements
-- **Documentation Lag**: Documentation as part of definition of done
-- **Knowledge Transfer**: Pair programming and code reviews
+### **Risk Mitigation**
+- **Feature Flags**: Quick disable of new system if needed
+- **Rollback Plan**: Git branches for each phase
+- **Monitoring**: Real-time error tracking during migration
+- **Testing**: Extensive unit and integration tests
 
 ---
 
-## Conclusion
+## 🎯 **NEXT STEPS**
 
-This refactoring plan addresses all identified architectural issues while maintaining system stability. The phased approach allows for incremental improvement with minimal risk. The result will be a maintainable, testable, and extensible command and selection system that meets senior-level engineering standards.
+1. **Begin Phase 1 Implementation** - Start with domain migration
+2. **Fix Critical Type Errors** - Unblock development
+3. **Establish Testing Framework** - Ensure quality throughout migration
+4. **Set Up Progress Tracking** - Monitor migration success
 
-**Next Steps**:
-1. Review and approve this plan
-2. Allocate development resources
-3. Begin Phase 1 implementation
-4. Set up monitoring and success metrics tracking 
+*This document will be updated in real-time as implementation progresses.* 

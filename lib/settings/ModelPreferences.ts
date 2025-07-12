@@ -28,20 +28,13 @@ function getDefaultPreferences(): ModelPreferences {
 
 /**
  * Model preferences manager
+ * Now uses dependency injection instead of singleton pattern
  */
 export class ModelPreferencesManager {
-  private static instance: ModelPreferencesManager
   private preferences: ModelPreferences
   
-  private constructor() {
+  constructor() {
     this.preferences = this.loadPreferences()
-  }
-  
-  static getInstance(): ModelPreferencesManager {
-    if (!this.instance) {
-      this.instance = new ModelPreferencesManager()
-    }
-    return this.instance
   }
   
   /**

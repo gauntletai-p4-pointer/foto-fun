@@ -34,7 +34,25 @@ export class ImageGenerationAdapter extends UnifiedToolAdapter<Input, Output> {
   description = 'Generate an AI image from a text prompt. Creates a new image object on the canvas.'
   inputSchema = inputSchema
   
-  private tool = new ImageGenerationTool()
+  private tool: ImageGenerationTool | null = null
+  
+  private getOrCreateTool(): ImageGenerationTool {
+    if (!this.tool) {
+      // TODO: Use proper dependency injection when available
+      // For now, create minimal dependencies
+      const mockPreferencesManager = {
+        getToolModelTier: () => 'balanced',
+        setToolModelTier: () => {}
+      } as any
+      
+      const mockEventBus = {
+        emit: () => {}
+      } as any
+      
+      this.tool = new ImageGenerationTool(mockPreferencesManager, mockEventBus)
+    }
+    return this.tool
+  }
   
   async execute(params: Input, _context: ObjectCanvasContext): Promise<Output> {
     // Validate input
@@ -55,7 +73,7 @@ export class ImageGenerationAdapter extends UnifiedToolAdapter<Input, Output> {
       }
       
       // Call the tool's main execute method (like other adapters do)
-      const resultObject = await this.tool.execute(options)
+      const resultObject = await this.getOrCreateTool().execute(options)
       
       if (!resultObject) {
         throw new Error('Tool execution failed - no object returned')

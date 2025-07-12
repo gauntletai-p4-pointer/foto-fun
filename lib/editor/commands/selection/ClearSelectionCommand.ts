@@ -1,56 +1,43 @@
-import { Command } from '../base'
-import type { SelectionManager, PixelSelection } from '@/lib/editor/selection'
-import type { TypedEventBus } from '@/lib/events/core/TypedEventBus'
+import type { PixelSelection } from '@/types'
+import { Command, type CommandContext } from '../base/Command'
 
-/**
- * Command to clear the current selection
- */
 export class ClearSelectionCommand extends Command {
-  private selectionManager: SelectionManager
   private previousSelection: PixelSelection | null = null
-  
+
   constructor(
-    eventBus: TypedEventBus,
-    selectionManager: SelectionManager
+    description: string,
+    context: CommandContext
   ) {
-    super('Clear selection', eventBus)
-    this.selectionManager = selectionManager
+    super(description, context, {
+      source: 'user',
+      canMerge: false,
+      affectsSelection: true
+    })
   }
-  
-  protected async doExecute(): Promise<void> {
-    // Save current selection if any
-    const current = this.selectionManager.getSelection()
-    if (current) {
-      // Clone the current selection
-      const canvas = document.createElement('canvas')
-      const ctx = canvas.getContext('2d')!
-      canvas.width = current.mask.width
-      canvas.height = current.mask.height
-      const clonedMask = ctx.createImageData(current.mask.width, current.mask.height)
-      clonedMask.data.set(current.mask.data)
-      
-      this.previousSelection = {
-        type: 'pixel',
-        mask: clonedMask,
-        bounds: { ...current.bounds }
-      }
-    }
-    
+
+  async doExecute(): Promise<void> {
+    // Store current selection for undo
+    this.previousSelection = this.context.selectionManager.getSelection()
+
     // Clear the selection
-    this.selectionManager.clear()
+    this.context.selectionManager.clear()
   }
-  
+
   async undo(): Promise<void> {
     if (this.previousSelection) {
-      this.selectionManager.restoreSelection(this.previousSelection.mask, this.previousSelection.bounds)
+      // Restore the previous selection
+      this.context.selectionManager.restoreSelection(
+        this.previousSelection.mask,
+        this.previousSelection.bounds
+      )
     }
   }
-  
-  async redo(): Promise<void> {
-    await this.execute()
-  }
-  
+
   canExecute(): boolean {
-    return this.selectionManager.hasSelection()
+    return this.context.selectionManager.hasSelection()
+  }
+
+  canUndo(): boolean {
+    return this.previousSelection !== null
   }
 } 

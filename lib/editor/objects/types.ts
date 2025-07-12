@@ -13,9 +13,6 @@ export interface CanvasObject {
   type: 'image' | 'text' | 'shape' | 'group' | 'verticalText'
   name: string
   
-  // Layer association
-  layerId?: string
-  
   // Position & Transform
   x: number
   y: number
@@ -43,9 +40,10 @@ export interface CanvasObject {
   
   // Group-specific
   children?: string[] // Object IDs
+  parent?: string // Parent object ID (for hierarchical objects)
   
   // Type-specific data
-  data: ImageData | TextData | ShapeData
+  data: ImageData | TextData | ShapeData | GroupData
   
   // Konva node reference (managed by CanvasManager)
   node?: Konva.Node
@@ -93,6 +91,11 @@ export interface ShapeData {
   points?: Array<{ x: number; y: number }> // For polygon/path
   radius?: number // For rounded rectangles
   path?: string // SVG path string for path shapes
+}
+
+export interface GroupData {
+  type: 'group'
+  children?: string[] // Object IDs in the group
 }
 
 // Helper type for effect groups

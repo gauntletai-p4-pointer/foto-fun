@@ -72,7 +72,7 @@ export class EventSelectionStore extends BaseStore<SelectionStoreState> {
         return {
           ...state,
           selection: data.selection,
-          previousSelection: data.previousSelection,
+          previousSelection: data.previousSelection || null,
           selectedObjectIds,
           selectionBounds
         }
@@ -83,7 +83,7 @@ export class EventSelectionStore extends BaseStore<SelectionStoreState> {
       this.setState(state => ({
         ...state,
         selection: null,
-        previousSelection: data.previousSelection,
+        previousSelection: data.previousSelection || null,
         selectedObjectIds: new Set(),
         selectionBounds: null
       }))
@@ -170,6 +170,8 @@ export class EventSelectionStore extends BaseStore<SelectionStoreState> {
     const previousSelection = this.getState().selection
     if (previousSelection) {
       this.typedEventBus.emit('selection.cleared', {
+        canvasId: 'main-canvas', // TODO: Get from canvas context
+        clearedSelection: previousSelection,
         previousSelection
       })
     }

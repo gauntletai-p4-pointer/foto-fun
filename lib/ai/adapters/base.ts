@@ -6,7 +6,12 @@ import type { CanvasObject } from '@/lib/editor/objects/types'
 import type { CanvasContext } from '../tools/canvas-bridge'
 import type { SelectionSnapshot } from '../execution/SelectionSnapshot'
 import type { ExecutionContext } from '@/lib/events/execution/ExecutionContext'
-import { KonvaObjectsBatchModifiedEvent } from '@/lib/events/canvas/CanvasEvents'
+import {
+  ObjectAddedEvent,
+  ObjectModifiedEvent,
+  ObjectRemovedEvent,
+  ObjectsBatchModifiedEvent
+} from '@/lib/events/canvas/CanvasEvents'
 import type { EventToolStore } from '@/lib/store/tools/EventToolStore'
 
 /**
@@ -170,8 +175,9 @@ export abstract class BaseToolAdapter<
       // Emit events if we have an execution context
       if (executionContext && previousStates && selectionSnapshot) {
         const targetObjects = this.getTargetObjects(canvas, selectionSnapshot)
+        // Build modifications array for event emission
         const modifications: Array<{
-          objectId: string
+          object: CanvasObject
           previousState: Record<string, unknown>
           newState: Record<string, unknown>
         }> = []
@@ -185,7 +191,7 @@ export abstract class BaseToolAdapter<
             // Check if object actually changed
             if (JSON.stringify(prevState) !== JSON.stringify(newState)) {
               modifications.push({
-                objectId: obj.id,
+                object: obj,
                 previousState: prevState,
                 newState: newState
               })
@@ -195,7 +201,7 @@ export abstract class BaseToolAdapter<
         
         // Emit batch modification event if objects changed
         if (modifications.length > 0) {
-          const event = new KonvaObjectsBatchModifiedEvent(
+          const event = new ObjectsBatchModifiedEvent(
             canvas.id,
             modifications,
             executionContext.getMetadata()
@@ -552,18 +558,18 @@ export abstract class FilterToolAdapter<
     const filterType = this.getFilterType()
     
     // Group images by layer for efficient filtering
-    const imagesByLayer = new Map<string, CanvasImage[]>()
+          const imagesByObject = new Map<string, CanvasImage[]>()
     images.forEach(img => {
-      const layerId = img.layerId || 'default'
-      const layerImages = imagesByLayer.get(layerId) || []
-      layerImages.push(img)
-      imagesByLayer.set(layerId, layerImages)
+              const objectId = img.id || 'default'
+        const objectImages = imagesByObject.get(objectId) || []
+        objectImages.push(img)
+        imagesByObject.set(objectId, objectImages)
     })
     
     try {
       // Apply filters layer by layer
-      for (const [layerId, layerImages] of imagesByLayer) {
-        console.log(`[${this.constructor.name}] Processing ${layerImages.length} images in layer ${layerId}`)
+      for (const [objectId, objectImages] of imagesByObject) {
+        console.log(`[${this.constructor.name}] Processing ${objectImages.length} images in object ${objectId}`)
         
         if (this.shouldApplyFilter(params)) {
           const _filter = this.createFilter(params)
@@ -578,7 +584,7 @@ export abstract class FilterToolAdapter<
         }
       }
       
-      console.log(`[FilterToolAdapter] Successfully applied ${filterType} filter to ${images.length} images across ${imagesByLayer.size} layers`)
+      console.log(`[FilterToolAdapter] Successfully applied ${filterType} filter to ${images.length} images across ${imagesByObject.size} objects`)
     } catch (error) {
       console.error(`[FilterToolAdapter] Error applying ${filterType} filter:`, error)
       throw error

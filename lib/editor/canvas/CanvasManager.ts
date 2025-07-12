@@ -10,7 +10,7 @@ import type {
   CanvasManager as ICanvasManager
 } from './types'
 import { TypedEventBus } from '@/lib/events/core/TypedEventBus'
-import { ObjectManager } from '@/lib/editor/objects/ObjectManager'
+import { ObjectManager } from './services/ObjectManager'
 import { SelectionManager } from '@/lib/editor/selection/SelectionManager'
 import { SelectionRenderer } from '@/lib/editor/selection/SelectionRenderer'
 import { calculateFitToScreenScale } from './helpers'
@@ -53,15 +53,16 @@ export class CanvasManager implements ICanvasManager {
   constructor(
     container: HTMLDivElement,
     typedEventBus: TypedEventBus,
-    objectManager: ObjectManager,
     eventStore: EventStore,
     resourceManager: ResourceManager
   ) {
     this.container = container
     this.typedEventBus = typedEventBus
-    this.objectManager = objectManager
     this.eventStore = eventStore
     this.resourceManager = resourceManager
+    
+    // Create ObjectManager with proper dependencies
+    this.objectManager = new ObjectManager(this.id, typedEventBus, eventStore)
     
     // Initialize stage
     this.stage = new Konva.Stage({
@@ -83,7 +84,7 @@ export class CanvasManager implements ICanvasManager {
     this.stage.add(this.selectionLayer)
     this.stage.add(this.overlayLayer)
     
-    // Initialize state
+    // Initialize state (objects now managed by ObjectManager)
     this._state = {
       viewport: {
         width: container.offsetWidth,
@@ -94,8 +95,8 @@ export class CanvasManager implements ICanvasManager {
         y: 0,
         zoom: 1
       },
-      objects: new Map(),
-      objectOrder: [],
+      objects: new Map(), // Legacy - will be removed
+      objectOrder: [], // Legacy - will be removed
       selectedObjectIds: new Set(),
       pixelSelection: undefined,
       backgroundColor: 'transparent',
@@ -111,13 +112,11 @@ export class CanvasManager implements ICanvasManager {
     this.selectionManager = new SelectionManager(this as unknown as ICanvasManager, this.typedEventBus)
     this.selectionRenderer = new SelectionRenderer(this as unknown as ICanvasManager, this.selectionManager)
     
-    // Initialize filter system with injected dependencies
-    this.filterManager = new ObjectFilterManager(
-      this,
-      this.eventStore,
-      this.typedEventBus,
-      this.resourceManager
-    )
+    // Initialize filter system (will be injected via ServiceContainer)
+    this.filterManager = null
+    
+    // Set up bidirectional reference
+    this.objectManager.setCanvasManager(this)
     
     // Subscribe to object events
     this.subscribeToEvents()
@@ -777,8 +776,7 @@ export class CanvasManager implements ICanvasManager {
   // Additional object-based methods needed for migration
   
   getSelectedObjects(): CanvasObject[] {
-    const selectedIds = Array.from(this._state.selectedObjectIds)
-    return selectedIds.map(id => this.getObject(id)).filter(Boolean) as CanvasObject[]
+    return this.objectManager.getSelectedObjects()
   }
   
   getViewportBounds(): Rect {
@@ -1049,51 +1047,19 @@ export class CanvasManager implements ICanvasManager {
     this.typedEventBus.emit('objectOrderChanged', { objectOrder: ids })
   }
   
-  bringObjectToFront(id: string): void {
-    const currentOrder = [...this._state.objectOrder]
-    const index = currentOrder.indexOf(id)
-    
-    if (index !== -1 && index < currentOrder.length - 1) {
-      // Remove from current position
-      currentOrder.splice(index, 1)
-      // Add to end (front)
-      currentOrder.push(id)
-      this.setObjectOrder(currentOrder)
-    }
+    bringObjectToFront(id: string): void {
+    this.objectManager.bringToFront(id)
   }
-  
+
   sendObjectToBack(id: string): void {
-    const currentOrder = [...this._state.objectOrder]
-    const index = currentOrder.indexOf(id)
-    
-    if (index > 0) {
-      // Remove from current position
-      currentOrder.splice(index, 1)
-      // Add to beginning (back)
-      currentOrder.unshift(id)
-      this.setObjectOrder(currentOrder)
-    }
+    this.objectManager.sendToBack(id)
   }
-  
+
   bringObjectForward(id: string): void {
-    const currentOrder = [...this._state.objectOrder]
-    const index = currentOrder.indexOf(id)
-    
-    if (index !== -1 && index < currentOrder.length - 1) {
-      // Swap with next object
-      [currentOrder[index], currentOrder[index + 1]] = [currentOrder[index + 1], currentOrder[index]]
-      this.setObjectOrder(currentOrder)
-    }
+    this.objectManager.bringForward(id)
   }
-  
+
   sendObjectBackward(id: string): void {
-    const currentOrder = [...this._state.objectOrder]
-    const index = currentOrder.indexOf(id)
-    
-    if (index > 0) {
-      // Swap with previous object
-      [currentOrder[index], currentOrder[index - 1]] = [currentOrder[index - 1], currentOrder[index]]
-      this.setObjectOrder(currentOrder)
-    }
+    this.objectManager.sendBackward(id)
   }
 } 

@@ -32,7 +32,7 @@ export class WorkflowMemory implements IWorkflowMemory {
     const canvasState = {
       layers: this.canvas.getAllObjects(),
       selection: this.canvas.getSelectedObjects(),
-      activeLayerId: Array.from(this.canvas.state.selectedObjectIds)[0] || null,
+      activeObjectId: Array.from(this.canvas.state.selectedObjectIds)[0] || null,
       backgroundColor: this.canvas.state.backgroundColor,
       ...this.canvas.getViewport()
     }

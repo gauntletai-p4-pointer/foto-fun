@@ -195,10 +195,13 @@ export class InpaintingTool extends ObjectTool {
     
     const taskId = `${this.id}-${Date.now()}`
     this.eventBus.emit('ai.processing.started', {
-      taskId,
-      toolId: this.id,
-      description: `Inpainting with prompt: ${prompt}`,
-      targetObjectIds: [object.id]
+      operationId: taskId,
+      type: 'inpainting',
+      metadata: {
+        toolId: this.id,
+        description: `Inpainting with prompt: ${prompt}`,
+        targetObjectIds: [object.id]
+      }
     })
     
     try {
@@ -252,24 +255,29 @@ export class InpaintingTool extends ObjectTool {
       
       // Emit success events
       this.eventBus.emit('ai.inpainting.completed', {
-        taskId,
-        toolId: this.id,
-        objectId: object.id,
-        prompt,
-        success: true,
-        maskArea: {
-          x: 0,
-          y: 0,
-          width: maskData.width,
-          height: maskData.height
+        operationId: taskId,
+        imageId: object.id,
+        result: {
+          success: true,
+          prompt,
+          maskArea: {
+            x: 0,
+            y: 0,
+            width: maskData.width,
+            height: maskData.height
+          }
         }
       })
       
       this.eventBus.emit('ai.processing.completed', {
-        taskId,
-        toolId: this.id,
-        success: true,
-        affectedObjectIds: [object.id]
+        operationId: taskId,
+        result: {
+          success: true,
+          affectedObjectIds: [object.id]
+        },
+        metadata: {
+          toolId: this.id
+        }
       })
       
     } catch (error) {
@@ -285,9 +293,11 @@ export class InpaintingTool extends ObjectTool {
       })
       
       this.eventBus.emit('ai.processing.failed', {
-        taskId,
-        toolId: this.id,
-        error: error instanceof Error ? error.message : 'Inpainting failed'
+        operationId: taskId,
+        error: error instanceof Error ? error.message : 'Inpainting failed',
+        metadata: {
+          toolId: this.id
+        }
       })
       
     } finally {

@@ -199,16 +199,9 @@ export function getDeploymentMode(): 'cloud' | 'self-hosted' {
 }
 
 // Simple feature manager
+// Now uses dependency injection instead of singleton pattern
 export class FeatureManager {
-  private static instance: FeatureManager
   private enabledFeatures: Set<Feature> = new Set()
-  
-  static getInstance(): FeatureManager {
-    if (!FeatureManager.instance) {
-      FeatureManager.instance = new FeatureManager()
-    }
-    return FeatureManager.instance
-  }
   
   constructor() {
     this.loadPreferences()
@@ -263,8 +256,8 @@ export class FeatureManager {
   }
 }
 
-// Export singleton instance
-export const featureManager = FeatureManager.getInstance()
+// Export instance for backwards compatibility - will be replaced with DI
+export const featureManager = new FeatureManager()
 
 // React hook for feature flags
 export function useFeature(feature: Feature): boolean {

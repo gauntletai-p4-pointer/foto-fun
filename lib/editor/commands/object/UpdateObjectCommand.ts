@@ -1,60 +1,76 @@
-import { Command } from '../base/Command'
-import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
 import type { CanvasObject } from '@/lib/editor/objects/types'
-import type { TypedEventBus } from '@/lib/events/core/TypedEventBus'
+import { Command, type CommandContext } from '../base/Command'
+
+export interface UpdateObjectOptions {
+  objectId: string
+  updates: Partial<CanvasObject>
+}
 
 export class UpdateObjectCommand extends Command {
+  private readonly options: UpdateObjectOptions
   private previousState: Partial<CanvasObject> | null = null
-  
+
   constructor(
-    eventBus: TypedEventBus,
-    private canvas: CanvasManager,
-    private objectId: string,
-    private updates: Partial<CanvasObject>
+    description: string,
+    context: CommandContext,
+    options: UpdateObjectOptions
   ) {
-    super(`Update object`, eventBus)
+    super(description, context, {
+      source: 'user',
+      canMerge: true, // Update commands can potentially be merged
+      affectsSelection: false
+    })
+    this.options = options
   }
-  
-  protected async doExecute(): Promise<void> {
-    const object = this.canvas.getObject(this.objectId)
-    if (!object) {
-      throw new Error(`Object ${this.objectId} not found`)
+
+  async doExecute(): Promise<void> {
+    // Get the current object state for undo
+    const currentObject = this.context.canvasManager.getObject(this.options.objectId)
+    if (!currentObject) {
+      throw new Error(`Object with ID ${this.options.objectId} not found`)
     }
-    
-    // Store previous state for undo
+
+    // Store the previous state (only the properties being updated)
     this.previousState = {}
-    for (const key of Object.keys(this.updates) as (keyof CanvasObject)[]) {
-      if (key in object) {
-        // Type-safe property assignment using computed property access
-        this.previousState = {
-          ...this.previousState,
-          [key]: object[key]
-        }
+    for (const key in this.options.updates) {
+      if (key in currentObject) {
+        (this.previousState as any)[key] = (currentObject as any)[key]
       }
     }
-    
-    // Apply updates
-    await this.canvas.updateObject(this.objectId, this.updates)
+
+    // Apply the updates
+    await this.context.canvasManager.updateObject(this.options.objectId, this.options.updates)
   }
-  
+
   async undo(): Promise<void> {
-    if (!this.previousState) return
-    
-    // Restore previous state
-    await this.canvas.updateObject(this.objectId, this.previousState)
+    if (this.previousState) {
+      await this.context.canvasManager.updateObject(this.options.objectId, this.previousState)
+    }
   }
-  
+
+  canExecute(): boolean {
+    return this.options.objectId !== '' && Object.keys(this.options.updates).length > 0
+  }
+
+  canUndo(): boolean {
+    return this.previousState !== null
+  }
+
   canMergeWith(other: Command): boolean {
-    // Merge consecutive updates to the same object
-    return other instanceof UpdateObjectCommand && 
-           other.objectId === this.objectId &&
-           this.metadata.source === other.metadata.source
-  }
-  
-  mergeWith(other: Command): void {
-    if (!(other instanceof UpdateObjectCommand)) return
+    if (!(other instanceof UpdateObjectCommand)) {
+      return false
+    }
     
+    // Can merge if updating the same object
+    return this.options.objectId === other.options.objectId
+  }
+
+  mergeWith(other: Command): void {
+    if (!(other instanceof UpdateObjectCommand)) {
+      return
+    }
+
     // Merge the updates
-    this.updates = { ...this.updates, ...other.updates }
+    Object.assign(this.options.updates, other.options.updates)
   }
 } 

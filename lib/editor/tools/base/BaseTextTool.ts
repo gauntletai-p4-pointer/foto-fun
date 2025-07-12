@@ -3,7 +3,7 @@ import Konva from 'konva'
 import { createToolState } from '../utils/toolState'
 import type { ToolEvent, Point } from '@/lib/editor/canvas/types'
 import type { CanvasObject } from '@/lib/editor/objects/types'
-import { KonvaObjectAddedEvent, KonvaObjectModifiedEvent } from '@/lib/events/canvas/CanvasEvents'
+import { ObjectAddedEvent, ObjectModifiedEvent } from '@/lib/events/canvas/CanvasEvents'
 
 // Extend TextToolState to satisfy Record constraint
 interface ExtendedTextToolState extends Record<string, unknown> {
@@ -211,26 +211,9 @@ export abstract class BaseTextTool extends BaseTool {
     
     // Emit event
     if (this.executionContext) {
-      await this.executionContext.emit(new KonvaObjectAddedEvent(
+      await this.executionContext.emit(new ObjectAddedEvent(
         'canvas',
-        canvasObject.id,
-        canvasObject.type,
-        {
-          name: canvasObject.name,
-          visible: canvasObject.visible,
-          locked: canvasObject.locked,
-          opacity: canvasObject.opacity,
-          blendMode: canvasObject.blendMode,
-          x: canvasObject.x,
-          y: canvasObject.y,
-          width: canvasObject.width,
-          height: canvasObject.height,
-          rotation: canvasObject.rotation,
-          scaleX: canvasObject.scaleX,
-          scaleY: canvasObject.scaleY,
-          data: canvasObject.data
-        },
-        'default-layer', // Default layer ID for object-based system
+        canvasObject,
         this.executionContext.getMetadata()
       ))
     }
@@ -374,9 +357,9 @@ export abstract class BaseTextTool extends BaseTool {
           }
         
           if (this.executionContext) {
-            await this.executionContext.emit(new KonvaObjectModifiedEvent(
+            await this.executionContext.emit(new ObjectModifiedEvent(
               'canvas',
-              canvasObject.id,
+              canvasObject,
               { data: previousData },
               { data: canvasObject.data },
               this.executionContext.getMetadata()

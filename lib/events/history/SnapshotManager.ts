@@ -155,10 +155,10 @@ export class SnapshotManager {
     // Emit event
     this.typedEventBus.emit('history.snapshot.created', {
       snapshotId: snapshot.id,
+      timestamp: snapshot.timestamp,
+      eventCount: events.length,
       name: snapshot.name,
-      description: snapshot.description,
-      eventId: snapshot.eventId,
-      timestamp: snapshot.timestamp
+      description: snapshot.description
     })
 
     return snapshot
@@ -177,7 +177,8 @@ export class SnapshotManager {
     // This will be handled by the history store
     this.typedEventBus.emit('history.snapshot.loaded', {
       snapshotId: snapshot.id,
-      eventId: snapshot.eventId
+      eventId: snapshot.eventId,
+      timestamp: Date.now()
     })
   }
 

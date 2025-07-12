@@ -57,7 +57,7 @@ export abstract class BasePixelTool extends BaseTool {
         blendMode: 'normal' as const,
         objects: []
       }
-      this.pixelBuffer = new PixelBuffer(canvas, layerWrapper)
+      this.pixelBuffer = new PixelBuffer(this.dependencies.eventBus)
     }
     
     // Load brush settings from options

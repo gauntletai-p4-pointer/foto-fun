@@ -9,7 +9,7 @@ export abstract class Event {
   readonly timestamp: number
   readonly type: string
   readonly aggregateId: string
-  readonly aggregateType: 'canvas' | 'layer' | 'selection' | 'tool' | 'workflow' | 'document'
+  readonly aggregateType: 'canvas' | 'object' | 'selection' | 'tool' | 'workflow' | 'document'
   readonly userId?: string
   readonly sessionId: string
   readonly version: number

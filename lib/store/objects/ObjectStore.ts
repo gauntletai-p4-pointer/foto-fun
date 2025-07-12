@@ -1,3 +1,6 @@
+import { BaseStore } from '../base/BaseStore'
+import type { EventStore } from '@/lib/events/core/EventStore'
+import type { Event } from '@/lib/events/core/Event'
 import type { TypedEventBus, EventRegistry } from '@/lib/events/core/TypedEventBus'
 import type { CanvasObject as NewCanvasObject } from '@/lib/editor/objects/types'
 
@@ -7,25 +10,29 @@ export interface ObjectStoreState {
   selectedObjectIds: Set<string>
 }
 
-export class ObjectStore {
-  private state: ObjectStoreState
-  private listeners = new Set<(state: ObjectStoreState) => void>()
-  private subscriptions: Array<() => void> = []
+const initialState: ObjectStoreState = {
+  objects: new Map(),
+  objectOrder: [],
+  selectedObjectIds: new Set()
+}
+
+export class ObjectStore extends BaseStore<ObjectStoreState> {
+  private typedEventBus: TypedEventBus
+  private typedSubscriptions: Array<() => void> = []
   
-  constructor(private eventBus: TypedEventBus) {
-    this.state = {
-      objects: new Map(),
-      objectOrder: [],
-      selectedObjectIds: new Set()
-    }
-    
-    this.subscribeToEvents()
+  constructor(eventStore: EventStore, typedEventBus: TypedEventBus) {
+    super(initialState, eventStore)
+    this.typedEventBus = typedEventBus
+    this.initializeTypedSubscriptions()
   }
   
-  private subscribeToEvents(): void {
+  /**
+   * Initialize typed event subscriptions for UI events
+   */
+  private initializeTypedSubscriptions(): void {
     // Subscribe to object events
-    this.subscriptions.push(
-      this.eventBus.on('canvas.object.added', (data: EventRegistry['canvas.object.added']) => {
+    this.typedSubscriptions.push(
+      this.typedEventBus.on('canvas.object.added', (data: EventRegistry['canvas.object.added']) => {
         const { object } = data
         const objectId = object.id
         this.setState(state => {
@@ -46,8 +53,8 @@ export class ObjectStore {
       })
     )
     
-    this.subscriptions.push(
-      this.eventBus.on('canvas.object.removed', (data: EventRegistry['canvas.object.removed']) => {
+    this.typedSubscriptions.push(
+      this.typedEventBus.on('canvas.object.removed', (data: EventRegistry['canvas.object.removed']) => {
         const { objectId } = data
         this.setState(state => {
           const newObjects = new Map(state.objects)
@@ -65,8 +72,8 @@ export class ObjectStore {
       })
     )
     
-    this.subscriptions.push(
-      this.eventBus.on('canvas.object.modified', (data: EventRegistry['canvas.object.modified']) => {
+    this.typedSubscriptions.push(
+      this.typedEventBus.on('canvas.object.modified', (data: EventRegistry['canvas.object.modified']) => {
         const { objectId, newState } = data
         // Get the updated object from the canvas manager since event doesn't include full object
         const object = this.getUpdatedObjectFromNewState(objectId, newState)
@@ -95,8 +102,8 @@ export class ObjectStore {
       })
     )
     
-    this.subscriptions.push(
-      this.eventBus.on('selection.changed', (data: EventRegistry['selection.changed']) => {
+    this.typedSubscriptions.push(
+      this.typedEventBus.on('selection.changed', (data: EventRegistry['selection.changed']) => {
         // Extract object IDs from selection
         const selectedIds = this.extractObjectIdsFromSelection(data.selection)
         this.setState(state => ({
@@ -106,61 +113,54 @@ export class ObjectStore {
       })
     )
   }
-  
-  private setState(updater: (state: ObjectStoreState) => ObjectStoreState): void {
-    const newState = updater(this.state)
-    if (newState !== this.state) {
-      this.state = newState
-      this.notifyListeners()
-    }
+
+  /**
+   * Define event handlers for event sourcing (from BaseStore)
+   */
+  protected getEventHandlers(): Map<string, (event: Event) => void> {
+    return new Map([
+      // Add event sourcing handlers here if needed
+      // For now, we rely on TypedEventBus for UI events
+    ])
   }
-  
-  private notifyListeners(): void {
-    this.listeners.forEach(listener => {
-      try {
-        listener(this.state)
-      } catch (error) {
-        console.error('Error in object store listener:', error)
-      }
-    })
-  }
-  
-  subscribe(listener: (state: ObjectStoreState) => void): () => void {
-    this.listeners.add(listener)
-    listener(this.state) // Call immediately with current state
+
+  /**
+   * Override dispose to clean up typed subscriptions
+   */
+  dispose(): void {
+    // Clean up typed subscriptions
+    this.typedSubscriptions.forEach(unsubscribe => unsubscribe())
+    this.typedSubscriptions = []
     
-    return () => {
-      this.listeners.delete(listener)
-    }
+    // Call parent dispose
+    super.dispose()
   }
-  
+
   // Getters
-  getState(): ObjectStoreState {
-    return this.state
-  }
-  
   getObject(id: string): NewCanvasObject | undefined {
-    return this.state.objects.get(id)
+    return this.getState().objects.get(id)
   }
   
   getAllObjects(): NewCanvasObject[] {
-    return Array.from(this.state.objects.values())
+    return Array.from(this.getState().objects.values())
   }
   
   getObjectsInOrder(): NewCanvasObject[] {
-    return this.state.objectOrder
-      .map(id => this.state.objects.get(id))
+    const state = this.getState()
+    return state.objectOrder
+      .map(id => state.objects.get(id))
       .filter((obj): obj is NewCanvasObject => obj !== undefined)
   }
   
   getSelectedObjects(): NewCanvasObject[] {
-    return Array.from(this.state.selectedObjectIds)
-      .map(id => this.state.objects.get(id))
+    const state = this.getState()
+    return Array.from(state.selectedObjectIds)
+      .map(id => state.objects.get(id))
       .filter((obj): obj is NewCanvasObject => obj !== undefined)
   }
   
   isObjectSelected(id: string): boolean {
-    return this.state.selectedObjectIds.has(id)
+    return this.getState().selectedObjectIds.has(id)
   }
   
   /**
@@ -168,7 +168,7 @@ export class ObjectStore {
    * Since the event doesn't include the full object, we need to reconstruct it
    */
   private getUpdatedObjectFromNewState(objectId: string, newState: Record<string, unknown>): NewCanvasObject | null {
-    const existingObject = this.state.objects.get(objectId)
+    const existingObject = this.getState().objects.get(objectId)
     if (!existingObject) return null
     
     // Merge the existing object with the new state
@@ -192,11 +192,5 @@ export class ObjectStore {
     // For other selection types (pixel, rectangle, etc.), return empty array
     // as they don't directly correspond to object selections
     return []
-  }
-
-  dispose(): void {
-    this.subscriptions.forEach(unsubscribe => unsubscribe())
-    this.subscriptions = []
-    this.listeners.clear()
   }
 } 

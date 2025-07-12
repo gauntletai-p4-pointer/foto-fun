@@ -23,8 +23,12 @@ export class ImageGenerationTool extends ObjectTool {
   shortcut = 'G'
   
   private replicateService: ReplicateService | null = null
-  private preferencesManager = ModelPreferencesManager.getInstance()
-  private eventBus = new TypedEventBus()
+  constructor(
+    private preferencesManager: ModelPreferencesManager,
+    private eventBus: TypedEventBus
+  ) {
+    super()
+  }
   
   protected setupTool(): void {
     // Initialize Replicate service
@@ -116,9 +120,12 @@ export class ImageGenerationTool extends ObjectTool {
     
     try {
       this.eventBus.emit('ai.processing.started', {
-        taskId,
-        toolId: this.id,
-        description: `Generating image: ${prompt}`
+        operationId: taskId,
+        type: 'image-generation',
+        metadata: {
+          toolId: this.id,
+          description: `Generating image: ${prompt}`
+        }
       })
       
       console.log(`[ImageGenerationTool] Generating image with ${tier.name}...`)
@@ -171,10 +178,15 @@ export class ImageGenerationTool extends ObjectTool {
       console.log('[ImageGenerationTool] Image generated successfully')
       
       this.eventBus.emit('ai.processing.completed', {
-        taskId,
-        toolId: this.id,
-        success: true,
-        affectedObjectIds: [objectId]
+        operationId: taskId,
+        result: {
+          toolId: this.id,
+          success: true,
+          affectedObjectIds: [objectId]
+        },
+        metadata: {
+          toolId: this.id
+        }
       })
       
       // Return the object for adapter use, or void for UI use
@@ -188,9 +200,11 @@ export class ImageGenerationTool extends ObjectTool {
     } catch (error) {
       console.error('[ImageGenerationTool] Failed to generate image:', error)
       this.eventBus.emit('ai.processing.failed', {
-        taskId,
-        toolId: this.id,
-        error: error instanceof Error ? error.message : 'Image generation failed'
+        operationId: taskId,
+        error: error instanceof Error ? error.message : 'Image generation failed',
+        metadata: {
+          toolId: this.id
+        }
       })
       
       if (options) {
