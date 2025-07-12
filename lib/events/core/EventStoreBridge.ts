@@ -1,8 +1,6 @@
 import { EventStore } from './EventStore'
 import { TypedEventBus } from './TypedEventBus'
 import { Event } from './Event'
-import type { Selection } from '@/lib/editor/canvas/types'
-import type { CanvasObject } from '@/lib/editor/objects/types'
 
 export interface EventStoreBridgeConfig {
   batchingEnabled?: boolean
@@ -149,7 +147,7 @@ export class EventStoreBridge {
         return null
       }
       
-      canApply(currentState: unknown): boolean {
+      canApply(_currentState: unknown): boolean {
         return true
       }
       

@@ -1,4 +1,4 @@
-import { BaseTool, ToolState } from './BaseTool';
+import { BaseTool, ToolState, type ToolOptions } from './BaseTool';
 import type { ToolEvent } from '@/lib/events/canvas/ToolEvents';
 import type { CanvasObject } from '@/lib/editor/objects/types';
 
@@ -15,14 +15,14 @@ export interface TransformData {
     center: boolean;
   };
   transformType: 'move' | 'rotate' | 'scale' | 'crop' | 'flip';
-  transformParams?: Record<string, any>;
+  transformParams?: Record<string, string | number | boolean | { x: number; y: number } | undefined>;
 }
 
 /**
  * Base class for all transform tools
  * Handles common transform operations and state management
  */
-export abstract class TransformTool extends BaseTool {
+export abstract class TransformTool<T extends ToolOptions = ToolOptions> extends BaseTool<T> {
   protected currentTransform: TransformData | null = null;
   protected transformStartTime: number = 0;
 
@@ -44,7 +44,7 @@ export abstract class TransformTool extends BaseTool {
   /**
    * Get additional transform parameters specific to this tool
    */
-  protected getTransformParams(event: ToolEvent): Record<string, any> {
+  protected getTransformParams(_event: ToolEvent): Record<string, string | number | boolean | { x: number; y: number } | undefined> {
     return {};
   }
 
@@ -111,7 +111,7 @@ export abstract class TransformTool extends BaseTool {
       this.currentTransform = transformData;
 
       // Emit transform start operation
-      this.emitOperation(`${this.getTransformOperation()}.start`, transformData);
+      this.emitOperation(`${this.getTransformOperation()}.start`, transformData as unknown as Record<string, unknown>);
 
     } catch (error) {
       this.dependencies.eventBus.emit('tool.error', {
@@ -142,7 +142,7 @@ export abstract class TransformTool extends BaseTool {
       this.currentTransform = updatedTransform;
 
       // Emit transform update operation
-      this.emitOperation(`${this.getTransformOperation()}.update`, updatedTransform);
+      this.emitOperation(`${this.getTransformOperation()}.update`, updatedTransform as unknown as Record<string, unknown>);
 
     } catch (error) {
       this.dependencies.eventBus.emit('tool.error', {
@@ -173,7 +173,7 @@ export abstract class TransformTool extends BaseTool {
         };
 
         // Emit transform complete operation
-        this.emitOperation(`${this.getTransformOperation()}.complete`, finalTransform);
+        this.emitOperation(`${this.getTransformOperation()}.complete`, finalTransform as unknown as Record<string, unknown>);
 
         // Clear current transform
         this.currentTransform = null;
@@ -221,7 +221,7 @@ export abstract class TransformTool extends BaseTool {
         this.emitOperation(`${this.getTransformOperation()}.modifier.changed`, {
           ...this.currentTransform,
           modifiers: updatedModifiers
-        });
+        } as unknown as Record<string, unknown>);
       }
     }
   }

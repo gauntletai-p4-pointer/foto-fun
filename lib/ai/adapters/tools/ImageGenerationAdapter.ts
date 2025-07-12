@@ -105,7 +105,7 @@ export class ImageGenerationAdapter extends UnifiedToolAdapter<ImageGenerationIn
     }
   }
 
-  private async generateImageWithAI(params: ImageGenerationInput): Promise<string> {
+  private async generateImageWithAI(_params: ImageGenerationInput): Promise<string> {
     // Placeholder implementation
     // In a real implementation, this would call Replicate, OpenAI, or other AI services
     

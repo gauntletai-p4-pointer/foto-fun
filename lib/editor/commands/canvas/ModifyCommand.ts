@@ -69,7 +69,7 @@ export class ModifyCommand extends Command {
         executionTime: 0,
         affectedObjects: [this.object.id]
       })
-    } catch (error) {
+    } catch (_error) {
       return failure(
         new ExecutionError('Failed to undo object modification', { commandId: this.id })
       )
@@ -96,7 +96,7 @@ export class ModifyCommand extends Command {
         executionTime: 0,
         affectedObjects: [this.object.id]
       })
-    } catch (error) {
+    } catch (_error) {
       return failure(
         new ExecutionError('Failed to redo object modification', { commandId: this.id })
       )

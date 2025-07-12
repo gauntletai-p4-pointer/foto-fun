@@ -26,7 +26,7 @@ export class CutCommand extends Command {
     // Get clipboard manager from service container or create one
     // Note: This should be injected through context in future iterations
     this.clipboardManager = new ClipboardManager(
-      context.eventBus as any, // TODO: Fix EventStore dependency
+      context.eventBus as unknown as import('@/lib/events/core/EventStore').EventStore,
       context.eventBus,
       { validation: true }
     )
@@ -66,7 +66,7 @@ export class CutCommand extends Command {
         executionTime: 0,
         affectedObjects: this.cutObjects.map(obj => obj.id)
       })
-    } catch (error) {
+    } catch (_error) {
       return failure(
         new ExecutionError('Failed to undo cut operation', { commandId: this.id })
       )

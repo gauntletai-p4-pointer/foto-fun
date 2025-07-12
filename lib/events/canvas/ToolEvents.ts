@@ -1,6 +1,5 @@
 import { Event } from '../core/Event'
-import type { Selection, Rect } from '@/lib/editor/canvas/types'
-import type { CanvasObject } from '@/lib/editor/objects/types'
+import type { Selection } from '@/lib/editor/canvas/types'
 
 /**
  * ToolEvent interface - THE SINGLE SOURCE OF TRUTH
@@ -35,7 +34,7 @@ export interface ToolEvent {
   stopPropagation(): void;
   
   // Additional context
-  target?: any; // Konva.Node
+  target?: { id?: string; type?: string; getStage?: () => unknown }; // Konva.Node abstraction
   nativeEvent?: MouseEvent | KeyboardEvent;
 }
 
@@ -43,11 +42,14 @@ export interface ToolEvent {
  * Helper function to create a ToolEvent from a Konva event
  */
 export function createToolEvent(
-  konvaEvent: any,
+  konvaEvent: {
+    target?: { getStage?: () => { getPointerPosition?: () => { x: number; y: number } | null; getCamera?: () => { x: number; y: number; zoom: number } } | null };
+    evt?: MouseEvent | TouchEvent | PointerEvent;
+  },
   eventType: ToolEvent['eventType']
 ): ToolEvent {
-  const stage = konvaEvent.target?.getStage();
-  const pointerPosition = stage?.getPointerPosition() || { x: 0, y: 0 };
+  const stage = konvaEvent.target?.getStage?.();
+  const pointerPosition = stage?.getPointerPosition?.() || { x: 0, y: 0 };
   
   // Get canvas coordinates (considering zoom and pan)
   const camera = stage?.getCamera?.() || { x: 0, y: 0, zoom: 1 };
@@ -55,23 +57,23 @@ export function createToolEvent(
   const canvasY = (pointerPosition.y - camera.y) / camera.zoom;
   
   return {
-    x: konvaEvent.evt?.clientX || pointerPosition.x,
-    y: konvaEvent.evt?.clientY || pointerPosition.y,
-    button: konvaEvent.evt?.button,
-    buttons: konvaEvent.evt?.buttons,
+    x: (konvaEvent.evt && 'clientX' in konvaEvent.evt ? konvaEvent.evt.clientX : undefined) || pointerPosition.x,
+    y: (konvaEvent.evt && 'clientY' in konvaEvent.evt ? konvaEvent.evt.clientY : undefined) || pointerPosition.y,
+    button: konvaEvent.evt && 'button' in konvaEvent.evt ? konvaEvent.evt.button : undefined,
+    buttons: konvaEvent.evt && 'buttons' in konvaEvent.evt ? konvaEvent.evt.buttons : undefined,
     ctrlKey: konvaEvent.evt?.ctrlKey || false,
     shiftKey: konvaEvent.evt?.shiftKey || false,
     altKey: konvaEvent.evt?.altKey || false,
     metaKey: konvaEvent.evt?.metaKey || false,
     canvasX,
     canvasY,
-    pressure: (konvaEvent.evt as any)?.pressure || 1.0,
+    pressure: (konvaEvent.evt && 'pressure' in konvaEvent.evt ? (konvaEvent.evt as PointerEvent).pressure : undefined) || 1.0,
     timestamp: Date.now(),
     eventType,
     preventDefault: () => konvaEvent.evt?.preventDefault(),
     stopPropagation: () => konvaEvent.evt?.stopPropagation(),
     target: konvaEvent.target,
-    nativeEvent: konvaEvent.evt
+    nativeEvent: konvaEvent.evt as MouseEvent | KeyboardEvent | undefined
   };
 }
 
@@ -105,11 +107,6 @@ interface SelectionState {
   version: number
 }
 
-interface CanvasState {
-  objects: CanvasObject[]
-  selectedObjectIds: string[]
-  camera: { x: number; y: number; zoom: number }
-}
 
 /**
  * SELECTION EVENTS
@@ -526,7 +523,7 @@ export class ToolOperationRequestedEvent extends Event {
     public readonly toolId: string,
     public readonly instanceId: string,
     public readonly operation: string,
-    public readonly params: any,
+    public readonly params: Record<string, unknown>,
     metadata: Event['metadata']
   ) {
     super('tool.operation.requested', toolId, 'tool', metadata)
@@ -563,7 +560,7 @@ export class ToolIntentEvent extends Event {
     public readonly toolId: string,
     public readonly instanceId: string,
     public readonly intent: string,
-    public readonly context: any,
+    public readonly context: Record<string, unknown>,
     metadata: Event['metadata']
   ) {
     super('tool.intent', toolId, 'tool', metadata)

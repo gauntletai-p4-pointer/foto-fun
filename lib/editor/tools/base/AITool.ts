@@ -1,6 +1,10 @@
 import { BaseTool, ToolDependencies } from './BaseTool';
 
-interface AIOperationOptions {}
+interface AIOperationOptions {
+  timeout?: number;
+  priority?: 'high' | 'normal' | 'low';
+  signal?: AbortSignal;
+}
 
 export abstract class AITool extends BaseTool {
   protected isProcessing: boolean = false;
@@ -16,7 +20,7 @@ export abstract class AITool extends BaseTool {
   
   protected async executeAIOperation<T>(
     operation: () => Promise<T>,
-    options: AIOperationOptions = {}
+    _options: AIOperationOptions = {}
   ): Promise<T> {
     // Placeholder implementation
     this.isProcessing = true;

@@ -90,7 +90,7 @@ export class ExportManager {
    * Export all objects on canvas
    */
   async exportCanvas(options: ExportOptions): Promise<Blob> {
-    const exportId = nanoid()
+    const _exportId = nanoid()
     
     try {
       // Get all objects

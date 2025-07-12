@@ -66,7 +66,7 @@ export interface Layer {
   visible: boolean;
   opacity: number;
   blendMode: string;
-  konvaLayer: any; // Konva.Layer type
+  konvaLayer: import('konva/lib/Layer').Layer;
 }
 
 export type BlendMode = 'normal' | 'multiply' | 'screen' | 'overlay' | 'darken' | 'lighten' | 'color-dodge' | 'color-burn' | 'hard-light' | 'soft-light' | 'difference' | 'exclusion' | 'hue' | 'saturation' | 'color' | 'luminosity';

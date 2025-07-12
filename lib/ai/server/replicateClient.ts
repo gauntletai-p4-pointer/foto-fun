@@ -140,7 +140,7 @@ class ServerReplicateClient {
       console.error('[ServerReplicateClient] Error running model:', error)
       
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-      const errorCode = error instanceof Error && 'code' in error ? (error as { code?: string }).code : undefined
+      const _errorCode = error instanceof Error && 'code' in error ? (error as { code?: string }).code : undefined
       
       // Parse common error types
       if (errorMessage.includes('rate limit')) {
@@ -174,7 +174,7 @@ class ServerReplicateClient {
       console.error('[ServerReplicateClient] Error getting model info:', error)
       
       const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-      const errorCode = error instanceof Error && 'code' in error ? (error as { code?: string }).code : undefined
+      const _errorCode = error instanceof Error && 'code' in error ? (error as { code?: string }).code : undefined
       
       throw new AIServiceError(
         `Failed to get model info: ${errorMessage}`

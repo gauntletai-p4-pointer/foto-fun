@@ -1,6 +1,5 @@
 import type { Selection } from '@/lib/editor/canvas/types'
 import type { CanvasObject, FrameObject } from '@/lib/editor/objects/types'
-import { nanoid } from 'nanoid'
 
 /**
  * Event type registry for type-safe event handling
@@ -276,14 +275,14 @@ export interface EventRegistry {
     toolId: string
     instanceId: string
     operation: string
-    params: any
+    params: Record<string, unknown>
     timestamp: number
   }
   'tool.intent': {
     toolId: string
     instanceId: string
     intent: string
-    context: any
+    context: Record<string, unknown>
     timestamp: number
   }
   'tool.error': {
@@ -620,6 +619,15 @@ export interface EventRegistry {
     imageId: string
     selectionData?: Record<string, unknown>
     result?: Record<string, unknown>
+  }
+
+  // Adapter-specific events
+  'adapter.event': {
+    adapterId: string
+    toolId: string
+    eventName: string
+    data: unknown
+    timestamp: number
   }
   
   // Autosave events

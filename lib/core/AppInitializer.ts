@@ -3,11 +3,6 @@ import { ResourceManager } from './ResourceManager'
 
 // Type imports for services
 import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
-import type { ProjectSerializer } from '@/lib/editor/persistence/ProjectSerializer'
-import type { ExportManager } from '@/lib/editor/export/ExportManager'
-// import type { ImageLoaderService } from '@/lib/editor/canvas/services/ImageLoaderService'
-// import type { ObjectManager } from '@/lib/editor/canvas/services/ObjectManager'
-// import type { RenderPipeline } from '@/lib/editor/canvas/services/RenderPipeline'
 
 // Event System
 import { EventStore } from '@/lib/events/core/EventStore'
@@ -41,7 +36,6 @@ import { ClipboardManager } from '@/lib/editor/clipboard/ClipboardManager'
 // AI System
 import { ClientToolExecutor } from '@/lib/ai/client/tool-executor'
 import { AdapterFactory } from '@/lib/ai/adapters/base/AdapterFactory'
-import { AdapterRegistry } from '@/lib/ai/adapters/base/AdapterRegistry'
 import { ParameterConverter } from '@/lib/ai/adapters/base/ParameterConverter'
 import { createAdapterRegistry } from '@/lib/ai/adapters/registry'
 
@@ -229,9 +223,9 @@ export class AppInitializer {
       })
       
       // Tool System - ToolRegistry first
-      container.registerSingleton('ToolRegistry', () => {
-        const { ToolRegistry } = require('@/lib/editor/tools/base/ToolRegistry')
-        const { registerUIToolGroups } = require('@/lib/editor/tools/groups/toolGroups')
+      container.registerSingleton('ToolRegistry', async () => {
+        const { ToolRegistry } = await import('@/lib/editor/tools/base/ToolRegistry')
+        const { registerUIToolGroups } = await import('@/lib/editor/tools/groups/toolGroups')
         
         const registry = new ToolRegistry()
         
@@ -410,15 +404,15 @@ export class AppInitializer {
         console.log('[AppInitializer] Registering core tools...')
         
         // Register Agent 1 tools (Transform & Navigation)
-        const toolRegistry = container.getSync<any>('ToolRegistry')
+        const _toolRegistry = container.getSync<import('@/lib/editor/tools/base/ToolRegistry').ToolRegistry>('ToolRegistry');
         
         // Register tool groups first
         const { registerUIToolGroups } = await import('@/lib/editor/tools/groups/toolGroups')
-        registerUIToolGroups(toolRegistry)
+        registerUIToolGroups(_toolRegistry)
         
         // Register MoveTool
         const { MoveTool, moveToolMetadata } = await import('@/lib/editor/tools/transform/MoveTool')
-        toolRegistry.registerToolClass('move', MoveTool, moveToolMetadata)
+        _toolRegistry.registerToolClass('move', MoveTool, moveToolMetadata)
         
         console.log('[AppInitializer] Agent 1 tools registered successfully')
         

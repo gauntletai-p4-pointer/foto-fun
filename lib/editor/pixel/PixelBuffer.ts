@@ -2,7 +2,7 @@ import type { Point } from '@/types';
 
 // NOTE TO EXECUTOR: This is a placeholder class. A full implementation
 // with efficient pixel manipulation algorithms is required.
-interface Brush {}
+type Brush = Record<string, never>; // Placeholder type for brush - will be implemented later
 type Color = { r: number; g: number; b: number; a: number };
 
 export class PixelBuffer {
@@ -23,7 +23,7 @@ export class PixelBuffer {
     return { r: data[i], g: data[i+1], b: data[i+2], a: data[i+3] };
   }
   
-  applyBrush(point: Point, brush: Brush): void {
+  applyBrush(point: Point, _brush: Brush): void {
     // Placeholder implementation
     console.log('Applying brush at', point);
   }

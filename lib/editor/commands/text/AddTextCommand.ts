@@ -1,6 +1,4 @@
-import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
-import type { TypedEventBus } from '@/lib/events/core/TypedEventBus'
-import type { CanvasObject, TextData } from '@/lib/editor/objects/types'
+import type { TextData } from '@/lib/editor/objects/types'
 import type { Point } from '@/types'
 import { Command, type CommandContext } from '../base/Command'
 import { success, failure, ExecutionError, type CommandResult } from '../base/CommandResult'

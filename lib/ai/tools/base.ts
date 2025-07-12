@@ -23,7 +23,7 @@ export class AIServiceUnavailableError extends Error {
 export abstract class BaseAITool {
   abstract id: string;
   
-  async execute(): Promise<any> {
+  async execute(): Promise<unknown> {
     console.warn('AI tools disabled during refactor');
     return null;
   }

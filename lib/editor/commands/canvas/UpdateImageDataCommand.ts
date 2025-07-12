@@ -80,7 +80,7 @@ export class UpdateImageDataCommand extends Command {
         executionTime: 0,
         affectedObjects: [this.options.objectId]
       })
-    } catch (error) {
+    } catch (_error) {
       return failure(
         new ExecutionError('Failed to undo image data update', { commandId: this.id })
       )

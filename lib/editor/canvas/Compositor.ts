@@ -93,7 +93,7 @@ export class Compositor {
       })
       
       // Clone all objects from the layer into our group
-      layer.konvaLayer.children.forEach((child: any) => {
+      layer.konvaLayer.children.forEach((child: Konva.Node) => {
         const clone = child.clone()
         layerGroup.add(clone)
       })

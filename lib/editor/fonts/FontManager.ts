@@ -215,11 +215,11 @@ export class FontManager {
     if (this.disposed) {
       throw new Error('FontManager has been disposed')
     }
-    
+
     if (this.loadedFonts.has(fontFamily)) {
       return
     }
-    
+
     try {
       // Create link element for Google Fonts with multiple weights
       const link = document.createElement('link')
@@ -228,22 +228,25 @@ export class FontManager {
       link.rel = 'stylesheet'
       
       // Wait for font to load
-      await new Promise((resolve, reject) => {
+      await new Promise((resolve, _reject) => {
         link.onload = resolve
-        link.onerror = reject
+        link.onerror = (err) => {
+          console.warn(`[FontManager] Could not load Google Font ${fontFamily}. It may be unavailable or blocked.`, err);
+          resolve(null); // Resolve to prevent promise from rejecting and stopping other fonts
+        }
         document.head.appendChild(link)
       })
-      
+
       // Wait for fonts to be ready
       await document.fonts.ready
-      
+
       this.loadedFonts.add(fontFamily)
       if (!this.googleFonts.includes(fontFamily)) {
         this.googleFonts.push(fontFamily)
       }
     } catch (error) {
-      console.error(`Failed to load Google Font: ${fontFamily}`, error)
-      throw error
+      console.warn(`[FontManager] An unexpected error occurred while loading Google Font: ${fontFamily}`, error)
+      // Do not re-throw to allow other fonts to load
     }
   }
   

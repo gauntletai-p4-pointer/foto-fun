@@ -6,11 +6,8 @@ import type { SelectionManager } from '@/lib/editor/selection/SelectionManager';
 import type { ObjectManager } from '@/lib/editor/canvas/services/ObjectManager';
 import type { EventBasedHistoryStore as HistoryManager } from '@/lib/events/history/EventBasedHistoryStore';
 import type { EventToolOptionsStore } from '@/lib/store/tools/EventToolOptionsStore';
-import type { Command } from '@/lib/editor/commands/base/Command';
-import type { CommandContext } from '@/lib/editor/commands/base/Command';
 import type { CommandFactory } from '@/lib/editor/commands/base/CommandFactory';
 import type { ToolEvent } from '@/lib/events/canvas/ToolEvents';
-import React from 'react';
 
 export interface ToolDependencies {
   eventBus: TypedEventBus;
@@ -35,10 +32,10 @@ export enum ToolState {
 // ToolEvent interface is now imported from ./ToolEvent.ts
 
 export interface ToolOptions {
-  [key: string]: any;
+  [key: string]: string | number | boolean | Record<string, unknown> | undefined;
 }
 
-export abstract class BaseTool {
+export abstract class BaseTool<T extends ToolOptions = ToolOptions> {
   protected readonly id: string;
   protected readonly instanceId: string;
   protected readonly dependencies: ToolDependencies;
@@ -92,7 +89,7 @@ export abstract class BaseTool {
   }
   
   // Tool operation event emission methods
-  protected emitOperation(operation: string, params: any): void {
+  protected emitOperation(operation: string, params: Record<string, unknown>): void {
     this.dependencies.eventBus.emit('tool.operation.requested', {
       toolId: this.id,
       instanceId: this.instanceId,
@@ -102,7 +99,7 @@ export abstract class BaseTool {
     });
   }
 
-  protected emitIntent(intent: string, context: any): void {
+  protected emitIntent(intent: string, context: Record<string, unknown>): void {
     this.dependencies.eventBus.emit('tool.intent', {
       toolId: this.id,
       instanceId: this.instanceId,
@@ -127,37 +124,45 @@ export abstract class BaseTool {
   }
   
   // Options system (to be implemented by subclasses)
-  protected getDefaultOptions(): Record<string, any> {
+  protected getDefaultOptions(): T {
+    return {} as T;
+  }
+  
+  protected getOptionDefinitions(): Record<string, {
+    type: 'string' | 'number' | 'boolean' | 'select' | 'color';
+    defaultValue?: string | number | boolean;
+    label?: string;
+    options?: Array<{ value: string | number; label: string; }>;
+    min?: number;
+    max?: number;
+    step?: number;
+  }> {
     return {};
   }
   
-  protected getOptionDefinitions(): Record<string, any> {
-    return {};
-  }
-  
-  protected getAllOptions(): Record<string, any> {
+  protected getAllOptions(): T {
     const defaults = this.getDefaultOptions();
     
     // Get current options from tool options store
     if (this.dependencies.toolOptionsStore) {
       const currentOptions = this.dependencies.toolOptionsStore.getToolOptionValues(this.id);
-      return { ...defaults, ...currentOptions };
+      return { ...defaults, ...currentOptions } as T;
     }
     
     return defaults;
   }
   
-  protected getOption<T = any>(key: string): T | undefined {
+  protected getOption<U extends T[keyof T]>(key: keyof T): U | undefined {
     const allOptions = this.getAllOptions();
-    return allOptions[key] as T;
+    return allOptions[key] as U;
   }
   
-  protected setOption(key: string, value: any): void {
+  protected setOption(key: keyof T, value: T[keyof T]): void {
     // Emit option change event - the store will handle the update
     this.dependencies.eventBus.emit('tool.option.changed', {
       toolId: this.id,
-      optionId: key,
-      optionKey: key,
+      optionId: key as string,
+      optionKey: key as string,
       value
     });
   }

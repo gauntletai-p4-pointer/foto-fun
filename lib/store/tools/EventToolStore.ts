@@ -1,5 +1,6 @@
 import { BaseStore } from '../base/BaseStore';
 import type { EventStore } from '@/lib/events/core/EventStore';
+import type { Event } from '@/lib/events/core/Event';
 import type { TypedEventBus } from '@/lib/events/core/TypedEventBus';
 import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager';
 import type { ToolFactory } from '@/lib/editor/tools/base/ToolFactory';
@@ -337,15 +338,15 @@ export class EventToolStore extends BaseStore<ToolStoreState> {
   /**
    * Required by BaseStore - setup event handlers
    */
-  protected getEventHandlers(): Map<string, (event: any) => void> {
-    const handlers = new Map<string, (event: any) => void>();
+  protected getEventHandlers(): Map<string, (event: Event) => void> {
+    const handlers = new Map<string, (event: Event) => void>();
 
     // Handle canvas state changes that might affect tools
     handlers.set('canvas.cleared', () => {
       // Optionally deactivate tools when canvas is cleared
     });
 
-    handlers.set('canvas.object.selected', (event: any) => {
+    handlers.set('canvas.object.selected', (_event: Event) => {
       // Tools might need to respond to selection changes
       if (this.activeTool) {
         // Could emit tool-specific events here
@@ -359,5 +360,5 @@ export class EventToolStore extends BaseStore<ToolStoreState> {
 // Export stub types
 export interface ToolOption {
   type: string;
-  default: any;
+  default: unknown;
 }

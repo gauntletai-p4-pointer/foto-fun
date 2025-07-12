@@ -353,7 +353,7 @@ export class EventColorStore extends BaseStore<ColorStoreState> {
     }))
   }
   
-  private handleRecentColorsCleared(event: Event): void {
+  private handleRecentColorsCleared(_event: Event): void {
     this.setState(state => ({
       ...state,
       recentColors: []

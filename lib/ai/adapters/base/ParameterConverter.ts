@@ -47,7 +47,7 @@ export class ParameterConverter {
   /**
    * Validate parameter constraints
    */
-  validateConstraints(params: unknown, constraints: Record<string, unknown>): boolean {
+  validateConstraints(params: unknown, _constraints: Record<string, unknown>): boolean {
     try {
       // Basic validation - can be extended
       return typeof params === 'object' && params !== null;

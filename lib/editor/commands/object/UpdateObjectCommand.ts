@@ -35,7 +35,8 @@ export class UpdateObjectCommand extends Command {
     this.previousState = {}
     for (const key in this.options.updates) {
       if (key in currentObject) {
-        (this.previousState as any)[key] = (currentObject as any)[key]
+        const typedKey = key as keyof CanvasObject
+        (this.previousState as Record<string, unknown>)[typedKey] = currentObject[typedKey]
       }
     }
 

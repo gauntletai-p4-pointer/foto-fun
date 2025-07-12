@@ -1,4 +1,4 @@
-import type { Point, Rect } from '@/types';
+import type { Rect } from '@/types';
 
 // NOTE TO EXECUTOR: This is a placeholder class. A full implementation
 // with binary mask operations is required.
@@ -10,7 +10,7 @@ export class SelectionMask {
     this.bounds = { x, y, width, height };
   }
   
-  setPixel(x: number, y: number, value: number): void {
+  setPixel(_x: number, _y: number, _value: number): void {
     // Placeholder implementation
   }
 

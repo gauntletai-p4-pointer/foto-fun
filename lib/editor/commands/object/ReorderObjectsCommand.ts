@@ -1,4 +1,3 @@
-import type { CanvasObject } from '@/lib/editor/objects/types'
 import { Command, type CommandContext } from '../base/Command'
 import { success, failure, ExecutionError, type CommandResult } from '../base/CommandResult'
 

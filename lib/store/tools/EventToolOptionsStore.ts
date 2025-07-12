@@ -107,8 +107,7 @@ export class EventToolOptionsStore extends BaseStore<ToolOptionsState> {
     ])
   }
   
-  private handleToolOptionsConfigRegistered(event: Event): void {
-    const e = event as ToolOptionsConfigRegisteredEvent
+  private handleToolOptionsConfigRegistered(_event: Event): void {
     // Tool options config registration is handled by the method that creates the event
     // This handler is for consistency with event sourcing pattern
   }
@@ -340,5 +339,4 @@ export class EventToolOptionsStore extends BaseStore<ToolOptionsState> {
   }
 }
 
-// React hook for compatibility (will be updated to use ServiceContainer)
-import { useStore } from '../base/BaseStore' 
+// React hook for compatibility (will be updated to use ServiceContainer) 

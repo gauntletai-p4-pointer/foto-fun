@@ -1,7 +1,6 @@
 import { streamText, convertToModelMessages, tool, type UIMessage } from 'ai'
 import { z } from 'zod'
 import { openai } from '@/lib/ai/providers'
-import { autoDiscoverAdapters } from '@/lib/ai/adapters/registry'
 import { MasterRoutingAgent } from '@/lib/ai/agents/MasterRoutingAgent'
 import { WorkflowMemory } from '@/lib/ai/agents/WorkflowMemory'
 import type { AgentContext } from '@/lib/ai/agents/types'
@@ -58,7 +57,7 @@ export async function POST(req: Request) {
   }
   
   // Get AI tools from adapter registry (temporarily disabled for foundation cleanup)
-  const aiTools: Record<string, any> = {}
+  const aiTools: Record<string, unknown> = {}
   console.log('Available AI tools:', Object.keys(aiTools))
   
   // Check if this is an approval response with a plan to execute

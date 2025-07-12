@@ -1,5 +1,6 @@
 import { BaseTool, ToolDependencies } from './BaseTool';
 import type { CanvasObject, Point, Rect } from '@/types';
+import type { AddObjectCommand } from '@/lib/editor/commands/object/AddObjectCommand';
 
 export abstract class ObjectCreationTool extends BaseTool {
   protected isCreating: boolean = false;
@@ -23,7 +24,8 @@ export abstract class ObjectCreationTool extends BaseTool {
     await this.dependencies.commandManager.executeCommand(command);
     
     // Get the created object ID from the command
-    const newObjectId = (command as any).getObjectId?.();
+    const addObjectCommand = command as AddObjectCommand;
+    const newObjectId = addObjectCommand.getObjectId();
     if (newObjectId) {
         this.dependencies.canvasManager.selectObjects([newObjectId]);
     }

@@ -1,5 +1,6 @@
 // STUB: Canvas bridge disabled during refactor
 import type { CanvasContext as AdapterCanvasContext } from '@/lib/ai/adapters/types/CanvasContext';
+import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager';
 
 export type CanvasContext = AdapterCanvasContext;
 
@@ -7,7 +8,7 @@ export class CanvasToolBridge {
   static createContext(): CanvasContext {
     console.warn('Canvas bridge disabled during refactor');
     return {
-      canvas: null as any,
+      canvas: null as unknown as CanvasManager,
       targetObjects: [],
       targetingMode: 'selected',
       dimensions: { width: 0, height: 0 },
@@ -19,7 +20,7 @@ export class CanvasToolBridge {
   static getCanvasContext(): CanvasContext {
     console.warn('Canvas bridge disabled during refactor');
     return {
-      canvas: null as any,
+      canvas: null as unknown as CanvasManager,
       targetObjects: [],
       targetingMode: 'selected',
       dimensions: { width: 0, height: 0 },

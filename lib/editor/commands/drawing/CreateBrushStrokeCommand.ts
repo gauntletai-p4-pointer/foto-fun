@@ -1,7 +1,7 @@
 import { Command, type CommandContext } from '../base/Command';
 import { success, failure, ExecutionError, type CommandResult } from '../base/CommandResult';
 import type { BrushStrokeData } from '../../tools/engines/BrushEngine';
-import { isImageObject } from '../../objects/types';
+import { isImageObject, type ImageData } from '../../objects/types';
 
 export interface CreateBrushStrokeData {
   strokeData: BrushStrokeData;
@@ -18,7 +18,7 @@ export interface CreateBrushStrokeData {
 export class CreateBrushStrokeCommand extends Command {
   private strokeData: BrushStrokeData;
   private targetObjectId: string;
-  private originalObjectData: any = null;
+  private originalObjectData: ImageData | null = null;
   
   constructor(
     description: string,

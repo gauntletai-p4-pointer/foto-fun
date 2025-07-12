@@ -1,6 +1,5 @@
 import { z } from 'zod';
-import type { Command } from './Command';
-import type { CanvasObject } from '../../objects/types';
+import type { Command, CommandMetadata } from './Command';
 
 /**
  * Validation result for a single command
@@ -163,7 +162,6 @@ export class DefaultCommandValidationService implements CommandValidationService
     }
 
     // Validate metadata
-    const metadata = command.metadata;
     if (!command.id) {
       errors.push({
         field: 'metadata.executionId',
@@ -182,7 +180,13 @@ export class DefaultCommandValidationService implements CommandValidationService
     }
 
     // Validate context (accessing protected property through type assertion)
-    const context = (command as any).context;
+    const commandWithContext = command as Command & {
+      context?: {
+        eventBus?: unknown;
+        canvasManager?: unknown;
+      };
+    };
+    const context = commandWithContext.context;
     if (!context) {
       errors.push({
         field: 'context',
@@ -237,8 +241,8 @@ export class DefaultCommandValidationService implements CommandValidationService
              field: issue.path.join('.'),
              message: issue.message,
              code: issue.code,
-             value: (issue as any).received,
-             context: { expected: (issue as any).expected }
+             value: (issue as z.ZodIssue & { received?: unknown }).received,
+             context: { expected: (issue as z.ZodIssue & { expected?: unknown }).expected }
            });
          }
        }
@@ -254,8 +258,14 @@ export class DefaultCommandValidationService implements CommandValidationService
   /**
    * Validate command context constraints
    */
-  private validateCommandContext(command: Command, errors: ValidationError[], warnings: ValidationWarning[]): void {
-    const context = (command as any).context;
+  private validateCommandContext(command: Command, _errors: ValidationError[], warnings: ValidationWarning[]): void {
+    const commandWithContext = command as Command & {
+      context?: {
+        eventBus?: unknown;
+        canvasManager?: unknown;
+      };
+    };
+    const context = commandWithContext.context;
     if (!context) return;
 
     // Validate execution ID uniqueness (basic check)
@@ -377,7 +387,7 @@ export class DefaultCommandValidationService implements CommandValidationService
     return {
       description: command.description,
       metadata: command.metadata,
-      context: (command as any).context
+      context: (command as Command & { context?: unknown }).context
     };
   }
 
@@ -391,9 +401,9 @@ export class DefaultCommandValidationService implements CommandValidationService
     
     if (commandType.includes('Object')) {
       // Try to extract object ID from metadata or other properties
-      const metadata = command.metadata;
-      if ((metadata as any).objectId) {
-        return [(metadata as any).objectId as string];
+      const metadata = command.metadata as CommandMetadata & { objectId?: string };
+      if (metadata.objectId) {
+        return [metadata.objectId];
       }
     }
 
@@ -412,9 +422,9 @@ export class DefaultCommandValidationService implements CommandValidationService
         timestamp: z.number().positive('Timestamp must be positive')
       }),
       context: z.object({
-        eventBus: z.any(),
-        canvasManager: z.any(),
-        selectionManager: z.any(),
+        eventBus: z.unknown(),
+        canvasManager: z.unknown(),
+        selectionManager: z.unknown(),
         executionId: z.string(),
         timestamp: z.number()
       })
@@ -444,7 +454,7 @@ export class DefaultCommandValidationService implements CommandValidationService
     this.registerSchema('CreateSelectionCommand', baseCommandSchema.extend({
       selection: z.object({
         objectId: z.string(),
-        mask: z.any(), // ImageData
+        mask: z.unknown(), // ImageData
         bounds: z.object({
           x: z.number(),
           y: z.number(),

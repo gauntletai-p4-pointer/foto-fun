@@ -1,9 +1,7 @@
 import { Command, type CommandMetadata, type CommandContext } from './Command'
 import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
-import type { TypedEventBus } from '@/lib/events/core/TypedEventBus'
 import type { BlendMode } from '@/lib/editor/canvas/types'
 import type { ImageData, TextData, ShapeData } from '@/lib/editor/objects/types'
-import { CommandExecutionError } from '@/lib/ai/errors'
 import type { CommandResult } from './CommandResult'
 
 /**

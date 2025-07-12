@@ -8,14 +8,8 @@ import type { ToolGroupMetadata } from '@/lib/editor/tools/base/ToolGroup';
 import { Check, ChevronRight } from 'lucide-react';
 
 // Helper to render icon with className support
-const renderIcon = (IconComponent: React.ComponentType<any>, className?: string) => {
-  // If the component accepts className, use it directly
-  try {
-    return React.createElement(IconComponent, { className });
-  } catch {
-    // If it doesn't accept className, wrap it in a div
-    return React.createElement('div', { className }, React.createElement(IconComponent, {}));
-  }
+const renderIcon = (IconComponent: React.ComponentType<{ className?: string }>, className?: string) => {
+  return React.createElement(IconComponent, { className });
 };
 
 interface ToolPaletteProps {
@@ -286,7 +280,6 @@ export function ToolPalette({ className }: ToolPaletteProps) {
         const currentTool = getCurrentGroupTool(group);
         const isActive = isGroupActive(group);
         const hasMultipleTools = group.tools.length > 1;
-        const isExpanded = expandedGroup === group.id;
         const implemented = isToolImplemented(currentTool.id);
         
         // Determine which icon to show

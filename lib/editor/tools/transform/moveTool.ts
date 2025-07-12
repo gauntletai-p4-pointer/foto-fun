@@ -15,6 +15,10 @@ export class MoveTool extends TransformTool {
   name = 'Move Tool';
   cursor = 'move';
   
+  constructor(id: string, dependencies: ToolDependencies) {
+    super(id, dependencies);
+  }
+  
   /**
    * Required by BaseTool - called when tool is activated
    */
@@ -160,29 +164,24 @@ export class MoveTool extends TransformTool {
       showBounds: {
         type: 'boolean',
         default: true,
-        label: 'Show Bounds'
       },
       showCenter: {
         type: 'boolean',
         default: false,
-        label: 'Show Center Point'
       },
       snapToGrid: {
         type: 'boolean',
         default: false,
-        label: 'Snap to Grid'
       },
       snapToObjects: {
         type: 'boolean',
         default: false,
-        label: 'Snap to Objects'
       },
       snapDistance: {
         type: 'number',
         default: 10,
         min: 1,
         max: 50,
-        label: 'Snap Distance'
       }
     };
   }

@@ -34,8 +34,8 @@ export interface AdapterDependencies {
  * Parameter conversion service
  */
 export interface ParameterConverter {
-  convert<T>(params: unknown, schema: any): T;
-  validateConstraints(params: unknown, constraints: any): boolean;
+  convert<T>(params: unknown, schema: unknown): T;
+  validateConstraints(params: unknown, constraints: Record<string, unknown>): boolean;
 }
 
 /**
@@ -50,7 +50,7 @@ export interface ResponseFormatter {
  * Error handling service
  */
 export interface ErrorHandler {
-  handleError(error: Error, context: any): Promise<void>;
+  handleError(error: Error, context: Record<string, unknown>): Promise<void>;
   shouldRetry(error: Error): boolean;
   getErrorStrategy(error: Error): ErrorStrategy;
 }
@@ -70,16 +70,52 @@ export interface PerformanceMonitor {
 export interface ModelPreferencesManager {
   getToolModelTier(toolId: string): string;
   setToolModelTier(toolId: string, tier: string): void;
-  getModelConfig(model: string): any;
+  getModelConfig(model: string): ModelConfig;
+}
+
+export interface ModelConfig {
+  name: string;
+  provider: string;
+  maxTokens?: number;
+  temperature?: number;
+  [key: string]: unknown;
 }
 
 /**
  * Replicate client interface
  */
 export interface ReplicateClient {
-  generate(params: any): Promise<any>;
-  getModel(modelId: string): Promise<any>;
-  runPrediction(prediction: any): Promise<any>;
+  generate(params: ReplicateGenerateParams): Promise<ReplicateResponse>;
+  getModel(modelId: string): Promise<ReplicateModel>;
+  runPrediction(prediction: ReplicatePrediction): Promise<ReplicateResponse>;
+}
+
+export interface ReplicateGenerateParams {
+  model: string;
+  input: Record<string, unknown>;
+  webhook?: string;
+}
+
+export interface ReplicateResponse {
+  id: string;
+  status: string;
+  output?: unknown;
+  error?: string;
+}
+
+export interface ReplicateModel {
+  id: string;
+  owner: string;
+  name: string;
+  description?: string;
+  visibility: string;
+  latest_version?: Record<string, unknown>;
+}
+
+export interface ReplicatePrediction {
+  id: string;
+  version: string;
+  input: Record<string, unknown>;
 }
 
 /**

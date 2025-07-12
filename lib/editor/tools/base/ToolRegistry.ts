@@ -158,7 +158,7 @@ export class ToolRegistry {
     }
   }
 
-  private validateToolClass(id: string, ToolClass: any): void {
+  private validateToolClass(id: string, ToolClass: new (id: string, deps: ToolDependencies) => BaseTool): void {
     if (typeof ToolClass !== 'function') {
       throw new Error(`Tool ${id} must be a constructor function`);
     }

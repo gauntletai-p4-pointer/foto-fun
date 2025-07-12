@@ -13,7 +13,7 @@ export interface NavigationData {
     precise: boolean;
   };
   navigationType: 'pan' | 'zoom' | 'sample';
-  navigationParams?: Record<string, any>;
+  navigationParams?: Record<string, string | number | boolean | { x: number; y: number } | undefined>;
 }
 
 /**
@@ -37,7 +37,7 @@ export abstract class NavigationTool extends BaseTool {
   /**
    * Get additional navigation parameters specific to this tool
    */
-  protected getNavigationParams(event: ToolEvent): Record<string, any> {
+  protected getNavigationParams(_event: ToolEvent): Record<string, string | number | boolean | { x: number; y: number } | undefined> {
     return {};
   }
 
@@ -74,7 +74,7 @@ export abstract class NavigationTool extends BaseTool {
       this.currentNavigation = navigationData;
 
       // Emit navigation start operation
-      this.emitOperation(`${this.getNavigationOperation()}.start`, navigationData);
+      this.emitOperation(`${this.getNavigationOperation()}.start`, navigationData as unknown as Record<string, unknown>);
 
     } catch (error) {
       this.dependencies.eventBus.emit('tool.error', {
@@ -105,7 +105,7 @@ export abstract class NavigationTool extends BaseTool {
       this.currentNavigation = updatedNavigation;
 
       // Emit navigation update operation
-      this.emitOperation(`${this.getNavigationOperation()}.update`, updatedNavigation);
+      this.emitOperation(`${this.getNavigationOperation()}.update`, updatedNavigation as unknown as Record<string, unknown>);
 
     } catch (error) {
       this.dependencies.eventBus.emit('tool.error', {
@@ -136,7 +136,7 @@ export abstract class NavigationTool extends BaseTool {
         };
 
         // Emit navigation complete operation
-        this.emitOperation(`${this.getNavigationOperation()}.complete`, finalNavigation);
+        this.emitOperation(`${this.getNavigationOperation()}.complete`, finalNavigation as unknown as Record<string, unknown>);
 
         // Clear current navigation
         this.currentNavigation = null;
@@ -184,7 +184,7 @@ export abstract class NavigationTool extends BaseTool {
         this.emitOperation(`${this.getNavigationOperation()}.modifier.changed`, {
           ...this.currentNavigation,
           modifiers: updatedModifiers
-        });
+        } as unknown as Record<string, unknown>);
       }
     }
   }

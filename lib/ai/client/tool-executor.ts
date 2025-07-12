@@ -1,6 +1,6 @@
 // STUB: AI client disabled during refactor
 export const ClientToolExecutor = {
-  execute: (toolName: string, params?: any) => {
+  execute: (toolName: string, params?: unknown) => {
     console.warn('AI tools disabled during refactor - execute:', toolName, params);
     return Promise.resolve({
       success: false,

@@ -4,7 +4,6 @@ import type { AdapterDependencies } from '../types/AdapterDependencies';
 import type { AdapterMetadata } from '../types/AdapterMetadata';
 import type { AdapterBehavior } from '../types/AdapterBehavior';
 import type { AdapterPlugin } from '../types/AdapterPlugin';
-import type { TypedEventBus } from '@/lib/events/core/TypedEventBus';
 
 /**
  * Base class for all AI tool adapters following senior-level architectural patterns
@@ -101,17 +100,17 @@ export abstract class UnifiedToolAdapter<TInput = unknown, TOutput = unknown> {
     // Default behaviors that most adapters need
     this.addBehavior({
       name: 'validation',
-      preExecution: async (params, context) => {
+      preExecution: async (_params, context) => {
         await this.validateContext(context);
       }
     });
     
     this.addBehavior({
       name: 'performance',
-      preExecution: async (params, context) => {
+      preExecution: async (_params, _context) => {
         this.startPerformanceTracking();
       },
-      postExecution: async (result, context) => {
+      postExecution: async (_result, _context) => {
         this.endPerformanceTracking();
       }
     });
@@ -202,9 +201,10 @@ export abstract class UnifiedToolAdapter<TInput = unknown, TOutput = unknown> {
    * Emit event through the event bus
    */
   protected emitEvent(eventName: string, data: unknown): void {
-    this.dependencies.eventBus.emit(`adapter.${eventName}` as any, {
+    this.dependencies.eventBus.emit('adapter.event', {
       adapterId: this.aiName,
       toolId: this.toolId,
+      eventName: eventName,
       data,
       timestamp: Date.now()
     });

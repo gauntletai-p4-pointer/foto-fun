@@ -4,14 +4,14 @@ import type { CanvasContext } from './CanvasContext';
  * Behavior interface for adapter composition
  * Allows adding cross-cutting concerns to adapters
  */
-export interface AdapterBehavior {
+export interface AdapterBehavior<TParams = unknown, TResult = unknown> {
   // Behavior identification
   name: string;
   description?: string;
   
   // Lifecycle hooks
-  preExecution?: (params: any, context: CanvasContext) => Promise<void>;
-  postExecution?: (result: any, context: CanvasContext) => Promise<void>;
+  preExecution?: (params: TParams, context: CanvasContext) => Promise<void>;
+  postExecution?: (result: TResult, context: CanvasContext) => Promise<void>;
   onError?: (error: Error, context: CanvasContext) => Promise<void>;
   
   // Behavior configuration
@@ -19,7 +19,7 @@ export interface AdapterBehavior {
   priority?: number;
   
   // Conditional execution
-  shouldExecute?: (params: any, context: CanvasContext) => boolean;
+  shouldExecute?: (params: TParams, context: CanvasContext) => boolean;
 }
 
 /**
@@ -50,7 +50,7 @@ export interface CachingBehavior extends AdapterBehavior {
  */
 export interface ValidationRule {
   field: string;
-  validator: (value: any) => boolean;
+  validator: (value: unknown) => boolean;
   message: string;
 }
 
@@ -60,15 +60,15 @@ export interface PerformanceThresholds {
   warningThreshold: number;
 }
 
-export interface RecoveryStrategy {
+export interface RecoveryStrategy<T = unknown> {
   errorType: string;
   action: 'retry' | 'fallback' | 'skip';
   maxRetries?: number;
-  fallbackValue?: any;
+  fallbackValue?: T;
 }
 
-export interface CacheConfig {
+export interface CacheConfig<TParams = unknown> {
   ttl: number; // time to live in ms
   maxSize: number;
-  keyGenerator?: (params: any) => string;
+  keyGenerator?: (params: TParams) => string;
 } 

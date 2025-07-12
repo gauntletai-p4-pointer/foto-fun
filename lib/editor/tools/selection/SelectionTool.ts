@@ -1,6 +1,6 @@
 import { BaseTool, ToolDependencies } from '../base/BaseTool';
 import type { SelectionMask } from '../../selection/SelectionMask';
-import type { Point, Rect, SelectionMode } from '@/types';
+import type { Point, SelectionMode } from '@/types';
 
 export abstract class SelectionTool extends BaseTool {
   protected selectionMask: SelectionMask | null = null;

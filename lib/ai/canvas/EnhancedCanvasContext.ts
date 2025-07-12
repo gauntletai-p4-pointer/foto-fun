@@ -1,7 +1,6 @@
 import type { CanvasContext } from './CanvasContext'
 import type { WorkflowSelectionContext } from '@/lib/editor/selection/SelectionContextManager'
 import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
-import type { Selection } from '@/lib/editor/canvas/types'
 import { SelectionContextManager } from '@/lib/editor/selection/SelectionContextManager'
 import type { ServiceContainer } from '@/lib/core/ServiceContainer'
 import { CanvasContextProvider } from './CanvasContext'
@@ -44,10 +43,10 @@ export interface EnhancedCanvasContext extends CanvasContext {
 }
 
 /**
- * Enhanced Canvas Context for AI tools
+ * Enhanced Canvas Context utility for AI tools
  * Now uses dependency injection instead of singleton pattern
  */
-export class EnhancedCanvasContext {
+export class EnhancedCanvasContextUtil {
   public canvasManager: CanvasManager
   public selectionManager: SelectionContextManager
   

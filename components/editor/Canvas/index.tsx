@@ -73,7 +73,7 @@ export function Canvas() {
     if (!canvasManager || !toolStore) return
     
     const typedEventBus = eventBus
-    const unsubscribe = typedEventBus.on('tool.activated', (data) => {
+    const unsubscribe = typedEventBus.on('tool.activated', (_data) => {
       const tool = toolStore.getActiveTool()
       if (tool) {
         // Set cursor

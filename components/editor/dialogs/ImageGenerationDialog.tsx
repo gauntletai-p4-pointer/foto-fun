@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react'
 import { useService } from '@/lib/core/AppInitializer'
-import { useStore } from '@/lib/store/base/BaseStore'
 import { EventToolStore } from '@/lib/store/tools/EventToolStore'
 import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
@@ -11,8 +10,6 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Loader2 } from 'lucide-react'
-import { ImageGenerationAdapter } from '@/lib/ai/adapters/tools/ImageGenerationAdapter'
-import { CanvasContextProvider } from '@/lib/ai/canvas/CanvasContext'
 // Toast notifications - TODO: implement proper toast system
 
 const COMMON_DIMENSIONS = [
@@ -27,7 +24,6 @@ const COMMON_DIMENSIONS = [
 
 export function ImageGenerationDialog() {
   const toolStore = useService<EventToolStore>('ToolStore')
-  const toolState = useStore(toolStore)
   const activeTool = toolStore.getActiveTool()
   const canvasManager = useService<CanvasManager>('CanvasManager')
   
@@ -72,7 +68,7 @@ export function ImageGenerationDialog() {
     
     try {
       // Parse dimensions
-      const [width, height] = dimension.split('x').map(Number)
+      const [_width, _height] = dimension.split('x').map(Number)
       
       // Create adapter instance (temporarily disabled for foundation cleanup)
       // const adapter = new ImageGenerationAdapter()

@@ -68,25 +68,26 @@ export interface CommandFactory {
  * Gets all dependencies from ServiceContainer and creates commands with proper context
  */
 export class ServiceCommandFactory implements CommandFactory {
-  private eventBus: TypedEventBus
-  private canvasManager: CanvasManager
-  private selectionManager: SelectionManager
+  private serviceContainer: ServiceContainer;
 
   constructor(serviceContainer: ServiceContainer) {
-    // Inject all required dependencies
-    this.eventBus = serviceContainer.getSync<TypedEventBus>('TypedEventBus')
-    this.canvasManager = serviceContainer.getSync<CanvasManager>('CanvasManager')
-    this.selectionManager = serviceContainer.getSync<SelectionManager>('SelectionManager')
+    // Store the container instead of resolving dependencies immediately
+    this.serviceContainer = serviceContainer;
   }
 
   /**
    * Create command context with injected dependencies
    */
   private createCommandContext(): CommandContext {
+    // Resolve dependencies just-in-time when a command is created
+    const eventBus = this.serviceContainer.getSync<TypedEventBus>('TypedEventBus');
+    const canvasManager = this.serviceContainer.getSync<CanvasManager>('CanvasManager');
+    const selectionManager = this.serviceContainer.getSync<SelectionManager>('SelectionManager');
+
     return {
-      eventBus: this.eventBus,
-      canvasManager: this.canvasManager,
-      selectionManager: this.selectionManager,
+      eventBus,
+      canvasManager,
+      selectionManager,
       executionId: `cmd-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       timestamp: Date.now()
     }

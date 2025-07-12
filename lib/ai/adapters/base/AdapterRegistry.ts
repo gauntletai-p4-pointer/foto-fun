@@ -1,5 +1,6 @@
 import type { UnifiedToolAdapter } from './UnifiedToolAdapter';
 import type { AdapterFactory } from './AdapterFactory';
+import type { AdapterDependencies } from '../types/AdapterDependencies';
 
 /**
  * Adapter metadata for registration
@@ -10,7 +11,7 @@ export interface AdapterRegistration {
   description: string;
   category: 'canvas-tool' | 'ai-service' | 'utility';
   priority: number;
-  AdapterClass: new (dependencies: any) => UnifiedToolAdapter;
+  AdapterClass: new (dependencies: AdapterDependencies) => UnifiedToolAdapter;
 }
 
 /**

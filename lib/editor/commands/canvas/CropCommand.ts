@@ -67,7 +67,7 @@ export class CropCommand extends Command {
         executionTime: 0,
         affectedObjects: []
       })
-    } catch (error) {
+    } catch (_error) {
       return failure(
         new ExecutionError('Failed to undo crop', { commandId: this.id })
       )

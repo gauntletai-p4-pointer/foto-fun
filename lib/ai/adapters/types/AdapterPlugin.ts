@@ -33,7 +33,7 @@ export interface AdapterPlugin {
  */
 export interface PluginConfig {
   enabled: boolean;
-  settings: Record<string, any>;
+  settings: Record<string, unknown>;
   priority: number;
 }
 

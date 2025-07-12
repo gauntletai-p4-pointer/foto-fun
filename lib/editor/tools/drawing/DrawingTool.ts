@@ -1,11 +1,15 @@
-import { BaseTool, ToolDependencies, ToolState } from '../base/BaseTool';
+import { BaseTool, ToolDependencies } from '../base/BaseTool';
 import type { PixelBuffer } from '../../pixel/PixelBuffer';
 import type { Point } from '@/types';
 import type { CanvasObject } from '@/lib/editor/objects/types';
-import type { CanvasManager } from '../../canvas/CanvasManager';
 
-// NOTE TO EXECUTOR: This is a placeholder for a real brush definition.
-interface Brush {}
+// Brush definition for drawing tools
+interface Brush {
+  type: 'round' | 'square' | 'custom';
+  size: number;
+  hardness: number;
+  opacity: number;
+}
 
 export abstract class DrawingTool extends BaseTool {
   protected pixelBuffer: PixelBuffer | null = null;
@@ -18,7 +22,7 @@ export abstract class DrawingTool extends BaseTool {
   }
   
   // Abstract methods agents will implement
-  protected abstract createBrush(options: Record<string, any>): Brush;
+  protected abstract createBrush(options: Record<string, string | number | boolean>): Brush;
   
   protected commitDrawing(): void {
     if (!this.pixelBuffer || this.strokePath.length === 0) return;
