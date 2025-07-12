@@ -63,14 +63,11 @@ export class CanvasToolBridge {
   }
   
   /**
-   * Get the document dimensions
+   * Get the viewport dimensions
    */
-  static getDocumentDimensions(): { width: number; height: number } | null {
+  static getViewportDimensions(): { width: number; height: number } | null {
     if (!this.canvasInstance) return null
     
-    return {
-      width: this.canvasInstance.getWidth(),
-      height: this.canvasInstance.getHeight()
-    }
+    return this.canvasInstance.getViewport()
   }
 }

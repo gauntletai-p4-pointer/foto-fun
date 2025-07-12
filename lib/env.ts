@@ -23,7 +23,6 @@ const envSchema = z.object({
   // AI Services - optional for self-hosted
   OPENAI_API_KEY: z.string().optional(),
   REPLICATE_API_KEY: z.string().optional(), // Server-side Replicate API key
-  NEXT_PUBLIC_REPLICATE_API_KEY: z.string().optional(), // Client-side Replicate API key
   
   // Optional: Add other env vars as needed
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
@@ -41,7 +40,6 @@ const envData = {
   NEXT_PUBLIC_ANALYTICS_ID: process.env.NEXT_PUBLIC_ANALYTICS_ID,
   OPENAI_API_KEY: process.env.OPENAI_API_KEY,
   REPLICATE_API_KEY: process.env.REPLICATE_API_KEY,
-  NEXT_PUBLIC_REPLICATE_API_KEY: process.env.NEXT_PUBLIC_REPLICATE_API_KEY,
   NODE_ENV: process.env.NODE_ENV as 'development' | 'production' | 'test' | undefined,
 }
 

@@ -51,36 +51,35 @@ NEVER ask for exact styling - interpret the user's intent and choose appropriate
     const canvas = context.canvas
     
     // Calculate position based on position enum
-    const canvasWidth = canvas.state.canvasWidth
-    const canvasHeight = canvas.state.canvasHeight
+    const viewport = canvas.getViewport()
     const margin = 50 // Default margin from edges
     
     // Start with center
-    let x = canvasWidth / 2
-    let y = canvasHeight / 2
+    let x = viewport.width / 2
+    let y = viewport.height / 2
     
     switch (params.position) {
       case 'top':
         y = margin + 30
         break
       case 'bottom':
-        y = canvasHeight - margin - 30
+        y = viewport.height - margin - 30
         break
       case 'top-left':
         x = margin + 100
         y = margin + 30
         break
       case 'top-right':
-        x = canvasWidth - margin - 100
+        x = viewport.width - margin - 100
         y = margin + 30
         break
       case 'bottom-left':
         x = margin + 100
-        y = canvasHeight - margin - 30
+        y = viewport.height - margin - 30
         break
       case 'bottom-right':
-        x = canvasWidth - margin - 100
-        y = canvasHeight - margin - 30
+        x = viewport.width - margin - 100
+        y = viewport.height - margin - 30
         break
       case 'center':
       default:

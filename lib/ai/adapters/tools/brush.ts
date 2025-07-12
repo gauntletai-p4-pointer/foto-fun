@@ -89,8 +89,8 @@ The tool creates new paint objects that can be blended with existing content.`
     const bounds = {
       x: Math.max(0, minX - padding),
       y: Math.max(0, minY - padding),
-      width: Math.min(canvas.state.canvasWidth, maxX - minX + padding * 2),
-      height: Math.min(canvas.state.canvasHeight, maxY - minY + padding * 2)
+      width: Math.min(canvas.getViewport().width, maxX - minX + padding * 2),
+      height: Math.min(canvas.getViewport().height, maxY - minY + padding * 2)
     }
     
     // Create a new canvas element for painting

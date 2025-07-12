@@ -40,13 +40,9 @@ export function isSelfHosted(): boolean {
 
 /**
  * Get API key based on deployment
+ * Always uses server-side key for security
  */
 export function getReplicateApiKey(): string | undefined {
-  if (isCloud()) {
-    // Cloud version uses server-side key
-    return process.env.REPLICATE_API_KEY
-  } else {
-    // Self-hosted uses client-side key (user provides their own)
-    return process.env.NEXT_PUBLIC_REPLICATE_API_KEY
-  }
+  // Both cloud and self-hosted use server-side key for security
+  return process.env.REPLICATE_API_KEY
 } 

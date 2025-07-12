@@ -178,10 +178,7 @@ export function AIChat() {
     }
     
     const canvasContext = {
-      dimensions: {
-        width: canvasManager?.state.canvasWidth || 0,
-        height: canvasManager?.state.canvasHeight || 0
-      },
+      dimensions: canvasManager?.getViewport() || { width: 0, height: 0 },
       hasContent: hasContent(),
       objectCount: canvasManager?.getAllObjects().length || 0,
       // Selection state for AI awareness

@@ -33,10 +33,8 @@ export interface CanvasStateSnapshot {
   }>
   selectedObjectIds: string[]
   backgroundColor: string
-  canvasWidth: number
-  canvasHeight: number
-  zoom: number
-  pan: { x: number; y: number }
+  viewport: { width: number; height: number }
+  camera: { x: number; y: number; zoom: number }
 }
 
 /**
@@ -154,10 +152,8 @@ export abstract class TransactionalCommand extends Command {
       })),
       selectedObjectIds: Array.from(state.selectedObjectIds),
       backgroundColor: state.backgroundColor,
-      canvasWidth: state.canvasWidth,
-      canvasHeight: state.canvasHeight,
-      zoom: state.zoom,
-      pan: { ...state.pan }
+      viewport: { ...state.viewport },
+      camera: { ...state.camera }
     }
     
     return snapshot
@@ -183,10 +179,9 @@ export abstract class TransactionalCommand extends Command {
       })
     }
     
-    // Restore canvas properties
-    await canvas.resize(snapshot.canvasWidth, snapshot.canvasHeight)
-    canvas.setZoom(snapshot.zoom)
-    canvas.setPan(snapshot.pan)
+    // Restore camera properties (viewport is read-only, managed by container)
+    canvas.setZoom(snapshot.camera.zoom)
+    canvas.setPan({ x: snapshot.camera.x, y: snapshot.camera.y })
     
     // Restore selection
     if (snapshot.selectedObjectIds.length > 0) {

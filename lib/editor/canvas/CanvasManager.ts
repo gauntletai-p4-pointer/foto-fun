@@ -80,10 +80,15 @@ export class CanvasManager implements ICanvasManager {
     
     // Initialize state
     this._state = {
-      canvasWidth: container.offsetWidth,
-      canvasHeight: container.offsetHeight,
-      zoom: 1,
-      pan: { x: 0, y: 0 },
+      viewport: {
+        width: container.offsetWidth,
+        height: container.offsetHeight
+      },
+      camera: {
+        x: 0,
+        y: 0,
+        zoom: 1
+      },
       objects: new Map(),
       objectOrder: [],
       selectedObjectIds: new Set(),
@@ -395,8 +400,8 @@ export class CanvasManager implements ICanvasManager {
   async addObject(objectData: Partial<CanvasObject>): Promise<string> {
     // Ensure object is positioned at viewport center if no position specified
     if (objectData.x === undefined && objectData.y === undefined) {
-      const viewportCenterX = (this.container.offsetWidth / 2 - this._state.pan.x) / this._state.zoom
-      const viewportCenterY = (this.container.offsetHeight / 2 - this._state.pan.y) / this._state.zoom
+      const viewportCenterX = (this.container.offsetWidth / 2 - this._state.camera.x) / this._state.camera.zoom
+      const viewportCenterY = (this.container.offsetHeight / 2 - this._state.camera.y) / this._state.camera.zoom
       objectData.x = viewportCenterX
       objectData.y = viewportCenterY
     }
@@ -469,14 +474,30 @@ export class CanvasManager implements ICanvasManager {
   }
   
   // View operations
+  getViewport(): { width: number; height: number } {
+    return {
+      width: this._state.viewport.width,
+      height: this._state.viewport.height
+    }
+  }
+  
+  getCamera(): { x: number; y: number; zoom: number } {
+    return {
+      x: this._state.camera.x,
+      y: this._state.camera.y,
+      zoom: this._state.camera.zoom
+    }
+  }
+  
   setZoom(zoom: number): void {
-    this._state.zoom = zoom
+    this._state.camera.zoom = zoom
     this.stage.scale({ x: zoom, y: zoom })
     this.stage.batchDraw()
   }
   
   setPan(pan: Point): void {
-    this._state.pan = pan
+    this._state.camera.x = pan.x
+    this._state.camera.y = pan.y
     this.stage.position(pan)
     this.stage.batchDraw()
   }
@@ -520,14 +541,7 @@ export class CanvasManager implements ICanvasManager {
     this.stage.draggable(draggable)
   }
   
-  // Canvas dimensions
-  getWidth(): number {
-    return this._state.canvasWidth
-  }
-  
-  getHeight(): number {
-    return this._state.canvasHeight
-  }
+
   
   // Object finding
   getObjectAtPoint(point: Point): CanvasObject | null {
@@ -640,15 +654,7 @@ export class CanvasManager implements ICanvasManager {
     return this.filterManager
   }
   
-  // Transform operations
-  async resize(width: number, height: number): Promise<void> {
-    // Resize the canvas viewport
-    this.stage.width(width)
-    this.stage.height(height)
-    this._state.canvasWidth = width
-    this._state.canvasHeight = height
-    this.renderBackground()
-  }
+
   
   updateViewport(): void {
     const width = this.container.offsetWidth
@@ -657,17 +663,14 @@ export class CanvasManager implements ICanvasManager {
     this.stage.width(width)
     this.stage.height(height)
     
-    this._state.canvasWidth = width
-    this._state.canvasHeight = height
+    this._state.viewport.width = width
+    this._state.viewport.height = height
     
     // Update background
     this.renderBackground()
   }
   
-  async crop(rect: Rect): Promise<void> {
-    // TODO: Implement crop
-    console.log('Crop not yet implemented', rect)
-  }
+
   
   async rotate(angle: number, targetIds?: string[]): Promise<void> {
     const ids = targetIds || Array.from(this._state.selectedObjectIds)
@@ -777,8 +780,8 @@ export class CanvasManager implements ICanvasManager {
   }
   
   getViewportBounds(): Rect {
-    const scale = this._state.zoom
-    const pan = this._state.pan
+    const scale = this._state.camera.zoom
+    const pan = { x: this._state.camera.x, y: this._state.camera.y }
     
     return {
       x: -pan.x / scale,

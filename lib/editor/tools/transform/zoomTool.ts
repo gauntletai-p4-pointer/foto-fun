@@ -177,7 +177,7 @@ export class ZoomTool extends BaseTool {
    */
   private zoomIn(point?: Point): void {
     const canvas = this.getCanvas()
-    const currentZoom = canvas.state.zoom
+    const currentZoom = canvas.getCamera().zoom
     const newZoom = Math.min(currentZoom * (1 + this.ZOOM_STEP), this.MAX_ZOOM)
     
     if (point) {
@@ -199,7 +199,7 @@ export class ZoomTool extends BaseTool {
    */
   private zoomOut(point?: Point): void {
     const canvas = this.getCanvas()
-    const currentZoom = canvas.state.zoom
+    const currentZoom = canvas.getCamera().zoom
     const newZoom = Math.max(currentZoom / (1 + this.ZOOM_STEP), this.MIN_ZOOM)
     
     if (point) {
@@ -230,13 +230,13 @@ export class ZoomTool extends BaseTool {
    */
   private zoomToPoint(screenPoint: Point, newZoom: number): void {
     const canvas = this.getCanvas()
-    const oldZoom = canvas.state.zoom
-    const oldPan = canvas.state.pan
+    const oldZoom = canvas.getCamera().zoom
+    const oldCamera = canvas.getCamera()
     
     // Convert screen point to world coordinates before zoom
     const worldPoint = {
-      x: (screenPoint.x - oldPan.x) / oldZoom,
-      y: (screenPoint.y - oldPan.y) / oldZoom
+      x: (screenPoint.x - oldCamera.x) / oldZoom,
+      y: (screenPoint.y - oldCamera.y) / oldZoom
     }
     
     // Calculate new pan to keep the world point at the same screen position
@@ -264,8 +264,8 @@ export class ZoomTool extends BaseTool {
     const stageRect = stage.container().getBoundingClientRect()
     
     // Get current zoom and pan
-    const currentZoom = canvas.state.zoom
-    const currentPan = canvas.state.pan
+    const currentCamera = canvas.getCamera()
+    const currentZoom = currentCamera.zoom
     
     // Convert marquee screen coordinates to canvas coordinates
     const marqueeScreenBounds = {
@@ -277,8 +277,8 @@ export class ZoomTool extends BaseTool {
     
     // Convert to world coordinates
     const worldBounds = {
-      x: (marqueeScreenBounds.x - currentPan.x) / currentZoom,
-      y: (marqueeScreenBounds.y - currentPan.y) / currentZoom,
+      x: (marqueeScreenBounds.x - currentCamera.x) / currentZoom,
+      y: (marqueeScreenBounds.y - currentCamera.y) / currentZoom,
       width: marqueeScreenBounds.width / currentZoom,
       height: marqueeScreenBounds.height / currentZoom
     }

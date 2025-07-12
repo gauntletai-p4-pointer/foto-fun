@@ -129,8 +129,7 @@ The tool works on selected objects or all objects if none selected.`
     context: ObjectCanvasContext,
     positions: MoveOutput['positions']
   ): Promise<void> {
-    const canvasWidth = context.canvas.state.canvasWidth
-    const canvasHeight = context.canvas.state.canvasHeight
+          const viewport = context.canvas.getViewport()
     
     for (const obj of objects) {
       const oldPos = { x: obj.x, y: obj.y }
@@ -140,15 +139,15 @@ The tool works on selected objects or all objects if none selected.`
       // Calculate new position based on alignment
       switch (alignment) {
         case 'left': newX = 0; break
-        case 'center': newX = (canvasWidth - obj.width) / 2; break
-        case 'right': newX = canvasWidth - obj.width; break
+        case 'center': newX = (viewport.width - obj.width) / 2; break
+        case 'right': newX = viewport.width - obj.width; break
         case 'top': newY = 0; break
-        case 'middle': newY = (canvasHeight - obj.height) / 2; break
-        case 'bottom': newY = canvasHeight - obj.height; break
+        case 'middle': newY = (viewport.height - obj.height) / 2; break
+        case 'bottom': newY = viewport.height - obj.height; break
         case 'top-left': newX = 0; newY = 0; break
-        case 'top-right': newX = canvasWidth - obj.width; newY = 0; break
-        case 'bottom-left': newX = 0; newY = canvasHeight - obj.height; break
-        case 'bottom-right': newX = canvasWidth - obj.width; newY = canvasHeight - obj.height; break
+        case 'top-right': newX = viewport.width - obj.width; newY = 0; break
+        case 'bottom-left': newX = 0; newY = viewport.height - obj.height; break
+        case 'bottom-right': newX = viewport.width - obj.width; newY = viewport.height - obj.height; break
       }
       
       // Update object

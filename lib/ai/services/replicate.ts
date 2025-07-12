@@ -1,4 +1,6 @@
 import Replicate from 'replicate'
+import { getReplicateApiKey } from '@/lib/config/deployment'
+import { SecureReplicateClient } from './secureReplicateClient'
 
 export interface GenerateOptions {
   width?: number
@@ -21,17 +23,34 @@ export interface ImageData {
  * Updated to follow Replicate JavaScript v1.0.1 API patterns
  */
 export class ReplicateService {
-  private client: Replicate
-  
+  private client: Replicate | null = null
+  private secureClient: SecureReplicateClient | null = null
+  private isServerSide: boolean
+
   constructor(apiKey?: string) {
-    // Use provided key or fall back to environment variable
-    const key = apiKey || process.env.NEXT_PUBLIC_REPLICATE_API_KEY
+    // Detect if we're running server-side or client-side
+    this.isServerSide = typeof window === 'undefined'
     
-    if (!key) {
-      throw new Error('Replicate API key is required. Please set NEXT_PUBLIC_REPLICATE_API_KEY in your environment.')
+    if (this.isServerSide) {
+      // Server-side: Use direct Replicate client
+      const key = apiKey || this.getApiKey()
+      
+      if (!key) {
+        throw new Error('Replicate API key is required. Please set REPLICATE_API_KEY in your environment.')
+      }
+      
+      this.client = new Replicate({ auth: key })
+    } else {
+      // Client-side: Use secure API routes
+      this.secureClient = new SecureReplicateClient()
     }
-    
-    this.client = new Replicate({ auth: key })
+  }
+
+  /**
+   * Get API key based on deployment configuration
+   */
+  private getApiKey(): string | undefined {
+    return getReplicateApiKey()
   }
   
   /**
@@ -42,27 +61,35 @@ export class ReplicateService {
     modelId: `${string}/${string}` | `${string}/${string}:${string}`,
     options: GenerateOptions = {}
   ): Promise<ImageData> {
-    try {
-      const output = await this.client.run(
-        modelId,
-        {
-          input: {
-            prompt,
-            width: options.width || 1024,
-            height: options.height || 1024,
-            num_inference_steps: options.num_inference_steps || 30,
-            guidance_scale: options.guidance_scale || 7.5,
-            negative_prompt: options.negative_prompt || '',
-            ...(options.seed !== undefined && { seed: options.seed })
+    if (this.isServerSide && this.client) {
+      // Server-side: Use direct Replicate client
+      try {
+        const output = await this.client.run(
+          modelId,
+          {
+            input: {
+              prompt,
+              width: options.width || 1024,
+              height: options.height || 1024,
+              num_inference_steps: options.num_inference_steps || 30,
+              guidance_scale: options.guidance_scale || 7.5,
+              negative_prompt: options.negative_prompt || '',
+              ...(options.seed !== undefined && { seed: options.seed })
+            }
           }
-        }
-      )
-      
-      // Handle FileOutput or string array output
-      const imageUrl = this.extractImageUrl(output)
-      return this.urlToImageData(imageUrl)
-    } catch (error) {
-      throw new Error(`Image generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+        )
+        
+        // Handle FileOutput or string array output
+        const imageUrl = this.extractImageUrl(output)
+        return this.urlToImageData(imageUrl)
+      } catch (error) {
+        throw new Error(`Image generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      }
+    } else if (this.secureClient) {
+      // Client-side: Use secure API routes
+      return this.secureClient.generateImage(prompt, modelId, options)
+    } else {
+      throw new Error('Replicate service not properly initialized')
     }
   }
   
@@ -70,22 +97,30 @@ export class ReplicateService {
    * Remove background from an image using specified model
    */
   async removeBackground(imageData: ImageData, modelId: `${string}/${string}` | `${string}/${string}:${string}`): Promise<ImageData> {
-    try {
-      const dataUrl = await this.imageDataToDataURL(imageData)
-      
-      const output = await this.client.run(
-        modelId,
-        {
-          input: {
-            image: dataUrl
+    if (this.isServerSide && this.client) {
+      // Server-side: Use direct Replicate client
+      try {
+        const dataUrl = await this.imageDataToDataURL(imageData)
+        
+        const output = await this.client.run(
+          modelId,
+          {
+            input: {
+              image: dataUrl
+            }
           }
-        }
-      )
-      
-      const imageUrl = this.extractImageUrl(output)
-      return this.urlToImageData(imageUrl)
-    } catch (error) {
-      throw new Error(`Background removal failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+        )
+        
+        const imageUrl = this.extractImageUrl(output)
+        return this.urlToImageData(imageUrl)
+      } catch (error) {
+        throw new Error(`Background removal failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      }
+    } else if (this.secureClient) {
+      // Client-side: Use secure API routes
+      return this.secureClient.removeBackground(imageData, modelId)
+    } else {
+      throw new Error('Replicate service not properly initialized')
     }
   }
   
@@ -93,24 +128,32 @@ export class ReplicateService {
    * Enhance faces in an image using specified model
    */
   async enhanceFace(imageData: ImageData, modelId: `${string}/${string}` | `${string}/${string}:${string}`): Promise<ImageData> {
-    try {
-      const dataUrl = await this.imageDataToDataURL(imageData)
-      
-      const output = await this.client.run(
-        modelId,
-        {
-          input: {
-            img: dataUrl,
-            scale: 2,
-            version: 'v1.4'
+    if (this.isServerSide && this.client) {
+      // Server-side: Use direct Replicate client
+      try {
+        const dataUrl = await this.imageDataToDataURL(imageData)
+        
+        const output = await this.client.run(
+          modelId,
+          {
+            input: {
+              img: dataUrl,
+              scale: 2,
+              version: 'v1.4'
+            }
           }
-        }
-      )
-      
-      const imageUrl = this.extractImageUrl(output)
-      return this.urlToImageData(imageUrl)
-    } catch (error) {
-      throw new Error(`Face enhancement failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+        )
+        
+        const imageUrl = this.extractImageUrl(output)
+        return this.urlToImageData(imageUrl)
+      } catch (error) {
+        throw new Error(`Face enhancement failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      }
+    } else if (this.secureClient) {
+      // Client-side: Use secure API routes
+      return this.secureClient.enhanceFace(imageData, modelId)
+    } else {
+      throw new Error('Replicate service not properly initialized')
     }
   }
   
@@ -122,24 +165,32 @@ export class ReplicateService {
     modelId: `${string}/${string}` | `${string}/${string}:${string}`,
     scale: 2 | 4 = 2
   ): Promise<ImageData> {
-    try {
-      const dataUrl = await this.imageDataToDataURL(imageData)
-      
-      const output = await this.client.run(
-        modelId,
-        {
-          input: {
-            image: dataUrl,
-            scale,
-            face_enhance: false
+    if (this.isServerSide && this.client) {
+      // Server-side: Use direct Replicate client
+      try {
+        const dataUrl = await this.imageDataToDataURL(imageData)
+        
+        const output = await this.client.run(
+          modelId,
+          {
+            input: {
+              image: dataUrl,
+              scale,
+              face_enhance: false
+            }
           }
-        }
-      )
-      
-      const imageUrl = this.extractImageUrl(output)
-      return this.urlToImageData(imageUrl)
-    } catch (error) {
-      throw new Error(`Image upscaling failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+        )
+        
+        const imageUrl = this.extractImageUrl(output)
+        return this.urlToImageData(imageUrl)
+      } catch (error) {
+        throw new Error(`Image upscaling failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      }
+    } else if (this.secureClient) {
+      // Client-side: Use secure API routes
+      return this.secureClient.upscaleImage(imageData, modelId, scale)
+    } else {
+      throw new Error('Replicate service not properly initialized')
     }
   }
   
@@ -152,27 +203,35 @@ export class ReplicateService {
     prompt: string,
     modelId: `${string}/${string}` | `${string}/${string}:${string}`
   ): Promise<ImageData> {
-    try {
-      const imageUrl = await this.imageDataToDataURL(imageData)
-      const maskUrl = await this.imageDataToDataURL(maskData)
-      
-      const output = await this.client.run(
-        modelId,
-        {
-          input: {
-            image: imageUrl,
-            mask: maskUrl,
-            prompt,
-            num_inference_steps: 30,
-            guidance_scale: 7.5
+    if (this.isServerSide && this.client) {
+      // Server-side: Use direct Replicate client
+      try {
+        const imageUrl = await this.imageDataToDataURL(imageData)
+        const maskUrl = await this.imageDataToDataURL(maskData)
+        
+        const output = await this.client.run(
+          modelId,
+          {
+            input: {
+              image: imageUrl,
+              mask: maskUrl,
+              prompt,
+              num_inference_steps: 30,
+              guidance_scale: 7.5
+            }
           }
-        }
-      )
-      
-      const imageResultUrl = this.extractImageUrl(output)
-      return this.urlToImageData(imageResultUrl)
-    } catch (error) {
-      throw new Error(`Inpainting failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+        )
+        
+        const imageResultUrl = this.extractImageUrl(output)
+        return this.urlToImageData(imageResultUrl)
+      } catch (error) {
+        throw new Error(`Inpainting failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      }
+    } else if (this.secureClient) {
+      // Client-side: Use secure API routes
+      return this.secureClient.inpaint(imageData, maskData, prompt, modelId)
+    } else {
+      throw new Error('Replicate service not properly initialized')
     }
   }
   
@@ -180,10 +239,18 @@ export class ReplicateService {
    * Run any Replicate model with custom input
    */
   async runModel(modelId: `${string}/${string}` | `${string}/${string}:${string}`, input: Record<string, unknown>): Promise<unknown> {
-    try {
-      return await this.client.run(modelId, { input })
-    } catch (error) {
-      throw new Error(`Model execution failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    if (this.isServerSide && this.client) {
+      // Server-side: Use direct Replicate client
+      try {
+        return await this.client.run(modelId, { input })
+      } catch (error) {
+        throw new Error(`Model execution failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      }
+    } else if (this.secureClient) {
+      // Client-side: Use secure API routes
+      return this.secureClient.runModel(modelId, input)
+    } else {
+      throw new Error('Replicate service not properly initialized')
     }
   }
   

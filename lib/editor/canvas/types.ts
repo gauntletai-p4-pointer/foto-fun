@@ -82,11 +82,18 @@ export type Selection =
   | { type: 'objects'; objectIds: string[] } // Add object-based selection
 
 export interface CanvasState {
-  // Canvas (viewport) properties
-  canvasWidth: number
-  canvasHeight: number
-  zoom: number
-  pan: Point
+  // Viewport properties (container dimensions only)
+  viewport: {
+    width: number   // Container/viewport width
+    height: number  // Container/viewport height
+  }
+  
+  // Camera state (position on infinite canvas)
+  camera: {
+    x: number      // Pan X position
+    y: number      // Pan Y position
+    zoom: number   // Zoom level
+  }
   
   // Object properties (NO LAYERS!)
   objects: Map<string, import('@/lib/editor/objects/types').CanvasObject> // Object ID -> Object
@@ -244,19 +251,17 @@ export interface CanvasManager {
   getFilterManager?(): unknown
   
   // Transform operations
-  resize(width: number, height: number): Promise<void>
   updateViewport(): void
-  crop(rect: Rect): Promise<void>
   rotate(angle: number, targetIds?: string[]): Promise<void>
   flip(direction: 'horizontal' | 'vertical', targetIds?: string[]): Promise<void>
   
   // View operations
+  getViewport(): { width: number; height: number }
+  getCamera(): { x: number; y: number; zoom: number }
   setZoom(zoom: number): void
   setPan(pan: Point): void
   fitToScreen(): void
   setDraggable(draggable: boolean): void
-  getWidth(): number
-  getHeight(): number
   
   // Object finding
   getObjectAtPoint(point: Point): import('@/lib/editor/objects/types').CanvasObject | null

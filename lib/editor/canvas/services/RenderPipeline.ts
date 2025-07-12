@@ -73,11 +73,10 @@ export class RenderPipeline {
   }
   
   /**
-   * Render entire document
+   * Render entire canvas
    */
-  async renderDocument(_canvas: CanvasManager): Promise<void> {
+  async renderCanvas(): Promise<void> {
     const plan: RenderPlan = {
-      // No longer needed in object-based architecture
       objects: new Set(),
       fullRedraw: true,
       dirtyRegions: []

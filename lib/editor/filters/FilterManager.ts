@@ -407,8 +407,8 @@ export class FilterManager {
     const ctx = canvas.getContext('2d')!
     const canvasState = this.canvasManager.state
     
-    canvas.width = canvasState.canvasWidth
-    canvas.height = canvasState.canvasHeight
+    canvas.width = canvasState.viewport.width
+    canvas.height = canvasState.viewport.height
     
     // Fill with black (transparent)
     ctx.fillStyle = 'black'
@@ -659,8 +659,8 @@ export class FilterManager {
   private async compositeLayers(objects: import('@/lib/editor/objects/types').CanvasObject[]): Promise<HTMLCanvasElement> {
     const canvas = document.createElement('canvas')
     const canvasState = this.canvasManager.state
-    canvas.width = canvasState.canvasWidth
-    canvas.height = canvasState.canvasHeight
+    canvas.width = canvasState.viewport.width
+    canvas.height = canvasState.viewport.height
     const ctx = canvas.getContext('2d')!
     
     for (const object of objects) {

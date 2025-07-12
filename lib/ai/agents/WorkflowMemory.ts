@@ -34,8 +34,7 @@ export class WorkflowMemory implements IWorkflowMemory {
       selection: this.canvas.getSelectedObjects(),
       activeLayerId: Array.from(this.canvas.state.selectedObjectIds)[0] || null,
       backgroundColor: this.canvas.state.backgroundColor,
-      width: this.canvas.getWidth(),
-      height: this.canvas.getHeight()
+      ...this.canvas.getViewport()
     }
     this.checkpoints.set(id, {
       id,

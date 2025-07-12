@@ -346,10 +346,7 @@ Analyze the complexity and confidence for this request.`,
     const objects = canvas.getAllObjects()
     
     this.context.canvasAnalysis = {
-      dimensions: {
-        width: canvas.getWidth(),
-        height: canvas.getHeight()
-      },
+      dimensions: canvas.getViewport(),
       hasContent: objects.length > 0,
       objectCount: objects.length,
       lastAnalyzedAt: Date.now()

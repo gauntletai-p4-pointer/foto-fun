@@ -37,10 +37,7 @@ export class CanvasContextProvider {
       canvas,
       targetObjects: selectedObjects.length > 0 ? selectedObjects : objects,
       targetingMode: selectedObjects.length > 0 ? 'selected' : 'all',
-      dimensions: { 
-        width: canvas.getWidth(), 
-        height: canvas.getHeight() 
-      },
+      dimensions: canvas.getViewport(),
       hasContent: objects.length > 0,
       objectCount: objects.length,
       screenshot: undefined // Only capture when needed to avoid performance impact

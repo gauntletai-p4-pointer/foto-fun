@@ -246,10 +246,7 @@ export class ExecutionContext {
       canvas,
       targetObjects: targetImages, // Use targetObjects instead of targetImages
       targetingMode,
-      dimensions: {
-        width: canvas.getWidth(),
-        height: canvas.getHeight()
-      },
+      dimensions: canvas.getViewport(),
       hasContent: targetImages.length > 0,
       objectCount: canvas.getAllObjects().length,
       pixelSelection: undefined, // Can be added if needed

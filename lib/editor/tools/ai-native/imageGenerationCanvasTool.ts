@@ -91,9 +91,10 @@ export class ImageGenerationTool extends BaseTool {
     const guidance = options?.guidance || (this.getOption('guidance') as number)
     
     // Default position to center if not provided
+    const viewport = canvas.getViewport()
     const pos = position || {
-      x: (canvas.state.canvasWidth - width) / 2,
-      y: (canvas.state.canvasHeight - height) / 2
+      x: (viewport.width - width) / 2,
+      y: (viewport.height - height) / 2
     }
     
     try {

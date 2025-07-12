@@ -53,8 +53,9 @@ export function ExportDialog({ open, onOpenChange }: ExportDialogProps) {
   const [regionHeight, setRegionHeight] = useState(100)
   
   // Get canvas dimensions with null check
-  const canvasWidth = canvasManager?.state.canvasWidth || 800
-  const canvasHeight = canvasManager?.state.canvasHeight || 600
+  const viewport = canvasManager?.getViewport() || { width: 800, height: 600 }
+  const canvasWidth = viewport.width
+  const canvasHeight = viewport.height
   const aspectRatio = canvasWidth / canvasHeight
   
   // Get selected objects

@@ -53,19 +53,18 @@ export class SelectionManager {
   }
   
   /**
-   * Update the selection canvas size to match the main canvas
+   * Update the selection canvas size to match the viewport
    */
   private updateCanvasSize(): void {
-    const width = this.canvasManager.getWidth()
-    const height = this.canvasManager.getHeight()
+    const viewport = this.canvasManager.getViewport()
     
-    this.selectionCanvas.width = width
-    this.selectionCanvas.height = height
+    this.selectionCanvas.width = viewport.width
+    this.selectionCanvas.height = viewport.height
     
-    // Clear any existing selection if canvas size changed
+    // Clear any existing selection if viewport size changed
     if (this.selection && 
-        (this.selection.mask.width !== width || 
-         this.selection.mask.height !== height)) {
+        (this.selection.mask.width !== viewport.width || 
+         this.selection.mask.height !== viewport.height)) {
       this.clear()
     }
   }

@@ -161,10 +161,7 @@ export function useToolCallHandler({
               }
               
               const updatedCanvasContext = canvasManager ? {
-                dimensions: {
-                  width: canvasManager.state.canvasWidth,
-                  height: canvasManager.state.canvasHeight
-                },
+                dimensions: canvasManager.getViewport(),
                 hasContent: canvasManager.getAllObjects().length > 0,
                 objectCount: canvasManager.getAllObjects().length,
                 canvasType: 'konva' as const,
@@ -235,10 +232,7 @@ export function useToolCallHandler({
             }
             
             const updatedCanvasContext = canvasManager ? {
-              dimensions: {
-                width: canvasManager.state.canvasWidth,
-                height: canvasManager.state.canvasHeight
-              },
+              dimensions: canvasManager.getViewport(),
               hasContent: canvasManager.getAllObjects().length > 0,
               objectCount: canvasManager.getAllObjects().length,
               canvasType: 'konva' as const,

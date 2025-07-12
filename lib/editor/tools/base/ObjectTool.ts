@@ -47,8 +47,9 @@ export abstract class ObjectTool extends BaseTool {
     const canvas = this.getCanvas()
     
     // Use last mouse position or center of viewport
-    const x = data.x ?? this.lastMousePosition?.x ?? canvas.state.canvasWidth / 2
-    const y = data.y ?? this.lastMousePosition?.y ?? canvas.state.canvasHeight / 2
+    const viewport = canvas.getViewport()
+    const x = data.x ?? this.lastMousePosition?.x ?? viewport.width / 2
+    const y = data.y ?? this.lastMousePosition?.y ?? viewport.height / 2
     
     return canvas.addObject({
       type,

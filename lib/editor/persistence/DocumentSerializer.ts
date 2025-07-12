@@ -64,8 +64,7 @@ export class DocumentSerializer {
         modified: new Date()
       },
       canvas: {
-        width: state.canvasWidth,
-        height: state.canvasHeight,
+        ...state.viewport,
         backgroundColor: state.backgroundColor,
         objects: allObjects.map(obj => ({
           id: obj.id,
@@ -251,7 +250,7 @@ export class DocumentSerializer {
     }
     
     // Resize canvas
-    await this.canvasManager.resize(canvasData.width, canvasData.height)
+    // Note: In infinite canvas model, viewport size is managed by container, not saved/loaded
     
     // Set background color
     this.canvasManager.state.backgroundColor = canvasData.backgroundColor

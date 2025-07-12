@@ -7,8 +7,8 @@ export const DEFAULT_ZOOM = 100
 export const MIN_ZOOM = 1
 export const MAX_ZOOM = 3200
 
-// Document presets
-export const DOCUMENT_PRESETS = {
+// Export presets for common output formats
+export const EXPORT_PRESETS = {
   default: { width: 800, height: 600, resolution: 72 },
   photo: { width: 3000, height: 2000, resolution: 300 },
   print: { width: 2550, height: 3300, resolution: 300 }, // 8.5x11 at 300 DPI

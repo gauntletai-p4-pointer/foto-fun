@@ -21,32 +21,49 @@ export class CropCommand extends Command {
     cropRect: Rect,
     description?: string
   ) {
-    super(description || 'Crop canvas')
+    super(description || 'Crop objects')
     this.canvasManager = canvasManager
     this.cropRect = cropRect
     this.typedEventBus = ServiceContainer.getInstance().getSync<TypedEventBus>('TypedEventBus')
     
-    // Store previous state
+    // Store previous viewport state (not canvas dimensions - canvas is infinite)
+    const viewport = canvasManager.getViewport()
     this.previousState = {
-      width: canvasManager.getWidth(),
-      height: canvasManager.getHeight()
+      width: viewport.width,
+      height: viewport.height
     }
   }
   
   protected async doExecute(): Promise<void> {
-    // Store the current canvas content before cropping
+    // In infinite canvas model, we crop selected objects, not the canvas
+    const selectedObjects = this.canvasManager.getSelectedObjects()
+    
+    if (selectedObjects.length === 0) {
+      throw new Error('No objects selected to crop')
+    }
+    
+    // Store the current object states before cropping
     this.previousState.imageData = this.canvasManager.getImageData()
     
-    // Perform the crop
-    await this.canvasManager.crop(this.cropRect)
-    
-    // Emit resize event
-    this.typedEventBus.emit('canvas.resized', {
-      width: this.cropRect.width,
-      height: this.cropRect.height,
-      previousWidth: this.previousState.width,
-      previousHeight: this.previousState.height
-    })
+    // Crop each selected object
+    for (const obj of selectedObjects) {
+      if (obj.type === 'image') {
+        // Update object with crop data
+        await this.canvasManager.updateObject(obj.id, {
+          metadata: {
+            ...obj.metadata,
+            crop: {
+              cropX: this.cropRect.x,
+              cropY: this.cropRect.y,
+              cropWidth: this.cropRect.width,
+              cropHeight: this.cropRect.height
+            }
+          },
+          width: this.cropRect.width,
+          height: this.cropRect.height
+        })
+      }
+    }
   }
   
   async undo(): Promise<void> {
@@ -54,31 +71,19 @@ export class CropCommand extends Command {
       throw new Error('Cannot undo crop - no previous state saved')
     }
     
-    // Resize canvas back to original size
-    await this.canvasManager.resize(
-      this.previousState.width,
-      this.previousState.height
-    )
-    
-    // Restore the original image data
+    // Restore the original image data for cropped objects
     this.canvasManager.putImageData(this.previousState.imageData, { x: 0, y: 0 })
-    
-    // Emit resize event
-    this.typedEventBus.emit('canvas.resized', {
-      width: this.previousState.width,
-      height: this.previousState.height,
-      previousWidth: this.cropRect.width,
-      previousHeight: this.cropRect.height
-    })
   }
   
   canExecute(): boolean {
-    // Validate crop rectangle
+    // Validate crop rectangle and check if objects are selected
+    const selectedObjects = this.canvasManager.getSelectedObjects()
+    const hasImageObjects = selectedObjects.some(obj => obj.type === 'image')
+    
     return this.cropRect.width > 0 && 
            this.cropRect.height > 0 &&
            this.cropRect.x >= 0 &&
            this.cropRect.y >= 0 &&
-           this.cropRect.x + this.cropRect.width <= this.canvasManager.getWidth() &&
-           this.cropRect.y + this.cropRect.height <= this.canvasManager.getHeight()
+           hasImageObjects
   }
 } 

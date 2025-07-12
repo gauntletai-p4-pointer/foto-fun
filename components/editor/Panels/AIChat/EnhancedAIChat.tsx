@@ -90,10 +90,7 @@ export function EnhancedAIChat() {
     e.preventDefault()
     if (input.trim() && !isLoading && canvasManager && isCanvasReady) {
       const canvasContext = {
-        dimensions: {
-          width: canvasManager.state.canvasWidth,
-          height: canvasManager.state.canvasHeight
-        },
+        dimensions: canvasManager.getViewport(),
         objectCount: canvasManager.getAllObjects().length
       }
       

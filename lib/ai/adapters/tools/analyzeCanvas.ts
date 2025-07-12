@@ -66,10 +66,7 @@ Use this when you need to understand what's currently on the canvas.`
       const objects = canvas.getAllObjects()
       
       const analysis: AnalyzeCanvasOutput['analysis'] = {
-        dimensions: {
-          width: canvas.state.canvasWidth,
-          height: canvas.state.canvasHeight
-        },
+        dimensions: canvas.getViewport(),
         hasContent: objects.length > 0,
         objectCount: objects.length,
         description: ''

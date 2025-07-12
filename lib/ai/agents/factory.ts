@@ -44,10 +44,7 @@ export class AgentFactory {
     // Analyze canvas using object-based API
     const objects = canvas.getAllObjects()
     const canvasAnalysis = {
-      dimensions: {
-        width: canvas.getWidth(),
-        height: canvas.getHeight()
-      },
+      dimensions: canvas.getViewport(),
       hasContent: objects.length > 0,
       objectCount: objects.length,
       lastAnalyzedAt: Date.now()

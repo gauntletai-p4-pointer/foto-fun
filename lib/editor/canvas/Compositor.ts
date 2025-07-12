@@ -109,8 +109,7 @@ export class Compositor {
     this.contentGroup.clip({
       x: 0,
       y: 0,
-      width: state.canvasWidth,
-      height: state.canvasHeight
+      ...state.viewport
     })
     
     // Redraw

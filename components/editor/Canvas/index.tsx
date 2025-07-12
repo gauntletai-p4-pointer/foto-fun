@@ -141,8 +141,9 @@ export function Canvas() {
       const rect = container.getBoundingClientRect()
       
       // Calculate canvas coordinates considering zoom and pan
-      const zoom = canvasManager.state.zoom
-      const pan = canvasManager.state.pan
+      const camera = canvasManager.getCamera()
+      const zoom = camera.zoom
+      const pan = { x: camera.x, y: camera.y }
       
       // Screen coordinates (relative to viewport)
       const screenPoint = {
@@ -229,18 +230,18 @@ export function Canvas() {
         if (e.shiftKey) {
           // Alt + Shift + scroll for horizontal pan
           const deltaX = e.deltaY * panSpeed
-          const currentPan = canvasManager.state.pan
+          const currentCamera = canvasManager.getCamera()
           canvasManager.setPan({
-            x: currentPan.x - deltaX,
-            y: currentPan.y
+            x: currentCamera.x - deltaX,
+            y: currentCamera.y
           })
         } else {
           // Alt + scroll for vertical pan
           const deltaY = e.deltaY * panSpeed
-          const currentPan = canvasManager.state.pan
+          const currentCamera = canvasManager.getCamera()
           canvasManager.setPan({
-            x: currentPan.x,
-            y: currentPan.y - deltaY
+            x: currentCamera.x,
+            y: currentCamera.y - deltaY
           })
         }
         return
@@ -258,7 +259,7 @@ export function Canvas() {
         // - Pinch in (zoom out) = positive deltaY
         const zoomSpeed = 0.01
         const delta = -e.deltaY * zoomSpeed  // Negative deltaY increases zoom
-        const currentZoom = canvasManager.state.zoom
+        const currentZoom = canvasManager.getCamera().zoom
         const newZoom = Math.max(0.1, Math.min(10, currentZoom * (1 + delta)))
         
         // Get mouse position for zoom center
@@ -295,10 +296,10 @@ export function Canvas() {
         // Shift + scroll for horizontal pan
         const panSpeed = 1
         const deltaX = e.deltaY * panSpeed
-        const currentPan = canvasManager.state.pan
+        const currentCamera = canvasManager.getCamera()
         canvasManager.setPan({
-          x: currentPan.x - deltaX,
-          y: currentPan.y
+          x: currentCamera.x - deltaX,
+          y: currentCamera.y
         })
       } else {
         // Regular two-finger scroll should zoom (Photoshop behavior)
@@ -306,7 +307,7 @@ export function Canvas() {
         // Two fingers down (positive deltaY) = zoom out
         const zoomSpeed = 0.001
         const delta = -e.deltaY * zoomSpeed
-        const currentZoom = canvasManager.state.zoom
+        const currentZoom = canvasManager.getCamera().zoom
         const newZoom = Math.max(0.1, Math.min(10, currentZoom * (1 + delta)))
         
         // Get mouse position for zoom center
@@ -393,11 +394,11 @@ export function Canvas() {
       // Zoom shortcuts
       else if (isMeta && (e.key === '=' || e.key === '+')) {
         e.preventDefault()
-        const currentZoom = canvasManager.state.zoom
+        const currentZoom = canvasManager.getCamera().zoom
         canvasManager.setZoom(Math.min(currentZoom * 1.2, 10))
       } else if (isMeta && e.key === '-') {
         e.preventDefault()
-        const currentZoom = canvasManager.state.zoom
+        const currentZoom = canvasManager.getCamera().zoom
         canvasManager.setZoom(Math.max(currentZoom / 1.2, 0.1))
       } else if (isMeta && e.key === '0') {
         e.preventDefault()

@@ -235,7 +235,7 @@ export class ShortcutManager {
       description: 'Zoom in',
       handler: () => {
         if (!this.canvasManager) return
-        const currentZoom = this.canvasManager.state.zoom
+        const currentZoom = this.canvasManager.getCamera().zoom
         this.canvasManager.setZoom(Math.min(currentZoom * 1.25, 32))
       }
     })
@@ -246,7 +246,7 @@ export class ShortcutManager {
       description: 'Zoom out',
       handler: () => {
         if (!this.canvasManager) return
-        const currentZoom = this.canvasManager.state.zoom
+        const currentZoom = this.canvasManager.getCamera().zoom
         this.canvasManager.setZoom(Math.max(currentZoom / 1.25, 0.01))
       }
     })
