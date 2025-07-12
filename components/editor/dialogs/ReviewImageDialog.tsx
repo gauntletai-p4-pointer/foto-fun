@@ -133,6 +133,8 @@ export function ReviewImageDialog() {
           </div>
           
           {/* Mask Image Display (only for inpainting operations) */}
+          {/* DEBUG PANEL - COMMENTED OUT FOR NOW */}
+          {/*
           {reviewModal.maskImage && (
             <div className="space-y-4">
               <div className="flex justify-between items-center">
@@ -150,7 +152,6 @@ export function ReviewImageDialog() {
                   unoptimized
                 />
                 
-                {/* Mask Label */}
                 <div className="absolute top-2 left-2 px-2 py-1 bg-black/50 text-white text-xs rounded">
                   Mask
                 </div>
@@ -161,6 +162,7 @@ export function ReviewImageDialog() {
               </div>
             </div>
           )}
+          */}
 
           {/* Action Buttons */}
           <div className="flex justify-end gap-3 pt-4 border-t border-foreground/10">
