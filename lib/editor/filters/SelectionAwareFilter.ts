@@ -95,6 +95,7 @@ export abstract class SelectionAwareFilter {
     console.log('[SelectionAwareFilter] applyToSelection called:', {
       filterType: this.constructor.name,
       maskSize: { width: selection.mask.width, height: selection.mask.height },
+      selectionBounds: selection.bounds,
       imageBounds: image ? image.getBoundingRect() : 'no image'
     })
     
@@ -106,7 +107,7 @@ export abstract class SelectionAwareFilter {
     )
     
     // Apply filter only to selected pixels
-    const { mask, bounds: _bounds } = selection
+    const { mask, bounds } = selection
     
     // Get transformation from canvas space to image space
     let scaleX = 1, scaleY = 1
@@ -129,15 +130,22 @@ export abstract class SelectionAwareFilter {
     }
     
     // Report progress
-    this.reportProgress(0, mask.height, 'Processing selected pixels...')
+    this.reportProgress(0, bounds.height, 'Processing selected pixels...')
     
     // Safety check to prevent infinite loops
     let processedPixels = 0
-    const maxPixels = mask.width * mask.height
+    const maxPixels = bounds.width * bounds.height
+    
+    // Process only the area within the selection bounds
+    // The mask is full canvas size, so we need to use absolute coordinates
+    const startY = Math.max(0, Math.floor(bounds.y))
+    const endY = Math.min(mask.height, Math.ceil(bounds.y + bounds.height))
+    const startX = Math.max(0, Math.floor(bounds.x))
+    const endX = Math.min(mask.width, Math.ceil(bounds.x + bounds.width))
     
     // Process row by row for efficiency and progress reporting
-    for (let y = 0; y < mask.height; y++) {
-      for (let x = 0; x < mask.width; x++) {
+    for (let y = startY; y < endY; y++) {
+      for (let x = startX; x < endX; x++) {
         const maskIndex = (y * mask.width + x) * 4 + 3 // Alpha channel
         const alpha = mask.data[maskIndex]
         
@@ -189,12 +197,12 @@ export abstract class SelectionAwareFilter {
       }
       
       // Report progress every 10 rows
-      if (y % 10 === 0) {
-        this.reportProgress(y, mask.height, 'Processing selected pixels...')
+      if ((y - startY) % 10 === 0) {
+        this.reportProgress(y - startY, bounds.height, 'Processing selected pixels...')
       }
     }
     
-    this.reportProgress(mask.height, mask.height, 'Complete')
+    this.reportProgress(bounds.height, bounds.height, 'Complete')
     
     return resultData
   }

@@ -84,10 +84,17 @@ export class BlurFilter extends SelectionAwareFilter {
     const imageMask = new Uint8ClampedArray(imageData.width * imageData.height * 4)
     
     // Transform selection mask to image space
-    for (let y = 0; y < selection.mask.height; y++) {
-      for (let x = 0; x < selection.mask.width; x++) {
-        const maskIndex = (y * selection.mask.width + x) * 4 + 3
-        const alpha = selection.mask.data[maskIndex]
+    // The selection mask is full canvas size, so we use absolute coordinates
+    const { mask, bounds } = selection
+    const startY = Math.max(0, Math.floor(bounds.y))
+    const endY = Math.min(mask.height, Math.ceil(bounds.y + bounds.height))
+    const startX = Math.max(0, Math.floor(bounds.x))
+    const endX = Math.min(mask.width, Math.ceil(bounds.x + bounds.width))
+    
+    for (let y = startY; y < endY; y++) {
+      for (let x = startX; x < endX; x++) {
+        const maskIndex = (y * mask.width + x) * 4 + 3
+        const alpha = mask.data[maskIndex]
         
         if (alpha > 0) {
           const imageX = Math.round((x - imgLeft) * scaleX)
