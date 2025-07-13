@@ -185,6 +185,10 @@ The user will then be shown a review modal to compare the original and processed
         base64Length: imageUrl.split(';base64,')[1]?.length || 0
       })
       
+      // Add a small delay to ensure canvas data is stable and prevent race conditions
+      console.log('[BackgroundRemovalAdapter] Adding stability delay before API call...')
+      await new Promise(resolve => setTimeout(resolve, 100))
+      
       const response = await fetch('/api/ai/replicate/remove-background', {
         method: 'POST',
         headers: {
@@ -558,7 +562,7 @@ The user will then be shown a review modal to compare the original and processed
               
               resolve(imageUrl)
             } catch (error) {
-              console.error(`[BackgroundRemovalAdapter] toDataURL failed for strategy ${strategy.description}:`, error)
+              // console.error(`[BackgroundRemovalAdapter] toDataURL failed for strategy ${strategy.description}:`, error)
               reject(error)
             }
           })

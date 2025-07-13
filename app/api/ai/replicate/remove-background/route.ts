@@ -31,6 +31,23 @@ export async function POST(req: NextRequest) {
       imageUrlPrefix: params.image?.substring(0, 50) + '...'
     })
     
+    // Check for extremely large images that might cause memory issues
+    const maxImageSize = 10 * 1024 * 1024 // 10MB limit
+    if (params.image.length > maxImageSize) {
+      console.warn('[Remove Background API] Image size exceeds limit:', {
+        imageSize: params.image.length,
+        maxSize: maxImageSize,
+        sizeMB: Math.round(params.image.length / 1024 / 1024 * 100) / 100
+      })
+      return NextResponse.json(
+        { 
+          error: 'Image size is too large. Please use an image smaller than 10MB.',
+          details: 'Large images can cause processing issues. Try reducing the image size or quality.'
+        },
+        { status: 400 }
+      )
+    }
+    
     // ===== DETAILED IMAGE VALIDATION =====
     console.log('[Remove Background API] ===== DETAILED IMAGE VALIDATION STARTS =====')
     
@@ -225,15 +242,124 @@ export async function POST(req: NextRequest) {
     // ===== PREPARE REPLICATE INPUT =====
     console.log('[Remove Background API] ===== PREPARING REPLICATE INPUT =====')
     
-    // Prepare input for Replicate API with Bria remove-background parameters
-    const replicateInput = {
-      image: params.image
+    // Enhanced base64 validation and cleansing for Replicate API
+    let cleanedImageData = params.image
+    
+    if (params.image.startsWith('data:image/')) {
+      console.log('[Remove Background API] Performing enhanced base64 validation and cleansing...')
+      
+      const base64Index = params.image.indexOf(';base64,')
+      if (base64Index !== -1) {
+        const mimeType = params.image.substring(0, base64Index)
+        let base64Data = params.image.substring(base64Index + 8)
+        
+        console.log('[Remove Background API] Base64 cleansing process:', {
+          originalLength: base64Data.length,
+          mimeType,
+          lastChars: base64Data.substring(base64Data.length - 10)
+        })
+        
+        // Clean and validate base64 data
+        try {
+          // Remove any whitespace characters that might have been introduced
+          base64Data = base64Data.replace(/\s/g, '')
+          
+          // Check for proper base64 character set
+          const base64Regex = /^[A-Za-z0-9+/]*={0,2}$/
+          if (!base64Regex.test(base64Data)) {
+            console.warn('[Remove Background API] Invalid characters found in base64 data')
+            // Remove invalid characters
+            base64Data = base64Data.replace(/[^A-Za-z0-9+/=]/g, '')
+          }
+          
+          // Ensure proper padding
+          const paddingNeeded = 4 - (base64Data.length % 4)
+          if (paddingNeeded !== 4 && paddingNeeded > 0) {
+            console.log('[Remove Background API] Adding padding to base64 data:', paddingNeeded)
+            base64Data += '='.repeat(paddingNeeded)
+          }
+          
+          // Test decode to validate the data
+          const testDecodeLength = Math.min(100, base64Data.length)
+          const testDecode = atob(base64Data.substring(0, testDecodeLength))
+          
+          console.log('[Remove Background API] Base64 validation successful:', {
+            cleanedLength: base64Data.length,
+            testDecodeLength: testDecode.length,
+            paddingAdded: paddingNeeded > 0 ? paddingNeeded : 0
+          })
+          
+          // Reconstruct the cleaned data URL
+          cleanedImageData = `${mimeType};base64,${base64Data}`
+          
+          // Additional validation: check file signature after cleaning
+          const fullTestDecode = atob(base64Data.substring(0, Math.min(200, base64Data.length)))
+          const firstBytes = fullTestDecode.substring(0, 8)
+          const isPNG = firstBytes.charCodeAt(0) === 0x89 && firstBytes.charCodeAt(1) === 0x50
+          const isJPEG = firstBytes.charCodeAt(0) === 0xFF && firstBytes.charCodeAt(1) === 0xD8
+          
+          console.log('[Remove Background API] Cleaned data file signature check:', {
+            isPNG,
+            isJPEG,
+            hasValidSignature: isPNG || isJPEG
+          })
+          
+          if (!isPNG && !isJPEG) {
+            console.error('[Remove Background API] Cleaned data still has invalid file signature')
+            return NextResponse.json(
+              { error: 'Image data appears to be corrupted even after cleaning. Please try re-uploading the image.' },
+              { status: 400 }
+            )
+          }
+          
+        } catch (cleaningError) {
+          console.error('[Remove Background API] Base64 cleaning failed:', cleaningError)
+          return NextResponse.json(
+            { error: 'Failed to clean base64 image data. The image may be corrupted.' },
+            { status: 400 }
+          )
+        }
+      }
     }
     
-    console.log('[Remove Background API] Sending to Bria remove-background:', {
+    // Additional race condition mitigation: ensure the data is stable
+    console.log('[Remove Background API] Final pre-send validation...')
+    
+    // Validate the final cleaned data
+    if (cleanedImageData.startsWith('data:image/')) {
+      const finalBase64Index = cleanedImageData.indexOf(';base64,')
+      if (finalBase64Index !== -1) {
+        const finalBase64Data = cleanedImageData.substring(finalBase64Index + 8)
+        
+        // Final validation checks
+        console.log('[Remove Background API] Final validation checks:', {
+          hasValidLength: finalBase64Data.length >= 100,
+          hasValidPadding: finalBase64Data.length % 4 === 0,
+          hasValidChars: /^[A-Za-z0-9+/]*={0,2}$/.test(finalBase64Data),
+          endsWithPadding: finalBase64Data.endsWith('=') || finalBase64Data.endsWith('==') || finalBase64Data.length % 4 === 0
+        })
+        
+        if (finalBase64Data.length < 100) {
+          console.error('[Remove Background API] Final validation failed - data too short')
+          return NextResponse.json(
+            { error: 'Image data is too short after cleaning. Please try with a different image.' },
+            { status: 400 }
+          )
+        }
+      }
+    }
+    
+    // Prepare input for Replicate API with Bria remove-background parameters
+    const replicateInput = {
+      image: cleanedImageData
+    }
+    
+    console.log('[Remove Background API] Sending cleaned data to Bria remove-background:', {
       model: REMOVE_BACKGROUND_MODEL_ID,
-      imageType: params.image.startsWith('data:') ? 'data_url' : 'url',
-      imageSize: params.image.length,
+      imageType: cleanedImageData.startsWith('data:') ? 'data_url' : 'url',
+      imageSize: cleanedImageData.length,
+      originalSize: params.image.length,
+      dataCleaned: cleanedImageData !== params.image,
       inputKeys: Object.keys(replicateInput),
       inputImageType: typeof replicateInput.image,
       inputImagePrefix: replicateInput.image.substring(0, 50) + '...'
