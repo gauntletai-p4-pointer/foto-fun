@@ -359,6 +359,17 @@ This isn't just software. It's a statement:
 
 **We absolutely love our open source community!** Every contribution, big or small, helps democratize creativity and makes professional photo editing accessible to everyone. Here's how you can get involved:
 
+### ⚠️ Important Architectural Note for Contributors
+
+**Performance Considerations**: The current implementation using Fabric.js may need significant architectural changes for optimal performance, particularly for selected-region editing operations. We're currently using CPU-intensive pixel manipulation which can be slow for complex operations.
+
+**Recommended Future Direction**: 
+- Consider migrating to **WebGL-based rendering** for all image editing operations
+- **Konva.js** might be a better foundation than Fabric.js for performance-critical operations
+- The app may benefit from being rebuilt with a WebGL-first architecture to handle large images and complex selections efficiently
+
+This is a great opportunity for contributors interested in high-performance graphics programming and canvas optimization. If you're passionate about making photo editing truly fast and responsive, this could be your contribution to the project!
+
 ### 🔑 Setting Up Your Development Environment
 
 #### 1. **Configure Your API Keys**
