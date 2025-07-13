@@ -2,6 +2,13 @@
 
 > **We're building the future of photo editing - and it's completely free and open source.**
 
+## ⚡ What Works Today
+- **32+ Professional Tools** - Complete editing suite from selection to filters
+- **AI-Powered Everything** - Natural language control of all tools
+- **Replicate Integration** - Image generation, background removal, upscaling
+- **Modern Architecture** - Next.js 15, React 19, TypeScript, Fabric.js v6
+- **No Subscriptions** - Forever free and open source
+
 ## 🚀 Getting Started
 
 ### Prerequisites
@@ -35,36 +42,6 @@ bun lint          # Check code quality
 bun typecheck     # Check types
 bun run build     # Build for production
 bun dev           # Start dev server
-```
-
-### Contributing
-
-**Start a New Task:** Get the latest project updates and create your own branch to work on.
-```bash
-git checkout main
-git pull
-git checkout -b your-branch-name
-```
-
-**Develop and Commit:** Write your code and save your progress in small, logical chunks.
-```bash
-# After making changes...
-git add .
-git commit -m "A short description of what you did"
-```
-
-**Push and Create a Pull Request:** Upload your branch and ask teammates to review it.
-```bash
-git push origin your-branch-name
-# Now, go to GitHub/GitLab to open a Pull Request
-```
-
-**Merge and Clean Up:** Once your Pull Request is approved, merge it into main and delete your old branch.
-```bash
-# Merge the pull request on the website, then...
-git checkout main
-git pull
-git branch -d your-branch-name
 ```
 
 ---
@@ -115,7 +92,7 @@ Photoshop has Adobe. FotoFun has everyone. Which will innovate faster?
 - Team can't collaborate in real-time
 - Subscription fatigue
 
-**FotoFun Solution:** One platform. AI handles the boring stuff. Real-time collaboration. Free forever.
+**FotoFun Solution:** One platform. AI handles the boring stuff. 32+ professional tools. Free forever.
 
 ### Marcus Rodriguez - The Content Creator
 *"I just need to edit thumbnails, not learn rocket science"*
@@ -201,25 +178,39 @@ services:
 ## 🛠️ Features That Ship Today
 
 ### ✅ Complete (Epic 1 & 5)
-- **12 Professional Tools**: Selection, drawing, transform, text, and more
-- **AI-Powered Adjustments**: Brightness, contrast, filters with intelligence
-- **Natural Language Editing**: Describe what you want
-- **Real-time Collaboration**: Edit together, ship faster
-- **Infinite Undo/Redo**: Never lose work
-- **Plugin System**: Extend everything
+- **32+ Professional Tools**: Complete suite of editing tools
+  - **6 Selection Tools**: Move, Rectangular/Elliptical Marquee, Lasso, Magic Wand, Quick Selection
+  - **6 Transform Tools**: Crop, Rotate, Flip, Resize, Hand, Zoom
+  - **2 Drawing Tools**: Brush (Eraser removed)
+  - **4 Text Tools**: Horizontal/Vertical Type, Type Mask, Type on Path
+  - **6 Adjustment Tools**: Brightness, Contrast, Saturation, Hue, Exposure, Color Temperature
+  - **5 Filter Tools**: Blur, Sharpen, Grayscale, Sepia, Invert
+  - **1 Utility Tool**: Eyedropper
+  - **2 AI-Native Tools**: Image Generation, Image Transformation
+- **AI-Powered Adjustments**: All adjustment and filter tools with AI integration
+- **Natural Language Editing**: Describe what you want in plain English
+- **Infinite Undo/Redo**: Never lose work with full command history
+- **Layer System**: Complete layer management with visibility, opacity, blending
+- **Selection System**: Pixel-perfect selections with boolean operations
 
-### 🚧 Building Now (Epic 2-4)
-- **Advanced Typography**: Full text control
+### ✅ AI Features (Working via Replicate API)
+- **AI Image Generation**: Create images from text using Stable Diffusion XL
+- **AI Background Removal**: Remove backgrounds using Bria's model
+- **AI Image Upscaling**: 2x/4x upscaling with Google's upscaler
+- **AI Inpainting**: Remove objects and fill with AI
+- **AI Chat Assistant**: Natural language control of all tools
+- **Orchestrator-Worker Pattern**: AI plans workflows, tools execute
+
+### 🚧 Building Now (Epic 2 - 85% Complete)
+- **Advanced Typography**: 4 text tools working, effects system implemented
+- **Text Effects**: Drop shadows, strokes, glows, gradients, presets
+- **Google Fonts Integration**: Dynamic font loading with search
+
+### 🔮 Coming Soon (Epic 3-16)
 - **Vector Tools**: Shapes, paths, bezier curves
 - **Healing & Cloning**: Content-aware repairs
-
-### 🔮 Coming Soon (Epic 6-16)
-- **Containerized AI Services**:
-  - Background Removal (MODNet, U2Net)
-  - Image Upscaling (Real-ESRGAN)
-  - Style Transfer (Neural Style)
-  - Face Enhancement (GFPGAN)
-  - Inpainting (LaMa, Stable Diffusion)
+- **Real-time Collaboration**: Edit together, ship faster
+- **Plugin System**: Community extensions and custom tools
 - **Visual Workflow Builder**: Drag-drop automation
 - **Version Control**: Git for images
 - **Mobile Apps**: Edit anywhere
@@ -234,16 +225,24 @@ services:
          │                       │                        │
          ▼                       ▼                        ▼
 ┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
-│  Plugin System  │     │   AI Workers    │     │     Zustand     │
-│   Hot Reload    │     │  (Executors)    │     │  State Mgmt     │
+│  32+ Tools      │     │   Tool Adapters │     │     Zustand     │
+│  Canvas + AI    │     │   AI Integration│     │  State Mgmt     │
 └─────────────────┘     └─────────────────┘     └─────────────────┘
          │                       │                        │
          ▼                       ▼                        ▼
 ┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
-│ Community Mods  │     │ Docker Models   │     │   Supabase      │
-│  Custom Tools   │     │ Transformers.js │     │  (Optional)     │
+│ Command System  │     │ Replicate API   │     │   Supabase      │
+│  Undo/Redo     │     │  AI Models      │     │  Auth/Data      │
 └─────────────────┘     └─────────────────┘     └─────────────────┘
 ```
+
+### Current Implementation
+- **Frontend**: Next.js 15 + React 19 + TypeScript
+- **Canvas**: Fabric.js v6 with 32+ professional tools
+- **AI Integration**: Replicate API for image generation, background removal, upscaling
+- **State Management**: Zustand stores with command pattern
+- **Architecture**: Tool adapters make any tool AI-compatible
+- **Database**: Supabase (PostgreSQL) for auth and data
 
 ## 💰 Business Model: Radically Fair
 
@@ -337,6 +336,100 @@ This isn't just software. It's a statement:
 - 🔌 [Build plugins](https://docs.fotofun.app/plugins)
 - 🌟 [Star the repo](https://github.com/yourusername/foto-fun)
 - 📢 [Spread the word](https://twitter.com/intent/tweet?text=Check%20out%20FotoFun%20-%20the%20open-source%20Photoshop%20alternative)
+
+## 👥 Contributors - Team ZAM
+
+### Mitch
+**GitHub:** [https://github.com/MitchForest](https://github.com/MitchForest)  
+**X:** [https://x.com/MitchForest](https://x.com/MitchForest)  
+
+### Andrew
+
+### Zaqir
+**GitHub:** [https://github.com/ZakirG](https://github.com/ZakirG)  
+**X:** [https://x.com/jaguarsoftio](https://x.com/jaguarsoftio)  
+
+
+
+---
+
+*Want to see your name here? [Contribute to FotoFun](https://github.com/yourusername/foto-fun/blob/main/CONTRIBUTING.md) and help us democratize creativity!*
+
+## 🛠️ How to Contribute
+
+**We absolutely love our open source community!** Every contribution, big or small, helps democratize creativity and makes professional photo editing accessible to everyone. Here's how you can get involved:
+
+### 🔑 Setting Up Your Development Environment
+
+#### 1. **Configure Your API Keys**
+FotoFun integrates with multiple AI services. Set up your `.env.local` file:
+
+```bash
+# Copy the example environment file
+cp .env.example .env.local
+
+# Add your API keys
+REPLICATE_API_TOKEN=your_replicate_token_here
+OPENAI_API_KEY=your_openai_key_here
+SUPABASE_URL=your_supabase_url
+SUPABASE_ANON_KEY=your_supabase_key
+```
+
+#### 2. **Get Your Replicate API Key**
+1. Sign up at [Replicate.com](https://replicate.com)
+2. Go to your [Account Settings](https://replicate.com/account/api-tokens)
+3. Create a new API token
+4. Add it to your `.env.local` file
+
+### 🚀 Adding Your Own Replicate Models
+
+#### **Quick Integration Guide**
+
+**Step 1: Add Your Model Endpoint**
+```typescript
+// In lib/ai/server/replicateClient.ts
+export const YOUR_MODEL_ENDPOINT = "your-username/your-model:version-hash";
+
+export async function runYourModel(input: YourInputType) {
+  return await replicate.run(YOUR_MODEL_ENDPOINT, { input });
+}
+```
+
+**Step 2: Create an API Route**
+```typescript
+// In app/api/ai/your-feature/route.ts
+import { runYourModel } from '@/lib/ai/server/replicateClient';
+
+export async function POST(request: Request) {
+  const { imageData, parameters } = await request.json();
+  
+  const result = await runYourModel({
+    image: imageData,
+    ...parameters
+  });
+  
+  return Response.json({ result });
+}
+```
+
+**Step 3: Add a Canvas Tool**
+```typescript
+// In lib/ai/tools/yourFeature.ts
+export class YourFeatureTool extends BaseTool {
+  async execute(params: YourParams) {
+    const response = await fetch('/api/ai/your-feature', {
+      method: 'POST',
+      body: JSON.stringify(params)
+    });
+    
+    return await response.json();
+  }
+}
+```
+
+---
+
+**Remember: Every line of code you contribute makes professional creativity more accessible to millions of people worldwide. That's the impact of open source!**
 
 ## 📜 License
 
