@@ -15,10 +15,14 @@ const REMOVE_BACKGROUND_MODEL_ID = 'bria/remove-background'
 
 export async function POST(req: NextRequest) {
   try {
+    console.log('[Remove Background API] ===== STARTING BACKGROUND REMOVAL PROCESS =====')
     console.log('[Remove Background API] Processing request...')
     
     // Parse and validate request body
     const body = await req.json()
+    console.log('[Remove Background API] Request body keys:', Object.keys(body))
+    console.log('[Remove Background API] Request body image field type:', typeof body.image)
+    
     const params = removeBackgroundSchema.parse(body)
     
     console.log('[Remove Background API] Validated params:', {
@@ -26,6 +30,9 @@ export async function POST(req: NextRequest) {
       imageUrlLength: params.image?.length,
       imageUrlPrefix: params.image?.substring(0, 50) + '...'
     })
+    
+    // ===== DETAILED IMAGE VALIDATION =====
+    console.log('[Remove Background API] ===== DETAILED IMAGE VALIDATION STARTS =====')
     
     // Additional validation for image format
     if (!params.image.startsWith('data:image/') && !params.image.startsWith('http')) {
@@ -38,8 +45,18 @@ export async function POST(req: NextRequest) {
     
     // Check if it's a data URL and validate format
     if (params.image.startsWith('data:image/')) {
+      console.log('[Remove Background API] Processing data URL image...')
+      
       const supportedFormats = ['data:image/png', 'data:image/jpeg', 'data:image/jpg']
       const isSupported = supportedFormats.some(format => params.image.startsWith(format))
+      
+      console.log('[Remove Background API] Image format check:', {
+        fullPrefix: params.image.substring(0, 20),
+        isPNG: params.image.startsWith('data:image/png'),
+        isJPEG: params.image.startsWith('data:image/jpeg'),
+        isJPG: params.image.startsWith('data:image/jpg'),
+        isSupported
+      })
       
       if (!isSupported) {
         console.error('[Remove Background API] Unsupported image format:', params.image.substring(0, 30))
@@ -51,6 +68,12 @@ export async function POST(req: NextRequest) {
       
       // Check if the data URL has valid base64 content
       const base64Index = params.image.indexOf(';base64,')
+      console.log('[Remove Background API] Base64 header check:', {
+        base64Index,
+        hasBase64Header: base64Index !== -1,
+        headerPortion: params.image.substring(0, base64Index + 10)
+      })
+      
       if (base64Index === -1) {
         console.error('[Remove Background API] Invalid data URL - missing base64 header')
         return NextResponse.json(
@@ -60,6 +83,13 @@ export async function POST(req: NextRequest) {
       }
       
       const base64Data = params.image.substring(base64Index + 8)
+      console.log('[Remove Background API] Base64 data analysis:', {
+        base64DataLength: base64Data.length,
+        base64DataPrefix: base64Data.substring(0, 50),
+        base64DataSuffix: base64Data.substring(base64Data.length - 50),
+        hasValidLength: base64Data.length >= 100
+      })
+      
       if (!base64Data || base64Data.length < 100) {
         console.error('[Remove Background API] Invalid data URL - insufficient data')
         return NextResponse.json(
@@ -69,6 +99,13 @@ export async function POST(req: NextRequest) {
       }
       
       // Check if image is too large (> 8MB base64)
+      const imageSizeMB = Math.round(base64Data.length / 1024 / 1024 * 100) / 100
+      console.log('[Remove Background API] Image size analysis:', {
+        base64Length: base64Data.length,
+        sizeMB: imageSizeMB,
+        isWithinLimit: base64Data.length <= 8_000_000
+      })
+      
       if (base64Data.length > 8_000_000) {
         console.error('[Remove Background API] Image too large:', base64Data.length)
         return NextResponse.json(
@@ -77,19 +114,116 @@ export async function POST(req: NextRequest) {
         )
       }
       
-      // Additional validation - test base64 decoding
+      // ===== COMPREHENSIVE BASE64 VALIDATION =====
+      console.log('[Remove Background API] ===== COMPREHENSIVE BASE64 VALIDATION =====')
+      
+      // Test base64 decoding in chunks
       try {
-        atob(base64Data.substring(0, 100)) // Test first 100 chars
+        console.log('[Remove Background API] Testing base64 decoding in chunks...')
+        
+        // Test first 100 characters
+        const firstChunk = base64Data.substring(0, 100)
+        const decodedFirst = atob(firstChunk)
+        console.log('[Remove Background API] First chunk decode successful:', decodedFirst.length, 'bytes')
+        
+        // Test middle chunk
+        const middleStart = Math.floor(base64Data.length / 2) - 50
+        const middleChunk = base64Data.substring(middleStart, middleStart + 100)
+        const decodedMiddle = atob(middleChunk)
+        console.log('[Remove Background API] Middle chunk decode successful:', decodedMiddle.length, 'bytes')
+        
+        // Test last chunk
+        const lastChunk = base64Data.substring(base64Data.length - 100)
+        const decodedLast = atob(lastChunk)
+        console.log('[Remove Background API] Last chunk decode successful:', decodedLast.length, 'bytes')
+        
+        // Test full decode (this might be expensive but necessary for validation)
+        console.log('[Remove Background API] Testing full base64 decode...')
+        const fullDecode = atob(base64Data)
+        console.log('[Remove Background API] Full decode successful:', fullDecode.length, 'bytes')
+        
+        // ===== BINARY DATA VALIDATION =====
+        console.log('[Remove Background API] ===== BINARY DATA VALIDATION =====')
+        
+        // Check file signature
+        const firstBytes = fullDecode.substring(0, 8)
+        const firstBytesHex = Array.from(firstBytes).map(c => c.charCodeAt(0).toString(16).padStart(2, '0')).join(' ')
+        console.log('[Remove Background API] First 8 bytes as hex:', firstBytesHex)
+        
+        // Check for PNG signature
+        const isPNGSignature = firstBytes.charCodeAt(0) === 0x89 && 
+                              firstBytes.charCodeAt(1) === 0x50 && 
+                              firstBytes.charCodeAt(2) === 0x4E && 
+                              firstBytes.charCodeAt(3) === 0x47 &&
+                              firstBytes.charCodeAt(4) === 0x0D &&
+                              firstBytes.charCodeAt(5) === 0x0A &&
+                              firstBytes.charCodeAt(6) === 0x1A &&
+                              firstBytes.charCodeAt(7) === 0x0A
+        
+        // Check for JPEG signature
+        const isJPEGSignature = firstBytes.charCodeAt(0) === 0xFF && 
+                               firstBytes.charCodeAt(1) === 0xD8 && 
+                               firstBytes.charCodeAt(2) === 0xFF
+        
+        console.log('[Remove Background API] File signature validation:', {
+          isPNGSignature,
+          isJPEGSignature,
+          hasValidSignature: isPNGSignature || isJPEGSignature
+        })
+        
+        if (!isPNGSignature && !isJPEGSignature) {
+          console.error('[Remove Background API] Invalid file signature - not a valid PNG or JPEG')
+          return NextResponse.json(
+            { error: 'Invalid image file format. The image data does not contain a valid PNG or JPEG signature.' },
+            { status: 400 }
+          )
+        }
+        
+        // Additional validation for PNG
+        if (isPNGSignature) {
+          console.log('[Remove Background API] PNG-specific validation...')
+          // Check for IHDR chunk (should be at bytes 8-21)
+          if (fullDecode.length > 21) {
+            const ihdrMarker = fullDecode.substring(8, 12)
+            console.log('[Remove Background API] IHDR marker:', ihdrMarker)
+            
+            if (ihdrMarker !== 'IHDR') {
+              console.warn('[Remove Background API] Warning: PNG missing IHDR chunk - might be corrupted')
+            }
+          }
+        }
+        
+        // Additional validation for JPEG
+        if (isJPEGSignature) {
+          console.log('[Remove Background API] JPEG-specific validation...')
+          // Check for JFIF or EXIF markers
+          const hasJFIF = fullDecode.includes('JFIF')
+          const hasEXIF = fullDecode.includes('Exif')
+          console.log('[Remove Background API] JPEG markers:', { hasJFIF, hasEXIF })
+        }
+        
+        console.log('[Remove Background API] ===== IMAGE VALIDATION COMPLETE - ALL CHECKS PASSED =====')
+        
       } catch (base64Error) {
-        console.error('[Remove Background API] Invalid base64 data:', base64Error)
+        console.error('[Remove Background API] Base64 validation failed:', base64Error)
+        console.error('[Remove Background API] Base64 error details:', {
+          error: base64Error instanceof Error ? base64Error.message : String(base64Error),
+          base64Length: base64Data.length,
+          base64Sample: base64Data.substring(0, 100)
+        })
         return NextResponse.json(
-          { error: 'Invalid base64 image data.' },
+          { error: 'Invalid base64 image data - corrupted or malformed.' },
           { status: 400 }
         )
       }
       
       console.log('[Remove Background API] Image format validation passed')
+    } else {
+      console.log('[Remove Background API] Processing HTTP URL image:', params.image)
     }
+    
+    // ===== PREPARE REPLICATE INPUT =====
+    console.log('[Remove Background API] ===== PREPARING REPLICATE INPUT =====')
     
     // Prepare input for Replicate API with Bria remove-background parameters
     const replicateInput = {
@@ -99,15 +233,36 @@ export async function POST(req: NextRequest) {
     console.log('[Remove Background API] Sending to Bria remove-background:', {
       model: REMOVE_BACKGROUND_MODEL_ID,
       imageType: params.image.startsWith('data:') ? 'data_url' : 'url',
-      imageSize: params.image.length
+      imageSize: params.image.length,
+      inputKeys: Object.keys(replicateInput),
+      inputImageType: typeof replicateInput.image,
+      inputImagePrefix: replicateInput.image.substring(0, 50) + '...'
+    })
+    
+    // ===== ADDITIONAL DEBUGGING FOR REPLICATE =====
+    console.log('[Remove Background API] ===== ADDITIONAL DEBUGGING FOR REPLICATE =====')
+    console.log('[Remove Background API] About to call serverReplicateClient.run with:', {
+      modelId: REMOVE_BACKGROUND_MODEL_ID,
+      inputType: typeof replicateInput,
+      inputKeys: Object.keys(replicateInput),
+      imageField: {
+        type: typeof replicateInput.image,
+        length: replicateInput.image?.length,
+        startsWithData: replicateInput.image?.startsWith('data:'),
+        format: replicateInput.image?.substring(0, 30)
+      }
     })
     
     // Call Replicate API through server client
     const startTime = Date.now()
+    console.log('[Remove Background API] Calling serverReplicateClient.run at:', new Date().toISOString())
+    
     const output = await serverReplicateClient.run(REMOVE_BACKGROUND_MODEL_ID, {
       input: replicateInput
     })
+    
     const processingTime = Date.now() - startTime
+    console.log('[Remove Background API] serverReplicateClient.run completed in:', processingTime, 'ms')
     
     console.log('[Remove Background API] Background removal completed in', processingTime, 'ms')
     console.log('[Remove Background API] Raw output type:', typeof output)
@@ -171,6 +326,8 @@ export async function POST(req: NextRequest) {
       )
     }
     
+    console.log('[Remove Background API] ===== BACKGROUND REMOVAL COMPLETED SUCCESSFULLY =====')
+    
     // Return success response
     return NextResponse.json({
       success: true,
@@ -186,10 +343,19 @@ export async function POST(req: NextRequest) {
     })
     
   } catch (error) {
+    console.error('[Remove Background API] ===== ERROR OCCURRED =====')
     console.error('[Remove Background API] Error:', error)
+    console.error('[Remove Background API] Error type:', typeof error)
+    console.error('[Remove Background API] Error constructor:', error?.constructor?.name)
+    
+    if (error instanceof Error) {
+      console.error('[Remove Background API] Error message:', error.message)
+      console.error('[Remove Background API] Error stack:', error.stack)
+    }
     
     // Handle validation errors
     if (error instanceof z.ZodError) {
+      console.error('[Remove Background API] Zod validation error:', error.errors)
       return NextResponse.json(
         { 
           error: 'Invalid parameters', 
@@ -202,12 +368,23 @@ export async function POST(req: NextRequest) {
     // Handle specific Replicate errors
     if (error instanceof Error) {
       const errorMessage = error.message.toLowerCase()
+      console.error('[Remove Background API] Processing error message:', errorMessage)
       
       if (errorMessage.includes('cannot identify image file')) {
+        console.error('[Remove Background API] Image identification error - possible causes:')
+        console.error('[Remove Background API] 1. Corrupted image data')
+        console.error('[Remove Background API] 2. Unsupported image format')
+        console.error('[Remove Background API] 3. Invalid base64 encoding')
+        console.error('[Remove Background API] 4. Model-specific format requirements')
+        
         return NextResponse.json(
           { 
-            error: 'Invalid image format or corrupted image data. Please try with a different image or re-upload the image.',
-            details: 'The AI model could not process the image format.'
+            error: 'The AI model could not identify the image format. This could be due to corrupted image data, unsupported format, or encoding issues.',
+            details: 'Please try re-uploading the image, converting to PNG format, or using a different image.',
+            debugInfo: {
+              originalError: error.message,
+              suggestion: 'Try saving the image as PNG and re-uploading'
+            }
           },
           { status: 400 }
         )
@@ -235,7 +412,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       { 
         error: 'Background removal failed', 
-        message: error instanceof Error ? error.message : 'Unknown error' 
+        message: error instanceof Error ? error.message : 'Unknown error',
+        debugInfo: {
+          errorType: typeof error,
+          errorConstructor: error?.constructor?.name,
+          timestamp: new Date().toISOString()
+        }
       },
       { status: 500 }
     )

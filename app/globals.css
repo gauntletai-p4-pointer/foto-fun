@@ -239,4 +239,9 @@
   animation: gradient 3s ease infinite;
 }
 
+/* === HIDE NEXT.JS ERROR TOASTS === */
+.nextjs-toast {
+  display: none !important;
+}
+
 

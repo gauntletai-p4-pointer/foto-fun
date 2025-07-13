@@ -298,7 +298,7 @@ The user will then be shown a review modal to compare the original and processed
       // Use the first target image
       const imageObj = targetImages[0] as unknown as Record<string, unknown>
       
-      // Validate the image object
+      // Validate the image object before attempting exports
       if (!imageObj) {
         console.error('[BackgroundRemovalAdapter] Target image object is null or undefined')
         return null
@@ -313,6 +313,88 @@ The user will then be shown a review modal to compare the original and processed
         scaleY: imageObj.scaleY,
         hasToDataURL: typeof imageObj.toDataURL === 'function'
       })
+      
+      // Early detection of corrupted image objects (common after upscaling)
+      let isImageCorrupted = false
+      try {
+        // Test if the image object has the necessary internal properties
+        const testProps = (imageObj as any)._originalElement || (imageObj as any)._element
+        if (!testProps) {
+          console.warn('[BackgroundRemovalAdapter] Image object appears corrupted - missing internal element references')
+          isImageCorrupted = true
+        }
+        
+        // Test if toDataURL will work by checking for required internal methods
+        if (typeof imageObj.toDataURL === 'function') {
+          const hasCanvasElement = (imageObj as any).toCanvasElement || (imageObj as any)._createCanvasElement
+          if (!hasCanvasElement) {
+            console.warn('[BackgroundRemovalAdapter] Image object missing canvas element methods - likely corrupted')
+            isImageCorrupted = true
+          }
+        } else {
+          console.warn('[BackgroundRemovalAdapter] Image object missing toDataURL method')
+          isImageCorrupted = true
+        }
+      } catch (validationError) {
+        console.warn('[BackgroundRemovalAdapter] Error validating image object:', validationError)
+        isImageCorrupted = true
+      }
+      
+      if (isImageCorrupted) {
+        console.log('[BackgroundRemovalAdapter] Image object is corrupted, skipping individual export strategies and using canvas fallback')
+        
+        // Skip all individual export strategies and go straight to canvas fallback
+        const canvasContext = CanvasToolBridge.getCanvasContext()
+        if (canvasContext && canvasContext.canvas) {
+          console.log('[BackgroundRemovalAdapter] Using canvas fallback for corrupted image object')
+          
+          // Try high-quality PNG first
+          let canvasDataURL = await CanvasToolBridge.getCleanCanvasImage(canvasContext.canvas, {
+            format: 'png',
+            quality: 1.0,
+            multiplier: 1.0
+          })
+          
+                     if (canvasDataURL && this.isValidImageDataUrl(canvasDataURL)) {
+             console.log('[BackgroundRemovalAdapter] Canvas PNG fallback successful:', {
+               length: canvasDataURL.length,
+               sizeMB: Math.round(canvasDataURL.length / 1024 / 1024 * 100) / 100
+             })
+             
+             // Additional processing to improve Bria model compatibility
+             const optimizedURL = await this.optimizeImageForBriaModel(canvasDataURL)
+             
+             if (optimizedURL) {
+               return optimizedURL
+             }
+           }
+          
+          // If PNG fails, try JPEG
+          console.log('[BackgroundRemovalAdapter] PNG canvas fallback failed, trying JPEG')
+          canvasDataURL = await CanvasToolBridge.getCleanCanvasImage(canvasContext.canvas, {
+            format: 'jpeg',
+            quality: 0.95,
+            multiplier: 1.0
+          })
+          
+                     if (canvasDataURL && this.isValidImageDataUrl(canvasDataURL)) {
+             console.log('[BackgroundRemovalAdapter] Canvas JPEG fallback successful:', {
+               length: canvasDataURL.length,
+               sizeMB: Math.round(canvasDataURL.length / 1024 / 1024 * 100) / 100
+             })
+             
+             // Additional processing to improve Bria model compatibility
+             const optimizedURL = await this.optimizeImageForBriaModel(canvasDataURL)
+             
+             if (optimizedURL) {
+               return optimizedURL
+             }
+           }
+        }
+        
+        console.error('[BackgroundRemovalAdapter] All canvas fallback strategies failed for corrupted image')
+        return null
+      }
       
       // Get image dimensions for processing decisions
       const imageWidth = (imageObj.width as number) || 0
@@ -333,6 +415,45 @@ The user will then be shown a review modal to compare the original and processed
         } catch (getSrcError) {
           console.warn('[BackgroundRemovalAdapter] getSrc() failed, will use toDataURL instead:', getSrcError)
           originalUrl = null
+        }
+      }
+      
+      // For non-corrupted images, try original URL if it's valid
+      if (originalUrl && originalUrl.startsWith('data:image/') && this.isValidImageDataUrl(originalUrl)) {
+        console.log('[BackgroundRemovalAdapter] Using original image URL directly')
+        console.log('[BackgroundRemovalAdapter] Original URL validation:', {
+          length: originalUrl.length,
+          format: originalUrl.substring(0, 30),
+          hasBase64: originalUrl.includes(';base64,'),
+          base64Length: originalUrl.split(';base64,')[1]?.length || 0
+        })
+        
+        // Additional validation before using original URL
+        try {
+          const base64Data = originalUrl.split(';base64,')[1]
+          if (base64Data && base64Data.length > 100) {
+            // Test decode first 100 chars
+            const testDecode = atob(base64Data.substring(0, 100))
+            console.log('[BackgroundRemovalAdapter] Original URL base64 test decode successful:', testDecode.length, 'bytes')
+            
+            // Check file signature
+            const firstBytes = testDecode.substring(0, 8)
+            const isPNG = firstBytes.charCodeAt(0) === 0x89 && firstBytes.charCodeAt(1) === 0x50
+            const isJPEG = firstBytes.charCodeAt(0) === 0xFF && firstBytes.charCodeAt(1) === 0xD8
+            console.log('[BackgroundRemovalAdapter] Original URL file signature check:', { isPNG, isJPEG })
+            
+            if (isPNG || isJPEG) {
+              console.log('[BackgroundRemovalAdapter] Original URL has valid signature, optimizing for Bria model')
+              const optimizedUrl = await this.optimizeImageForBriaModel(originalUrl)
+              if (optimizedUrl) {
+                return optimizedUrl
+              }
+            } else {
+              console.log('[BackgroundRemovalAdapter] Original URL has invalid signature, will re-export')
+            }
+          }
+        } catch (originalUrlError) {
+          console.warn('[BackgroundRemovalAdapter] Original URL validation failed:', originalUrlError)
         }
       }
       
@@ -359,36 +480,85 @@ The user will then be shown a review modal to compare the original and processed
       // If we have originalUrl and it's a data URL, we might be able to use it directly
       if (originalUrl && originalUrl.startsWith('data:image/') && this.isValidImageDataUrl(originalUrl)) {
         console.log('[BackgroundRemovalAdapter] Using original image URL directly')
-        return originalUrl
+        console.log('[BackgroundRemovalAdapter] Original URL validation:', {
+          length: originalUrl.length,
+          format: originalUrl.substring(0, 30),
+          hasBase64: originalUrl.includes(';base64,'),
+          base64Length: originalUrl.split(';base64,')[1]?.length || 0
+        })
+        
+        // Additional validation before using original URL
+        try {
+          const base64Data = originalUrl.split(';base64,')[1]
+          if (base64Data && base64Data.length > 100) {
+            // Test decode first 100 chars
+            const testDecode = atob(base64Data.substring(0, 100))
+            console.log('[BackgroundRemovalAdapter] Original URL base64 test decode successful:', testDecode.length, 'bytes')
+            
+            // Check file signature
+            const firstBytes = testDecode.substring(0, 8)
+            const isPNG = firstBytes.charCodeAt(0) === 0x89 && firstBytes.charCodeAt(1) === 0x50
+            const isJPEG = firstBytes.charCodeAt(0) === 0xFF && firstBytes.charCodeAt(1) === 0xD8
+            console.log('[BackgroundRemovalAdapter] Original URL file signature check:', { isPNG, isJPEG })
+            
+            if (isPNG || isJPEG) {
+              console.log('[BackgroundRemovalAdapter] Original URL has valid signature, using it')
+              return originalUrl
+            } else {
+              console.log('[BackgroundRemovalAdapter] Original URL has invalid signature, will re-export')
+            }
+          }
+        } catch (originalUrlError) {
+          console.warn('[BackgroundRemovalAdapter] Original URL validation failed:', originalUrlError)
+        }
       }
       
-      // Try multiple export strategies - optimized for Bria model compatibility
+      // Export strategies - start with most compatible formats for Bria model
       const exportStrategies = [
-        { format: 'jpeg', quality: 0.95, multiplier: exportMultiplier * 0.8, description: 'JPEG high quality (Bria optimized)' },
-        { format: 'jpeg', quality: 0.85, multiplier: exportMultiplier * 0.6, description: 'JPEG medium quality (Bria optimized)' },
-        { format: 'png', quality: 1.0, multiplier: exportMultiplier * 0.5, description: 'PNG smaller size (Bria optimized)' },
-        { format: 'jpeg', quality: 0.75, multiplier: exportMultiplier * 0.4, description: 'JPEG lower quality (Bria optimized)' },
-        { format: 'png', quality: 1.0, multiplier: exportMultiplier * 0.3, description: 'PNG very small (Bria optimized)' },
-        // Conservative fallback strategies
-        { format: 'jpeg', quality: 0.6, multiplier: 0.25, description: 'JPEG ultra-conservative (fallback)' },
-        { format: 'png', quality: 1.0, multiplier: 0.2, description: 'PNG ultra-conservative (fallback)' },
-        { format: 'jpeg', quality: 0.5, multiplier: 0.15, description: 'JPEG minimal quality (last resort)' }
+        { format: 'png', quality: 1.0, multiplier: exportMultiplier, description: 'High quality PNG' },
+        { format: 'png', quality: 0.9, multiplier: exportMultiplier, description: 'Good quality PNG' },
+        { format: 'jpeg', quality: 0.95, multiplier: exportMultiplier, description: 'High quality JPEG' },
+        { format: 'jpeg', quality: 0.85, multiplier: exportMultiplier, description: 'Good quality JPEG' },
+        { format: 'png', quality: 1.0, multiplier: exportMultiplier * 0.8, description: 'Smaller PNG' },
+        { format: 'jpeg', quality: 0.8, multiplier: exportMultiplier * 0.8, description: 'Smaller JPEG' },
+        { format: 'png', quality: 0.8, multiplier: exportMultiplier * 0.6, description: 'Compressed PNG' },
+        { format: 'jpeg', quality: 0.7, multiplier: exportMultiplier * 0.6, description: 'Compressed JPEG' }
       ]
+      
+      console.log('[BackgroundRemovalAdapter] ===== STARTING EXPORT STRATEGIES =====')
+      console.log('[BackgroundRemovalAdapter] Will try', exportStrategies.length, 'export strategies')
       
       for (const strategy of exportStrategies) {
         try {
-          console.log(`[BackgroundRemovalAdapter] Trying export strategy: ${strategy.description}`)
+          console.log(`[BackgroundRemovalAdapter] ===== TRYING EXPORT STRATEGY: ${strategy.description} =====`)
+          console.log(`[BackgroundRemovalAdapter] Strategy parameters:`, {
+            format: strategy.format,
+            quality: strategy.quality,
+            multiplier: strategy.multiplier,
+            expectedDimensions: {
+              width: Math.round(actualWidth * strategy.multiplier),
+              height: Math.round(actualHeight * strategy.multiplier)
+            }
+          })
           
           // Add timeout to prevent hanging
           const exportPromise = new Promise<string>((resolve, reject) => {
             try {
+              console.log(`[BackgroundRemovalAdapter] Calling toDataURL with strategy: ${strategy.description}`)
+              const startTime = Date.now()
+              
               const imageUrl = toDataURL({
                 format: strategy.format as 'png' | 'jpeg',
                 quality: strategy.quality,
                 multiplier: strategy.multiplier
               })
+              
+              const exportTime = Date.now() - startTime
+              console.log(`[BackgroundRemovalAdapter] toDataURL completed in ${exportTime}ms for strategy: ${strategy.description}`)
+              
               resolve(imageUrl)
             } catch (error) {
+              console.error(`[BackgroundRemovalAdapter] toDataURL failed for strategy ${strategy.description}:`, error)
               reject(error)
             }
           })
@@ -399,10 +569,14 @@ The user will then be shown a review modal to compare the original and processed
           
           const imageUrl = await Promise.race([exportPromise, timeoutPromise])
           
-          console.log(`[BackgroundRemovalAdapter] Export result: ${imageUrl?.length || 0} characters`)
+          console.log(`[BackgroundRemovalAdapter] Export result for ${strategy.description}:`, {
+            success: !!imageUrl,
+            length: imageUrl?.length || 0,
+            format: imageUrl?.substring(0, 30) || 'N/A'
+          })
           
           if (!imageUrl) {
-            console.warn(`[BackgroundRemovalAdapter] Export failed for ${strategy.description}`)
+            console.warn(`[BackgroundRemovalAdapter] Export failed for ${strategy.description} - no URL returned`)
             continue
           }
           
@@ -414,7 +588,7 @@ The user will then be shown a review modal to compare the original and processed
           
           // Check size limits
           if (imageUrl.length > 8_000_000) { // 8MB limit
-            console.log(`[BackgroundRemovalAdapter] Image too large (${imageUrl.length}), trying next strategy`)
+            console.log(`[BackgroundRemovalAdapter] Image too large (${imageUrl.length} chars, ~${Math.round(imageUrl.length/1024/1024*100)/100}MB), trying next strategy`)
             continue
           }
           
@@ -423,6 +597,9 @@ The user will then be shown a review modal to compare the original and processed
             console.log(`[BackgroundRemovalAdapter] Invalid format for ${strategy.description}, trying next strategy`)
             continue
           }
+          
+          // ===== COMPREHENSIVE VALIDATION BEFORE USING =====
+          console.log(`[BackgroundRemovalAdapter] ===== COMPREHENSIVE VALIDATION FOR ${strategy.description} =====`)
           
           // Additional validation: try to load the image in the browser to ensure it's actually valid
           const isActuallyValid = await this.validateImageCanLoad(imageUrl)
@@ -435,21 +612,57 @@ The user will then be shown a review modal to compare the original and processed
           try {
             const base64Index = imageUrl.indexOf(';base64,')
             if (base64Index !== -1) {
+              const mimeType = imageUrl.substring(0, base64Index)
               const base64Data = imageUrl.substring(base64Index + 8)
-              // Try to decode the entire base64 string to verify it's valid
-              const decodedData = atob(base64Data)
-              console.log(`[BackgroundRemovalAdapter] Base64 validation passed for ${strategy.description}`)
-              console.log(`[BackgroundRemovalAdapter] Decoded size: ${decodedData.length} bytes`)
               
-              // Additional validation - check if it starts with image file signatures
-              const firstBytes = decodedData.substring(0, 8)
-              const isPNG = firstBytes.startsWith('\x89PNG\r\n\x1a\n')
-              const isJPEG = firstBytes.startsWith('\xff\xd8\xff')
-              console.log(`[BackgroundRemovalAdapter] Image format validation: PNG=${isPNG}, JPEG=${isJPEG}`)
+              console.log(`[BackgroundRemovalAdapter] Final validation for ${strategy.description}:`, {
+                mimeType,
+                base64Length: base64Data.length,
+                base64SizeMB: Math.round(base64Data.length / 1024 / 1024 * 100) / 100
+              })
+              
+              // Try to decode the first chunk to verify it's valid
+              const firstChunk = base64Data.substring(0, 100)
+              const decodedFirst = atob(firstChunk)
+              console.log(`[BackgroundRemovalAdapter] First chunk decode test for ${strategy.description}:`, decodedFirst.length, 'bytes')
+              
+              // Try to decode the full base64 in chunks to avoid memory issues
+              let totalDecodedSize = 0
+              const chunkSize = 1000
+              for (let i = 0; i < base64Data.length; i += chunkSize) {
+                const chunk = base64Data.substring(i, i + chunkSize)
+                const decodedChunk = atob(chunk)
+                totalDecodedSize += decodedChunk.length
+              }
+              console.log(`[BackgroundRemovalAdapter] Full base64 validation for ${strategy.description}: ${totalDecodedSize} bytes decoded`)
+              
+              // Check if it starts with image file signatures
+              const fullFirstChunk = atob(base64Data.substring(0, 100))
+              const firstBytes = fullFirstChunk.substring(0, 8)
+              const isPNG = firstBytes.charCodeAt(0) === 0x89 && firstBytes.charCodeAt(1) === 0x50 && firstBytes.charCodeAt(2) === 0x4E && firstBytes.charCodeAt(3) === 0x47
+              const isJPEG = firstBytes.charCodeAt(0) === 0xFF && firstBytes.charCodeAt(1) === 0xD8 && firstBytes.charCodeAt(2) === 0xFF
+              
+              console.log(`[BackgroundRemovalAdapter] File signature validation for ${strategy.description}:`, { isPNG, isJPEG })
               
               if (!isPNG && !isJPEG) {
                 console.warn(`[BackgroundRemovalAdapter] Invalid image format signature for ${strategy.description}`)
                 continue
+              }
+              
+              // Additional format-specific validation
+              if (isPNG) {
+                console.log(`[BackgroundRemovalAdapter] PNG-specific validation for ${strategy.description}`)
+                if (fullFirstChunk.length > 12) {
+                  const ihdrCheck = fullFirstChunk.substring(8, 12)
+                  console.log(`[BackgroundRemovalAdapter] PNG IHDR check:`, ihdrCheck === 'IHDR' ? 'VALID' : 'INVALID')
+                }
+              }
+              
+              if (isJPEG) {
+                console.log(`[BackgroundRemovalAdapter] JPEG-specific validation for ${strategy.description}`)
+                // Check for JFIF marker
+                const hasJFIF = base64Data.includes('JFIF')
+                console.log(`[BackgroundRemovalAdapter] JPEG JFIF marker:`, hasJFIF ? 'PRESENT' : 'MISSING')
               }
             }
           } catch (base64Error) {
@@ -457,8 +670,14 @@ The user will then be shown a review modal to compare the original and processed
             continue
           }
           
+          console.log(`[BackgroundRemovalAdapter] ===== ${strategy.description} PASSED ALL VALIDATIONS =====`)
           console.log(`[BackgroundRemovalAdapter] Successfully processed image using ${strategy.description}`)
-          console.log(`[BackgroundRemovalAdapter] Final image: ${imageUrl.substring(0, 50)}... (${imageUrl.length} chars)`)
+          console.log(`[BackgroundRemovalAdapter] Final image details:`, {
+            format: imageUrl.substring(0, 30),
+            length: imageUrl.length,
+            sizeMB: Math.round(imageUrl.length / 1024 / 1024 * 100) / 100,
+            strategy: strategy.description
+          })
           
           return imageUrl
           
@@ -466,8 +685,10 @@ The user will then be shown a review modal to compare the original and processed
           console.warn(`[BackgroundRemovalAdapter] Export error for ${strategy.description}:`, exportError)
           // Log more details about the error
           if (exportError instanceof Error) {
-            console.warn(`[BackgroundRemovalAdapter] Error details: ${exportError.message}`)
-            console.warn(`[BackgroundRemovalAdapter] Error stack: ${exportError.stack}`)
+            console.warn(`[BackgroundRemovalAdapter] Error details for ${strategy.description}:`, {
+              message: exportError.message,
+              stack: exportError.stack?.substring(0, 200) + '...'
+            })
           }
           continue
         }
@@ -480,19 +701,87 @@ The user will then be shown a review modal to compare the original and processed
         const canvasContext = CanvasToolBridge.getCanvasContext()
         if (canvasContext && canvasContext.canvas) {
           console.log('[BackgroundRemovalAdapter] Trying canvas-level export as fallback')
+          
+          // Use high quality settings for canvas fallback to maintain image quality
           const canvasDataURL = await CanvasToolBridge.getCleanCanvasImage(canvasContext.canvas, {
             format: 'png',
-            quality: 1,
-            multiplier: 0.5 // Smaller size for better compatibility
+            quality: 1.0, // Maximum quality for PNG
+            multiplier: 1.0 // Full resolution to maintain quality after upscaling
           })
           
           if (canvasDataURL && this.isValidImageDataUrl(canvasDataURL)) {
-            console.log('[BackgroundRemovalAdapter] Canvas fallback successful')
-            return canvasDataURL
+            console.log('[BackgroundRemovalAdapter] Canvas fallback successful - high quality')
+            console.log('[BackgroundRemovalAdapter] Canvas fallback details:', {
+              format: canvasDataURL.substring(0, 30),
+              length: canvasDataURL.length,
+              sizeMB: Math.round(canvasDataURL.length / 1024 / 1024 * 100) / 100
+            })
+            
+            // Validate the canvas export quality
+            const base64Data = canvasDataURL.split(';base64,')[1]
+            if (base64Data && base64Data.length > 100) {
+              try {
+                const testDecode = atob(base64Data.substring(0, 100))
+                const firstBytes = testDecode.substring(0, 8)
+                const isPNG = firstBytes.charCodeAt(0) === 0x89 && firstBytes.charCodeAt(1) === 0x50
+                console.log('[BackgroundRemovalAdapter] Canvas fallback format validation:', { isPNG })
+                
+                if (isPNG) {
+                  return canvasDataURL
+                }
+              } catch (validationError) {
+                console.warn('[BackgroundRemovalAdapter] Canvas fallback validation failed:', validationError)
+              }
+            }
+          }
+          
+          // If PNG fallback fails, try JPEG as a last resort
+          console.log('[BackgroundRemovalAdapter] PNG canvas fallback failed, trying JPEG fallback')
+          const jpegCanvasDataURL = await CanvasToolBridge.getCleanCanvasImage(canvasContext.canvas, {
+            format: 'jpeg',
+            quality: 0.95, // High quality JPEG
+            multiplier: 1.0 // Full resolution
+          })
+          
+          if (jpegCanvasDataURL && this.isValidImageDataUrl(jpegCanvasDataURL)) {
+            console.log('[BackgroundRemovalAdapter] JPEG canvas fallback successful - high quality')
+            console.log('[BackgroundRemovalAdapter] JPEG canvas fallback details:', {
+              format: jpegCanvasDataURL.substring(0, 30),
+              length: jpegCanvasDataURL.length,
+              sizeMB: Math.round(jpegCanvasDataURL.length / 1024 / 1024 * 100) / 100
+            })
+            return jpegCanvasDataURL
           }
         }
       } catch (canvasError) {
         console.warn('[BackgroundRemovalAdapter] Canvas fallback also failed:', canvasError)
+      }
+      
+      // If even the canvas fallback fails, try a direct canvas export
+      console.log('[BackgroundRemovalAdapter] All fallbacks failed, trying direct canvas export')
+      try {
+        const canvasContext = CanvasToolBridge.getCanvasContext()
+        if (canvasContext && canvasContext.canvas) {
+          const canvas = canvasContext.canvas
+          
+          // Try direct canvas toDataURL
+          const directDataURL = canvas.toDataURL({
+            format: 'png',
+            quality: 1.0,
+            multiplier: 1.0
+          })
+          if (directDataURL && this.isValidImageDataUrl(directDataURL)) {
+            console.log('[BackgroundRemovalAdapter] Direct canvas export successful')
+            console.log('[BackgroundRemovalAdapter] Direct canvas export details:', {
+              format: directDataURL.substring(0, 30),
+              length: directDataURL.length,
+              sizeMB: Math.round(directDataURL.length / 1024 / 1024 * 100) / 100
+            })
+            return directDataURL
+          }
+        }
+      } catch (directError) {
+        console.warn('[BackgroundRemovalAdapter] Direct canvas export failed:', directError)
       }
       
       console.error('[BackgroundRemovalAdapter] All export strategies and fallbacks failed')
@@ -501,6 +790,182 @@ The user will then be shown a review modal to compare the original and processed
     } catch (error) {
       console.error('[BackgroundRemovalAdapter] Error getting image from target images:', error)
       return null
+    }
+  }
+  
+  /**
+   * Optimize image data for better compatibility with Bria model
+   */
+  private async optimizeImageForBriaModel(imageDataUrl: string): Promise<string | null> {
+    try {
+      console.log('[BackgroundRemovalAdapter] Optimizing image for Bria model compatibility')
+      
+      // Check if optimization is needed
+      if (!imageDataUrl || !imageDataUrl.startsWith('data:image/')) {
+        console.warn('[BackgroundRemovalAdapter] Invalid image data URL for optimization')
+        return null
+      }
+      
+      const base64Data = imageDataUrl.split(';base64,')[1]
+      if (!base64Data || base64Data.length === 0) {
+        console.warn('[BackgroundRemovalAdapter] No base64 data found for optimization')
+        return null
+      }
+      
+      // Check current format and size
+      const currentSizeMB = Math.round(base64Data.length / 1024 / 1024 * 100) / 100
+      const isPNG = imageDataUrl.startsWith('data:image/png')
+      const isJPEG = imageDataUrl.startsWith('data:image/jpeg')
+      
+      console.log('[BackgroundRemovalAdapter] Current image stats:', {
+        format: isPNG ? 'PNG' : isJPEG ? 'JPEG' : 'OTHER',
+        sizeMB: currentSizeMB,
+        base64Length: base64Data.length
+      })
+      
+      // If image is too large (>4MB), we need to compress it
+      if (currentSizeMB > 4) {
+        console.log('[BackgroundRemovalAdapter] Image too large, attempting compression')
+        
+        try {
+          // Create an image element to load and reprocess the image
+          const img = new Image()
+          img.crossOrigin = 'anonymous'
+          
+          await new Promise((resolve, reject) => {
+            img.onload = resolve
+            img.onerror = reject
+            img.src = imageDataUrl
+          })
+          
+          console.log('[BackgroundRemovalAdapter] Image loaded for optimization:', {
+            width: img.width,
+            height: img.height,
+            naturalWidth: img.naturalWidth,
+            naturalHeight: img.naturalHeight
+          })
+          
+          // Create a canvas to reprocess the image
+          const canvas = document.createElement('canvas')
+          const ctx = canvas.getContext('2d')
+          
+          if (!ctx) {
+            console.error('[BackgroundRemovalAdapter] Cannot get canvas context for optimization')
+            return imageDataUrl // Return original if we can't optimize
+          }
+          
+          // Calculate optimal dimensions (max 2048x2048 for Bria)
+          const maxDimension = 2048
+          let { width, height } = img
+          
+          if (width > maxDimension || height > maxDimension) {
+            const scale = Math.min(maxDimension / width, maxDimension / height)
+            width = Math.round(width * scale)
+            height = Math.round(height * scale)
+            console.log('[BackgroundRemovalAdapter] Resizing for optimization:', { width, height, scale })
+          }
+          
+          canvas.width = width
+          canvas.height = height
+          
+          // Draw the image with high quality
+          ctx.imageSmoothingEnabled = true
+          ctx.imageSmoothingQuality = 'high'
+          ctx.drawImage(img, 0, 0, width, height)
+          
+          // Try PNG first (lossless, good for background removal)
+          let optimizedDataUrl = canvas.toDataURL('image/png', 1.0)
+          let optimizedSizeMB = Math.round(optimizedDataUrl.split(';base64,')[1].length / 1024 / 1024 * 100) / 100
+          
+          console.log('[BackgroundRemovalAdapter] PNG optimization result:', {
+            sizeMB: optimizedSizeMB,
+            reduction: Math.round((currentSizeMB - optimizedSizeMB) / currentSizeMB * 100)
+          })
+          
+          // If PNG is still too large, try high-quality JPEG
+          if (optimizedSizeMB > 4) {
+            console.log('[BackgroundRemovalAdapter] PNG still too large, trying JPEG')
+            optimizedDataUrl = canvas.toDataURL('image/jpeg', 0.92)
+            optimizedSizeMB = Math.round(optimizedDataUrl.split(';base64,')[1].length / 1024 / 1024 * 100) / 100
+            
+            console.log('[BackgroundRemovalAdapter] JPEG optimization result:', {
+              sizeMB: optimizedSizeMB,
+              reduction: Math.round((currentSizeMB - optimizedSizeMB) / currentSizeMB * 100)
+            })
+          }
+          
+          // If still too large, try more aggressive JPEG compression
+          if (optimizedSizeMB > 4) {
+            console.log('[BackgroundRemovalAdapter] Still too large, trying aggressive JPEG compression')
+            optimizedDataUrl = canvas.toDataURL('image/jpeg', 0.8)
+            optimizedSizeMB = Math.round(optimizedDataUrl.split(';base64,')[1].length / 1024 / 1024 * 100) / 100
+            
+            console.log('[BackgroundRemovalAdapter] Aggressive JPEG result:', {
+              sizeMB: optimizedSizeMB,
+              reduction: Math.round((currentSizeMB - optimizedSizeMB) / currentSizeMB * 100)
+            })
+          }
+          
+          // Validate the optimized result
+          if (this.isValidImageDataUrl(optimizedDataUrl)) {
+            console.log('[BackgroundRemovalAdapter] Image optimization successful')
+            return optimizedDataUrl
+          } else {
+            console.warn('[BackgroundRemovalAdapter] Optimization produced invalid result, using original')
+            return imageDataUrl
+          }
+          
+        } catch (optimizationError) {
+          console.error('[BackgroundRemovalAdapter] Error during image optimization:', optimizationError)
+          // Return original if optimization fails
+          return imageDataUrl
+        }
+      }
+      
+      // If image size is acceptable, just validate format compatibility
+      if (isPNG || isJPEG) {
+        console.log('[BackgroundRemovalAdapter] Image size acceptable, no optimization needed')
+        return imageDataUrl
+      }
+      
+      // If format is not PNG or JPEG, convert to PNG
+      console.log('[BackgroundRemovalAdapter] Converting unsupported format to PNG')
+      try {
+        const img = new Image()
+        img.crossOrigin = 'anonymous'
+        
+        await new Promise((resolve, reject) => {
+          img.onload = resolve
+          img.onerror = reject
+          img.src = imageDataUrl
+        })
+        
+        const canvas = document.createElement('canvas')
+        const ctx = canvas.getContext('2d')
+        
+        if (ctx) {
+          canvas.width = img.width
+          canvas.height = img.height
+          ctx.drawImage(img, 0, 0)
+          
+          const pngDataUrl = canvas.toDataURL('image/png', 1.0)
+          
+          if (this.isValidImageDataUrl(pngDataUrl)) {
+            console.log('[BackgroundRemovalAdapter] Format conversion successful')
+            return pngDataUrl
+          }
+        }
+      } catch (conversionError) {
+        console.error('[BackgroundRemovalAdapter] Error during format conversion:', conversionError)
+      }
+      
+      // Return original if all optimization attempts fail
+      console.log('[BackgroundRemovalAdapter] Using original image without optimization')
+      return imageDataUrl
+      
+    } catch (error) {
+      console.error('[BackgroundRemovalAdapter] Error in optimizeImageForBriaModel:', error)
+      return imageDataUrl // Return original on any error
     }
   }
   

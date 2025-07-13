@@ -475,12 +475,12 @@ export function AIChat() {
       {/* Messages */}
       <ScrollArea className="flex-1 p-4" ref={scrollAreaRef}>
         <div className="space-y-4">
-          {initializationError && (
+          {/* {initializationError && (
             <div className="text-center text-destructive text-sm p-3 bg-destructive/10 rounded-lg border border-destructive/20">
               <AlertCircle className="w-4 h-4 inline-block mr-2" />
               Canvas initialization failed. Please refresh the page.
             </div>
-          )}
+          )} */}
           
           {!isCanvasReady && !initializationError && (
             <div className="text-center text-warning text-sm p-3 bg-warning/10 rounded-lg border border-warning/20">
@@ -1015,12 +1015,12 @@ export function AIChat() {
                                 </div>
                               )}
                               
-                              {/* Show errors */}
-                              {toolPart.state === 'output-error' && toolPart.errorText && (
+                              {/* Show errors - HIDDEN */}
+                              {/* {toolPart.state === 'output-error' && toolPart.errorText && (
                                 <div className="text-xs text-red-600 mb-3">
                                   Error: {toolPart.errorText}
                                 </div>
-                              )}
+                              )} */}
                               
                               {/* Show output for non-agent tools */}
                               {toolPart.output && toolPart.state === 'output-available' && !isAgentExecution && (

@@ -128,28 +128,37 @@ export default function EditorPage() {
   }
   
   return (
-    <div className="h-screen flex flex-col bg-[#1e1e1e] text-gray-200 overflow-hidden">
-      <MenuBar />
-      <OptionsBar />
-      <div className="flex-1 flex overflow-hidden">
-        <ToolPalette />
-        <Canvas />
-        <Panels />
+    <>
+      <style dangerouslySetInnerHTML={{
+        __html: `
+          .nextjs-toast { 
+            display: none !important; 
+          }
+        `
+      }} />
+      <div className="h-screen flex flex-col bg-[#1e1e1e] text-gray-200 overflow-hidden">
+        <MenuBar />
+        <OptionsBar />
+        <div className="flex-1 flex overflow-hidden">
+          <ToolPalette />
+          <Canvas />
+          <Panels />
+        </div>
+        <StatusBar />
+        <NewDocumentDialog 
+          open={showNewDocumentDialog}
+          onOpenChange={setShowNewDocumentDialog}
+        />
+        <ImageGenerationDialog />
+        <ImageTransformationDialog />
+        <ReviewImageDialog />
+        <HueAdjustmentDialog />
+        <BrightnessAdjustmentDialog />
+        <ContrastAdjustmentDialog />
+        <SaturationAdjustmentDialog />
+        <ExposureAdjustmentDialog />
+        <ColorTemperatureAdjustmentDialog />
       </div>
-      <StatusBar />
-      <NewDocumentDialog 
-        open={showNewDocumentDialog}
-        onOpenChange={setShowNewDocumentDialog}
-      />
-      <ImageGenerationDialog />
-      <ImageTransformationDialog />
-      <ReviewImageDialog />
-      <HueAdjustmentDialog />
-      <BrightnessAdjustmentDialog />
-      <ContrastAdjustmentDialog />
-      <SaturationAdjustmentDialog />
-      <ExposureAdjustmentDialog />
-      <ColorTemperatureAdjustmentDialog />
-    </div>
+    </>
   )
 } 

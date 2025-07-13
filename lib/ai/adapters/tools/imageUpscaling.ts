@@ -242,38 +242,199 @@ The user will then be shown a review modal to compare the original and upscaled 
    */
   private async applyInPlace(originalUrl: string, upscaledUrl: string, canvas: Canvas): Promise<void> {
     try {
+      console.log('[ImageUpscalingAdapter] Starting applyInPlace operation')
+      console.log('[ImageUpscalingAdapter] Original URL prefix:', originalUrl?.substring(0, 50) + '...')
+      console.log('[ImageUpscalingAdapter] Upscaled URL prefix:', upscaledUrl?.substring(0, 50) + '...')
+      
       const { useCanvasStore } = await import('@/store/canvasStore')
       const canvasStore = useCanvasStore.getState()
       
       // Find the original image object and replace it
       const objects = canvas.getObjects()
-      const originalImage = objects.find(obj => 
-        obj.type === 'image' && (obj as unknown as { getSrc?: () => string }).getSrc?.() === originalUrl
-      )
+      console.log('[ImageUpscalingAdapter] Canvas has', objects.length, 'objects')
       
-      if (originalImage) {
-        // Load the upscaled image
-        const fabric = await import('fabric')
-        const upscaledImg = await fabric.Image.fromURL(upscaledUrl, { crossOrigin: 'anonymous' })
+      const imageObjects = objects.filter(obj => obj.type === 'image')
+      console.log('[ImageUpscalingAdapter] Found', imageObjects.length, 'image objects')
+      
+      let originalImage: unknown = null
+      
+      // Try multiple strategies to find the original image
+      for (const imageObj of imageObjects) {
+        try {
+          const getSrc = (imageObj as any).getSrc as (() => string) | undefined
+          if (getSrc) {
+            const srcValue = getSrc()
+            if (srcValue === originalUrl) {
+              originalImage = imageObj
+              console.log('[ImageUpscalingAdapter] Found original image by exact URL match')
+              break
+            }
+          }
+        } catch (error) {
+          console.warn('[ImageUpscalingAdapter] Error checking image getSrc:', error)
+        }
+      }
+      
+      // If no exact match, use the first image (fallback)
+      if (!originalImage && imageObjects.length > 0) {
+        originalImage = imageObjects[0]
+        console.log('[ImageUpscalingAdapter] Using first image as fallback')
+      }
+      
+      if (!originalImage) {
+        console.error('[ImageUpscalingAdapter] Could not find original image to replace')
+        alert('Could not find the original image to replace. Please try using "Accept Both" instead.')
         
-        // Copy position and properties from original
-        upscaledImg.set({
-          left: originalImage.left,
-          top: originalImage.top,
-          scaleX: originalImage.scaleX,
-          scaleY: originalImage.scaleY,
-          angle: originalImage.angle,
-          selectable: originalImage.selectable,
-          evented: originalImage.evented,
-          centeredRotation: true  // Ensure rotation happens around center
+        // Close the review modal anyway
+        if (canvasStore.setReviewModal) {
+          canvasStore.setReviewModal(null)
+        }
+        return
+      }
+      
+      console.log('[ImageUpscalingAdapter] Found original image, proceeding with replacement')
+      console.log('[ImageUpscalingAdapter] Original image properties:', {
+        type: (originalImage as any).type,
+        left: (originalImage as any).left,
+        top: (originalImage as any).top,
+        width: (originalImage as any).width,
+        height: (originalImage as any).height,
+        scaleX: (originalImage as any).scaleX,
+        scaleY: (originalImage as any).scaleY,
+        angle: (originalImage as any).angle
+      })
+      
+      // Load the upscaled image with proper error handling
+      const fabric = await import('fabric')
+      
+      let upscaledImg: unknown
+      try {
+        console.log('[ImageUpscalingAdapter] Loading upscaled image...')
+        
+        // Create image element first for better control
+        const imgElement = new Image()
+        imgElement.crossOrigin = 'anonymous'
+        
+        // Load the image with timeout
+        await new Promise((resolve, reject) => {
+          const timeoutId = setTimeout(() => {
+            reject(new Error('Image load timeout'))
+          }, 10000) // 10 second timeout
+          
+          imgElement.onload = () => {
+            clearTimeout(timeoutId)
+            resolve(undefined)
+          }
+          imgElement.onerror = () => {
+            clearTimeout(timeoutId)
+            reject(new Error('Image load failed'))
+          }
+          imgElement.src = upscaledUrl
         })
         
-        // Remove original and add upscaled
-        canvas.remove(originalImage)
-        canvas.add(upscaledImg)
-        canvas.setActiveObject(upscaledImg)
-        canvas.renderAll()
+        console.log('[ImageUpscalingAdapter] Image element loaded successfully:', {
+          width: imgElement.width,
+          height: imgElement.height,
+          naturalWidth: imgElement.naturalWidth,
+          naturalHeight: imgElement.naturalHeight
+        })
+        
+        // Create fabric image from loaded element with proper options
+        upscaledImg = new fabric.Image(imgElement, {
+          crossOrigin: 'anonymous',
+          // Preserve important properties for proper functionality
+          evented: true,
+          selectable: true,
+          centeredRotation: true
+        }) as any
+        
+        console.log('[ImageUpscalingAdapter] Successfully created Fabric image')
+        
+        // Ensure the image is properly initialized
+        await new Promise(resolve => setTimeout(resolve, 100))
+        
+      } catch (loadError) {
+        console.error('[ImageUpscalingAdapter] Error loading upscaled image:', loadError)
+        alert('Failed to load the upscaled image. Please try again or use "Accept Both" instead.')
+        
+        // Close the review modal
+        if (canvasStore.setReviewModal) {
+          canvasStore.setReviewModal(null)
+        }
+        return
       }
+      
+      // Copy position and properties from original with validation
+      const propertiesToCopy = {
+        left: (originalImage as any).left || 0,
+        top: (originalImage as any).top || 0,
+        scaleX: (originalImage as any).scaleX || 1,
+        scaleY: (originalImage as any).scaleY || 1,
+        angle: (originalImage as any).angle || 0,
+        selectable: (originalImage as any).selectable !== false,
+        evented: (originalImage as any).evented !== false,
+        centeredRotation: true,
+        // Preserve any additional properties that might be important
+        visible: (originalImage as any).visible !== false,
+        opacity: (originalImage as any).opacity || 1
+      }
+      
+      console.log('[ImageUpscalingAdapter] Applying properties to upscaled image:', propertiesToCopy)
+      
+      try {
+        ;(upscaledImg as any).set(propertiesToCopy)
+        console.log('[ImageUpscalingAdapter] Properties applied successfully')
+      } catch (setError) {
+        console.error('[ImageUpscalingAdapter] Error applying properties:', setError)
+        // Continue anyway - basic positioning might still work
+      }
+      
+      console.log('[ImageUpscalingAdapter] Removing original image and adding upscaled image')
+      
+      // Remove original and add upscaled with error handling
+      try {
+        canvas.remove(originalImage as any)
+        canvas.add(upscaledImg as any)
+        canvas.setActiveObject(upscaledImg as any)
+        canvas.renderAll()
+        
+        console.log('[ImageUpscalingAdapter] Successfully replaced image on canvas')
+        
+        // Give the canvas time to process the new image
+        await new Promise(resolve => setTimeout(resolve, 200))
+        
+        // Verify the new image is properly added
+        const newObjects = canvas.getObjects()
+        const newImageObjects = newObjects.filter(obj => obj.type === 'image')
+        console.log('[ImageUpscalingAdapter] Canvas now has', newImageObjects.length, 'image objects')
+        
+        // Test the new image object to ensure it's properly functioning
+        if (newImageObjects.length > 0) {
+          const newImage = newImageObjects[newImageObjects.length - 1] // Get the last added image
+          try {
+            const testSrc = (newImage as any).getSrc?.()
+            console.log('[ImageUpscalingAdapter] New image getSrc test:', testSrc ? 'SUCCESS' : 'FAILED')
+            
+            const testDataURL = (newImage as any).toDataURL?.({ format: 'png', quality: 0.1 })
+            console.log('[ImageUpscalingAdapter] New image toDataURL test:', testDataURL ? 'SUCCESS' : 'FAILED')
+          } catch (testError) {
+            console.warn('[ImageUpscalingAdapter] New image object functionality test failed:', testError)
+            // The image is added but might have limited functionality - this is acceptable
+          }
+        }
+        
+      } catch (canvasError) {
+        console.error('[ImageUpscalingAdapter] Error manipulating canvas:', canvasError)
+        alert('Error applying the upscaled image to canvas. Please try again.')
+        
+        // Close the review modal
+        if (canvasStore.setReviewModal) {
+          canvasStore.setReviewModal(null)
+        }
+        return
+      }
+      
+      console.log('[ImageUpscalingAdapter] Successfully applied upscaled image in place')
       
       // Close the review modal
       if (canvasStore.setReviewModal) {
@@ -281,7 +442,19 @@ The user will then be shown a review modal to compare the original and upscaled 
       }
       
     } catch (error) {
-      console.error('[ImageUpscalingAdapter] Error applying in place:', error)
+      console.error('[ImageUpscalingAdapter] Unexpected error in applyInPlace:', error)
+      alert('An unexpected error occurred. Please try again or use "Accept Both" instead.')
+      
+      // Try to close the modal even if there was an error
+      try {
+        const { useCanvasStore } = await import('@/store/canvasStore')
+        const canvasStore = useCanvasStore.getState()
+        if (canvasStore.setReviewModal) {
+          canvasStore.setReviewModal(null)
+        }
+      } catch (modalError) {
+        console.error('[ImageUpscalingAdapter] Error closing modal after failure:', modalError)
+      }
     }
   }
   
