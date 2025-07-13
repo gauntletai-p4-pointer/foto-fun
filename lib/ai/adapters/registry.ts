@@ -2,7 +2,9 @@ import { AdapterRegistry, type AdapterRegistration } from './base/AdapterRegistr
 import { AdapterFactory } from './base/AdapterFactory';
 import { ImageGenerationAdapter } from './tools/ImageGenerationAdapter';
 import { MoveAdapter } from './tools/MoveAdapter';
+import { CropAdapter } from './tools/CropAdapter';
 import { FrameAdapter } from './tools/FrameAdapter';
+import { AddTextAdapter } from './tools/AddTextAdapter';
 import type { ServiceContainer } from '@/lib/core/ServiceContainer';
 
 /**
@@ -24,19 +26,35 @@ export function createAdapterRegistry(serviceContainer: ServiceContainer): Adapt
     },
     {
       id: 'move',
-      aiName: 'moveObjects',
-      description: 'Move objects on the canvas with natural language commands',
+      aiName: 'moveObject',
+      description: 'Move or align objects on the canvas with natural language',
       category: 'canvas-tool',
       priority: 2,
       AdapterClass: MoveAdapter
+    },
+    {
+      id: 'crop',
+      aiName: 'cropImage',
+      description: 'Crop images to specific dimensions or aspect ratios',
+      category: 'canvas-tool',
+      priority: 3,
+      AdapterClass: CropAdapter
     },
     {
       id: 'frame',
       aiName: 'createFrame',
       description: 'Create frames for document boundaries and composition guides',
       category: 'canvas-tool',
-      priority: 3,
+      priority: 4,
       AdapterClass: FrameAdapter
+    },
+    {
+      id: 'add-text',
+      aiName: 'addText',
+      description: 'Add text to the canvas with typography controls',
+      category: 'canvas-tool',
+      priority: 5,
+      AdapterClass: AddTextAdapter
     }
   ];
 
@@ -60,11 +78,19 @@ export function getAdapterRegistrations(): AdapterRegistration[] {
     },
     {
       id: 'move',
-      aiName: 'moveObjects',
-      description: 'Move objects on the canvas with natural language commands',
+      aiName: 'moveObject',
+      description: 'Move or align objects on the canvas with natural language',
       category: 'canvas-tool',
       priority: 2,
       AdapterClass: MoveAdapter
+    },
+    {
+      id: 'crop',
+      aiName: 'cropImage',
+      description: 'Crop images to specific dimensions or aspect ratios',
+      category: 'canvas-tool',
+      priority: 3,
+      AdapterClass: CropAdapter
     }
   ];
 }

@@ -9,6 +9,7 @@ export { UnifiedToolAdapter } from './base/UnifiedToolAdapter'
 // Tool adapters
 export { ImageGenerationAdapter } from './tools/ImageGenerationAdapter'
 export { MoveAdapter } from './tools/MoveAdapter'
+export { CropAdapter } from './tools/CropAdapter'
 
 // Adapter registry
 export { AdapterRegistry } from './registry'

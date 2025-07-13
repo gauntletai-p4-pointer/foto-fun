@@ -1,3 +1,4 @@
+import { ToolState } from '../base/BaseTool';
 import { TransformTool, type TransformData } from '../base/TransformTool';
 import type { ToolDependencies } from '../base/BaseTool';
 import type { ToolMetadata } from '../base/ToolRegistry';
@@ -28,30 +29,12 @@ export class CropTool extends TransformTool {
   }
   
   async onActivate(_canvas: CanvasManager): Promise<void> {
-    const selectedObjects = this.dependencies.canvasManager.getSelectedObjects();
-    const imageObject = selectedObjects.find((obj) => obj.type === 'image');
-
-    if (!imageObject) {
-       this.dependencies.eventBus.emit('tool.error', {
-        toolId: this.id,
-        instanceId: this.instanceId,
-        error: new Error('No image selected for cropping.'),
-        operation: 'activate',
-        timestamp: Date.now()
-      });
-      this.dependencies.eventBus.emit('tool.activation.requested', { toolId: 'move' });
-      return;
-    }
-    
-    if (selectedObjects.length > 1) {
-      this.dependencies.canvasManager.selectObject(imageObject.id);
-    }
-    
-    this.originalObjectState = JSON.parse(JSON.stringify(imageObject));
+    this.setState(ToolState.ACTIVE);
+    this.cursor = 'crosshair';
   }
 
   async onDeactivate(_canvas: CanvasManager): Promise<void> {
-    this.cleanupTool();
+    // No specific cleanup needed now, handled by TransformTool
   }
 
   getOptionDefinitions() {
@@ -71,15 +54,31 @@ export class CropTool extends TransformTool {
   }
   
   onMouseDown(event: ToolEvent): void {
-    this.handleMouseDown(event);
+    const selectedObjects = this.dependencies.canvasManager.getSelectedObjects();
+    const imageObject = selectedObjects.find((obj: CanvasObject) => obj.type === 'image');
+
+    if (!imageObject) {
+      this.dependencies.eventBus.emit('tool.message', {
+        toolId: this.id,
+        message: 'Please select an image layer to crop.',
+        type: 'info',
+      });
+      return; // Stop if no image is selected
+    }
+    
+    // If multiple objects are selected, but one is an image, we can proceed.
+    // The base TransformTool logic will handle transforming the selected objects.
+    this.originalObjectState = JSON.parse(JSON.stringify(imageObject));
+    
+    super.handleMouseDown(event);
   }
 
   onMouseMove(event: ToolEvent): void {
-    this.handleMouseMove(event);
+    super.handleMouseMove(event);
   }
 
   onMouseUp(event: ToolEvent): void {
-    this.handleMouseUp(event);
+    super.handleMouseUp(event);
     this.endTransform();
   }
 
@@ -105,7 +104,6 @@ export class CropTool extends TransformTool {
 
   protected async endTransform(): Promise<void> {
     if (!this.currentTransform || !this.originalObjectState) {
-      this.cleanupTool();
       return;
     }
 
@@ -140,10 +138,126 @@ export class CropTool extends TransformTool {
 
     await this.dependencies.commandManager.executeCommand(command);
     
-    this.cleanupTool();
+    this.originalObjectState = null;
   }
 
   protected canTransform(objects: CanvasObject[]): boolean {
     return objects.length === 1 && objects[0].type === 'image';
+  }
+
+  /**
+   * Public method for adapter integration - Apply crop to selected image
+   */
+  async applyCrop(cropBounds: { x: number; y: number; width: number; height: number }): Promise<void> {
+    const selectedObjects = this.getSelectedObjects();
+    const imageObject = selectedObjects.find((obj: CanvasObject) => obj.type === 'image');
+    
+    if (!imageObject) {
+      throw new Error('No image object selected to crop');
+    }
+
+    const originalImageData = imageObject.data as ImageData;
+    
+    // Calculate the new crop data
+    const newCrop = {
+      x: cropBounds.x,
+      y: cropBounds.y,
+      width: cropBounds.width,
+      height: cropBounds.height,
+      cropX: (originalImageData.cropX || 0) + (cropBounds.x - imageObject.x),
+      cropY: (originalImageData.cropY || 0) + (cropBounds.y - imageObject.y),
+    };
+
+    const oldCrop = {
+      x: imageObject.x,
+      y: imageObject.y,
+      width: imageObject.width,
+      height: imageObject.height,
+      cropX: originalImageData.cropX || 0,
+      cropY: originalImageData.cropY || 0,
+    };
+
+    // Create and execute the crop command
+    const command = this.dependencies.commandFactory.createCropObjectCommand(
+      imageObject.id,
+      newCrop,
+      oldCrop,
+    );
+
+    await this.dependencies.commandManager.executeCommand(command);
+  }
+
+  /**
+   * Public method for adapter integration - Apply crop with aspect ratio
+   */
+  async applyCropWithAspectRatio(aspectRatio: string, position?: 'center' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right'): Promise<void> {
+    const selectedObjects = this.getSelectedObjects();
+    const imageObject = selectedObjects.find((obj: CanvasObject) => obj.type === 'image');
+    
+    if (!imageObject) {
+      throw new Error('No image object selected to crop');
+    }
+
+    // Parse aspect ratio
+    let ratio = 1;
+    if (aspectRatio === 'square' || aspectRatio === '1:1') {
+      ratio = 1;
+    } else if (aspectRatio === '16:9') {
+      ratio = 16 / 9;
+    } else if (aspectRatio === '4:3') {
+      ratio = 4 / 3;
+    } else if (aspectRatio === '9:16') {
+      ratio = 9 / 16;
+    } else if (aspectRatio === '3:4') {
+      ratio = 3 / 4;
+    } else if (aspectRatio.includes(':')) {
+      const [w, h] = aspectRatio.split(':').map(Number);
+      ratio = w / h;
+    }
+
+    // Calculate crop dimensions
+    let cropWidth: number;
+    let cropHeight: number;
+    
+    if (imageObject.width / imageObject.height > ratio) {
+      // Image is wider than target ratio
+      cropHeight = imageObject.height;
+      cropWidth = cropHeight * ratio;
+    } else {
+      // Image is taller than target ratio
+      cropWidth = imageObject.width;
+      cropHeight = cropWidth / ratio;
+    }
+
+    // Calculate position
+    let cropX = imageObject.x;
+    let cropY = imageObject.y;
+
+    switch (position) {
+      case 'center':
+        cropX = imageObject.x + (imageObject.width - cropWidth) / 2;
+        cropY = imageObject.y + (imageObject.height - cropHeight) / 2;
+        break;
+      case 'top-right':
+        cropX = imageObject.x + imageObject.width - cropWidth;
+        cropY = imageObject.y;
+        break;
+      case 'bottom-left':
+        cropX = imageObject.x;
+        cropY = imageObject.y + imageObject.height - cropHeight;
+        break;
+      case 'bottom-right':
+        cropX = imageObject.x + imageObject.width - cropWidth;
+        cropY = imageObject.y + imageObject.height - cropHeight;
+        break;
+      // 'top-left' is default (no change needed)
+    }
+
+    await this.applyCrop({
+      x: cropX,
+      y: cropY,
+      width: cropWidth,
+      height: cropHeight
+    });
   }
 }

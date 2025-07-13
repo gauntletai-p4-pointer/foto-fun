@@ -14,8 +14,8 @@ export abstract class ObjectCreationTool extends BaseTool {
   protected abstract getCreationCursor(): string;
   protected abstract createObjectData(bounds: Rect): Partial<CanvasObject>;
   
-  protected async commitObject(): Promise<void> {
-    if (!this.previewObject) return;
+  protected async commitObject(): Promise<string | null> {
+    if (!this.previewObject) return null;
     
     const command = this.dependencies.commandFactory.createAddObjectCommand(
       this.previewObject
@@ -29,5 +29,7 @@ export abstract class ObjectCreationTool extends BaseTool {
     if (newObjectId) {
         this.dependencies.canvasManager.selectObjects([newObjectId]);
     }
+    
+    return newObjectId;
   }
 } 

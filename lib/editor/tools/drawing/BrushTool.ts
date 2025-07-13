@@ -411,6 +411,126 @@ export class BrushTool extends BaseTool<BrushToolOptions> {
   }
 
   /**
+   * High-level API for adapters: Paint multiple strokes
+   * Used by AI adapters to apply brush strokes programmatically
+   */
+  async paintStrokes(strokes: Array<{
+    from: { x: number; y: number };
+    to: { x: number; y: number };
+    pressure?: number;
+  }>): Promise<void> {
+    if (!this.targetImageObject) {
+      throw new Error('No target image object for painting');
+    }
+
+    // Create stroke data
+    const strokePoints: Array<{
+      x: number;
+      y: number;
+      pressure: number;
+      timestamp: number;
+    }> = [];
+
+    // Convert strokes to points
+    for (const stroke of strokes) {
+      strokePoints.push({
+        x: stroke.from.x,
+        y: stroke.from.y,
+        pressure: stroke.pressure || 1.0,
+        timestamp: Date.now()
+      });
+      strokePoints.push({
+        x: stroke.to.x,
+        y: stroke.to.y,
+        pressure: stroke.pressure || 1.0,
+        timestamp: Date.now() + 1
+      });
+    }
+
+    // Create and execute command
+    const command = this.dependencies.commandFactory.createDrawCommand(
+      this.targetImageObject.id,
+      strokePoints,
+      this.getAllOptions()
+    );
+    
+    await this.dependencies.commandManager.executeCommand(command);
+  }
+
+  /**
+   * High-level API for adapters: Apply a pattern
+   * Used by AI adapters to apply patterns like dots, lines, scribble, fill
+   */
+  async applyPattern(pattern: 'dots' | 'lines' | 'scribble' | 'fill', bounds?: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  }): Promise<void> {
+    if (!this.targetImageObject) {
+      throw new Error('No target image object for painting');
+    }
+
+    const objectBounds = bounds || {
+      x: this.targetImageObject.x,
+      y: this.targetImageObject.y,
+      width: this.targetImageObject.width,
+      height: this.targetImageObject.height
+    };
+
+    const strokes: Array<{ from: { x: number; y: number }; to: { x: number; y: number } }> = [];
+
+    switch (pattern) {
+      case 'dots': {
+        const size = this.getOption('size') as number;
+        const spacing = size * 2;
+        for (let y = objectBounds.y; y < objectBounds.y + objectBounds.height; y += spacing) {
+          for (let x = objectBounds.x; x < objectBounds.x + objectBounds.width; x += spacing) {
+            strokes.push({ from: { x, y }, to: { x, y } });
+          }
+        }
+        break;
+      }
+      
+      case 'lines': {
+        const spacing = this.getOption('size') as number;
+        for (let y = objectBounds.y; y < objectBounds.y + objectBounds.height; y += spacing) {
+          strokes.push({
+            from: { x: objectBounds.x, y },
+            to: { x: objectBounds.x + objectBounds.width, y }
+          });
+        }
+        break;
+      }
+      
+      case 'scribble': {
+        const segments = 20;
+        for (let i = 0; i < segments; i++) {
+          const x1 = objectBounds.x + Math.random() * objectBounds.width;
+          const y1 = objectBounds.y + Math.random() * objectBounds.height;
+          const x2 = objectBounds.x + Math.random() * objectBounds.width;
+          const y2 = objectBounds.y + Math.random() * objectBounds.height;
+          strokes.push({ from: { x: x1, y: y1 }, to: { x: x2, y: y2 } });
+        }
+        break;
+      }
+      
+      case 'fill': {
+        const spacing = 1;
+        for (let y = objectBounds.y; y < objectBounds.y + objectBounds.height; y += spacing) {
+          strokes.push({
+            from: { x: objectBounds.x, y },
+            to: { x: objectBounds.x + objectBounds.width, y }
+          });
+        }
+        break;
+      }
+    }
+
+    await this.paintStrokes(strokes);
+  }
+
+  /**
    * Tool metadata for registration
    */
   static getMetadata(): ToolMetadata {

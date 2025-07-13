@@ -1,4 +1,4 @@
-import { PixelBuffer } from './PixelBuffer';
+import { PixelBuffer } from '@/lib/editor/pixel/PixelBuffer';
 
 export interface BrushStrokePoint {
   x: number;
@@ -233,7 +233,8 @@ export class BrushEngine {
     // Get stroke data from canvas
     const strokeImageData = this.ctx.getImageData(0, 0, this.canvas.width, this.canvas.height);
     
-    // Apply to pixel buffer (simplified implementation)
-    this.pixelBuffer.applyImageData(strokeImageData, strokeData.options.blendMode);
+    // Apply to pixel buffer with proper blend mode mapping
+    const blendMode = strokeData.options.blendMode;
+    this.pixelBuffer.applyImageData(strokeImageData, blendMode, strokeData.options.opacity / 100);
   }
 } 

@@ -17,13 +17,8 @@ export const DEFAULT_BRUSH_OPTIONS: BrushOptions = {
   angle: 0,
 };
 
-// Brush definition for drawing tools
-interface Brush {
-  type: 'round' | 'square' | 'custom';
-  size: number;
-  hardness: number;
-  opacity: number;
-}
+// Import Brush type from PixelBuffer
+import type { Brush } from '../../pixel/PixelBuffer';
 
 export abstract class DrawingTool extends BaseTool {
   protected pixelBuffer: PixelBuffer | null = null;

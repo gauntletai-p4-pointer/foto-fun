@@ -87,16 +87,16 @@ export function ToolOptions() {
             <Label htmlFor={optionId} className="text-xs whitespace-nowrap">
               {definition.label || optionId}:
             </Label>
-            <Select 
-              value={String(currentValue)} 
+            <Select
+              value={String(currentValue)}
               onValueChange={(value) => handleOptionChange(optionId, value)}
             >
-              <SelectTrigger className="h-8 w-32">
+              <SelectTrigger className="h-8 w-28 text-xs">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 {definition.options?.map((option) => (
-                  <SelectItem key={option.value} value={String(option.value)}>
+                  <SelectItem key={option.value} value={String(option.value)} className="text-xs">
                     {option.label}
                   </SelectItem>
                 ))}
@@ -119,7 +119,7 @@ export function ToolOptions() {
               min={definition.min}
               max={definition.max}
               step={definition.step}
-              className="h-8 w-20"
+              className="h-8 w-28 text-xs"
             />
           </div>
         )
@@ -150,21 +150,21 @@ export function ToolOptions() {
               type="text"
               value={String(currentValue)}
               onChange={(e) => handleOptionChange(optionId, e.target.value)}
-              className="h-8 w-32"
+              className="h-8 w-28 text-xs"
             />
           </div>
         )
     }
   }
 
-      return (
-      <div className="flex items-center gap-4 text-sm">
-        <Badge variant="secondary" className="capitalize">
-          {activeToolId.replace(/-/g, ' ')}
-        </Badge>
-        <div className="flex items-center gap-4">
-          {optionKeys.map(optionId => renderOption(optionId, optionDefinitions[optionId]))}
-        </div>
-      </div>
-    )
+  return (
+    <div className="flex flex-nowrap items-center gap-4 text-xs">
+      <Badge variant="secondary" className="capitalize">
+        {activeToolId.replace(/-/g, ' ')}
+      </Badge>
+      {optionKeys.map((optionId) =>
+        renderOption(optionId, optionDefinitions[optionId])
+      )}
+    </div>
+  )
 }

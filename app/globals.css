@@ -51,8 +51,8 @@
   /* === TOOL PALETTE COLORS === */
   --tool-inactive: rgb(26 26 26 / 0.6);
   --tool-hover: rgb(26 26 26 / 0.8);
-  --tool-active: #3B82F6;
-  --tool-active-foreground: #FFFFFF;
+  --tool-active: rgb(26 26 26 / 0.1);
+  --tool-active-foreground: var(--foreground);
   --tool-background: rgb(26 26 26 / 0.03);
   --tool-background-hover: rgb(26 26 26 / 0.06);
 
@@ -124,8 +124,8 @@
   /* === TOOL PALETTE COLORS DARK === */
   --tool-inactive: rgb(250 250 250 / 0.6);
   --tool-hover: rgb(250 250 250 / 0.8);
-  --tool-active: #3B82F6;
-  --tool-active-foreground: #FFFFFF;
+  --tool-active: rgb(250 250 250 / 0.1);
+  --tool-active-foreground: var(--foreground);
   --tool-background: rgb(250 250 250 / 0.03);
   --tool-background-hover: rgb(250 250 250 / 0.06);
 

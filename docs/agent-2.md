@@ -2,6 +2,8 @@ You are the senior product engineer responsible for implementing new features in
 
 We are creating a browser-based, ai-native photoshop alternative with the granular controls of photoshop (direct pixel manipulations), with the ui/ux of figma (objectts), with the power of AI (agents/chat with ai sdk v5 and replicate cloud api calls).
 
+Read docs/agent-2.md for your assignment and come up with a comprehensive plan AFTER deep diving the codebase.
+
 # Agent 2: Drawing and Selection Tools Implementation
 
 ## 🎯 Mission Overview
@@ -1099,3 +1101,19 @@ Each tool must have:
 ---
 
 Agent 2 is responsible for implementing these critical drawing and selection tools that enable precise pixel manipulation and selection creation. Follow the patterns established in the foundation document and ensure all implementations maintain senior-level architecture standards.
+
+## 🚨 NEEDS REVISION: Architectural Violation
+
+The `BrushAdapter` implementation is architecturally non-compliant.
+
+### **`BrushAdapter.ts`: Bypassing the Tool**
+
+-   **The Issue:** The `BrushAdapter`'s `executeCore` method creates a `DrawCommand` directly using the command factory. This completely bypasses the `BrushTool`, which contains the actual business logic for painting.
+-   **The Correct Pattern:** Adapters **must not** create commands. They must delegate the work to the corresponding tool.
+-   **Required Change:**
+    1.  Refactor the `BrushAdapter`'s `executeCore` method. It should **only** be responsible for:
+        -   Activating the `BrushTool`.
+        -   Calling a new, high-level public method on the `BrushTool` instance, for example: `paintStroke(strokeData)`.
+    2.  Create the `paintStroke(strokeData)` method in `BrushTool.ts`. This method will be responsible for creating the `DrawCommand` and executing it via the `CommandManager`.
+
+This is the exact same architectural pattern that was required for Agent 1. It is critical that this pattern is followed for all tools and adapters to ensure consistency and maintainability.

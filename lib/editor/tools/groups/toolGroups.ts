@@ -66,6 +66,54 @@ export const UI_TOOL_GROUPS: ToolGroupMetadata[] = [
     category: 'core'
   },
   {
+    id: 'ai-generation-group',
+    name: 'AI Generation',
+    description: 'AI-powered image generation and variation tools',
+    icon: ToolGroupIcons['ai-generation-group'],
+    tools: ['ai-image-generation', 'ai-variation'],
+    defaultTool: 'ai-image-generation',
+    showActiveToolIcon: true,
+    priority: 6,
+    shortcut: 'Shift+G',
+    category: 'ai'
+  },
+  {
+    id: 'ai-enhancement-group',
+    name: 'AI Enhancement',
+    description: 'AI-powered image enhancement and style tools',
+    icon: ToolGroupIcons['ai-enhancement-group'],
+    tools: ['ai-background-removal', 'ai-face-enhancement', 'ai-upscaling', 'ai-style-transfer'],
+    defaultTool: 'ai-background-removal',
+    showActiveToolIcon: true,
+    priority: 7,
+    shortcut: 'Shift+E',
+    category: 'ai'
+  },
+  {
+    id: 'ai-editing-group',
+    name: 'AI Editing',
+    description: 'AI-powered editing and manipulation tools',
+    icon: ToolGroupIcons['ai-editing-group'],
+    tools: ['ai-inpainting', 'ai-outpainting', 'ai-object-removal', 'ai-relighting'],
+    defaultTool: 'ai-inpainting',
+    showActiveToolIcon: true,
+    priority: 8,
+    shortcut: 'Shift+I',
+    category: 'ai'
+  },
+  {
+    id: 'ai-creative-group',
+    name: 'AI Creative',
+    description: 'AI-powered creative and selection tools',
+    icon: ToolGroupIcons['ai-creative-group'],
+    tools: ['ai-semantic-selection', 'ai-prompt-brush', 'ai-style-transfer-brush', 'ai-prompt-adjustment'],
+    defaultTool: 'ai-semantic-selection',
+    showActiveToolIcon: true,
+    priority: 9,
+    shortcut: 'Shift+C',
+    category: 'ai'
+  },
+  {
     id: 'navigation-group',
     name: 'Navigation',
     description: 'Tools for navigating and examining the canvas',

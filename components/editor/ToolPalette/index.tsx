@@ -303,7 +303,7 @@ export function ToolPalette({ className }: ToolPaletteProps) {
                 "w-full flex items-center gap-2 px-2 py-2 text-sm rounded transition-colors text-left",
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
                 isActive 
-                  ? "bg-foreground/10 text-foreground" 
+                  ? "bg-tool-active text-tool-active-foreground" 
                   : implemented
                     ? "text-popover-foreground hover:bg-foreground/10 hover:text-foreground"
                     : "text-muted-foreground cursor-not-allowed opacity-50"
@@ -314,7 +314,7 @@ export function ToolPalette({ className }: ToolPaletteProps) {
                              {renderIcon(ToolIcon, "w-4 h-4 flex-shrink-0 stroke-[1.5]")}
               <span className="flex-1">{toolClass.metadata.name}</span>
               {isSelected && (
-                <Check className="w-3 h-3 text-primary" />
+                <Check className="w-3 h-3 text-inherit" />
               )}
             </button>
           );
@@ -333,29 +333,24 @@ export function ToolPalette({ className }: ToolPaletteProps) {
   }
 
   return (
-    <div className={cn("flex flex-col gap-1 p-2", className)}>
+    <div className={cn("flex flex-col items-center gap-1 py-2", className)}>
       {/* Tool groups */}
       {toolGroups.map(group => {
         const currentTool = getCurrentGroupTool(group);
         const isActive = isGroupActive(group);
         
-        // Check implemented tools in this group
-        const implementedTools = group.tools.filter(toolId => 
-          toolRegistryRef.current?.hasToolClass(toolId)
-        );
-        const hasMultipleImplementedTools = implementedTools.length > 1;
         const implemented = isToolImplemented(currentTool.id);
         
         // Determine which icon to show
         const IconToShow = group.showActiveToolIcon ? currentTool.icon : group.icon;
-        
+          
         return (
           <div key={group.id} className="relative">
             <button
               className={cn(
                 "w-10 h-10 flex items-center justify-center rounded-md transition-all relative group",
                 isActive 
-                  ? "bg-foreground/10 text-foreground" 
+                  ? "bg-tool-active text-tool-active-foreground" 
                   : implemented
                     ? "text-foreground hover:bg-foreground/10"
                     : "text-foreground/30 cursor-not-allowed"
@@ -372,17 +367,12 @@ export function ToolPalette({ className }: ToolPaletteProps) {
               onMouseLeave={handleGroupLeave}
               disabled={!implemented || isActivating}
             >
-                             {renderIcon(IconToShow, "w-5 h-5 stroke-[1.5]")}
-              
-              {/* Multiple tools indicator */}
-              {hasMultipleImplementedTools && (
-                <span className="w-2 h-2 absolute bottom-0.5 right-0.5 opacity-60 text-xs">▶</span>
-              )}
+              {renderIcon(IconToShow, "w-5 h-5 stroke-[1.5]")}
               
               {/* Loading indicator */}
               {isActivating && isActive && (
                 <div className="absolute inset-0 flex items-center justify-center bg-primary/20 rounded-md">
-                  <div className="w-3 h-3 border border-primary border-t-transparent rounded-full animate-spin" />
+                  <div className="w-3 h-3 border border-current border-t-transparent rounded-full animate-spin" />
                 </div>
               )}
             </button>

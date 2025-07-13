@@ -3,6 +3,7 @@ import { UnifiedToolAdapter } from '../base/UnifiedToolAdapter';
 import type { CanvasContext } from '../types/CanvasContext';
 import type { AdapterDependencies } from '../types/AdapterDependencies';
 import type { AdapterMetadata } from '../types/AdapterMetadata';
+import type { FrameTool } from '../../../editor/tools/creation/FrameTool';
 
 // Input schema for frame creation
 const FrameInputSchema = z.object({
@@ -70,94 +71,67 @@ export class FrameAdapter extends UnifiedToolAdapter<FrameInput, FrameOutput> {
       throw new Error('Custom frames require both width and height parameters');
     }
 
-    // Activate frame tool if not already active
-    if (this.dependencies.toolStore) {
-      await this.dependencies.toolStore.activateTool('frame');
+    // Activate frame tool
+    if (!this.dependencies.toolStore) {
+      throw new Error('ToolStore not available');
+    }
+    
+    await this.dependencies.toolStore.activateTool('frame');
+    
+    // Get the active tool instance
+    const frameTool = this.dependencies.toolStore.getActiveTool();
+    if (!frameTool) {
+      throw new Error('Failed to activate frame tool');
     }
 
-    // Get tool instance (this would need to be implemented in the tool store)
-    // For now, we'll create the frame directly through commands
+    // Type assertion - we know this is a FrameTool
+    const frameToolInstance = frameTool as FrameTool;
 
     // Determine dimensions
-    let dimensions: { width: number; height: number };
-    if (params.preset && params.preset !== 'custom') {
-      dimensions = this.getPresetDimensions(params.preset);
-    } else if (params.width && params.height) {
+    let dimensions: { width: number; height: number } | undefined;
+    if (params.width && params.height) {
       dimensions = { width: params.width, height: params.height };
-    } else {
-      // Default to A4 if no dimensions specified
-      dimensions = this.getPresetDimensions('a4');
     }
 
     // Determine position
-    const position = params.position || this.getCenterPosition(dimensions, context);
+    const position = params.position || this.getCenterPosition(
+      dimensions || this.getPresetDimensions(params.preset || 'a4'),
+      context
+    );
 
-    // Create frame object data
-    const frameData = {
-      type: 'frame' as const,
-      name: `Frame ${this.getFrameLabel(params.preset || 'custom')}`,
-      x: position.x,
-      y: position.y,
-      width: dimensions.width,
-      height: dimensions.height,
-      rotation: 0,
-      scaleX: 1,
-      scaleY: 1,
-      zIndex: 0,
-      opacity: 1,
-      blendMode: 'normal' as const,
-      visible: true,
-      locked: false,
-      filters: [],
-      adjustments: [],
-      data: {
-        type: 'frame' as const,
-        preset: params.preset || 'custom',
-        exportName: `Frame ${this.getFrameLabel(params.preset || 'custom')}`,
-        style: {
-          fill: params.fillColor || '#FFFFFF',
-          stroke: {
-            color: params.strokeColor || '#E0E0E0',
-            width: params.strokeWidth || 1,
-            style: 'solid' as const
-          },
-          background: {
-            color: params.fillColor || '#FFFFFF',
-            opacity: 1
-          }
-        },
-        export: {
-          format: 'png' as const,
-          quality: 100,
-          dpi: 72
-        },
-        clipping: {
-          enabled: params.clipContent ?? true,
-          showOverflow: true,
-          exportClipped: params.clipContent ?? true
-        }
-      }
-    };
+    // Call the tool's public method
+    const frameId = await frameToolInstance.createFrame({
+      preset: params.preset,
+      position,
+      dimensions,
+      fillColor: params.fillColor,
+      strokeColor: params.strokeColor,
+      strokeWidth: params.strokeWidth,
+      cornerRadius: params.cornerRadius,
+      clipContent: params.clipContent
+    });
 
-    // Create frame using command
-    const command = this.dependencies.commandFactory.createAddObjectCommand(frameData);
-    await this.dependencies.commandManager.executeCommand(command);
+    if (!frameId) {
+      throw new Error('Failed to create frame');
+    }
 
-    // Get the created frame ID
-    const frameId = ((command as unknown) as { getObjectId?: () => string }).getObjectId?.() || `frame-${Date.now()}`;
+    // Get actual dimensions (in case preset was used)
+    const actualDimensions = params.preset && params.preset !== 'custom'
+      ? this.getPresetDimensions(params.preset)
+      : dimensions || this.getPresetDimensions('a4');
 
     // Emit success event
     this.emitEvent('frame.created', {
       frameId,
       preset: params.preset || 'custom',
-      dimensions,
+      dimensions: actualDimensions,
       position
     });
 
     return {
       success: true,
       frameId,
-      dimensions,
+      dimensions: actualDimensions,
       position,
       preset: params.preset || 'custom',
       message: `Created ${this.getFrameLabel(params.preset || 'custom')} frame`

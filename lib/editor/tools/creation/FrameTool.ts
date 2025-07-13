@@ -338,4 +338,75 @@ export class FrameTool extends ObjectCreationTool {
   private getFrameLabel(preset: string): string {
     return preset === 'custom' ? '' : `(${preset.toUpperCase()})`;
   }
+
+  /**
+   * Public method for creating frames programmatically (e.g., from AI adapters)
+   * @param options Frame creation options
+   * @returns The ID of the created frame object
+   */
+  public async createFrame(options: {
+    preset?: string;
+    position?: { x: number; y: number };
+    dimensions?: { width: number; height: number };
+    fillColor?: string;
+    strokeColor?: string;
+    strokeWidth?: number;
+    cornerRadius?: number;
+    clipContent?: boolean;
+  }): Promise<string | null> {
+    // Apply options
+    if (options.preset) {
+      this.setOption('preset', options.preset);
+    }
+    if (options.fillColor) {
+      this.setOption('fillColor', options.fillColor);
+    }
+    if (options.strokeColor) {
+      this.setOption('strokeColor', options.strokeColor);
+    }
+    if (options.strokeWidth !== undefined) {
+      this.setOption('strokeWidth', options.strokeWidth);
+    }
+    if (options.cornerRadius !== undefined) {
+      this.setOption('cornerRadius', options.cornerRadius);
+    }
+    if (options.clipContent !== undefined) {
+      this.setOption('clipContent', options.clipContent);
+    }
+
+    // Determine dimensions
+    let bounds: Rect;
+    if (options.preset && options.preset !== 'custom') {
+      const preset = this.getPresetDimensions(options.preset);
+      if (!preset) {
+        throw new Error(`Unknown preset: ${options.preset}`);
+      }
+      bounds = {
+        x: options.position?.x || 0,
+        y: options.position?.y || 0,
+        width: preset.width,
+        height: preset.height
+      };
+    } else if (options.dimensions) {
+      bounds = {
+        x: options.position?.x || 0,
+        y: options.position?.y || 0,
+        width: options.dimensions.width,
+        height: options.dimensions.height
+      };
+    } else {
+      throw new Error('Either preset or dimensions must be specified');
+    }
+
+    // Create frame object
+    this.previewObject = this.createObjectData(bounds);
+    
+    // Commit the object
+    const objectId = await this.commitObject();
+    
+    // Reset preview
+    this.previewObject = null;
+    
+    return objectId;
+  }
 } 

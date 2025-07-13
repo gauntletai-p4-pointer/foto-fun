@@ -2,316 +2,314 @@ import { z } from 'zod';
 import { UnifiedToolAdapter } from '../base/UnifiedToolAdapter';
 import type { CanvasContext } from '../types/CanvasContext';
 import type { AdapterDependencies } from '../types/AdapterDependencies';
+import type { AdapterMetadata } from '../types/AdapterMetadata';
+import type { CropTool } from '@/lib/editor/tools/transform/CropTool';
+import type { EventToolStore } from '@/lib/store/tools/EventToolStore';
+
+// Input schema for the AI
+const CropInputSchema = z.object({
+  aspectRatio: z.string().optional()
+    .describe('Aspect ratio like "16:9", "4:3", "1:1" or "square"'),
+  width: z.number().min(1).optional()
+    .describe('Crop width in pixels'),
+  height: z.number().min(1).optional()
+    .describe('Crop height in pixels'),
+  x: z.number().optional()
+    .describe('Crop area X position'),
+  y: z.number().optional()
+    .describe('Crop area Y position'),
+  position: z.enum(['center', 'top-left', 'top-right', 'bottom-left', 'bottom-right']).optional()
+    .describe('Position of the crop area within the image'),
+  preset: z.enum(['square', 'portrait', 'landscape', 'instagram', 'twitter', 'facebook']).optional()
+    .describe('Predefined crop presets')
+}).refine(
+  (data) => {
+    // Ensure at least one crop option is provided
+    const hasAspectRatio = data.aspectRatio !== undefined;
+    const hasDimensions = data.width !== undefined || data.height !== undefined;
+    const hasAbsoluteBounds = data.x !== undefined && data.y !== undefined && 
+                              data.width !== undefined && data.height !== undefined;
+    const hasPreset = data.preset !== undefined;
+    return hasAspectRatio || hasDimensions || hasAbsoluteBounds || hasPreset;
+  },
+  {
+    message: 'Must provide either aspectRatio, dimensions (width/height), absolute bounds (x,y,width,height), or a preset'
+  }
+);
+
+type CropInput = z.infer<typeof CropInputSchema>;
+
+interface CropOutput {
+  success: boolean;
+  croppedObject: string;
+  originalDimensions: { width: number; height: number };
+  newDimensions: { width: number; height: number };
+  operation: 'aspect-ratio' | 'dimensions' | 'absolute' | 'preset';
+}
 
 /**
- * AI Adapter for CropTool - Image cropping with natural language
- * Enables intelligent cropping with aspect ratios, presets, and positioning
+ * AI Adapter for Crop Tool
+ * Follows the correct pattern: Adapter → Tool → Command
  */
 export class CropAdapter extends UnifiedToolAdapter<CropInput, CropOutput> {
   readonly toolId = 'crop';
   readonly aiName = 'cropImage';
-  readonly description = 'Crop images with natural language. Supports aspect ratios like "square", "16:9", positioning like "center", and presets like "Instagram", "Twitter".';
-  
-  readonly inputSchema = z.object({
-    aspectRatio: z.enum(['free', '1:1', '4:3', '16:9', '9:16', 'custom']).optional(),
-    customRatio: z.string().optional().describe('Custom aspect ratio like "3:2"'),
-    preset: z.enum(['square', 'instagram', 'twitter', 'facebook', 'youtube', 'portrait', 'landscape']).optional(),
-    position: z.enum(['center', 'top-left', 'top-right', 'bottom-left', 'bottom-right', 'top', 'bottom', 'left', 'right']).optional(),
-    width: z.number().min(1).optional().describe('Specific crop width in pixels'),
-    height: z.number().min(1).optional().describe('Specific crop height in pixels'),
-    deletePixels: z.boolean().optional().describe('Whether to permanently delete cropped pixels'),
-    bounds: z.object({
-      x: z.number(),
-      y: z.number(),
-      width: z.number().min(1),
-      height: z.number().min(1)
-    }).optional().describe('Exact crop bounds')
-  });
-  
+  readonly description = 'Crop images to specific dimensions or aspect ratios. Supports presets like "square", "16:9", custom dimensions, and precise positioning.';
+  readonly inputSchema = CropInputSchema;
+
   constructor(dependencies: AdapterDependencies) {
     super(dependencies);
   }
-  
+
+  /**
+   * Get adapter metadata
+   */
+  protected getAdapterMetadata(): AdapterMetadata {
+    return {
+      category: 'canvas-tool',
+      worksOn: 'existing',
+      requiresSelection: true,
+      isReadOnly: false,
+      supportsBatch: false, // Crop works on single images only
+      estimatedDuration: 800
+    };
+  }
+
+  /**
+   * Core execution method
+   */
   protected async executeCore(params: CropInput, context: CanvasContext): Promise<CropOutput> {
-    // Get target image objects
+    // Validate that we have an image object selected
     const imageObjects = context.targetObjects.filter(obj => obj.type === 'image');
     
     if (imageObjects.length === 0) {
-      throw new Error('No image objects selected for cropping. Please select an image first.');
+      throw new Error('No image objects selected. Please select an image to crop.');
     }
     
-    // Use first image as primary target
-    const targetImage = imageObjects[0];
-    
-    // Activate crop tool if available
-    if (this.dependencies.toolStore) {
-      await this.dependencies.toolStore.activateTool('crop');
+    if (imageObjects.length > 1) {
+      throw new Error('Crop operation can only be applied to one image at a time.');
     }
-    
-    // Calculate crop bounds based on parameters
-    const cropBounds = this.calculateCropBounds(targetImage, params);
-    
-    // Validate crop bounds
-    if (cropBounds.width < 1 || cropBounds.height < 1) {
-      throw new Error('Invalid crop dimensions. Width and height must be at least 1 pixel.');
-    }
-    
-    if (cropBounds.x < 0 || cropBounds.y < 0 || 
-        cropBounds.x + cropBounds.width > targetImage.width ||
-        cropBounds.y + cropBounds.height > targetImage.height) {
-      throw new Error('Crop bounds exceed image boundaries. Please adjust crop parameters.');
-    }
-    
-    // Apply crop using command factory
-    const command = this.dependencies.commandFactory.createUpdateObjectCommand(
-      targetImage.id,
-      {
-        x: targetImage.x + cropBounds.x,
-        y: targetImage.y + cropBounds.y,
-        width: cropBounds.width,
-        height: cropBounds.height,
-        metadata: {
-          cropApplied: true,
-          originalBounds: {
-            x: targetImage.x,
-            y: targetImage.y,
-            width: targetImage.width,
-            height: targetImage.height
-          },
-          cropBounds: cropBounds,
-          deletePixels: params.deletePixels || false,
-          aspectRatio: params.aspectRatio || 'free',
-          timestamp: Date.now()
-        }
-      }
-    );
-    
-    await this.dependencies.commandManager.executeCommand(command);
-    
-    return {
-      success: true,
-      croppedObjects: [targetImage.id],
-      objectCount: 1,
-      originalDimensions: {
-        width: targetImage.width,
-        height: targetImage.height
-      },
-      newDimensions: {
-        width: cropBounds.width,
-        height: cropBounds.height
-      },
-      cropBounds: cropBounds,
-      aspectRatio: params.aspectRatio || 'free',
-      deletePixels: params.deletePixels || false
+
+    const imageObject = imageObjects[0];
+    const originalDimensions = {
+      width: imageObject.width,
+      height: imageObject.height
     };
+
+    // Get the tool store
+    const toolStore = this.getToolStore();
+    if (!toolStore) {
+      throw new Error('Tool store not available');
+    }
+
+    // Activate the crop tool
+    await this.activateCropTool(toolStore);
+    
+    // Get the active tool instance
+    const cropTool = this.getActiveCropTool(toolStore);
+    
+    try {
+      // Execute the appropriate crop operation
+      const result = await this.executeCropOperation(cropTool, params, imageObject);
+      
+      // Get the new dimensions after crop
+      const croppedObject = this.dependencies.canvasManager.getObject(imageObject.id);
+      const newDimensions = croppedObject ? {
+        width: croppedObject.width,
+        height: croppedObject.height
+      } : originalDimensions;
+      
+      // Emit success event
+      this.emitEvent('crop.completed', {
+        objectId: imageObject.id,
+        operation: result.operation,
+        originalDimensions,
+        newDimensions,
+        params
+      });
+      
+      return {
+        ...result,
+        originalDimensions,
+        newDimensions
+      };
+      
+    } catch (error) {
+      // Emit failure event
+      this.emitEvent('crop.failed', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        objectId: imageObject.id,
+        params
+      });
+      throw error;
+    }
   }
-  
+
   /**
-   * Calculate crop bounds based on input parameters
+   * Activate the crop tool
    */
-  private calculateCropBounds(image: { width: number; height: number }, params: CropInput): CropBounds {
-    // If exact bounds provided, use them
-    if (params.bounds) {
-      return params.bounds;
+  private async activateCropTool(toolStore: EventToolStore): Promise<void> {
+    await toolStore.activateTool(this.toolId);
+    
+    // Wait a frame to ensure activation is complete
+    await new Promise(resolve => setTimeout(resolve, 0));
+  }
+
+  /**
+   * Get the active crop tool instance
+   */
+  private getActiveCropTool(toolStore: EventToolStore): CropTool {
+    const activeTool = toolStore.getActiveTool();
+    
+    if (!activeTool) {
+      throw new Error('Failed to activate crop tool');
     }
     
-    // If specific width/height provided, center by default
-    if (params.width && params.height) {
-      const x = Math.max(0, (image.width - params.width) / 2);
-      const y = Math.max(0, (image.height - params.height) / 2);
-      return { x, y, width: params.width, height: params.height };
-    }
-    
-    // Handle presets
+    return activeTool as CropTool;
+  }
+
+  /**
+   * Execute the crop operation based on parameters
+   */
+  private async executeCropOperation(
+    cropTool: CropTool,
+    params: CropInput,
+    imageObject: { id: string; width: number; height: number; x: number; y: number }
+  ): Promise<Pick<CropOutput, 'success' | 'croppedObject' | 'operation'>> {
+    // Handle preset crop
     if (params.preset) {
-      return this.calculatePresetBounds(image, params.preset, params.position);
+      const aspectRatio = this.getPresetAspectRatio(params.preset);
+      await cropTool.applyCropWithAspectRatio(aspectRatio, params.position || 'center');
+      
+      return {
+        success: true,
+        croppedObject: imageObject.id,
+        operation: 'preset'
+      };
     }
     
-    // Handle aspect ratio
+    // Handle aspect ratio crop
     if (params.aspectRatio) {
-      return this.calculateAspectRatioBounds(image, params.aspectRatio, params.customRatio, params.position);
+      await cropTool.applyCropWithAspectRatio(params.aspectRatio, params.position || 'center');
+      
+      return {
+        success: true,
+        croppedObject: imageObject.id,
+        operation: 'aspect-ratio'
+      };
     }
     
-    // Default to full image
-    return { x: 0, y: 0, width: image.width, height: image.height };
+    // Handle absolute bounds crop
+    if (params.x !== undefined && params.y !== undefined && 
+        params.width !== undefined && params.height !== undefined) {
+      await cropTool.applyCrop({
+        x: params.x,
+        y: params.y,
+        width: params.width,
+        height: params.height
+      });
+      
+      return {
+        success: true,
+        croppedObject: imageObject.id,
+        operation: 'absolute'
+      };
+    }
+    
+    // Handle dimension-based crop (centered by default)
+    if (params.width !== undefined && params.height !== undefined) {
+      const cropBounds = this.calculateCenteredCrop(
+        imageObject,
+        params.width,
+        params.height,
+        params.position
+      );
+      
+      await cropTool.applyCrop(cropBounds);
+      
+      return {
+        success: true,
+        croppedObject: imageObject.id,
+        operation: 'dimensions'
+      };
+    }
+    
+    // This should never happen due to input validation
+    throw new Error('Invalid crop parameters');
   }
-  
+
   /**
-   * Calculate bounds for preset crops
+   * Get aspect ratio for preset
    */
-  private calculatePresetBounds(image: { width: number; height: number }, preset: string, position?: string): CropBounds {
-    let aspectRatio: number;
+  private getPresetAspectRatio(preset: string): string {
+    const presetMap: Record<string, string> = {
+      'square': '1:1',
+      'portrait': '9:16',
+      'landscape': '16:9',
+      'instagram': '1:1',
+      'twitter': '16:9',
+      'facebook': '1.91:1'
+    };
     
-    switch (preset) {
-      case 'square':
-      case 'instagram':
-        aspectRatio = 1;
-        break;
-      case 'twitter':
-        aspectRatio = 16 / 9;
-        break;
-      case 'facebook':
-        aspectRatio = 1.91;
-        break;
-      case 'youtube':
-        aspectRatio = 16 / 9;
-        break;
-      case 'portrait':
-        aspectRatio = 9 / 16;
-        break;
-      case 'landscape':
-        aspectRatio = 16 / 9;
-        break;
-      default:
-        aspectRatio = 1;
-    }
-    
-    return this.calculateBoundsForRatio(image, aspectRatio, position);
+    return presetMap[preset] || '1:1';
   }
-  
+
   /**
-   * Calculate bounds for aspect ratio
+   * Calculate centered crop bounds
    */
-  private calculateAspectRatioBounds(image: { width: number; height: number }, aspectRatio: string, customRatio?: string, position?: string): CropBounds {
-    let ratio: number;
+  private calculateCenteredCrop(
+    imageObject: { x: number; y: number; width: number; height: number },
+    cropWidth: number,
+    cropHeight: number,
+    position?: 'center' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right'
+  ): { x: number; y: number; width: number; height: number } {
+    // Ensure crop dimensions don't exceed image dimensions
+    cropWidth = Math.min(cropWidth, imageObject.width);
+    cropHeight = Math.min(cropHeight, imageObject.height);
     
-    switch (aspectRatio) {
-      case '1:1':
-        ratio = 1;
-        break;
-      case '4:3':
-        ratio = 4 / 3;
-        break;
-      case '16:9':
-        ratio = 16 / 9;
-        break;
-      case '9:16':
-        ratio = 9 / 16;
-        break;
-      case 'custom':
-        if (customRatio) {
-          const parts = customRatio.split(':');
-          if (parts.length === 2) {
-            ratio = parseFloat(parts[0]) / parseFloat(parts[1]);
-          } else {
-            ratio = 1; // Default to square
-          }
-        } else {
-          ratio = 1;
-        }
-        break;
-      case 'free':
-      default:
-        return { x: 0, y: 0, width: image.width, height: image.height };
-    }
-    
-    return this.calculateBoundsForRatio(image, ratio, position);
-  }
-  
-  /**
-   * Calculate bounds for a specific ratio and position
-   */
-  private calculateBoundsForRatio(image: { width: number; height: number }, ratio: number, position?: string): CropBounds {
-    const imageRatio = image.width / image.height;
-    
-    let width: number;
-    let height: number;
-    
-    if (imageRatio > ratio) {
-      // Image is wider than target ratio, constrain by height
-      height = image.height;
-      width = height * ratio;
-    } else {
-      // Image is taller than target ratio, constrain by width
-      width = image.width;
-      height = width / ratio;
-    }
-    
-    // Calculate position
-    let x: number;
-    let y: number;
+    let cropX = imageObject.x;
+    let cropY = imageObject.y;
     
     switch (position) {
-      case 'top-left':
-        x = 0;
-        y = 0;
-        break;
-      case 'top-right':
-        x = image.width - width;
-        y = 0;
-        break;
-      case 'bottom-left':
-        x = 0;
-        y = image.height - height;
-        break;
-      case 'bottom-right':
-        x = image.width - width;
-        y = image.height - height;
-        break;
-      case 'top':
-        x = (image.width - width) / 2;
-        y = 0;
-        break;
-      case 'bottom':
-        x = (image.width - width) / 2;
-        y = image.height - height;
-        break;
-      case 'left':
-        x = 0;
-        y = (image.height - height) / 2;
-        break;
-      case 'right':
-        x = image.width - width;
-        y = (image.height - height) / 2;
-        break;
       case 'center':
       default:
-        x = (image.width - width) / 2;
-        y = (image.height - height) / 2;
+        cropX = imageObject.x + (imageObject.width - cropWidth) / 2;
+        cropY = imageObject.y + (imageObject.height - cropHeight) / 2;
         break;
+      case 'top-right':
+        cropX = imageObject.x + imageObject.width - cropWidth;
+        cropY = imageObject.y;
+        break;
+      case 'bottom-left':
+        cropX = imageObject.x;
+        cropY = imageObject.y + imageObject.height - cropHeight;
+        break;
+      case 'bottom-right':
+        cropX = imageObject.x + imageObject.width - cropWidth;
+        cropY = imageObject.y + imageObject.height - cropHeight;
+        break;
+      // 'top-left' is default (no change needed)
     }
     
     return {
-      x: Math.max(0, Math.round(x)),
-      y: Math.max(0, Math.round(y)),
-      width: Math.round(width),
-      height: Math.round(height)
+      x: Math.max(imageObject.x, cropX),
+      y: Math.max(imageObject.y, cropY),
+      width: cropWidth,
+      height: cropHeight
     };
   }
-}
 
-// Type definitions
-interface CropInput {
-  aspectRatio?: 'free' | '1:1' | '4:3' | '16:9' | '9:16' | 'custom';
-  customRatio?: string;
-  preset?: 'square' | 'instagram' | 'twitter' | 'facebook' | 'youtube' | 'portrait' | 'landscape';
-  position?: 'center' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right' | 'top' | 'bottom' | 'left' | 'right';
-  width?: number;
-  height?: number;
-  deletePixels?: boolean;
-  bounds?: CropBounds;
+  /**
+   * Override to provide operation-specific description
+   */
+  protected getOperationDescription(params: CropInput): string {
+    if (params.preset) {
+      return `Crop image to ${params.preset} preset`;
+    } else if (params.aspectRatio) {
+      return `Crop image to ${params.aspectRatio} aspect ratio`;
+    } else if (params.width && params.height) {
+      return `Crop image to ${params.width}x${params.height}`;
+    }
+    return 'Crop image';
+  }
 }
-
-interface CropOutput {
-  success: boolean;
-  croppedObjects: string[];
-  objectCount: number;
-  originalDimensions: {
-    width: number;
-    height: number;
-  };
-  newDimensions: {
-    width: number;
-    height: number;
-  };
-  cropBounds: CropBounds;
-  aspectRatio: string;
-  deletePixels: boolean;
-}
-
-interface CropBounds {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-} 

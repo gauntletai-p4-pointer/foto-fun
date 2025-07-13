@@ -13,7 +13,7 @@ export function OptionsBar() {
   }
 
   return (
-    <div className="h-12 bg-background border-b border-border flex items-center px-4 gap-4">
+    <div className="h-12 bg-background border-b border-border flex items-center px-4 gap-4 overflow-x-auto">
       <ToolOptions />
     </div>
   )

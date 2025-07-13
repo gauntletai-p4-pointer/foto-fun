@@ -2,6 +2,8 @@ You are the senior product engineer responsible for implementing new features in
 
 We are creating a browser-based, ai-native photoshop alternative with the granular controls of photoshop (direct pixel manipulations), with the ui/ux of figma (objectts), with the power of AI (agents/chat with ai sdk v5 and replicate cloud api calls).
 
+Read docs/agent-4.md for your assignment and come up with a comprehensive plan AFTER deep diving the codebase.
+
 # Agent 4: Pixel Manipulation and Filters Implementation
 
 
