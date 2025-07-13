@@ -136,7 +136,7 @@ export function ToolPalette() {
   const toolsById = new Map(regularTools.map(tool => [tool.id, tool]))
   
   return (
-    <div className="w-14 bg-background border-r border-foreground/10 py-2">
+    <div className="w-12 sm:w-14 bg-background border-r border-foreground/10 py-2 flex-shrink-0">
       <div className="px-1">
         {TOOL_CATEGORIES.map((category, categoryIndex) => {
           const categoryTools = category.tools
@@ -167,7 +167,7 @@ export function ToolPalette() {
                       key={tool.id}
                       data-tool-id={tool.id}
                       className={cn(
-                        "w-6 h-6 flex items-center justify-center rounded transition-colors relative group",
+                        "w-5 h-5 sm:w-6 sm:h-6 flex items-center justify-center rounded transition-colors relative group",
                         isActive 
                           ? "bg-primary text-primary-foreground" 
                           : isImplemented
@@ -178,7 +178,7 @@ export function ToolPalette() {
                       onClick={() => handleToolClick(tool.id, isImplemented)}
                     >
                       <Icon 
-                        className="w-4 h-4" 
+                        className="w-3 h-3 sm:w-4 sm:h-4" 
                       />
                       
                       {/* Enhanced tooltip */}
@@ -192,7 +192,7 @@ export function ToolPalette() {
                 })}
                 
                 {/* Add empty cells to complete the row if needed */}
-                {categoryTools.length % 2 === 1 && <div className="w-6 h-6" />}
+                {categoryTools.length % 2 === 1 && <div className="w-5 h-5 sm:w-6 sm:h-6" />}
               </div>
             </div>
           )
@@ -218,7 +218,7 @@ export function ToolPalette() {
                     key={tool.id}
                     data-tool-id={tool.id}
                     className={cn(
-                      "w-6 h-6 flex items-center justify-center rounded transition-colors relative group",
+                      "w-5 h-5 sm:w-6 sm:h-6 flex items-center justify-center rounded transition-colors relative group",
                       "ring-1 ring-primary/20", // Visual distinction for AI tools
                       isActive 
                         ? "bg-primary text-primary-foreground" 
@@ -230,7 +230,7 @@ export function ToolPalette() {
                     onClick={() => handleToolClick(tool.id, isImplemented)}
                   >
                     <Icon 
-                      className="w-4 h-4" 
+                      className="w-3 h-3 sm:w-4 sm:h-4" 
                     />
                     
                     {/* Enhanced tooltip */}

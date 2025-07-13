@@ -19,7 +19,7 @@ export function OptionsBar() {
   const isSelectionTool = SELECTION_TOOLS.includes(activeTool)
   
   return (
-    <div className="h-10 bg-background border-b border-foreground/10 flex items-center px-4 gap-4">
+    <div className="h-10 bg-background border-b border-foreground/10 flex items-center px-2 md:px-4 gap-2 md:gap-4 overflow-x-auto">
       <ToolOptions />
       
       {/* Selection tool mode indicator */}

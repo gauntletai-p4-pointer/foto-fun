@@ -8,7 +8,7 @@ import { ParagraphPanel } from './ParagraphPanel'
 import { GlyphsPanel } from './GlyphsPanel'
 import { TextEffectsPanel } from './TextEffectsPanel'
 import { AIChat } from './AIChat'
-import { Bot, Layers, Type, AlignLeft, Sparkles, Shapes } from 'lucide-react'
+import { Bot, Layers, Type, AlignLeft, Sparkles, Shapes, ChevronLeft, ChevronRight, X } from 'lucide-react'
 import { featureManager, FEATURES, type Feature } from '@/lib/config/features'
 
 type PanelType = 'ai' | 'layers' | 'character' | 'paragraph' | 'glyphs' | 'effects'
@@ -32,6 +32,7 @@ const allPanels: PanelTab[] = [
 
 export function Panels() {
   const [mounted, setMounted] = useState(false)
+  const [isMobilePanelOpen, setIsMobilePanelOpen] = useState(false)
   
   // Filter panels based on feature availability (client-side only)
   const panels = useMemo(() => {
@@ -68,36 +69,115 @@ export function Panels() {
     }
   }, [mounted, panels]) // Include panels dependency
   
+  // Close mobile panel when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (isMobilePanelOpen && event.target instanceof Element) {
+        const mobilePanel = document.getElementById('mobile-panel')
+        if (mobilePanel && !mobilePanel.contains(event.target)) {
+          setIsMobilePanelOpen(false)
+        }
+      }
+    }
+    
+    document.addEventListener('click', handleClickOutside)
+    return () => document.removeEventListener('click', handleClickOutside)
+  }, [isMobilePanelOpen])
+  
   const ActivePanelComponent = panels.find(p => p.id === activePanel)?.component || LayersPanel
   
   return (
-    <div className="w-80 bg-background border-l border-foreground/10 flex flex-col h-full">
-      <div className="p-2 border-b border-foreground/10">
-        <div className="flex gap-1">
-          {panels.map((panel) => {
-            const Icon = panel.icon
-            return (
-              <button
-                key={panel.id}
-                onClick={() => setActivePanel(panel.id)}
-                className={cn(
-                  "flex-1 flex items-center justify-center p-2 rounded text-xs font-medium transition-colors",
-                  activePanel === panel.id
-                    ? "bg-primary/10 text-primary"
-                    : "hover:bg-foreground/5 text-foreground/70 hover:text-foreground"
-                )}
-                title={panel.label}
-              >
-                <Icon className="w-4 h-4" />
-              </button>
-            )
-          })}
+    <>
+      {/* Desktop Panel */}
+      <div className="hidden md:flex w-80 bg-background border-l border-foreground/10 flex-col h-full flex-shrink-0">
+        <div className="p-2 border-b border-foreground/10">
+          <div className="flex gap-1">
+            {panels.map((panel) => {
+              const Icon = panel.icon
+              return (
+                <button
+                  key={panel.id}
+                  onClick={() => setActivePanel(panel.id)}
+                  className={cn(
+                    "flex-1 flex items-center justify-center p-2 rounded text-xs font-medium transition-colors",
+                    activePanel === panel.id
+                      ? "bg-primary/10 text-primary"
+                      : "hover:bg-foreground/5 text-foreground/70 hover:text-foreground"
+                  )}
+                  title={panel.label}
+                >
+                  <Icon className="w-4 h-4" />
+                </button>
+              )
+            })}
+          </div>
+        </div>
+        
+        <div className="flex-1 overflow-auto">
+          <ActivePanelComponent />
         </div>
       </div>
       
-      <div className="flex-1 overflow-auto">
-        <ActivePanelComponent />
-      </div>
-    </div>
+      {/* Mobile Panel Toggle Button */}
+      <button
+        onClick={() => setIsMobilePanelOpen(!isMobilePanelOpen)}
+        className="md:hidden fixed top-1/2 -translate-y-1/2 right-0 z-40 bg-background border border-foreground/10 rounded-l-lg p-2 shadow-lg hover:bg-foreground/5 transition-colors"
+        title="Toggle Panel"
+      >
+        {isMobilePanelOpen ? (
+          <ChevronRight className="w-4 h-4" />
+        ) : (
+          <ChevronLeft className="w-4 h-4" />
+        )}
+      </button>
+      
+      {/* Mobile Panel Overlay */}
+      {isMobilePanelOpen && (
+        <>
+          <div 
+            className="md:hidden fixed inset-0 bg-black/50 z-40" 
+            onClick={() => setIsMobilePanelOpen(false)}
+          />
+          <div 
+            id="mobile-panel"
+            className="md:hidden fixed right-0 top-0 h-full w-80 bg-background border-l border-foreground/10 flex flex-col z-50 transform translate-x-0 transition-transform duration-300"
+          >
+            <div className="p-2 border-b border-foreground/10 flex items-center justify-between">
+              <div className="flex gap-1 flex-1">
+                {panels.map((panel) => {
+                  const Icon = panel.icon
+                  return (
+                    <button
+                      key={panel.id}
+                      onClick={() => setActivePanel(panel.id)}
+                      className={cn(
+                        "flex-1 flex items-center justify-center p-2 rounded text-xs font-medium transition-colors",
+                        activePanel === panel.id
+                          ? "bg-primary/10 text-primary"
+                          : "hover:bg-foreground/5 text-foreground/70 hover:text-foreground"
+                      )}
+                      title={panel.label}
+                    >
+                      <Icon className="w-4 h-4" />
+                    </button>
+                  )
+                })}
+              </div>
+              <button
+                onClick={() => setIsMobilePanelOpen(false)}
+                className="ml-2 p-1 rounded hover:bg-foreground/5 transition-colors"
+                title="Close Panel"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            
+            <div className="flex-1 overflow-auto">
+              <ActivePanelComponent />
+            </div>
+          </div>
+        </>
+      )}
+    </>
   )
 } 

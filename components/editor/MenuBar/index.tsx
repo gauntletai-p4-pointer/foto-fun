@@ -127,8 +127,8 @@ export function MenuBar() {
   
   return (
     <>
-      <div className="h-8 bg-background border-b border-foreground/10 flex items-center px-2 text-sm text-foreground">
-        <div className="flex gap-4">
+      <div className="h-8 bg-background border-b border-foreground/10 flex items-center px-2 text-sm text-foreground overflow-x-auto">
+        <div className="flex gap-2 md:gap-4 flex-shrink-0">
           <DropdownMenu>
             <DropdownMenuTrigger className="hover:text-foreground/80 outline-none">
               File
@@ -372,9 +372,9 @@ export function MenuBar() {
         </div>
         
         {/* Document title in center */}
-        <div className="flex-1 text-center">
+        <div className="flex-1 text-center min-w-0 mx-2">
           {currentDocument && (
-            <span className="text-foreground/60">
+            <span className="text-foreground/60 text-xs sm:text-sm truncate block">
               {currentDocument.name}
               {hasUnsavedChanges && ' •'}
             </span>

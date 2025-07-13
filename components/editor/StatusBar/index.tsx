@@ -8,13 +8,13 @@ export function StatusBar() {
   const { zoom } = useCanvasStore()
   
   return (
-    <div className="h-6 bg-background border-t border-foreground/10 flex items-center px-4 text-xs text-foreground/60">
-      <div className="flex items-center gap-4">
+    <div className="h-6 bg-background border-t border-foreground/10 flex items-center px-2 md:px-4 text-xs text-foreground/60 overflow-x-auto">
+      <div className="flex items-center gap-2 md:gap-4 flex-shrink-0">
         {currentDocument && (
           <>
-            <span>{currentDocument.width} × {currentDocument.height}px</span>
-            <span>·</span>
-            <span>{Math.round(zoom * 100)}%</span>
+            <span className="whitespace-nowrap">{currentDocument.width} × {currentDocument.height}px</span>
+            <span className="hidden sm:inline">·</span>
+            <span className="whitespace-nowrap">{Math.round(zoom * 100)}%</span>
           </>
         )}
       </div>
