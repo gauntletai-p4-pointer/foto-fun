@@ -77,7 +77,7 @@ export class EventToolStore extends BaseStore<ToolStoreState> {
     private readonly eventBus: TypedEventBus,
     private readonly toolFactory: ToolFactory,
     private readonly toolRegistry: ToolRegistry,
-    private readonly canvasManager: CanvasManager
+    private canvasManager: CanvasManager | null
   ) {
     super({
       activeToolId: null,
@@ -85,6 +85,13 @@ export class EventToolStore extends BaseStore<ToolStoreState> {
       isActivating: false,
       toolHistory: []
     }, eventStore);
+  }
+
+  /**
+   * Set the canvas manager when it becomes available
+   */
+  setCanvasManager(canvasManager: CanvasManager): void {
+    this.canvasManager = canvasManager;
   }
 
   /**
@@ -100,6 +107,11 @@ export class EventToolStore extends BaseStore<ToolStoreState> {
     const currentState = this.getState();
     if (currentState.activeToolId === toolId || currentState.isActivating) {
       return;
+    }
+
+    if (!this.canvasManager) {
+      console.error('[EventToolStore] Cannot activate tool: CanvasManager not available');
+      throw new Error('CanvasManager not initialized');
     }
 
     this.setState(state => ({ ...state, isActivating: true }));
@@ -196,7 +208,7 @@ export class EventToolStore extends BaseStore<ToolStoreState> {
           timestamp: Date.now()
         });
         
-        await this.activeTool.onDeactivate(this.canvasManager);
+        await this.activeTool.onDeactivate(this.canvasManager!);
         
         // Emit inactive state event (tool handles internal state)
         this.eventBus.emit('tool.state.changed', {

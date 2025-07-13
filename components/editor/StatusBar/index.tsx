@@ -5,6 +5,8 @@ import { useStore } from '@/lib/store/base/BaseStore'
 import { EventSelectionStore } from '@/lib/store/selection/EventSelectionStore'
 import { TypedCanvasStore, useCanvasStore } from '@/lib/store/canvas/TypedCanvasStore'
 import { ObjectManager } from '@/lib/editor/canvas/services/ObjectManager'
+import { EventToolStore } from '@/lib/store/tools/EventToolStore'
+import { ToolRegistry } from '@/lib/editor/tools/base/ToolRegistry'
 import { useEffect, useState } from 'react'
 
 export function StatusBar() {
@@ -13,6 +15,9 @@ export function StatusBar() {
   const selectionStore = useService<EventSelectionStore>('SelectionStore')
   const selectionState = useStore(selectionStore)
   const objectManager = useService<ObjectManager>('ObjectManager')
+  const toolStore = useService<EventToolStore>('ToolStore')
+  const toolState = useStore(toolStore) // This will now properly subscribe to changes
+  const toolRegistry = useService<ToolRegistry>('ToolRegistry')
   
   // Track object count
   const [objectCount, setObjectCount] = useState(0)
@@ -50,9 +55,22 @@ export function StatusBar() {
     return `${selectedObjects.length} objects selected`
   }
   
+  // Get active tool info - now properly reactive to tool state changes
+  const getActiveToolInfo = () => {
+    if (!toolState.activeToolId) return null
+    const toolClass = toolRegistry.getToolClass(toolState.activeToolId)
+    return toolClass?.metadata.name || toolState.activeToolId
+  }
+
   return (
     <div className="h-6 bg-background border-t border-foreground/10 flex items-center px-4 text-xs text-foreground">
       <div className="flex items-center gap-4">
+        {getActiveToolInfo() && (
+          <>
+            <span className="font-medium">{getActiveToolInfo()}</span>
+            <span>·</span>
+          </>
+        )}
         <span>{objectCount} {objectCount === 1 ? 'object' : 'objects'}</span>
         {selectionState.selectedObjectIds.size > 0 && (
           <>

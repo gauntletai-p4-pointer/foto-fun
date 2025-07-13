@@ -3,8 +3,8 @@ import { type ToolEvent } from '../../../events/canvas/ToolEvents';
 import { type CanvasManager } from '../../canvas/CanvasManager';
 import { type CanvasObject } from '../../objects/types';
 import { type ToolMetadata } from '../base/ToolRegistry';
-import * as React from 'react';
 import Konva from 'konva';
+import { Brush } from 'lucide-react';
 
 export interface BrushToolOptions extends ToolOptions {
   size: number;
@@ -419,8 +419,8 @@ export class BrushTool extends BaseTool<BrushToolOptions> {
       name: 'Brush',
       description: 'Paint pixels directly on image objects',
       category: 'drawing',
-      groupId: 'drawing-tools',
-      icon: () => React.createElement('div', { className: 'tool-icon brush-icon' }),
+      groupId: 'drawing-group',
+      icon: Brush,
       cursor: 'crosshair',
       shortcut: 'B',
       priority: 1

@@ -45,8 +45,31 @@ export function Canvas() {
       
       setCanvasManager(manager)
       
-      // Register the active CanvasManager instance in the container
-      container.updateInstance('CanvasManager', manager)
+              // Register the active CanvasManager instance in the container
+        container.updateInstance('CanvasManager', manager)
+        
+        // Update the ToolStore with the canvas manager and activate default tool
+        if (toolStore) {
+          console.log('[Canvas] Setting CanvasManager in ToolStore and activating default tool')
+          toolStore.setCanvasManager(manager)
+          
+          // Activate default tool if none is active - with error handling
+          const currentActiveToolId = toolStore.getActiveToolId()
+          if (!currentActiveToolId) {
+            // Try to activate move tool first, fallback to any available tool
+            toolStore.activateTool('move').catch(error => {
+              console.warn('[Canvas] Failed to activate move tool, trying crop:', error);
+              return toolStore.activateTool('crop');
+            }).catch(error => {
+              console.warn('[Canvas] Failed to activate crop tool, trying brush:', error);
+              return toolStore.activateTool('brush');
+            }).catch(error => {
+              console.error('[Canvas] Failed to activate any default tool:', error);
+            });
+          }
+        } else {
+          console.warn('[Canvas] ToolStore not available yet')
+        }
       
       // Canvas is always ready - no document needed
       
@@ -64,6 +87,8 @@ export function Canvas() {
       
       // Clear the CanvasManager from the container
       container.updateInstance('CanvasManager', null)
+      
+      // Note: ToolStore will handle cleanup when canvasManager is destroyed
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canvasFactory, loading, canvasStore, toolStore, eventBus, container])
@@ -482,9 +507,10 @@ export function Canvas() {
   return (
     <div
       ref={containerRef}
-      className="w-full h-full bg-[color:var(--content-background)]"
+      className="w-full h-full bg-[color:var(--content-background)] overflow-hidden"
       onDrop={handleDrop}
       onDragOver={handleDragOver}
+      data-canvas-container
     >
       {/* Canvas will be mounted here by Konva */}
     </div>

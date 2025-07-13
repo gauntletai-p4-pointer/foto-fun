@@ -1,3 +1,7 @@
+You are the senior product engineer responsible for implementing new features into our codebase. You must adhere 100% to existing patterns and architecture. We need 100% consistency and the most senior level of code. No hard coding css variables, no making assumptions, no inconsistent patterns.
+
+We are creating a browser-based, ai-native photoshop alternative with the granular controls of photoshop (direct pixel manipulations), with the ui/ux of figma (objectts), with the power of AI (agents/chat with ai sdk v5 and replicate cloud api calls).
+
 # Agent 3: Object Creation Tools Implementation
 
 ## 🎯 Mission Overview

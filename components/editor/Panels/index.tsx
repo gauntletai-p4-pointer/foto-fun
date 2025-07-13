@@ -51,8 +51,21 @@ export function Panels() {
     })
   }, [mounted])
   
-  // Set initial panel
+  // Set initial panel - determine the best default upfront
   const [activePanel, setActivePanel] = useState<PanelType>(() => {
+    // Check if AI feature is likely to be available (optimistic)
+    // This prevents the layout shift by making the right choice upfront
+    if (typeof window !== 'undefined') {
+      // Client-side: we can check features
+      try {
+        const aiAvailable = allPanels.find(p => p.id === 'ai' && (!p.feature || featureManager.isFeatureEnabled(p.feature as Feature)))
+        if (aiAvailable) {
+          return 'ai'
+        }
+      } catch {
+        // Feature manager not ready, fall back to objects
+      }
+    }
     // Default to objects which is always available
     return 'objects'
   })
@@ -62,20 +75,24 @@ export function Panels() {
     setMounted(true)
   }, [])
   
-  // Set AI as default panel only once after mount if available
+  // Only adjust panel selection if the current selection is not available
   useEffect(() => {
     if (mounted && panels.length > 0) {
-      const aiPanel = panels.find(p => p.id === 'ai')
-      if (aiPanel) {
-        setActivePanel('ai')
+      const currentPanelAvailable = panels.find(p => p.id === activePanel)
+      if (!currentPanelAvailable) {
+        // Current panel is not available, switch to first available
+        const firstAvailable = panels[0]
+        if (firstAvailable) {
+          setActivePanel(firstAvailable.id)
+        }
       }
     }
-  }, [mounted, panels]) // Include panels dependency
+  }, [mounted, panels, activePanel]) // Include activePanel dependency
   
   const ActivePanelComponent = panels.find(p => p.id === activePanel)?.component || ObjectsPanel
   
   return (
-    <div className="w-80 bg-background border-l border-foreground/10 flex flex-col h-full flex-shrink-0 overflow-hidden">
+    <div className="w-full h-full bg-background border-l border-foreground/10 flex flex-col overflow-hidden">
       <div className="p-2 border-b border-foreground/10 flex-shrink-0">
         <div className="flex gap-1">
           {panels.map((panel) => {

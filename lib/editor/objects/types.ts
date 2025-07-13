@@ -68,6 +68,8 @@ export interface ImageData {
   naturalWidth: number
   naturalHeight: number
   element: HTMLImageElement | HTMLCanvasElement
+  cropX?: number
+  cropY?: number
 }
 
 export interface TextData {

@@ -45,6 +45,8 @@
   --popover-foreground: #1A1A1A;
   --muted: rgb(26 26 26 / 0.5);
   --muted-foreground: rgb(26 26 26 / 0.7);
+  --accent: rgb(26 26 26 / 0.04);
+  --accent-foreground: #1A1A1A;
 
   /* === TOOL PALETTE COLORS === */
   --tool-inactive: rgb(26 26 26 / 0.6);

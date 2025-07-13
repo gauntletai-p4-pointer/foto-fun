@@ -1,11 +1,36 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { createPortal } from 'react-dom';
-import { cn } from '@/lib/utils';
-import { useServiceContainer } from '@/lib/core/AppInitializer';
-import type { EventToolStore } from '@/lib/store/tools/EventToolStore';
-import type { ToolRegistry } from '@/lib/editor/tools/base/ToolRegistry';
-import type { ToolGroupMetadata } from '@/lib/editor/tools/base/ToolGroup';
-import { Check, ChevronRight } from 'lucide-react';
+'use client'
+
+import React, { useState, useEffect, useRef, useMemo } from 'react'
+import { createPortal } from 'react-dom'
+import { Check } from 'lucide-react'
+import { cn } from '@/lib/utils'
+import { useServiceContainer, useAsyncService } from '@/lib/core/AppInitializer'
+import { useStore, BaseStore } from '@/lib/store/base/BaseStore'
+import type { EventToolStore } from '@/lib/store/tools/EventToolStore'
+import type { ToolRegistry } from '@/lib/editor/tools/base/ToolRegistry'
+import type { ToolGroupMetadata } from '@/lib/editor/tools/base/ToolGroup'
+import type { Event } from '@/lib/events/core/Event'
+import { EventStore } from '@/lib/events/core/EventStore'
+
+// Define the ToolStoreState interface to match EventToolStore
+interface ToolStoreState {
+  activeToolId: string | null;
+  previousToolId: string | null;
+  isActivating: boolean;
+  toolHistory: string[];
+}
+
+// Create a null store class for when the real ToolStore isn't available yet
+class NullToolStore extends BaseStore<ToolStoreState> {
+  constructor() {
+    const nullEventStore = new EventStore({ persistence: false, indexing: false });
+    super({ activeToolId: null, previousToolId: null, isActivating: false, toolHistory: [] }, nullEventStore);
+  }
+  
+  protected getEventHandlers(): Map<string, (event: Event) => void> {
+    return new Map();
+  }
+}
 
 // Helper to render icon with className support
 const renderIcon = (IconComponent: React.ComponentType<{ className?: string }>, className?: string) => {
@@ -24,35 +49,36 @@ interface DropdownPosition {
 export function ToolPalette({ className }: ToolPaletteProps) {
   const [mounted, setMounted] = useState(false);
   const [toolGroups, setToolGroups] = useState<ToolGroupMetadata[]>([]);
-  const [activeToolId, setActiveToolId] = useState<string | null>(null);
   const [expandedGroup, setExpandedGroup] = useState<string | null>(null);
   const [dropdownPosition, setDropdownPosition] = useState<DropdownPosition | null>(null);
-  const [isActivating, setIsActivating] = useState(false);
   
   const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const serviceContainer = useServiceContainer();
-  const toolStoreRef = useRef<EventToolStore | null>(null);
   const toolRegistryRef = useRef<ToolRegistry | null>(null);
+  
+  // Use proper async service loading and store subscription
+  const { service: toolStore } = useAsyncService<EventToolStore>('ToolStore');
+  
+  // Create a stable null store instance
+  const nullStore = useMemo(() => new NullToolStore(), []);
+  
+  // Always call useStore with a valid store (either real or null store)
+  const toolState = useStore(toolStore || nullStore);
+  
+  // Get active tool ID from store state (with fallbacks)
+  const activeToolId = toolStore ? toolState?.activeToolId || null : null;
+  const isActivating = toolStore ? toolState?.isActivating || false : false;
 
   // Initialize services
   useEffect(() => {
     const initServices = async () => {
       try {
-        const [toolStore, toolRegistry] = await Promise.all([
-          serviceContainer.get<EventToolStore>('ToolStore'),
-          serviceContainer.get<ToolRegistry>('ToolRegistry')
-        ]);
-        
-        toolStoreRef.current = toolStore;
+        const toolRegistry = await serviceContainer.get<ToolRegistry>('ToolRegistry');
         toolRegistryRef.current = toolRegistry;
         
         // Load tool groups
         const groups = toolRegistry.getToolGroups();
         setToolGroups(groups);
-        
-        // Set initial active tool
-        const initialActiveToolId = toolStore.getActiveToolId();
-        setActiveToolId(initialActiveToolId);
         
         setMounted(true);
       } catch (error) {
@@ -63,26 +89,6 @@ export function ToolPalette({ className }: ToolPaletteProps) {
     initServices();
   }, [serviceContainer]);
 
-  // Listen for tool state changes
-  useEffect(() => {
-    if (!toolStoreRef.current) return;
-
-    const toolStore = toolStoreRef.current;
-    
-    const handleToolStateChange = () => {
-      const newActiveToolId = toolStore.getActiveToolId();
-      setActiveToolId(newActiveToolId);
-      setIsActivating(toolStore.getState().isActivating);
-    };
-
-    // Subscribe to tool store state changes
-    const unsubscribe = toolStore.subscribe(handleToolStateChange);
-    
-    return () => {
-      unsubscribe();
-    };
-  }, [mounted]);
-
   // Handle group hover for dropdown
   const handleGroupHover = (groupId: string, element: HTMLElement) => {
     if (hoverTimeoutRef.current) {
@@ -90,7 +96,15 @@ export function ToolPalette({ className }: ToolPaletteProps) {
     }
 
     const group = toolGroups.find(g => g.id === groupId);
-    if (!group || group.tools.length <= 1) return;
+    if (!group) return;
+    
+    // Get implemented tools in this group
+    const implementedTools = group.tools.filter(toolId => 
+      toolRegistryRef.current?.hasToolClass(toolId)
+    );
+    
+    // Only show dropdown if there are multiple implemented tools
+    if (implementedTools.length <= 1) return;
 
     hoverTimeoutRef.current = setTimeout(() => {
       const rect = element.getBoundingClientRect();
@@ -107,6 +121,12 @@ export function ToolPalette({ className }: ToolPaletteProps) {
       clearTimeout(hoverTimeoutRef.current);
       hoverTimeoutRef.current = null;
     }
+    
+    // Set timeout to close dropdown if mouse doesn't enter dropdown
+    hoverTimeoutRef.current = setTimeout(() => {
+      setExpandedGroup(null);
+      setDropdownPosition(null);
+    }, 100); // Small delay to allow mouse to move to dropdown
   };
 
   const handleDropdownEnter = () => {
@@ -123,45 +143,76 @@ export function ToolPalette({ className }: ToolPaletteProps) {
     setDropdownPosition(null);
   };
 
-  // Handle group click (activate default or last used tool)
-  const handleGroupClick = async (groupId: string) => {
-    if (!toolStoreRef.current || isActivating) return;
+  // Handle group click
+  const handleGroupClick = async (groupId: string, event: React.MouseEvent<HTMLButtonElement>) => {
+    if (!toolStore || isActivating) return;
 
-    try {
-      setIsActivating(true);
-      await toolStoreRef.current.activateToolGroup(groupId);
-      
-      // Close dropdown after activation
-      setExpandedGroup(null);
-      setDropdownPosition(null);
-    } catch (error) {
-      console.error('Failed to activate tool group:', error);
-    } finally {
-      setIsActivating(false);
+    const group = toolGroups.find(g => g.id === groupId);
+    if (!group) return;
+    
+    // Get implemented tools in this group
+    const implementedTools = group.tools.filter(toolId => 
+      toolRegistryRef.current?.hasToolClass(toolId)
+    );
+    
+    // If multiple tools, show dropdown instead of activating
+    if (implementedTools.length > 1) {
+      const rect = event.currentTarget.getBoundingClientRect();
+      const position = {
+        top: rect.top,
+        left: rect.right + 8
+      };
+      setDropdownPosition(position);
+      setExpandedGroup(groupId);
+      return;
+    }
+
+    // If only one tool, activate it directly
+    if (implementedTools.length === 1) {
+      try {
+        await toolStore.activateTool(implementedTools[0]);
+        
+        // Close dropdown after activation
+        setExpandedGroup(null);
+        setDropdownPosition(null);
+      } catch (error) {
+        console.error('[ToolPalette] Failed to activate tool:', error);
+      } finally {
+      }
+    } else {
+      // No implemented tools in group - try default tool anyway
+      try {
+        await toolStore.activateTool(group.defaultTool);
+        
+        // Close dropdown after activation
+        setExpandedGroup(null);
+        setDropdownPosition(null);
+      } catch (error) {
+        console.error('[ToolPalette] Failed to activate default tool:', error);
+      } finally {
+      }
     }
   };
 
   // Handle specific tool selection
   const handleToolSelect = async (toolId: string) => {
-    if (!toolStoreRef.current || isActivating) return;
+    if (!toolStore || isActivating) return;
 
     try {
-      setIsActivating(true);
-      await toolStoreRef.current.activateTool(toolId);
+      await toolStore.activateTool(toolId);
       
       // Close dropdown after activation
       setExpandedGroup(null);
       setDropdownPosition(null);
     } catch (error) {
-      console.error('Failed to activate tool:', error);
+      console.error('[ToolPalette] Failed to activate tool:', toolId, error);
     } finally {
-      setIsActivating(false);
     }
   };
 
   // Get current tool for a group (active tool if in group, or last used/default)
   const getCurrentGroupTool = (group: ToolGroupMetadata): { id: string; icon: React.ComponentType } => {
-    if (!toolStoreRef.current || !toolRegistryRef.current) {
+    if (!toolStore || !toolRegistryRef.current) {
       return {
         id: group.defaultTool,
         icon: group.icon
@@ -178,8 +229,8 @@ export function ToolPalette({ className }: ToolPaletteProps) {
     }
 
     // Otherwise use last used tool in group or default
-    const lastUsed = toolStoreRef.current.getLastUsedToolInGroup(group.id);
-    if (lastUsed) {
+    const lastUsed = toolStore.getLastUsedToolInGroup(group.id);
+    if (lastUsed && toolRegistryRef.current.hasToolClass(lastUsed)) {
       const toolClass = toolRegistryRef.current.getToolClass(lastUsed);
       return {
         id: lastUsed,
@@ -208,7 +259,14 @@ export function ToolPalette({ className }: ToolPaletteProps) {
     if (!mounted || !expandedGroup || !dropdownPosition) return null;
     
     const group = toolGroups.find(g => g.id === expandedGroup);
-    if (!group || group.tools.length <= 1) return null;
+    if (!group) return null;
+    
+    // Only show implemented tools in dropdown
+    const implementedTools = group.tools.filter(toolId => 
+      toolRegistryRef.current?.hasToolClass(toolId)
+    );
+    
+    if (implementedTools.length <= 1) return null;
 
     const currentTool = getCurrentGroupTool(group);
 
@@ -228,13 +286,13 @@ export function ToolPalette({ className }: ToolPaletteProps) {
         </div>
         
         {/* Tool options */}
-        {group.tools.map(toolId => {
+        {implementedTools.map(toolId => {
           const toolClass = toolRegistryRef.current?.getToolClass(toolId);
           const isActive = toolId === activeToolId;
           const isSelected = toolId === currentTool.id;
           const implemented = isToolImplemented(toolId);
           
-          if (!toolClass) return null;
+          if (!toolClass || !implemented) return null;
           
           const ToolIcon = toolClass.metadata.icon;
           
@@ -245,9 +303,9 @@ export function ToolPalette({ className }: ToolPaletteProps) {
                 "w-full flex items-center gap-2 px-2 py-2 text-sm rounded transition-colors text-left",
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
                 isActive 
-                  ? "bg-muted text-foreground" 
+                  ? "bg-foreground/10 text-foreground" 
                   : implemented
-                    ? "text-popover-foreground hover:bg-accent hover:text-accent-foreground"
+                    ? "text-popover-foreground hover:bg-foreground/10 hover:text-foreground"
                     : "text-muted-foreground cursor-not-allowed opacity-50"
               )}
               onClick={() => implemented && handleToolSelect(toolId)}
@@ -280,7 +338,12 @@ export function ToolPalette({ className }: ToolPaletteProps) {
       {toolGroups.map(group => {
         const currentTool = getCurrentGroupTool(group);
         const isActive = isGroupActive(group);
-        const hasMultipleTools = group.tools.length > 1;
+        
+        // Check implemented tools in this group
+        const implementedTools = group.tools.filter(toolId => 
+          toolRegistryRef.current?.hasToolClass(toolId)
+        );
+        const hasMultipleImplementedTools = implementedTools.length > 1;
         const implemented = isToolImplemented(currentTool.id);
         
         // Determine which icon to show
@@ -292,21 +355,28 @@ export function ToolPalette({ className }: ToolPaletteProps) {
               className={cn(
                 "w-10 h-10 flex items-center justify-center rounded-md transition-all relative group",
                 isActive 
-                  ? "bg-muted text-foreground" 
+                  ? "bg-foreground/10 text-foreground" 
                   : implemented
-                    ? "text-foreground hover:bg-muted"
-                    : "text-foreground/50 cursor-not-allowed"
+                    ? "text-foreground hover:bg-foreground/10"
+                    : "text-foreground/30 cursor-not-allowed"
               )}
-              onClick={() => handleGroupClick(group.id)}
-              onMouseEnter={(e) => handleGroupHover(group.id, e.currentTarget)}
+              onClick={(e) => handleGroupClick(group.id, e)}
+              onMouseEnter={(e) => {
+                // Clear any pending close timeout
+                if (hoverTimeoutRef.current) {
+                  clearTimeout(hoverTimeoutRef.current);
+                  hoverTimeoutRef.current = null;
+                }
+                handleGroupHover(group.id, e.currentTarget);
+              }}
               onMouseLeave={handleGroupLeave}
               disabled={!implemented || isActivating}
             >
                              {renderIcon(IconToShow, "w-5 h-5 stroke-[1.5]")}
               
               {/* Multiple tools indicator */}
-              {hasMultipleTools && (
-                <ChevronRight className="w-2 h-2 absolute bottom-0.5 right-0.5 opacity-60" />
+              {hasMultipleImplementedTools && (
+                <span className="w-2 h-2 absolute bottom-0.5 right-0.5 opacity-60 text-xs">▶</span>
               )}
               
               {/* Loading indicator */}

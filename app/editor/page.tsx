@@ -27,7 +27,7 @@ const Canvas = dynamic(
 
 function LoadingFallback() {
   return (
-    <div className="h-screen flex items-center justify-center bg-background text-foreground">
+    <div className="flex-1 flex items-center justify-center bg-content-background min-w-0">
       <div className="text-center">
         <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-foreground/20 mx-auto mb-2"></div>
         <p className="text-sm text-foreground/60">Loading canvas...</p>
@@ -98,9 +98,18 @@ function EditorContent() {
       <MenuBar />
       <OptionsBar />
       <div className="flex-1 flex overflow-hidden min-h-0">
-        <ToolPalette />
-        <Canvas />
-        <Panels />
+        {/* Fixed width tool palette */}
+        <div className="w-12 flex-shrink-0">
+          <ToolPalette />
+        </div>
+        {/* Flexible canvas area */}
+        <div className="flex-1 min-w-0">
+          <Canvas />
+        </div>
+        {/* Fixed width panels */}
+        <div className="w-80 flex-shrink-0">
+          <Panels />
+        </div>
       </div>
       <StatusBar />
       <ImageGenerationDialog />

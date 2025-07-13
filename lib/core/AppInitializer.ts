@@ -24,6 +24,9 @@ import { EventToolOptionsStore } from '@/lib/store/tools/EventToolOptionsStore'
 
 // Managers
 import { FontManager } from '@/lib/editor/fonts/FontManager'
+import { CommandManager } from '@/lib/editor/commands/CommandManager'
+import { ServiceCommandFactory } from '@/lib/editor/commands/base/CommandFactory'
+import { SelectionManager } from '@/lib/editor/selection/SelectionManager'
 import { ToolFactory } from '@/lib/editor/tools/base/ToolFactory'
 import { registerCoreTools } from '@/lib/editor/tools/registration'
 
@@ -206,6 +209,33 @@ export class AppInitializer {
         phase: 'infrastructure'
       })
       
+      // Command System
+      container.registerSingleton('CommandFactory', () => 
+        new ServiceCommandFactory(container), {
+        dependencies: [], // Dependencies are resolved within the factory from the container
+        phase: 'infrastructure'
+      })
+
+      container.registerSingleton('CommandManager', () => 
+        new CommandManager(
+          container.getSync('EventStore'),
+          container.getSync('TypedEventBus'),
+          container.getSync('HistoryStore'),
+          { validation: true, metrics: true }
+        ), {
+        dependencies: ['EventStore', 'TypedEventBus', 'HistoryStore'],
+        phase: 'infrastructure'
+      })
+
+      container.registerSingleton('SelectionManager', () =>
+        new SelectionManager(
+          container.getSync('CanvasManager'),
+          container.getSync('TypedEventBus')
+        ), {
+        dependencies: ['CanvasManager', 'TypedEventBus'],
+        phase: 'infrastructure'
+      })
+      
       // Font System
       container.registerSingleton('FontManager', () => 
         new FontManager(
@@ -256,7 +286,7 @@ export class AppInitializer {
         const eventBus = container.getSync<TypedEventBus>('TypedEventBus');
         const toolFactory = await container.get<ToolFactory>('ToolFactory');
         const toolRegistry = await container.get<ToolRegistry>('ToolRegistry');
-        const canvasManager = container.getSync<CanvasManager>('CanvasManager'); // This might be null initially
+        const canvasManager = container.getSync<CanvasManager | null>('CanvasManager'); // This might be null initially
         
         const store = new EventToolStore(
           container.getSync('EventStore'),

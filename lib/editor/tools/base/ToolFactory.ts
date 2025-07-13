@@ -1,4 +1,6 @@
 import type { ServiceContainer } from '@/lib/core/ServiceContainer';
+import type { ToolRegistry } from './ToolRegistry';
+import type { BaseTool, ToolDependencies } from './BaseTool';
 import type { TypedEventBus } from '@/lib/events/core/TypedEventBus';
 import type { CanvasManager } from '@/lib/editor/canvas/CanvasManager';
 import type { CommandManager } from '@/lib/editor/commands/CommandManager';
@@ -8,8 +10,6 @@ import type { ObjectManager } from '@/lib/editor/canvas/services/ObjectManager';
 import type { EventBasedHistoryStore as HistoryManager } from '@/lib/events/history/EventBasedHistoryStore';
 import type { EventToolOptionsStore } from '@/lib/store/tools/EventToolOptionsStore';
 import type { CommandFactory } from '@/lib/editor/commands/base/CommandFactory';
-import { ToolRegistry } from './ToolRegistry';
-import { BaseTool, type ToolDependencies } from './BaseTool';
 
 /**
  * Tool factory that creates fresh tool instances with proper dependency injection.
@@ -30,7 +30,7 @@ export class ToolFactory {
       throw new Error(`Tool ${toolId} not registered`);
     }
 
-    const dependencies = this.resolveDependencies();
+    const dependencies = await this.resolveDependencies();
     const tool = new toolClass.ToolClass(toolId, dependencies);
     
     return tool;
@@ -38,12 +38,25 @@ export class ToolFactory {
 
   /**
    * Resolve all mandatory dependencies for tools
+   * Now handles async resolution and null dependencies gracefully
    */
-  private resolveDependencies(): ToolDependencies {
-    // All dependencies are mandatory - use strict getSync for all
+  private async resolveDependencies(): Promise<ToolDependencies> {
+    // Get CanvasManager - this might be null initially
+    let canvasManager: CanvasManager | null = null;
+    try {
+      canvasManager = this.container.getSync<CanvasManager>('CanvasManager');
+    } catch (_error) {
+      console.warn('[ToolFactory] CanvasManager not available yet, will be set later');
+    }
+
+    if (!canvasManager) {
+      throw new Error('CanvasManager not available - cannot create tools yet');
+    }
+
+    // Resolve other dependencies with proper error handling
     const dependencies: ToolDependencies = {
       eventBus: this.container.getSync<TypedEventBus>('TypedEventBus'),
-      canvasManager: this.container.getSync<CanvasManager>('CanvasManager'),
+      canvasManager,
       commandManager: this.container.getSync<CommandManager>('CommandManager'),
       resourceManager: this.container.getSync<ResourceManager>('ResourceManager'),
       selectionManager: this.container.getSync<SelectionManager>('SelectionManager'),

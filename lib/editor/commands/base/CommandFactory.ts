@@ -24,6 +24,7 @@ import { CreateBrushStrokeCommand } from '../drawing/CreateBrushStrokeCommand'
 import { CompositeCommand } from './CompositeCommand'
 import { CropCommand, type CropOptions } from '../canvas/CropCommand'
 import { UpdateImageDataCommand, type UpdateImageDataOptions } from '../canvas/UpdateImageDataCommand'
+import { CropObjectCommand, type CropData } from '../object/CropObjectCommand'
 
 /**
  * Command Factory Pattern with Dependency Injection
@@ -37,6 +38,7 @@ export interface CommandFactory {
   createGroupObjectsCommand(objectIds: string[], groupName?: string): GroupObjectsCommand
   createUngroupObjectsCommand(groupId: string): UngroupObjectsCommand
   createReorderObjectsCommand(objectIds: string[], direction: ReorderDirection): ReorderObjectsCommand
+  createCropObjectCommand(objectId: string, newCrop: Partial<CropData>, oldCrop: Partial<CropData>): CropObjectCommand
 
   // Text commands
   createAddTextCommand(text: string, position: { x: number; y: number }, style?: Partial<TextData>): AddTextCommand
@@ -143,6 +145,15 @@ export class ServiceCommandFactory implements CommandFactory {
       `Move objects ${direction}`,
       this.createCommandContext(),
       { objectIds, direction }
+    )
+  }
+
+  createCropObjectCommand(objectId: string, newCrop: Partial<CropData>, oldCrop: Partial<CropData>): CropObjectCommand {
+    return new CropObjectCommand(
+      objectId,
+      newCrop,
+      oldCrop,
+      this.createCommandContext()
     )
   }
 
