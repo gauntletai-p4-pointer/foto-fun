@@ -67,6 +67,17 @@ export async function POST(req: NextRequest) {
       imageUrl = output[0]
     } else if (typeof output === 'string') {
       imageUrl = output
+    } else if (output instanceof Uint8Array) {
+      // Handle binary image data - convert to base64 data URL
+      console.log('[Generate Image API] Converting binary data to data URL, size:', output.length, 'bytes')
+      
+      // Convert Uint8Array to base64
+      const base64String = Buffer.from(output).toString('base64')
+      
+      // Create data URL - assume PNG format (most common from image generation)
+      imageUrl = `data:image/png;base64,${base64String}`
+      
+      console.log('[Generate Image API] Converted binary data to data URL, length:', imageUrl.length)
     } else {
       console.error('[Generate Image API] Unexpected output format:', typeof output, output)
       return NextResponse.json(

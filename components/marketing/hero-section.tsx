@@ -149,10 +149,10 @@ export function HeroSection() {
                   <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
                   <span>GPU Accelerated</span>
                 </div>
-                <div className="flex items-center gap-2">
+                {/* <div className="flex items-center gap-2">
                   <span className="font-semibold text-foreground">10,000+</span>
                   <span>Active Users</span>
-                </div>
+                </div> */}
               </div>
             </div>
 
