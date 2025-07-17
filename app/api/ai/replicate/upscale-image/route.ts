@@ -62,12 +62,29 @@ export async function POST(req: NextRequest) {
     // Handle output from Real-ESRGAN (usually returns a URL)
     let imageUrl: string
     
-    if (typeof output === 'string') {
+    if (output instanceof Uint8Array) {
+      console.log('[Upscale Image API] Output is Uint8Array (processed by ServerReplicateClient), converting to data URL...')
+      console.log('[Upscale Image API] Binary data size:', output.length, 'bytes')
+      
+      // Convert Uint8Array to base64 data URL
+      const base64 = Buffer.from(output).toString('base64')
+      imageUrl = `data:image/png;base64,${base64}`
+      
+      console.log('[Upscale Image API] Converted to data URL, length:', imageUrl.length)
+      
+    } else if (typeof output === 'string') {
       imageUrl = output
       console.log('[Upscale Image API] Output is string:', imageUrl)
     } else if (Array.isArray(output) && output.length > 0) {
-      imageUrl = output[0]
-      console.log('[Upscale Image API] Output is array, using first element:', imageUrl)
+      // Check if array contains Uint8Array (processed by ServerReplicateClient)
+      if (output[0] instanceof Uint8Array) {
+        console.log('[Upscale Image API] Array contains Uint8Array, converting to data URL...')
+        const base64 = Buffer.from(output[0]).toString('base64')
+        imageUrl = `data:image/png;base64,${base64}`
+      } else {
+        imageUrl = output[0]
+        console.log('[Upscale Image API] Output is array, using first element:', imageUrl)
+      }
     } else if (output instanceof ReadableStream) {
       console.log('[Upscale Image API] Output is ReadableStream, converting to data URL...')
       

@@ -397,7 +397,17 @@ export async function POST(req: NextRequest) {
     // Handle output from Bria remove-background model
     let imageUrl: string
     
-    if (output instanceof ReadableStream) {
+    if (output instanceof Uint8Array) {
+      console.log('[Remove Background API] Output is Uint8Array (processed by ServerReplicateClient), converting to data URL...')
+      console.log('[Remove Background API] Binary data size:', output.length, 'bytes')
+      
+      // Convert Uint8Array to base64 data URL
+      const base64 = Buffer.from(output).toString('base64')
+      imageUrl = `data:image/png;base64,${base64}`
+      
+      console.log('[Remove Background API] Converted to data URL, length:', imageUrl.length)
+      
+    } else if (output instanceof ReadableStream) {
       console.log('[Remove Background API] Output is ReadableStream, converting to data URL...')
       
       // Convert ReadableStream to Buffer
@@ -430,8 +440,15 @@ export async function POST(req: NextRequest) {
       imageUrl = output
       console.log('[Remove Background API] Output is string:', imageUrl)
     } else if (Array.isArray(output) && output.length > 0) {
-      imageUrl = output[0]
-      console.log('[Remove Background API] Output is array, using first element:', imageUrl)
+      // Check if array contains Uint8Array (processed by ServerReplicateClient)
+      if (output[0] instanceof Uint8Array) {
+        console.log('[Remove Background API] Array contains Uint8Array, converting to data URL...')
+        const base64 = Buffer.from(output[0]).toString('base64')
+        imageUrl = `data:image/png;base64,${base64}`
+      } else {
+        imageUrl = output[0]
+        console.log('[Remove Background API] Output is array, using first element:', imageUrl)
+      }
     } else {
       console.error('[Remove Background API] Unexpected output format:', typeof output, output)
       return NextResponse.json(

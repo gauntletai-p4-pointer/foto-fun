@@ -76,7 +76,19 @@ export async function POST(req: NextRequest) {
     // Handle output similarly to remove-background
     let imageUrl: string;
     
-    if (output instanceof ReadableStream) {
+    console.log('[Inpaint API] Raw output type:', typeof output)
+    console.log('[Inpaint API] Raw output constructor:', output?.constructor?.name)
+    
+    if (output instanceof Uint8Array) {
+      console.log('[Inpaint API] Output is Uint8Array (processed by ServerReplicateClient), converting to data URL...')
+      console.log('[Inpaint API] Binary data size:', output.length, 'bytes')
+      
+      // Convert Uint8Array to base64 data URL
+      const base64 = Buffer.from(output).toString('base64');
+      imageUrl = `data:image/png;base64,${base64}`;
+    } else if (output instanceof ReadableStream) {
+      console.log('[Inpaint API] Output is ReadableStream, converting to data URL...')
+      
       // Convert stream to data URL
       const reader = output.getReader();
       const chunks: Uint8Array[] = [];
@@ -97,8 +109,20 @@ export async function POST(req: NextRequest) {
     } else if (typeof output === 'string') {
       imageUrl = output;
     } else if (Array.isArray(output) && output.length > 0) {
-      imageUrl = output[0];
+      // Check if array contains Uint8Array (processed by ServerReplicateClient)
+      if (output[0] instanceof Uint8Array) {
+        console.log('[Inpaint API] Array contains Uint8Array, converting to data URL...')
+        const base64 = Buffer.from(output[0]).toString('base64');
+        imageUrl = `data:image/png;base64,${base64}`;
+      } else {
+        imageUrl = output[0];
+      }
     } else {
+      console.error('[Inpaint API] Unexpected output format:', {
+        type: typeof output,
+        constructor: output?.constructor?.name,
+        output: output
+      });
       throw new Error('Unexpected output format');
     }
     
