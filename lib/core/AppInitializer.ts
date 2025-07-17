@@ -286,7 +286,7 @@ export class AppInitializer {
         const eventBus = container.getSync<TypedEventBus>('TypedEventBus');
         const toolFactory = await container.get<ToolFactory>('ToolFactory');
         const toolRegistry = await container.get<ToolRegistry>('ToolRegistry');
-        const canvasManager = container.getSync<CanvasManager | null>('CanvasManager'); // This might be null initially
+        const canvasManager = container.getSync<CanvasManager>('CanvasManager'); // This might be null initially
         
         const store = new EventToolStore(
           container.getSync('EventStore'),
